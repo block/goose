@@ -679,6 +679,25 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     Ok(result)
 }
 
+pub fn record_response_metadata(usage: &mut ProviderUsage, response: &Value) {
+    usage.response_id = response
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    let finish_reasons = response
+        .get("choices")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|choice| choice.get("finish_reason").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if !finish_reasons.is_empty() {
+        usage.finish_reasons = Some(finish_reasons);
+    }
+}
+
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let output_token_limit_reached = response
@@ -1220,8 +1239,10 @@ where
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
         let mut last_response_id: Option<String> = None;
+        let mut last_finish_reason: Option<String> = None;
         let mut output_token_limit_reached = false;
         let mut output_token_limit_metadata_emitted = false;
+        let mut usage_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1260,14 +1281,22 @@ where
                 }
             }
 
+            if let Some(reason) = chunk.choices.first().and_then(|c| c.finish_reason.clone()) {
+                last_finish_reason = Some(reason);
+            }
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
-            output_token_limit_reached |= chunk
-                .choices
-                .first()
-                .and_then(|choice| choice.finish_reason.as_deref())
-                == Some("length");
+            if let Some(u) = usage.as_mut() {
+                if let Some(reason) = &last_finish_reason {
+                    u.finish_reasons = Some(vec![reason.clone()]);
+                }
+                if let Some(id) = &last_response_id {
+                    u.response_id = Some(id.clone());
+                }
+            }
+            output_token_limit_reached |= last_finish_reason.as_deref() == Some("length");
 
             if chunk.choices.is_empty() {
+                usage_emitted |= usage.is_some();
                 yield (None, usage)
             } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
                 let mut tool_call_data: ToolCallData = HashMap::new();
@@ -1308,8 +1337,17 @@ where
                                 if let Some(id) = &tool_chunk.id {
                                     last_response_id = Some(id.clone());
                                 }
+                                if let Some(reason) = tool_chunk.choices.first().and_then(|c| c.finish_reason.clone()) {
+                                    last_finish_reason = Some(reason);
+                                }
 
-                                if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
+                                if let Some(mut chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
+                                    if let Some(reason) = &last_finish_reason {
+                                        chunk_usage.finish_reasons = Some(vec![reason.clone()]);
+                                    }
+                                    if let Some(id) = &last_response_id {
+                                        chunk_usage.response_id = Some(id.clone());
+                                    }
                                     usage = Some(chunk_usage);
                                 }
 
@@ -1492,6 +1530,7 @@ where
                 msg.metadata.output_token_limit_reached = output_token_limit_reached;
                 output_token_limit_metadata_emitted |= output_token_limit_reached;
 
+                usage_emitted |= usage.is_some();
                 yield (
                     Some(msg),
                     usage,
@@ -1534,18 +1573,19 @@ where
                         msg = msg.with_id(id);
                     }
 
-                    yield (
-                        Some(msg),
-                        if chunk.choices[0].finish_reason.is_some() {
-                            usage
-                        } else {
-                            None
-                        },
-                    )
+                    let final_usage = if chunk.choices[0].finish_reason.is_some() {
+                        usage
+                    } else {
+                        None
+                    };
+                    usage_emitted |= final_usage.is_some();
+                    yield (Some(msg), final_usage)
                 } else if usage.is_some() {
+                    usage_emitted = true;
                     yield (None, usage)
                 }
             } else if usage.is_some() {
+                usage_emitted = true;
                 yield (None, usage)
             }
         }
@@ -1585,7 +1625,17 @@ where
         }
 
         if output_token_limit_reached && !output_token_limit_metadata_emitted {
-            yield (Some(output_token_limit_marker(last_response_id)), None)
+            yield (Some(output_token_limit_marker(last_response_id.clone())), None)
+        }
+
+        if !usage_emitted && (last_response_id.is_some() || last_finish_reason.is_some()) {
+            let mut usage = ProviderUsage::new(
+                last_seen_model.unwrap_or_else(|| "unknown".to_string()),
+                Usage::default(),
+            );
+            usage.response_id = last_response_id;
+            usage.finish_reasons = last_finish_reason.map(|reason| vec![reason]);
+            yield (None, Some(usage))
         }
     }
 }
@@ -2353,6 +2403,26 @@ mod tests {
         assert!(matches!(message.role, Role::Assistant));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_record_response_metadata() {
+        let response = json!({
+            "id": "chatcmpl-123",
+            "choices": [
+                {"finish_reason": "stop"},
+                {"finish_reason": "tool_calls"}
+            ]
+        });
+        let mut usage = ProviderUsage::new("test-model".to_string(), Usage::default());
+
+        record_response_metadata(&mut usage, &response);
+
+        assert_eq!(usage.response_id.as_deref(), Some("chatcmpl-123"));
+        assert_eq!(
+            usage.finish_reasons,
+            Some(vec!["stop".to_string(), "tool_calls".to_string()])
+        );
     }
 
     #[test]
@@ -3223,6 +3293,26 @@ data: [DONE]
     }
 
     #[tokio::test]
+    async fn test_streaming_metadata_without_usage() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-no-usage","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+data: {"id":"chatcmpl-no-usage","model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.usage_count, 1);
+        let usage = result.usage.unwrap();
+        assert_eq!(usage.model, "test-model");
+        assert_eq!(usage.usage, Usage::default());
+        assert_eq!(usage.finish_reasons, Some(vec!["stop".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("chatcmpl-no-usage"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_openrouter_streaming_usage_yielded_once() -> anyhow::Result<()> {
         let response_lines = r#"
 data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
@@ -3239,6 +3329,15 @@ data: [DONE]
 
         assert!(result.has_text_content, "Expected text content in response");
         assert_usage_yielded_once(&result, 7007, 49, 7056);
+        let usage = result.usage.as_ref().unwrap();
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["stop".to_string()][..])
+        );
+        assert_eq!(
+            usage.response_id.as_deref(),
+            Some("gen-1768896871-9HgAQqS1Z72C6gApaidi")
+        );
 
         Ok(())
     }
@@ -3261,6 +3360,15 @@ data: [DONE]
         assert_eq!(
             result.usage.as_ref().map(|usage| usage.model.as_str()),
             Some("gpt-5.2-1106-preview")
+        );
+        let usage = result.usage.as_ref().unwrap();
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["tool_calls".to_string()][..])
+        );
+        assert_eq!(
+            usage.response_id.as_deref(),
+            Some("chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU")
         );
 
         Ok(())

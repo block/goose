@@ -3,10 +3,8 @@ use crate::conversation::message::{
     Message, MessageContent, ToolChainSummary, ToolRequest, TOOL_META_CHAIN_SUMMARY_KEY,
     TOOL_META_TITLE_KEY,
 };
-use crate::model_config::get_fast_model;
 use crate::providers::base::Provider;
 use crate::session::SessionManager;
-use crate::session_context::with_session_id;
 use crate::utils::safe_truncate;
 use goose_providers::model::ModelConfig;
 use serde_json::json;
@@ -41,13 +39,9 @@ pub(crate) async fn generate_tool_title(
     }
 
     let model_config = agent.model_config_for_session(session_id).await.ok()?;
-    let fast_model_config = get_fast_model(provider.get_name(), &model_config)
-        .await
-        .ok()?
-        .with_prompt_cache_disabled();
     let title = generate_tool_title_with_provider(
         provider.as_ref(),
-        &fast_model_config,
+        &model_config,
         session_id,
         tool_request,
     )
@@ -84,14 +78,10 @@ pub(crate) async fn generate_tool_chain_summary(
     }
 
     let model_config = agent.model_config_for_session(session_id).await.ok()?;
-    let fast_model_config = get_fast_model(provider.get_name(), &model_config)
-        .await
-        .ok()?
-        .with_prompt_cache_disabled();
     let chain_summary = ToolChainSummary {
         summary: generate_tool_chain_summary_with_provider(
             provider.as_ref(),
-            &fast_model_config,
+            &model_config,
             session_id,
             &steps,
         )
@@ -204,9 +194,14 @@ async fn complete_label(
     message: &Message,
 ) -> Option<String> {
     for attempt in 0..LABEL_GENERATION_MAX_ATTEMPTS {
-        if let Ok((response, _)) = with_session_id(
-            Some(session_id.to_string()),
-            provider.complete(model_config, system_prompt, from_ref(message), &[]),
+        if let Ok((response, _)) = crate::model_config::complete_fast(
+            provider,
+            model_config,
+            session_id,
+            system_prompt,
+            from_ref(message),
+            &[],
+            false,
         )
         .await
         {
@@ -251,6 +246,7 @@ mod tests {
         outcomes: Mutex<VecDeque<Result<Message, ProviderError>>>,
         calls: AtomicUsize,
         messages: Mutex<Vec<Vec<Message>>>,
+        model_configs: Mutex<Vec<ModelConfig>>,
         manages_own_context: bool,
     }
 
@@ -260,6 +256,7 @@ mod tests {
                 outcomes: Mutex::new(outcomes.into()),
                 calls: AtomicUsize::new(0),
                 messages: Mutex::new(Vec::new()),
+                model_configs: Mutex::new(Vec::new()),
                 manages_own_context: false,
             }
         }
@@ -269,6 +266,7 @@ mod tests {
                 outcomes: Mutex::new(VecDeque::new()),
                 calls: AtomicUsize::new(0),
                 messages: Mutex::new(Vec::new()),
+                model_configs: Mutex::new(Vec::new()),
                 manages_own_context: true,
             }
         }
@@ -279,6 +277,10 @@ mod tests {
 
         fn first_user_message(&self) -> String {
             self.messages.lock().unwrap()[0][0].as_concat_text()
+        }
+
+        fn first_model_config(&self) -> ModelConfig {
+            self.model_configs.lock().unwrap()[0].clone()
         }
     }
 
@@ -300,13 +302,17 @@ mod tests {
 
         async fn complete(
             &self,
-            _model_config: &ModelConfig,
+            model_config: &ModelConfig,
             _system: &str,
             messages: &[Message],
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.messages.lock().unwrap().push(messages.to_vec());
+            self.model_configs
+                .lock()
+                .unwrap()
+                .push(model_config.clone());
             let outcome = self
                 .outcomes
                 .lock()
@@ -410,6 +416,22 @@ mod tests {
 
             assert_eq!(title.as_deref(), Some("checking project status"));
             assert_eq!(provider.call_count(), 1);
+        }
+
+        #[tokio::test]
+        async fn disables_thinking_for_title_generation() {
+            let provider = MockProvider::new(vec![Ok(Message::assistant().with_text("title"))]);
+            let request = tool_request(json!({}));
+            let model_config = ModelConfig::new("test-model")
+                .with_thinking_effort(goose_providers::thinking::ThinkingEffort::High);
+
+            generate_tool_title_with_provider(&provider, &model_config, "session-1", &request)
+                .await;
+
+            assert_eq!(
+                provider.first_model_config().thinking_effort(),
+                Some(goose_providers::thinking::ThinkingEffort::Off),
+            );
         }
 
         #[tokio::test]

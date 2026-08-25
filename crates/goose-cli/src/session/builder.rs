@@ -747,7 +747,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     agent
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
-        .await;
+        .await
+        .unwrap_or_else(|error| {
+            output::render_error(&format!("Invalid recipe response: {error}"));
+            process::exit(1);
+        });
 
     let session_id =
         resolve_session_id(&session_config, &session_manager, agent.config.goose_mode).await;

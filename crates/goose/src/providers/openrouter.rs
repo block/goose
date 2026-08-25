@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
@@ -38,6 +39,9 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
+const GEMINI_SCHEMA_REF_KEY: &str = "$ref";
+const GEMINI_SAFE_SCHEMA_REF_KEY_BASE: &str = "dollar_ref";
+
 #[derive(serde::Serialize)]
 pub struct OpenRouterProvider {
     #[serde(skip)]
@@ -65,7 +69,8 @@ impl OpenRouterProvider {
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
-            .with_header("X-Title", "goose")?;
+            .with_header("X-Title", "goose")?
+            .with_header("X-OpenRouter-Categories", "cli-agent,productivity")?;
 
         Ok(Self {
             api_client,
@@ -99,7 +104,268 @@ fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
 }
 
 fn is_gemini_model(model_name: &str) -> bool {
-    model_name.starts_with("google/")
+    model_name.starts_with("google/gemini")
+}
+
+/// Spans of the literal `$ref` token inside opaque tool text.
+///
+/// Tool results are not required to parse as JSON. Google rejects the token in
+/// single-quoted Python `repr` output, YAML, and unquoted text just as it does
+/// in strict JSON, so matching only well-formed JSON key positions would miss
+/// the reproduction in #11260. A trailing identifier character means the token
+/// is part of a longer name such as `$refs` or `$refresh_token`, which must be
+/// left alone.
+fn scan_schema_ref_tokens(content: &str) -> Vec<Range<usize>> {
+    let mut spans = Vec::new();
+    let mut cursor = 0;
+
+    while cursor < content.len() {
+        if !content.is_char_boundary(cursor) {
+            cursor += 1;
+            continue;
+        }
+
+        match match_schema_ref_at(content, cursor) {
+            Some(end)
+                if !starts_with_escaped_backslash(content, cursor)
+                    && !continues_identifier(content, end) =>
+            {
+                spans.push(cursor..end);
+                cursor = end;
+            }
+            _ => {
+                cursor += content
+                    .get(cursor..)
+                    .and_then(|rest| rest.chars().next())
+                    .map_or(1, char::len_utf8);
+            }
+        }
+    }
+
+    spans
+}
+
+/// Decodes one character: either a literal one or a `\uXXXX` escape. JSON lets
+/// any character of a key be escaped, so `$\u0072ef` and `\u0024\u0072\u0065\u0066`
+/// both decode to `$ref` and would otherwise reach Gemini unrewritten.
+fn decode_unit(content: &str, index: usize) -> Option<(char, usize)> {
+    let rest = content.get(index..)?;
+
+    if let Some(after_prefix) = rest.strip_prefix("\\u") {
+        let character = after_prefix
+            .get(..4)
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+            .and_then(char::from_u32)?;
+        return Some((character, index + "\\u".len() + 4));
+    }
+
+    let character = rest.chars().next()?;
+    Some((character, index + character.len_utf8()))
+}
+
+/// Returns the end offset when the text at `start` decodes to `$ref`.
+fn match_schema_ref_at(content: &str, start: usize) -> Option<usize> {
+    let mut cursor = start;
+
+    for expected in GEMINI_SCHEMA_REF_KEY.chars() {
+        let (character, next) = decode_unit(content, cursor)?;
+        if character != expected {
+            return None;
+        }
+        cursor = next;
+    }
+
+    Some(cursor)
+}
+
+/// An odd number of backslashes before `\u0024ref` means the leading backslash
+/// is itself escaped, so the text is the literal characters `\u0024ref` rather
+/// than an encoded `$ref`. Rewriting it would emit invalid JSON.
+fn starts_with_escaped_backslash(content: &str, start: usize) -> bool {
+    if !content
+        .get(start..)
+        .is_some_and(|token| token.starts_with('\\'))
+    {
+        return false;
+    }
+
+    let preceding_backslashes = content
+        .get(..start)
+        .map(|prefix| prefix.chars().rev().take_while(|c| *c == '\\').count())
+        .unwrap_or(0);
+
+    preceding_backslashes % 2 == 1
+}
+
+/// A trailing identifier character means the token is part of a longer name
+/// such as `$refs` or `$refresh_token`, which must be left alone.
+fn continues_identifier(content: &str, end: usize) -> bool {
+    decode_unit(content, end)
+        .is_some_and(|(character, _)| character.is_ascii_alphanumeric() || character == '_')
+}
+
+/// Decodes `\uXXXX` escapes so a candidate key spelled as an escape sequence
+/// still counts as occupied.
+fn decoded_view(content: &str) -> String {
+    let mut decoded = String::with_capacity(content.len());
+    let mut rest = content;
+
+    while let Some(offset) = rest.find("\\u") {
+        let (before, from_escape) = rest.split_at(offset);
+        decoded.push_str(before);
+
+        let after_prefix = from_escape.get("\\u".len()..).unwrap_or_default();
+        match after_prefix
+            .get(..4)
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+            .and_then(char::from_u32)
+        {
+            Some(character) => {
+                decoded.push(character);
+                rest = after_prefix.get(4..).unwrap_or_default();
+            }
+            None => {
+                decoded.push_str("\\u");
+                rest = after_prefix;
+            }
+        }
+    }
+    decoded.push_str(rest);
+
+    decoded
+}
+
+fn replace_spans(content: &str, spans: &[Range<usize>], replacement: &str) -> String {
+    let mut rewritten = String::with_capacity(content.len());
+    let mut copied_through = 0;
+
+    for span in spans {
+        if let Some(preceding) = content.get(copied_through..span.start) {
+            rewritten.push_str(preceding);
+        }
+        rewritten.push_str(replacement);
+        copied_through = span.end;
+    }
+    if let Some(trailing) = content.get(copied_through..) {
+        rewritten.push_str(trailing);
+    }
+
+    rewritten
+}
+
+/// The replacement must not already occur anywhere in the tool text, otherwise
+/// the rewrite would be ambiguous to the model reading the compatibility note.
+///
+/// Tool output is externally controlled, so occupied candidates are collected in
+/// a single pass rather than rescanning every result for each suffix.
+fn collision_free_gemini_schema_ref_key(contents: &[&str]) -> String {
+    let mut occupied = HashSet::new();
+    for content in contents {
+        collect_safe_key_candidates(content, &mut occupied);
+        collect_safe_key_candidates(&decoded_view(content), &mut occupied);
+    }
+
+    (1..)
+        .map(|suffix| {
+            if suffix == 1 {
+                GEMINI_SAFE_SCHEMA_REF_KEY_BASE.to_string()
+            } else {
+                format!("{GEMINI_SAFE_SCHEMA_REF_KEY_BASE}_{suffix}")
+            }
+        })
+        .find(|candidate| !occupied.contains(candidate))
+        .expect("an unbounded suffix sequence always yields an unused candidate")
+}
+
+/// Records every `dollar_ref`/`dollar_ref_N` occurrence in one scan.
+fn collect_safe_key_candidates(content: &str, occupied: &mut HashSet<String>) {
+    let mut cursor = 0;
+
+    while let Some(offset) = content
+        .get(cursor..)
+        .and_then(|tail| tail.find(GEMINI_SAFE_SCHEMA_REF_KEY_BASE))
+    {
+        let start = cursor + offset;
+        let end = start + GEMINI_SAFE_SCHEMA_REF_KEY_BASE.len();
+        let suffix_len = content
+            .get(end..)
+            .map(|rest| {
+                let digits = rest
+                    .strip_prefix('_')
+                    .map(|after| after.chars().take_while(char::is_ascii_digit).count())
+                    .unwrap_or(0);
+                if digits == 0 {
+                    0
+                } else {
+                    1 + digits
+                }
+            })
+            .unwrap_or(0);
+
+        if let Some(token) = content.get(start..end + suffix_len) {
+            occupied.insert(token.to_string());
+        }
+        cursor = end;
+    }
+}
+
+fn gemini_schema_ref_note(safe_key: &str) -> String {
+    format!(
+        "[OpenRouter/Gemini compatibility: interpret `{safe_key}` as the JSON Schema key formed by `$` followed by `ref`.]\n"
+    )
+}
+
+fn apply_gemini_compatibility(model_name: &str, payload: &mut Value, messages: &[Message]) {
+    if is_gemini_model(model_name) {
+        escape_gemini_schema_ref_keys_in_tool_responses(payload);
+        openrouter_format::add_reasoning_details_to_request(payload, messages);
+    }
+}
+
+/// OpenRouter translates OpenAI `role: tool` messages into Gemini
+/// `function_response` parts. Gemini rejects a response containing a literal
+/// JSON Schema `$ref` key, treating its value as a function-response part name
+/// instead of arbitrary tool text, and Goose replays persisted history, so one
+/// such tool result breaks every later turn in the session.
+///
+/// Rewrite the token and prepend a note so the model can reconstruct the
+/// original text. All bytes outside matching token spans remain unchanged.
+fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
+    let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
+        return 0;
+    };
+
+    let mut tool_contents = Vec::new();
+    for (message_index, message) in messages.iter().enumerate() {
+        if message.get("role").and_then(Value::as_str) != Some("tool") {
+            continue;
+        }
+        let Some(content_text) = message.get("content").and_then(Value::as_str) else {
+            continue;
+        };
+        tool_contents.push((message_index, content_text.to_string()));
+    }
+
+    let scanned: Vec<&str> = tool_contents
+        .iter()
+        .map(|(_, content)| content.as_str())
+        .collect();
+    let safe_key = collision_free_gemini_schema_ref_key(&scanned);
+    let note = gemini_schema_ref_note(&safe_key);
+
+    let mut escaped = 0;
+    for (message_index, content_text) in &tool_contents {
+        let spans = scan_schema_ref_tokens(content_text);
+        if spans.is_empty() {
+            continue;
+        }
+
+        let sanitized = replace_spans(content_text, &spans, &safe_key);
+        messages[*message_index]["content"] = Value::String(format!("{note}{sanitized}"));
+        escaped += spans.len();
+    }
+
+    escaped
 }
 
 fn parse_openrouter_parameters(raw: Value) -> Result<HashMap<String, Value>> {
@@ -276,10 +542,13 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        // Add user field for OpenRouter attribution/rate-limiting
         if !session_id.is_empty() {
             if let Some(obj) = payload.as_object_mut() {
                 obj.insert("user".to_string(), Value::String(session_id.to_string()));
+                obj.insert(
+                    "session_id".to_string(),
+                    Value::String(session_id.to_string()),
+                );
             }
         }
 
@@ -290,9 +559,7 @@ impl Provider for OpenRouterProvider {
             apply_chat_payload_breakpoints(&mut payload);
         }
 
-        if is_gemini_model(&model_config.model_name) {
-            openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
-        }
+        apply_gemini_compatibility(&model_config.model_name, &mut payload, messages);
         let sent_reasoning_disable =
             openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
@@ -455,5 +722,695 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    #[test]
+    fn gemini_tool_result_schema_ref_keys_are_escaped_reversibly() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "Keep {'$ref': '#/components/schemas/AssistantText'} unchanged"
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{\"$ref\": \"#/components/schemas/Usage\", \"nested\": {\"$ref\" : \"#/components/schemas/Base64Image\"}, \"items\": [{\"$ref\": \"#/components/schemas/Item\"}], \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            5
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            "Keep {'$ref': '#/components/schemas/AssistantText'} unchanged"
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            format!(
+                "{}{{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"items\": [{{\"dollar_ref\": \"#/components/schemas/Item\"}}], \"description\": \"use dollar_ref here\", \"literal\": \"dollar_ref\", \"identifier\": \"$reference\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_issue_11260_reproduction() {
+        let reproduction = "{'properties': {'image': {'$ref': '#/components/schemas/Example'}}}";
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": reproduction
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{'properties': {{'image': {{'dollar_ref': '#/components/schemas/Example'}}}}}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_longer_identifiers() {
+        let untouched = "$refs and $refresh_token and $reference stay intact";
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": untouched
+            }]
+        });
+        let original = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_literal_escaped_unicode_text() {
+        let original = r#"{"literal":"\\u0024ref"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original
+            }]
+        });
+        let untouched = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, untouched);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_unicode_token_after_even_backslashes() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"x\\\\","\u0024ref":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_partially_escaped_keys() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"$\u0072ef":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_fully_escaped_keys() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"\u0024\u0072\u0065\u0066":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_escaped_longer_identifiers() {
+        let original = r#"{"$\u0072efresh_token":"A"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original
+            }]
+        });
+        let untouched = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, untouched);
+    }
+
+    #[test]
+    fn gemini_compatibility_only_applies_to_gemini_models() {
+        let tool_result = r##"{"$ref":"#/components/schemas/Usage"}"##;
+        let mut gemma_payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": tool_result
+            }]
+        });
+        let original_gemma_payload = gemma_payload.clone();
+
+        apply_gemini_compatibility("google/gemma-3-27b-it", &mut gemma_payload, &[]);
+
+        assert_eq!(gemma_payload, original_gemma_payload);
+
+        let mut anthropic_payload = original_gemma_payload.clone();
+        apply_gemini_compatibility("anthropic/claude-sonnet-4.5", &mut anthropic_payload, &[]);
+
+        assert_eq!(anthropic_payload, original_gemma_payload);
+
+        let mut gemini_payload = original_gemma_payload;
+        apply_gemini_compatibility("google/gemini-2.5-flash", &mut gemini_payload, &[]);
+
+        assert_eq!(
+            gemini_payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"#/components/schemas/Usage\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+        assert!(is_gemini_model("google/gemini-2.0-flash-exp:free"));
+        assert!(!is_gemini_model("google/gemma-3-27b-it"));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_value_position_tokens() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"description\":\"use dollar_ref here\",\"literal\":\"dollar_ref\",\"identifier\":\"$reference\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_non_json_prose() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "log entry, \"$ref\": not a JSON key"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}log entry, \"dollar_ref\": not a JSON key",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_duplicate_ref_members() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"$ref\":\"B\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"A\",\"dollar_ref\":\"B\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_unrelated_duplicate_members() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"duplicate\":\"first\",\"$ref\":\"A\",\"duplicate\":\"second\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"duplicate\":\"first\",\"dollar_ref\":\"A\",\"duplicate\":\"second\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_json_embedded_in_prose() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "before output { \"$ref\" : \"A\" } after output"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}before output {{ \"dollar_ref\" : \"A\" }} after output",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_multiple_occurrences_in_one_result() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"nested\":{\"$ref\":\"B\"}}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"A\",\"nested\":{{\"dollar_ref\":\"B\"}}}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_decoded_keys_and_collisions() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"\u0024ref":"A","\u0064ollar_ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                r#"{}{{"dollar_ref_2":"A","\u0064ollar_ref":"B"}}"#,
+                gemini_schema_ref_note("dollar_ref_2")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_honors_escaped_quotes_and_backslashes() {
+        let original_content =
+            r#"{"text":"escaped quote \" then \\ and \"$ref\": still text","$ref":"A"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original_content
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                r#"{}{{"text":"escaped quote \" then \\ and \"dollar_ref\": still text","dollar_ref":"A"}}"#,
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_absent_content_bytes() {
+        let original_content = "prefix { \"ordinary\" : [ 1, 2 ] } suffix";
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original_content
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(
+            payload["messages"][0]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+            original_content.as_bytes()
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_tolerates_malformed_json() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{\"$ref\": \"A\""
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": "}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\": \"A\"",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+        assert_eq!(payload["messages"][1]["content"], "}");
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_avoids_existing_safe_key() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_2\":\"A\",\"dollar_ref\":\"B\"}}",
+                gemini_schema_ref_note("dollar_ref_2")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_advances_past_multiple_key_collisions() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\",\"dollar_ref_2\":\"C\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_3\":\"A\",\"dollar_ref\":\"B\",\"dollar_ref_2\":\"C\"}}",
+                gemini_schema_ref_note("dollar_ref_3")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_advances_past_deep_collision_ladder() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\",\"nested\":{\"dollar_ref_2\":\"C\",\"items\":[{\"dollar_ref_3\":\"D\"},{\"dollar_ref_4\":\"E\"}]}}"
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": "{\"dollar_ref_5\":\"F\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_6\":\"A\",\"dollar_ref\":\"B\",\"nested\":{{\"dollar_ref_2\":\"C\",\"items\":[{{\"dollar_ref_3\":\"D\"}},{{\"dollar_ref_4\":\"E\"}}]}}}}",
+                gemini_schema_ref_note("dollar_ref_6")
+            )
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            "{\"dollar_ref_5\":\"F\"}"
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_non_tool_content_and_safe_tool_results() {
+        let mut payload = json!({
+            "messages": [
+                { "role": "user", "content": "{\"$ref\":\"#/components/schemas/UserText\"}" },
+                { "role": "assistant", "content": "{\"$ref\":\"#/components/schemas/AssistantText\"}" },
+                { "role": "tool", "tool_call_id": "call_1", "content": "ordinary output" },
+                { "role": "tool", "tool_call_id": "call_2", "content": [{ "type": "text", "text": "{'$ref': '#/components/schemas/Structured'}" }] }
+            ]
+        });
+        let original = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_braces_inside_string_literals() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"}}}}","$ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(
+                gemini_schema_ref_note("dollar_ref") + r#"{"a":"}}}}","dollar_ref":"B"}"#
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_brackets_inside_string_literals() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"[[[","$ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(gemini_schema_ref_note("dollar_ref") + r#"{"a":"[[[","dollar_ref":"B"}"#)
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_avoids_safe_key_used_in_another_tool_result() {
+        let untouched = r#"{"dollar_ref":"x"}"#;
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": r#"{"$ref":"A"}"#
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": untouched
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(gemini_schema_ref_note("dollar_ref_2") + r#"{"dollar_ref_2":"A"}"#)
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            Value::String(untouched.to_string())
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_nested_encoded_json() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"payload":"{\"$ref\":\"A\"}"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(
+                gemini_schema_ref_note("dollar_ref") + r#"{"payload":"{\"dollar_ref\":\"A\"}"}"#
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_multibyte_content() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"\u{540d}\u{524d}\":\"\u{1f389} ok\",\"$ref\":\"A\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(
+                gemini_schema_ref_note("dollar_ref")
+                    + "{\"\u{540d}\u{524d}\":\"\u{1f389} ok\",\"dollar_ref\":\"A\"}"
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_is_idempotent() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"$ref":"A","b":[{"$ref":"B"}]}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        let after_first_pass = payload.clone();
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, after_first_pass);
     }
 }

@@ -50,6 +50,7 @@ const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 30;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HookEvent {
     PreToolUse,
+    PreToolUseResult,
     PostToolUse,
     PostToolUseFailure,
     SessionStart,
@@ -66,6 +67,7 @@ impl HookEvent {
     fn name(&self) -> &'static str {
         match self {
             HookEvent::PreToolUse => "PreToolUse",
+            HookEvent::PreToolUseResult => "PreToolUseResult",
             HookEvent::PostToolUse => "PostToolUse",
             HookEvent::PostToolUseFailure => "PostToolUseFailure",
             HookEvent::SessionStart => "SessionStart",
@@ -82,6 +84,7 @@ impl HookEvent {
     fn from_name(name: &str) -> Option<Self> {
         Some(match name {
             "PreToolUse" => HookEvent::PreToolUse,
+            "PreToolUseResult" => HookEvent::PreToolUseResult,
             "PostToolUse" => HookEvent::PostToolUse,
             "PostToolUseFailure" => HookEvent::PostToolUseFailure,
             "SessionStart" => HookEvent::SessionStart,
@@ -158,6 +161,11 @@ pub struct HookContext {
     pub event: String,
     pub session_id: String,
     pub matcher_context: Option<String>,
+    /// Stable identifier for one tool call, the same value goose records as
+    /// `gen_ai.tool.call.id`. Correlates the pre and post events of a single
+    /// call, which tool name plus input cannot do when a call repeats.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,6 +178,19 @@ pub struct HookContext {
     pub last_assistant_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
+    /// `PreToolUseResult` only: "allow" or "deny". There is no third value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// `PreToolUseResult` only: true when at least one matching `PreToolUse`
+    /// hook ran to completion for this call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_evaluated: Option<bool>,
+    /// `PreToolUseResult` on deny only: the plugin that denied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_by: Option<String>,
+    /// `PreToolUseResult` on deny only: the reason the plugin gave.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl HookContext {
@@ -178,12 +199,17 @@ impl HookContext {
             event: event.to_string(),
             session_id: session_id.into(),
             matcher_context: None,
+            tool_call_id: None,
             tool_name: None,
             tool_input: None,
             tool_output: None,
             message: None,
             last_assistant_message: None,
             working_dir: None,
+            decision: None,
+            policy_evaluated: None,
+            blocked_by: None,
+            reason: None,
         }
     }
 
@@ -219,12 +245,55 @@ impl HookContext {
         self.working_dir = Some(dir.into());
         self
     }
+
+    pub fn with_tool_call_id(mut self, tool_call_id: impl Into<String>) -> Self {
+        self.tool_call_id = Some(tool_call_id.into());
+        self
+    }
+
+    /// Populate the `PreToolUseResult` outcome fields. `blocked_by` and `reason`
+    /// are set only on deny, so an allow payload omits them entirely.
+    pub(crate) fn with_pre_tool_use_outcome(mut self, outcome: &HookChainOutcome) -> Self {
+        self.policy_evaluated = Some(outcome.policy_evaluated);
+        match &outcome.decision {
+            HookDecision::Allow => self.decision = Some("allow".to_string()),
+            HookDecision::Deny { reason, plugin } => {
+                self.decision = Some("deny".to_string());
+                self.blocked_by = Some(plugin.clone());
+                self.reason = Some(reason.clone());
+            }
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HookDecision {
     Allow,
     Deny { reason: String, plugin: String },
+}
+
+/// Result of running a blocking hook chain: the decision, plus whether any
+/// matching hook actually ran to completion for this event. A hook counts as
+/// evaluated when it exited 0 or returned a decision. A hook that exited
+/// non-zero without a decision, failed to spawn, timed out, or was never
+/// reached does not count.
+///
+/// Crate-internal: the public [`HookManager::emit_blocking`] contract is
+/// unchanged and still returns a [`HookDecision`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HookChainOutcome {
+    pub decision: HookDecision,
+    pub policy_evaluated: bool,
+}
+
+impl HookChainOutcome {
+    pub(crate) fn allow(policy_evaluated: bool) -> Self {
+        Self {
+            decision: HookDecision::Allow,
+            policy_evaluated,
+        }
+    }
 }
 
 /// Loads and executes plugin hooks.
@@ -477,17 +546,29 @@ impl HookManager {
     /// to stdout. All other failures (spawn, timeout, other non-zero exits)
     /// are logged and treated as Allow — a misbehaving hook MUST NOT block.
     pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookDecision {
+        self.emit_blocking_with_outcome(event, ctx).await.decision
+    }
+
+    /// Like [`Self::emit_blocking`], but also reports whether any matching hook
+    /// ran to completion, which `PreToolUseResult` needs for `policy_evaluated`.
+    pub(crate) async fn emit_blocking_with_outcome(
+        &self,
+        event: HookEvent,
+        ctx: HookContext,
+    ) -> HookChainOutcome {
         let Some(rules) = self.rules.get(&event) else {
-            return HookDecision::Allow;
+            return HookChainOutcome::allow(false);
         };
 
         let payload = match serde_json::to_string(&ctx) {
             Ok(s) => s,
             Err(err) => {
                 warn!(event = %event, error = %err, "Failed to serialize hook context");
-                return HookDecision::Allow;
+                return HookChainOutcome::allow(false);
             }
         };
+
+        let mut policy_evaluated = false;
 
         for rule in rules {
             if let Some(matcher) = &rule.matcher {
@@ -503,7 +584,15 @@ impl HookManager {
                     .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
                     .await
                 {
-                    Ok(o) => o,
+                    Ok(output) => {
+                        // Exiting 0 or returning a decision is what makes a hook
+                        // an evaluation. A non-zero exit with no decision means
+                        // the hook did not answer, so it does not count.
+                        if output.status.success() || deny_reason(&output).is_some() {
+                            policy_evaluated = true;
+                        }
+                        output
+                    }
                     Err(err) => {
                         warn!(
                             plugin = %rule.plugin_name,
@@ -524,15 +613,18 @@ impl HookManager {
                         reason = %reason,
                         "Plugin hook denied tool call",
                     );
-                    return HookDecision::Deny {
-                        reason,
-                        plugin: rule.plugin_name.clone(),
+                    return HookChainOutcome {
+                        decision: HookDecision::Deny {
+                            reason,
+                            plugin: rule.plugin_name.clone(),
+                        },
+                        policy_evaluated,
                     };
                 }
             }
         }
 
-        HookDecision::Allow
+        HookChainOutcome::allow(policy_evaluated)
     }
 }
 
@@ -795,6 +887,169 @@ mod tests {
 
     fn make_manager(plugins: Vec<DiscoveredPlugin>) -> HookManager {
         HookManager::from_plugins(plugins, false)
+    }
+
+    /// `decision` is "allow" or "deny" and nothing else, and `blocked_by` and
+    /// `reason` appear only on the deny arm — absent from an allow payload
+    /// rather than present as null or an empty string.
+    #[test]
+    fn pre_tool_use_result_payload_reports_decision_and_denies_alone_carry_the_plugin() {
+        let payload = |outcome: &HookChainOutcome| -> Value {
+            let ctx = HookContext::new(HookEvent::PreToolUseResult, "session-1")
+                .with_tool("developer__shell", None)
+                .with_tool_call_id("call-1")
+                .with_pre_tool_use_outcome(outcome);
+            serde_json::from_str(&serde_json::to_string(&ctx).unwrap()).unwrap()
+        };
+
+        let allow = payload(&HookChainOutcome::allow(true));
+        assert_eq!(allow["decision"], "allow");
+        assert_eq!(allow["policy_evaluated"], true);
+        assert_eq!(allow["tool_call_id"], "call-1");
+        assert!(
+            allow.get("blocked_by").is_none(),
+            "allow payload must omit blocked_by entirely, got {:?}",
+            allow.get("blocked_by")
+        );
+        assert!(
+            allow.get("reason").is_none(),
+            "allow payload must omit reason entirely, got {:?}",
+            allow.get("reason")
+        );
+
+        let deny = payload(&HookChainOutcome {
+            decision: HookDecision::Deny {
+                reason: "blocked by test policy".to_string(),
+                plugin: "test-plugin".to_string(),
+            },
+            policy_evaluated: true,
+        });
+        assert_eq!(deny["decision"], "deny");
+        assert_eq!(deny["blocked_by"], "test-plugin");
+        assert_eq!(deny["reason"], "blocked by test policy");
+
+        for value in [&allow, &deny] {
+            let decision = value["decision"].as_str().unwrap();
+            assert!(
+                matches!(decision, "allow" | "deny"),
+                "decision must be allow or deny, got {decision}"
+            );
+        }
+
+        let unevaluated = payload(&HookChainOutcome::allow(false));
+        assert_eq!(unevaluated["decision"], "allow");
+        assert_eq!(unevaluated["policy_evaluated"], false);
+    }
+
+    /// A hook is an evaluation only if it exited 0 or returned a decision. A
+    /// non-zero exit carrying no decision means the hook never answered, and an
+    /// earlier hook that did answer keeps the aggregate true.
+    #[tokio::test]
+    async fn policy_evaluated_counts_clean_exits_and_decisions_only() {
+        let plugin = |root: &Path, name: &str, command: &str| -> DiscoveredPlugin {
+            let hooks = format!(
+                r#"{{"hooks":{{"PreToolUse":[{{"hooks":[{{"type":"command","command":"{command}"}}]}}]}}}}"#
+            );
+            DiscoveredPlugin {
+                name: name.into(),
+                root: write_plugin(root, name, &hooks),
+                scope: PluginScope::User,
+            }
+        };
+        let ctx =
+            || HookContext::new(HookEvent::PreToolUse, "s").with_tool("developer__shell", None);
+
+        // Case 1: the only hook exits non-zero with nothing on stdout. It gave no
+        // decision, so the call is allowed and nothing was evaluated.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![plugin(tmp.path(), "abnormal", "exit 3")]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(outcome.decision, HookDecision::Allow);
+        assert!(
+            !outcome.policy_evaluated,
+            "a sole hook exiting 3 with no decision must not count as evaluated",
+        );
+
+        // Case 2: one hook exits 0 and another exits non-zero. policy_evaluated is
+        // an at-least-one aggregate, so the clean exit keeps it true.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![
+            plugin(tmp.path(), "a", "exit 0"),
+            plugin(tmp.path(), "b", "exit 3"),
+        ]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(outcome.decision, HookDecision::Allow);
+        assert!(
+            outcome.policy_evaluated,
+            "a hook that exited 0 must keep policy_evaluated true when a later hook fails",
+        );
+
+        // Case 3: the only hook exits 2 with a reason. That is a decision, so it
+        // both denies and counts as evaluated.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![plugin(
+            tmp.path(),
+            "denier",
+            "echo refused by policy >&2; exit 2",
+        )]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(
+            outcome.decision,
+            HookDecision::Deny {
+                reason: "refused by policy".to_string(),
+                plugin: "denier".to_string(),
+            }
+        );
+        assert!(
+            outcome.policy_evaluated,
+            "an exit 2 decision must count as evaluated",
+        );
+    }
+
+    /// PreToolUseResult honours its matcher against the tool name like every
+    /// other tool-scoped event, so a subscriber can watch one tool rather than
+    /// every call.
+    #[tokio::test]
+    async fn pre_tool_use_result_matcher_targets_the_tool_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"PreToolUseResult":[{"matcher":"^developer__shell$","hooks":[{"type":"command","command":"echo ran >> \"$PLUGIN_ROOT/marker.log\""}]}]}}"#,
+        );
+        let marker = root.join("marker.log");
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+        let lines = || {
+            std::fs::read_to_string(&marker)
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .count()
+        };
+
+        mgr.emit(
+            HookEvent::PreToolUseResult,
+            HookContext::new(HookEvent::PreToolUseResult, "s").with_tool("developer__shell", None),
+        )
+        .await;
+        assert_eq!(lines(), 1, "the matching tool must run the hook");
+
+        mgr.emit(
+            HookEvent::PreToolUseResult,
+            HookContext::new(HookEvent::PreToolUseResult, "s").with_tool("other__tool", None),
+        )
+        .await;
+        assert_eq!(lines(), 1, "a non-matching tool must not run the hook");
     }
 
     #[test]

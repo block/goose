@@ -2626,6 +2626,18 @@ export type MessageUsageUpdate = {
     usage: MessageUsageData;
 };
 
+/**
+ * Dedicated provider notification for OAuth device-code flow.
+ * Sent during provider authentication when the ACP client supports
+ * `goose.customNotifications` — avoids a fake empty session ID.
+ */
+export type ProviderDeviceCodeNotification_unstable = {
+    providerId: string;
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+};
+
 export type RequestRecipeParams_unstable = {
     sessionId: string;
     parameters: Array<RecipeParameterDto>;
@@ -2663,7 +2675,7 @@ export type ExtResponse = {
 
 export type ExtNotification = {
     method: string;
-    params?: GooseSessionNotification_unstable | {
+    params?: GooseSessionNotification_unstable | ProviderDeviceCodeNotification_unstable | {
         [key: string]: unknown;
     } | null;
 };

@@ -27,6 +27,7 @@ import os from 'node:os';
 import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
 import { checkBackendStatus } from './backendStatus';
+import { installBackendCertificateVerifiers } from './backendCertificateVerifier';
 import { startGooseServe } from './gooseServe';
 import { getLoginShellPath } from './loginShellPath';
 import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
@@ -405,17 +406,15 @@ app.whenReady().then(() => {
   appConfig.GOOSE_LOCALE = getConfiguredGooseLocale();
 });
 
-// Main-process net.fetch: pin to the exact cert once known.
+// Main-process net.fetch and renderer WebSockets: pin to the exact cert once known.
 app.whenReady().then(() => {
-  session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (!isTrustedHost(request.hostname)) {
-      callback(-3);
-      return;
+  installBackendCertificateVerifiers(
+    [session.defaultSession, session.fromPartition('persist:goose')],
+    {
+      has: isTrustedHost,
+      verify: verifyBackendCertificate,
     }
-
-    const match = verifyBackendCertificate(request.hostname, request.certificate.fingerprint);
-    callback(match ? 0 : -2);
-  });
+  );
 });
 
 if (process.env.ENABLE_PLAYWRIGHT) {

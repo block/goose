@@ -197,6 +197,11 @@ fn parse_agent_content(content: &str, path: &Path) -> Option<SourceEntry> {
         format!("Agent{}", model_info)
     });
 
+    let mut properties = std::collections::HashMap::new();
+    if let Some(model) = metadata.model {
+        properties.insert("model".to_string(), serde_json::Value::String(model));
+    }
+
     Some(SourceEntry {
         source_type: SourceType::Agent,
         name: metadata.name,
@@ -206,7 +211,7 @@ fn parse_agent_content(content: &str, path: &Path) -> Option<SourceEntry> {
         global: false,
         writable: true,
         supporting_files: Vec::new(),
-        properties: std::collections::HashMap::new(),
+        properties,
     })
 }
 
@@ -217,16 +222,17 @@ fn scan_recipes_from_dir(
     sources: &mut Vec<SourceEntry>,
     seen: &mut std::collections::HashSet<String>,
 ) {
-    let entries = match std::fs::read_dir(dir) {
+    let Ok(source_dir) = dir.canonicalize() else {
+        return;
+    };
+    let entries = match std::fs::read_dir(&source_dir) {
         Ok(e) => e,
         Err(_) => return,
     };
 
     for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
+        let file_name = entry.file_name();
+        let path = source_dir.join(&file_name);
 
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if !RECIPE_FILE_EXTENSIONS.contains(&ext) {
@@ -243,7 +249,15 @@ fn scan_recipes_from_dir(
             continue;
         }
 
-        match Recipe::from_file_path(&path) {
+        let content = match crate::skills::read_source_file(&source_dir, Path::new(&file_name)) {
+            Ok(content) => content,
+            Err(error) => {
+                warn!("Failed to read recipe {}: {}", path.display(), error);
+                continue;
+            }
+        };
+
+        match Recipe::from_content(&content) {
             Ok(recipe) => {
                 seen.insert(name.clone());
                 sources.push(SourceEntry {
@@ -277,23 +291,24 @@ fn scan_agents_from_dir(
     sources: &mut Vec<SourceEntry>,
     seen: &mut std::collections::HashSet<String>,
 ) {
-    let entries = match std::fs::read_dir(dir) {
+    let Ok(source_dir) = dir.canonicalize() else {
+        return;
+    };
+    let entries = match std::fs::read_dir(&source_dir) {
         Ok(e) => e,
         Err(_) => return,
     };
 
     for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
+        let file_name = entry.file_name();
+        let path = source_dir.join(&file_name);
 
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if ext != "md" {
             continue;
         }
 
-        let content = match std::fs::read_to_string(&path) {
+        let content = match crate::skills::read_source_file(&source_dir, Path::new(&file_name)) {
             Ok(c) => c,
             Err(e) => {
                 warn!("Failed to read agent file {}: {}", path.display(), e);
@@ -1575,18 +1590,15 @@ impl SummonClient {
         source: &SourceEntry,
         params: &DelegateParams,
     ) -> Result<Recipe, String> {
-        let agent_content = if source.path.is_empty() {
+        if source.path.is_empty() {
             return Err("Agent source has no path".to_string());
-        } else {
-            std::fs::read_to_string(&source.path)
-                .map_err(|e| format!("Failed to read agent file: {}", e))?
-        };
+        }
 
-        let (metadata, _): (AgentMetadata, String) = parse_frontmatter(&agent_content)
-            .map_err(|e| format!("Failed to parse agent frontmatter: {}", e))?
-            .ok_or("No frontmatter found in agent file")?;
-
-        let model = metadata.model;
+        let model = source
+            .properties
+            .get("model")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
 
         // max_turns is set later in build_task_config so it can incorporate params.max_turns
         // with the correct priority ordering; setting it here would cause it to be overridden
@@ -2246,6 +2258,13 @@ You review code."#;
         let source = parse_agent_content(agent, Path::new("")).unwrap();
         assert_eq!(source.name, "reviewer");
         assert!(source.description.contains("sonnet"));
+        assert_eq!(
+            source
+                .properties
+                .get("model")
+                .and_then(|value| value.as_str()),
+            Some("sonnet")
+        );
     }
 
     #[test]
@@ -2335,6 +2354,29 @@ You review code."#;
         assert_eq!(sources[0].name, "reviewer");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn agent_scan_rejects_symlinked_source_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        fs::write(
+            outside.path().join("outside.md"),
+            "---\nname: outside\n---\nUntrusted agent.",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("outside.md"),
+            temp_dir.path().join("outside.md"),
+        )
+        .unwrap();
+
+        let mut sources = Vec::new();
+        let mut seen = HashSet::new();
+        scan_agents_from_dir(temp_dir.path(), &mut sources, &mut seen);
+
+        assert!(sources.is_empty());
+    }
+
     #[test]
     fn test_recipe_scan_skips_non_recipe_project_config_files() {
         let temp_dir = TempDir::new().unwrap();
@@ -2367,6 +2409,35 @@ You review code."#;
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].name, "valid");
         assert_eq!(sources[0].description, "Real recipe");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recipe_scan_rejects_symlinked_source_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        fs::write(
+            outside.path().join("outside.yaml"),
+            "title: Outside\ndescription: Outside recipe\ninstructions: Untrusted",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("outside.yaml"),
+            temp_dir.path().join("outside.yaml"),
+        )
+        .unwrap();
+
+        let mut sources = Vec::new();
+        let mut seen = HashSet::new();
+        scan_recipes_from_dir(
+            temp_dir.path(),
+            SourceType::Recipe,
+            false,
+            &mut sources,
+            &mut seen,
+        );
+
+        assert!(sources.is_empty());
     }
 
     #[tokio::test]

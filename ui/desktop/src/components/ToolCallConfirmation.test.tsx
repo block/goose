@@ -5,7 +5,9 @@ import type { ActionRequired } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 
 vi.mock('./ToolApprovalButtons', () => ({
-  default: () => <div data-testid="approval-buttons" />,
+  default: ({ data }: { data: { generation?: string } }) => (
+    <div data-testid="approval-buttons" data-generation={data.generation} />
+  ),
 }));
 
 const securityPrompt = 'This command sends a local file to a remote service.';
@@ -14,6 +16,7 @@ const actionRequiredContent = {
   type: 'actionRequired',
   data: {
     actionType: 'toolConfirmation',
+    generation: 'permission-generation-1',
     id: 'request-1',
     toolName: 'developer__shell',
     arguments: {
@@ -36,7 +39,10 @@ describe('ToolCallConfirmation', () => {
 
     expect(screen.getByText('command')).toBeInTheDocument();
     expect(screen.getByText(/upload \/home\/alice\/private\.txt/)).toBeInTheDocument();
-    expect(screen.getByTestId('approval-buttons')).toBeInTheDocument();
+    expect(screen.getByTestId('approval-buttons')).toHaveAttribute(
+      'data-generation',
+      'permission-generation-1'
+    );
   });
 
   it('shows the security prompt before approval', () => {

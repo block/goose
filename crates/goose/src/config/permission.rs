@@ -149,6 +149,11 @@ impl PermissionManager {
         if let Some(permission_config) = map.get(name) {
             // Check the permission levels for the given tool
             if permission_config
+                .never_allow
+                .contains(&principal_name.to_string())
+            {
+                return Some(PermissionLevel::NeverAllow);
+            } else if permission_config
                 .always_allow
                 .contains(&principal_name.to_string())
             {
@@ -158,11 +163,6 @@ impl PermissionManager {
                 .contains(&principal_name.to_string())
             {
                 return Some(PermissionLevel::AskBefore);
-            } else if permission_config
-                .never_allow
-                .contains(&principal_name.to_string())
-            {
-                return Some(PermissionLevel::NeverAllow);
             }
         }
         None // Return None if no matching permission level is found
@@ -316,6 +316,51 @@ mod tests {
             manager.get_user_permission("tool6"),
             Some(PermissionLevel::NeverAllow)
         );
+    }
+
+    #[test]
+    fn test_persisted_never_allow_takes_precedence_over_other_levels() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join(PERMISSION_FILE),
+            r#"user:
+  always_allow:
+    - denied_from_allow
+    - allowed
+  ask_before:
+    - denied_from_ask
+    - prompted
+  never_allow:
+    - denied_from_allow
+    - denied_from_ask
+    - denied
+"#,
+        )
+        .unwrap();
+
+        let manager = PermissionManager::new(temp_dir.path().to_path_buf());
+
+        assert_eq!(
+            manager.get_user_permission("denied_from_allow"),
+            Some(PermissionLevel::NeverAllow)
+        );
+        assert_eq!(
+            manager.get_user_permission("denied_from_ask"),
+            Some(PermissionLevel::NeverAllow)
+        );
+        assert_eq!(
+            manager.get_user_permission("allowed"),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+        assert_eq!(
+            manager.get_user_permission("prompted"),
+            Some(PermissionLevel::AskBefore)
+        );
+        assert_eq!(
+            manager.get_user_permission("denied"),
+            Some(PermissionLevel::NeverAllow)
+        );
+        assert_eq!(manager.get_user_permission("unknown"), None);
     }
 
     #[test]

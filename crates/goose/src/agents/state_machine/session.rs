@@ -158,6 +158,10 @@ pub(crate) async fn run(
     emit: &Emitter,
 ) -> Result<Session> {
     let entry_session = runtime.load(session_id).await?;
+    tracing::Span::current().record(
+        "gen_ai.agent.name",
+        crate::agents::gen_ai_telemetry::agent_name(&entry_session),
+    );
     if let Some(input) = entry_session
         .conversation()
         .and_then(|conversation| {

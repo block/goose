@@ -35,6 +35,19 @@ pub enum GooseSessionUpdate {
     MessageUsage(MessageUsageUpdate),
 }
 
+/// Dedicated provider notification for OAuth device-code flow.
+/// Sent during provider authentication when the ACP client supports
+/// `goose.customNotifications` — avoids a fake empty session ID.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
+#[notification(method = "_goose/unstable/providers/authentication/device-code")]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDeviceCodeNotification {
+    pub provider_id: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+}
+
 impl Default for GooseSessionUpdate {
     fn default() -> Self {
         GooseSessionUpdate::UsageUpdate(SessionUsageUpdate::default())
@@ -142,7 +155,10 @@ where
 /// notification, define the struct above (with `JsonRpcNotification` +
 /// `Default`) and add one line below.
 pub fn custom_notification_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMethodSchema> {
-    vec![notification_schema::<GooseSessionNotification>(generator)]
+    vec![
+        notification_schema::<GooseSessionNotification>(generator),
+        notification_schema::<ProviderDeviceCodeNotification>(generator),
+    ]
 }
 
 #[cfg(test)]

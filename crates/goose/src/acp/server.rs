@@ -2,9 +2,10 @@ use crate::acp::custom_notifications::*;
 use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 pub(super) use crate::acp::response_builder::{
-    build_config_options, build_mode_state, build_model_state, build_provider_options,
-    build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
-    session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
+    agent_thinking_effort_support, build_config_options, build_mode_state, build_model_state,
+    build_provider_options, build_session_info, build_session_setup_config,
+    send_session_setup_notifications, session_meta, session_provider_selection,
+    session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -23,6 +24,7 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolRequest, ToolResponse,
 };
+use crate::conversation::Conversation;
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -63,6 +65,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
+use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
     TextContent as RmcpTextContent,
@@ -72,7 +75,7 @@ use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{mpsc, Mutex, OnceCell};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -130,6 +133,13 @@ pub type AcpProviderFactory = Arc<
         + Sync,
 >;
 
+const ACP_VISIBLE_SESSION_TYPES: [SessionType; 3] =
+    [SessionType::User, SessionType::Scheduled, SessionType::Acp];
+
+fn is_acp_visible_session_type(session_type: &SessionType) -> bool {
+    ACP_VISIBLE_SESSION_TYPES.contains(session_type)
+}
+
 /// Convenience conversions from any `Display` error into an `agent_client_protocol::Error`.
 ///
 /// Replaces the repetitive `.internal_err()`
@@ -167,6 +177,41 @@ fn agent_creation_error(error: anyhow::Error, context: &str) -> agent_client_pro
         agent_client_protocol::Error::auth_required()
     } else {
         agent_client_protocol::Error::internal_error().data(format!("{context}: {error}"))
+    }
+}
+
+/// Only a value the client could usefully change is `invalid_params`; everything
+/// else (a dead agent subprocess, a failed persist, a failed provider respawn) is
+/// an operational failure the client cannot fix by picking differently.
+fn thinking_effort_error(error: anyhow::Error) -> agent_client_protocol::Error {
+    let base = match error.downcast_ref::<ProviderError>() {
+        Some(ProviderError::InvalidValue(_)) => agent_client_protocol::Error::invalid_params(),
+        _ => agent_client_protocol::Error::internal_error(),
+    };
+    // `{error:#}` rather than `{error}`: context layering hides the cause chain,
+    // including the variant this mapping branched on.
+    base.data(format!("Failed to update thinking effort: {error:#}"))
+}
+
+async fn resume_saved_provider_session(
+    provider: &Arc<dyn Provider>,
+    conversation: Option<&Conversation>,
+) {
+    let Some(conversation) = conversation else {
+        return;
+    };
+    let provider_name = provider.get_name();
+    let Some(session_id) =
+        crate::agents::latest_provider_session_id(conversation.messages(), provider_name)
+    else {
+        return;
+    };
+    if let Err(error) = provider.resume(session_id).await {
+        warn!(
+            provider = provider_name,
+            %error,
+            "Could not resume provider session during ACP session setup"
+        );
     }
 }
 
@@ -243,6 +288,8 @@ pub struct GooseAcpAgent {
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
+    thinking_effort_update_tx: mpsc::UnboundedSender<String>,
+    thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -779,6 +826,7 @@ impl GooseAcpAgent {
             options.goose_platform.clone(),
         );
         let agent_manager = Arc::new(AgentManager::new(agent_config, None).await?);
+        let (thinking_effort_update_tx, thinking_effort_update_rx) = mpsc::unbounded_channel();
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -796,6 +844,8 @@ impl GooseAcpAgent {
             client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
+            thinking_effort_update_tx,
+            thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
@@ -1038,8 +1088,70 @@ impl GooseAcpAgent {
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
-        let acp_session = GooseAcpSession { agent };
-        self.sessions.lock().await.insert(session_id, acp_session);
+        let acp_session = GooseAcpSession {
+            agent: agent.clone(),
+        };
+        self.sessions
+            .lock()
+            .await
+            .insert(session_id.clone(), acp_session);
+        self.subscribe_thinking_effort_updates(&session_id, &agent)
+            .await;
+    }
+
+    async fn subscribe_thinking_effort_updates(&self, session_id: &str, agent: &Arc<Agent>) {
+        let Ok(provider) = agent.provider().await else {
+            return;
+        };
+        let Some(mut updates) = provider.subscribe_thinking_effort_support() else {
+            return;
+        };
+        let session_id = session_id.to_string();
+        let tx = self.thinking_effort_update_tx.clone();
+        tokio::spawn(async move {
+            while updates.changed().await.is_ok() {
+                if tx.send(session_id.clone()).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
+    async fn start_thinking_effort_update_forwarder(self: &Arc<Self>, cx: &ConnectionTo<Client>) {
+        let Some(mut updates) = self.thinking_effort_update_rx.lock().await.take() else {
+            return;
+        };
+        let agent = Arc::downgrade(self);
+        let cx = cx.clone();
+        tokio::spawn(async move {
+            while let Some(session_id) = updates.recv().await {
+                let Some(agent) = agent.upgrade() else {
+                    break;
+                };
+                if agent.closed_session_ids.lock().await.contains(&session_id) {
+                    continue;
+                }
+                let session_id = SessionId::new(session_id);
+                match agent.build_config_update(&session_id).await {
+                    Ok((notification, _)) => {
+                        if let Err(error) = cx.send_notification(notification) {
+                            warn!(
+                                session_id = %session_id,
+                                %error,
+                                "Failed to forward thinking-effort config update"
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        warn!(
+                            session_id = %session_id,
+                            ?error,
+                            "Failed to build thinking-effort config update"
+                        );
+                    }
+                }
+            }
+        });
     }
 
     async fn activate_acp_session(
@@ -2128,6 +2240,8 @@ impl GooseAcpAgent {
             .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
             .internal_err_ctx("Failed to recreate provider")?;
+        self.subscribe_thinking_effort_updates(session_id, &agent)
+            .await;
         // model_config is already updated on the session by the agent's update_provider call.
         Ok(())
     }
@@ -2171,6 +2285,7 @@ impl GooseAcpAgent {
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
+            &provider.thinking_effort_support(),
         );
         let notification = SessionNotification::new(
             session_id.clone(),
@@ -2205,17 +2320,11 @@ impl GooseAcpAgent {
         session_id: &str,
         effort_id: &str,
     ) -> Result<(), agent_client_protocol::Error> {
-        let effort = effort_id
-            .parse::<goose_providers::thinking::ThinkingEffort>()
-            .map_err(|_| {
-                agent_client_protocol::Error::invalid_params()
-                    .data(format!("Invalid thinking effort: {}", effort_id))
-            })?;
         let agent = self.get_session_agent(session_id).await?;
         agent
-            .update_thinking_effort(session_id, effort)
+            .update_thinking_effort(session_id, effort_id)
             .await
-            .internal_err_ctx("Failed to update thinking effort")?;
+            .map_err(thinking_effort_error)?;
 
         Ok(())
     }
@@ -2279,6 +2388,8 @@ impl GooseAcpAgent {
             .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
             .await
             .internal_err_ctx("Failed to recreate provider")?;
+        self.subscribe_thinking_effort_updates(session_id, &agent)
+            .await;
 
         // provider_name is already updated on the session by the agent's update_provider call.
         Ok(())
@@ -2415,10 +2526,70 @@ mod tests {
         SelectedPermissionOutcome, TextResourceContents,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
+    use goose_providers::thinking::{
+        ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,
+    };
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    #[derive(Debug)]
+    struct AsyncEffortProvider {
+        updates: tokio::sync::watch::Sender<ThinkingEffortSupport>,
+    }
+
+    impl AsyncEffortProvider {
+        fn new() -> Self {
+            let (updates, _) = tokio::sync::watch::channel(Self::support("low", &["low", "high"]));
+            Self { updates }
+        }
+
+        fn support(current: &str, values: &[&str]) -> ThinkingEffortSupport {
+            ThinkingEffortSupport::Options(ThinkingEffortCapability {
+                option_id: "effort".to_string(),
+                values: values
+                    .iter()
+                    .map(|value| ThinkingEffortOption {
+                        value: value.to_string(),
+                        label: value.to_string(),
+                    })
+                    .collect(),
+                current: Some(current.to_string()),
+            })
+        }
+
+        fn update(&self, current: &str, values: &[&str]) {
+            self.updates.send_replace(Self::support(current, values));
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for AsyncEffortProvider {
+        fn get_name(&self) -> &str {
+            "openai"
+        }
+
+        fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+            self.updates.borrow().clone()
+        }
+
+        fn subscribe_thinking_effort_support(
+            &self,
+        ) -> Option<tokio::sync::watch::Receiver<ThinkingEffortSupport>> {
+            Some(self.updates.subscribe())
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::empty()))
+        }
+    }
 
     #[test]
     fn agent_creation_auth_error_maps_to_auth_required() {
@@ -3142,5 +3313,159 @@ print(\"hello, world\")
         assert!(goose_client_capabilities
             .and_then(|goose| goose.tool_call_label_enrichment)
             .unwrap_or(false));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_a_rejected_value_to_invalid_params() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::InvalidValue(
+                "Agent offers no thinking effort 'medium'".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InvalidParams);
+        // The cause chain, not just the outermost context, reaches the client.
+        let data = error.data.unwrap().to_string();
+        assert!(data.contains("Provider rejected thinking effort update"));
+        assert!(data.contains("Agent offers no thinking effort 'medium'"));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_operational_failure_to_internal_error() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::RequestFailed(
+                "Failed to set ACP effort option: agent is gone".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_untyped_failure_to_internal_error() {
+        let error = thinking_effort_error(anyhow::anyhow!("Failed to persist thinking effort"));
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    #[tokio::test]
+    async fn asynchronous_provider_effort_update_is_forwarded_to_client() {
+        let root = tempfile::tempdir().unwrap();
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |_provider_name, _extensions, _working_dir, _use_default_model| {
+                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+            },
+        );
+        let server = Arc::new(
+            GooseAcpAgent::new(GooseAcpAgentOptions {
+                provider_factory,
+                builtin_selection: AcpBuiltinSelection::default(),
+                data_dir: root.path().to_path_buf(),
+                config_dir: root.path().to_path_buf(),
+                disable_session_naming: true,
+                goose_platform: GoosePlatform::GooseCli,
+                additional_source_roots: Vec::new(),
+                scheduler: None,
+            })
+            .await
+            .unwrap(),
+        );
+        let session = server
+            .session_manager
+            .create_session(
+                root.path().to_path_buf(),
+                "Effort update test".to_string(),
+                SessionType::Acp,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+            server.session_manager.clone(),
+            server.permission_manager.clone(),
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        )));
+        let provider = Arc::new(AsyncEffortProvider::new());
+        session_agent
+            .update_provider(
+                provider.clone(),
+                goose_providers::model::ModelConfig::new("gpt-4o").with_merged_request_params(
+                    HashMap::from([("thinking_effort".to_string(), serde_json::json!("xhigh"))]),
+                ),
+                &session.id,
+            )
+            .await
+            .unwrap();
+        server
+            .register_acp_session(session.id.clone(), session_agent)
+            .await;
+
+        let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+        let (server_read, client_write) = tokio::io::duplex(64 * 1024);
+        let (notification_tx, mut notification_rx) =
+            mpsc::unbounded_channel::<SessionNotification>();
+        let client = tokio::spawn(async move {
+            Client
+                .builder()
+                .on_receive_notification(
+                    async move |notification: SessionNotification, _cx| {
+                        let _ = notification_tx.send(notification);
+                        Ok(())
+                    },
+                    agent_client_protocol::on_receive_notification!(),
+                )
+                .connect_to(ByteStreams::new(
+                    client_write.compat_write(),
+                    client_read.compat(),
+                ))
+                .await
+        });
+
+        let session_id = SessionId::new(session.id);
+        let server_for_connection = server.clone();
+        SacpAgent
+            .builder()
+            .name("effort-update-test")
+            .connect_with(
+                ByteStreams::new(server_write.compat_write(), server_read.compat()),
+                async move |cx: ConnectionTo<Client>| {
+                    server_for_connection
+                        .start_thinking_effort_update_forwarder(&cx)
+                        .await;
+                    provider.update("xhigh", &["default", "high", "xhigh"]);
+
+                    let notification = tokio::time::timeout(
+                        std::time::Duration::from_secs(1),
+                        notification_rx.recv(),
+                    )
+                    .await
+                    .expect("timed out waiting for effort update")
+                    .expect("client notification channel closed");
+                    assert_eq!(notification.session_id, session_id);
+                    let SessionUpdate::ConfigOptionUpdate(update) = notification.update else {
+                        panic!("expected config option update");
+                    };
+                    let option = update
+                        .config_options
+                        .iter()
+                        .find(|option| option.id.0.as_ref() == "thinking_effort")
+                        .expect("thinking_effort option");
+                    let agent_client_protocol::schema::v1::SessionConfigKind::Select(select) =
+                        &option.kind
+                    else {
+                        panic!("thinking_effort should be a select option");
+                    };
+                    assert_eq!(select.current_value.0.as_ref(), "xhigh");
+                    Ok(())
+                },
+            )
+            .await
+            .unwrap();
+        client.await.unwrap().unwrap();
     }
 }
