@@ -390,6 +390,17 @@ Create custom providers to connect to services that aren't [already supported](#
 
 Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. They can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
 
+### SCNet example
+
+SCNet can be configured through goose's existing custom OpenAI-compatible provider path:
+
+- **Display Name**: `SCNet`
+- **API URL**: `https://api.scnet.cn/api/llm/v1/chat/completions`
+- **API key environment variable**: `SCNET_API_KEY`
+- **Available Models**: `DeepSeek-V4-Flash`, `DeepSeek-V4-Pro`, `GLM-5.2`, `Kimi-K2.7-Code`, or `Qwen3.8-Max`
+
+No provider-specific runtime code is required. Use the model IDs returned by SCNet's `/models` endpoint when refreshing the list.
+
 **To add a custom provider:**
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
