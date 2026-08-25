@@ -2,15 +2,12 @@
 
 use std::sync::Arc;
 
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::StreamExt;
 use goose_agent::inference::InferenceEffect;
 pub use goose_agent::inference::InferenceRunner;
 use goose_providers::base::{MessageStream, ModelInfo, Provider};
 use goose_providers::conversation::message::Message;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use goose_providers::conversation::Conversation;
+use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
@@ -99,7 +96,7 @@ impl Provider for GooseInferenceProvider {
                 model_config,
             );
         let session_id = crate::session_context::current_session_id().unwrap_or_default();
-        let mut stream = crate::agents::reply_parts::stream_response_from_provider(
+        crate::agents::reply_parts::stream_response_from_provider(
             self.inner.clone(),
             model_config.clone(),
             &session_id,
@@ -108,43 +105,7 @@ impl Provider for GooseInferenceProvider {
             &tools,
             &toolshim_tools,
         )
-        .await?;
-        let model_name = model_config.model_name.clone();
-
-        Ok(Box::pin(try_stream! {
-            let mut responses = Conversation::empty();
-            let mut has_usage = false;
-            while let Some(item) = stream.next().await {
-                let (message, reported_usage) = item?;
-                if let Some(message) = &message {
-                    responses.push(message.clone());
-                }
-                let reports_tokens = reported_usage.as_ref().is_some_and(|usage| {
-                    usage.usage.input_tokens.is_some()
-                        || usage.usage.output_tokens.is_some()
-                        || usage.usage.total_tokens.is_some()
-                });
-                has_usage |= reports_tokens;
-                let usage = if reports_tokens || has_usage {
-                    reported_usage
-                } else if let Some(response) = responses.last() {
-                    let mut usage = ProviderUsage::new(model_name.clone(), Usage::default());
-                    crate::providers::usage_estimator::ensure_usage_tokens(
-                        &mut usage,
-                        &system_prompt,
-                        &messages,
-                        response,
-                        &tools,
-                    )
-                    .await
-                    .map_err(|error| ProviderError::UsageError(error.to_string()))?;
-                    Some(usage)
-                } else {
-                    reported_usage
-                };
-                yield (message, usage);
-            }
-        }))
+        .await
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -153,52 +114,5 @@ impl Provider for GooseInferenceProvider {
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
         self.inner.fetch_model_info(model_name).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use futures::stream;
-    use goose_providers::conversation::message::Message;
-
-    struct NoUsageProvider;
-
-    #[async_trait]
-    impl Provider for NoUsageProvider {
-        fn get_name(&self) -> &str {
-            "no-usage"
-        }
-
-        async fn stream(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[rmcp::model::Tool],
-        ) -> Result<MessageStream, ProviderError> {
-            Ok(Box::pin(stream::iter([
-                Ok((Some(Message::assistant().with_text("partial")), None)),
-                Ok((Some(Message::assistant().with_text(" response")), None)),
-            ])))
-        }
-    }
-
-    #[tokio::test]
-    async fn fallback_usage_is_available_before_stream_completion() {
-        let provider = GooseInferenceProvider::new(Arc::new(NoUsageProvider));
-        let model_config = ModelConfig::new("test-model");
-        let messages = [Message::user().with_text("hello")];
-        let mut stream = provider
-            .stream(&model_config, "system", &messages, &[])
-            .await
-            .expect("stream");
-
-        let (_, usage) = stream.next().await.expect("first item").expect("chunk");
-
-        let usage = usage.expect("fallback usage must accompany content before EOF");
-        assert!(usage.usage.input_tokens.is_some());
-        assert!(usage.usage.output_tokens.is_some());
-        assert!(usage.usage.total_tokens.is_some());
     }
 }
