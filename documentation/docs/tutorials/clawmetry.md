@@ -37,7 +37,16 @@ Use goose exactly as you normally would:
 goose session
 ```
 
-ClawMetry auto-detects the session store at `$XDG_DATA_HOME/goose/sessions/sessions.db`, falling back to `~/.local/share/goose/sessions/sessions.db`, which is the default on macOS and Linux. Sessions you ran before installing ClawMetry appear as well.
+ClawMetry auto-detects the [session store](/docs/guides/logs#session-records) by resolving goose's data directory the same way goose does:
+
+| Platform | Session store |
+| --- | --- |
+| macOS and Linux | `$XDG_DATA_HOME/goose/sessions/sessions.db`, defaulting to `~/.local/share/goose/sessions/sessions.db` |
+| Windows | `%APPDATA%\Block\goose\data\sessions\sessions.db` |
+
+If [`GOOSE_PATH_ROOT`](/docs/guides/environment-variables) is set, ClawMetry reads `$GOOSE_PATH_ROOT/data/sessions/sessions.db` instead, on every platform. On macOS it also checks `~/Library/Application Support/Block/goose/` last, so an older install that still keeps its data there is picked up.
+
+Sessions you ran before installing ClawMetry appear as well.
 
 ## What you see
 
