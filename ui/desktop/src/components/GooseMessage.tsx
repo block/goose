@@ -10,6 +10,7 @@ import {
   getThinkingContent,
   getToolRequests,
   getToolResponses,
+  reasoningConsumedOutputBudget,
   getToolConfirmationContent,
   getElicitationContent,
   getPendingToolConfirmationIds,
@@ -29,6 +30,7 @@ interface GooseMessageProps {
   sessionId: string;
   message: Message;
   messages: Message[];
+  messageIndex: number;
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
@@ -43,6 +45,7 @@ function GooseMessage({
   sessionId,
   message,
   messages,
+  messageIndex,
   toolCallNotifications,
   append,
   isStreaming,
@@ -60,7 +63,7 @@ function GooseMessage({
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
-  const messageIndex = messages.findIndex((msg) => msg.id === message.id);
+  const reasoningConsumedBudget = reasoningConsumedOutputBudget(messages, messageIndex);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
 
@@ -82,9 +85,11 @@ function GooseMessage({
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
-  const outputTokenLimitNotice = isOutputTokenLimitFallback
-    ? "Response reached the model's output-token limit before returning content."
-    : "Response reached the model's output-token limit and may be incomplete.";
+  const outputTokenLimitNotice = reasoningConsumedBudget
+    ? 'Reasoning consumed the output-token budget before any visible content was produced. Raise GOOSE_MAX_TOKENS or lower GOOSE_THINKING_EFFORT.'
+    : isOutputTokenLimitFallback
+      ? "Response reached the model's output-token limit before returning content."
+      : "Response reached the model's output-token limit and may be incomplete.";
   const elicitationData =
     elicitationContent?.data.actionType === 'elicitation'
       ? (elicitationContent.data as typeof elicitationContent.data & {

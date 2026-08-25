@@ -5002,6 +5002,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     struct OutputLimitMarkerProvider {
         include_content: bool,
+        include_thinking: bool,
         call_count: AtomicUsize,
     }
 
@@ -5009,6 +5010,15 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         fn new(include_content: bool) -> Self {
             Self {
                 include_content,
+                include_thinking: false,
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn thinking_only() -> Self {
+            Self {
+                include_content: false,
+                include_thinking: true,
                 call_count: AtomicUsize::new(0),
             }
         }
@@ -5029,15 +5039,21 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         ) -> Result<MessageStream, ProviderError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             let message_id = "provider-output-limit";
-            let content = Message::assistant()
-                .with_text("Partial answer")
-                .with_id(message_id);
+            let content = if self.include_thinking {
+                Message::assistant()
+                    .with_thinking("internal reasoning", "")
+                    .with_id(message_id)
+            } else {
+                Message::assistant()
+                    .with_text("Partial answer")
+                    .with_id(message_id)
+            };
             let mut marker = Message::assistant().with_id(message_id);
             marker.metadata.output_token_limit_reached = true;
             let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
 
             let mut events = Vec::new();
-            if self.include_content {
+            if self.include_content || self.include_thinking {
                 events.push(Ok((Some(content), None)));
             }
             events.push(Ok((Some(marker), Some(usage))));
@@ -5276,6 +5292,49 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .agent_visible_messages()
             .iter()
             .all(|message| message.id.as_deref() != Some("provider-output-limit")));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn thinking_only_output_limit_is_emitted_without_empty_response_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let provider = Arc::new(OutputLimitMarkerProvider::thinking_only());
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        assert_eq!(provider.call_count(), 1);
+        assert!(messages
+            .iter()
+            .any(|message| message.has_thinking_content()));
+        assert!(messages
+            .iter()
+            .any(|message| message.metadata.output_token_limit_reached));
+        assert!(messages.iter().all(|message| {
+            !message
+                .as_concat_text()
+                .contains("The model returned an empty response")
+        }));
+
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("session should have a conversation");
+        let persisted = conversation
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("provider-output-limit"))
+            .expect("thinking-only output-limit response should be persisted");
+        assert!(persisted.has_thinking_content());
+        assert!(!persisted.has_visible_output());
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(persisted.reasoning_consumed_output_budget());
 
         Ok(())
     }

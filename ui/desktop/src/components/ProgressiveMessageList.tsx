@@ -305,6 +305,7 @@ export default function ProgressiveMessageList({
                   sessionId={chat.sessionId}
                   message={message}
                   messages={messages}
+                  messageIndex={index}
                   append={append}
                   toolCallNotifications={toolCallNotifications}
                   isStreaming={
