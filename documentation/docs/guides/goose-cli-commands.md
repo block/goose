@@ -802,7 +802,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
 - **`/skills [<name>...]`** - List available skills, or load one or more skills by name
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
-- **`/t <name>`** - Set theme directly (light, dark, ansi)
+- **`/t <name>`** - Set theme directly (`light`, `dark`, `ansi`, `latte`, `frappe`, `macchiato`, `mocha`)
 
 **Examples:**
 ```bash
@@ -834,6 +834,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 - `/t light` - Sets `light` theme (subtle light colors)
 - `/t dark` - Sets `dark` theme (subtle darker colors)
 - `/t ansi` - Sets `ansi` theme (most visually distinct option with brighter colors)
+- `/t latte` / `/t frappe` / `/t macchiato` / `/t mocha` - Sets the matching [Catppuccin](https://catppuccin.com/) syntax theme. These flavors are opt-in and are not part of the `/t` cycle.
 
 **Configuration:**
 - The default theme is `dark`

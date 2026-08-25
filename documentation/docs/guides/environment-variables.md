@@ -161,7 +161,7 @@ These variables control how goose manages conversation sessions and context.
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints", "AGENTS.md"]` |
 | `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
-| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response markdown | "light", "dark", "ansi" | "ansi" |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response markdown | "light", "dark", "ansi", "latte", "frappe", "macchiato", "mocha" | "ansi" |
 | `GOOSE_CLI_LIGHT_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using light mode | bat theme name (e.g., "Solarized (light)", "OneHalfLight") | "GitHub" |
 | `GOOSE_CLI_DARK_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using dark mode | bat theme name (e.g., "Dracula", "Nord") | "zenburn" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |

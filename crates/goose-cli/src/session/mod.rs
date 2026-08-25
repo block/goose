@@ -848,38 +848,22 @@ impl CliSession {
     fn handle_toggle_theme(&self) {
         let current = output::get_theme();
         let new_theme = match current {
-            output::Theme::Ansi => {
-                println!("Switching to Light theme");
-                output::Theme::Light
-            }
-            output::Theme::Light => {
-                println!("Switching to Dark theme");
-                output::Theme::Dark
-            }
-            output::Theme::Dark => {
-                println!("Switching to Ansi theme");
-                output::Theme::Ansi
-            }
+            output::Theme::Ansi => output::Theme::Light,
+            output::Theme::Light => output::Theme::Dark,
+            output::Theme::Dark => output::Theme::Ansi,
+            // Named Catppuccin flavors stay opt-in via `/t <name>`.
+            output::Theme::CatppuccinLatte
+            | output::Theme::CatppuccinFrappe
+            | output::Theme::CatppuccinMacchiato
+            | output::Theme::CatppuccinMocha => output::Theme::Light,
         };
+        println!("Switching to {} theme", new_theme.display_name());
         output::set_theme(new_theme);
     }
 
     fn handle_select_theme(&self, theme_name: &str) {
-        let new_theme = match theme_name {
-            "light" => {
-                println!("Switching to Light theme");
-                output::Theme::Light
-            }
-            "dark" => {
-                println!("Switching to Dark theme");
-                output::Theme::Dark
-            }
-            "ansi" => {
-                println!("Switching to Ansi theme");
-                output::Theme::Ansi
-            }
-            _ => output::Theme::Dark,
-        };
+        let new_theme = output::Theme::from_config_str(theme_name);
+        println!("Switching to {} theme", new_theme.display_name());
         output::set_theme(new_theme);
     }
 

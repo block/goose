@@ -926,8 +926,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Gagal memperbarui direktori kerja"
   },
@@ -4677,5 +4675,68 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Kunjungi"
+  },
+  "themeSelector.builtinGroup": {
+    "defaultMessage": "Built-in"
+  },
+  "themeSelector.catppuccinGroup": {
+    "defaultMessage": "Catppuccin"
+  },
+  "themeSelector.accent": {
+    "defaultMessage": "Accent"
+  },
+  "themeSelector.catppuccinLatte": {
+    "defaultMessage": "Latte"
+  },
+  "themeSelector.catppuccinFrappe": {
+    "defaultMessage": "Frappé"
+  },
+  "themeSelector.catppuccinMacchiato": {
+    "defaultMessage": "Macchiato"
+  },
+  "themeSelector.catppuccinMocha": {
+    "defaultMessage": "Mocha"
+  },
+  "themeSelector.accentRosewater": {
+    "defaultMessage": "Rosewater"
+  },
+  "themeSelector.accentFlamingo": {
+    "defaultMessage": "Flamingo"
+  },
+  "themeSelector.accentPink": {
+    "defaultMessage": "Pink"
+  },
+  "themeSelector.accentMauve": {
+    "defaultMessage": "Mauve"
+  },
+  "themeSelector.accentRed": {
+    "defaultMessage": "Red"
+  },
+  "themeSelector.accentMaroon": {
+    "defaultMessage": "Maroon"
+  },
+  "themeSelector.accentPeach": {
+    "defaultMessage": "Peach"
+  },
+  "themeSelector.accentYellow": {
+    "defaultMessage": "Yellow"
+  },
+  "themeSelector.accentGreen": {
+    "defaultMessage": "Green"
+  },
+  "themeSelector.accentTeal": {
+    "defaultMessage": "Teal"
+  },
+  "themeSelector.accentSky": {
+    "defaultMessage": "Sky"
+  },
+  "themeSelector.accentSapphire": {
+    "defaultMessage": "Sapphire"
+  },
+  "themeSelector.accentBlue": {
+    "defaultMessage": "Blue"
+  },
+  "themeSelector.accentLavender": {
+    "defaultMessage": "Lavender"
   }
 }

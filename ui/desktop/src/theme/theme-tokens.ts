@@ -18,6 +18,32 @@ import type {
   McpUiStyleVariableKey,
   McpUiStyles,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
+import { buildCatppuccinColorTokens } from './catppuccin';
+import {
+  DEFAULT_CATPPUCCIN_ACCENT,
+  isCatppuccinAccent,
+  isCatppuccinThemeId,
+  isThemeId,
+  type CatppuccinAccent,
+  type CatppuccinThemeId,
+  type ThemeId,
+  type ThemeVariant,
+} from './types';
+
+export type { ThemeId, ThemeVariant } from './types';
+export {
+  CATPPUCCIN_ACCENTS,
+  CATPPUCCIN_THEME_IDS,
+  DEFAULT_CATPPUCCIN_ACCENT,
+  THEME_IDS,
+  isCatppuccinAccent,
+  isCatppuccinThemeId,
+  isThemeId,
+  isThemePreference,
+  type CatppuccinAccent,
+  type CatppuccinThemeId,
+  type ThemePreference,
+} from './types';
 
 type ThemeTokens = Record<McpUiStyleVariableKey, string>;
 
@@ -271,15 +297,16 @@ export const lightTokens: ThemeTokens = { ...baseTokens, ...lightColorTokens };
 export const darkTokens: ThemeTokens = { ...baseTokens, ...darkColorTokens };
 export const auraTokens: ThemeTokens = { ...baseTokens, ...auraFontTokens, ...auraColorTokens };
 
+function catppuccinTokens(flavorId: CatppuccinThemeId, accent: CatppuccinAccent): ThemeTokens {
+  return { ...baseTokens, ...buildCatppuccinColorTokens(flavorId, accent) };
+}
+
 // ---------------------------------------------------------------------------
 // Theme registry — the set of selectable named themes.
 // `variant` drives the .dark/.light class and colorScheme for anything outside
 // the token system; `tokens` is the map applied to :root. Adding a future theme
 // is a single entry here plus its token map above.
 // ---------------------------------------------------------------------------
-export type ThemeId = 'light' | 'dark' | 'aura';
-export type ThemeVariant = 'light' | 'dark';
-
 interface ThemeDefinition {
   variant: ThemeVariant;
   tokens: ThemeTokens;
@@ -289,7 +316,33 @@ export const themes: Record<ThemeId, ThemeDefinition> = {
   light: { variant: 'light', tokens: lightTokens },
   dark: { variant: 'dark', tokens: darkTokens },
   aura: { variant: 'dark', tokens: auraTokens },
+  'catppuccin-latte': {
+    variant: 'light',
+    tokens: catppuccinTokens('catppuccin-latte', DEFAULT_CATPPUCCIN_ACCENT),
+  },
+  'catppuccin-frappe': {
+    variant: 'dark',
+    tokens: catppuccinTokens('catppuccin-frappe', DEFAULT_CATPPUCCIN_ACCENT),
+  },
+  'catppuccin-macchiato': {
+    variant: 'dark',
+    tokens: catppuccinTokens('catppuccin-macchiato', DEFAULT_CATPPUCCIN_ACCENT),
+  },
+  'catppuccin-mocha': {
+    variant: 'dark',
+    tokens: catppuccinTokens('catppuccin-mocha', DEFAULT_CATPPUCCIN_ACCENT),
+  },
 };
+
+export function getThemeTokens(
+  themeId: ThemeId,
+  accent: CatppuccinAccent = DEFAULT_CATPPUCCIN_ACCENT
+): ThemeTokens {
+  if (isCatppuccinThemeId(themeId)) {
+    return catppuccinTokens(themeId, accent);
+  }
+  return themes[themeId].tokens;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -338,8 +391,11 @@ const HOST_FONT_CSS = `
  * Aura's monospace font family reach the guest.
  * css.fonts provides @font-face rules so sandboxed apps can load host fonts.
  */
-export function buildMcpHostStyles(themeId: ThemeId = 'light'): McpUiHostStyles {
-  const tokens = (themes[themeId] ?? themes.light).tokens;
+export function buildMcpHostStyles(
+  themeId: ThemeId = 'light',
+  accent: CatppuccinAccent = DEFAULT_CATPPUCCIN_ACCENT
+): McpUiHostStyles {
+  const tokens = getThemeTokens(themeId, accent);
   const isBuiltinVariant = themeId === 'light' || themeId === 'dark';
   const variables: McpUiStyles = {} as McpUiStyles;
   for (const key of Object.keys(lightTokens) as McpUiStyleVariableKey[]) {
@@ -363,17 +419,24 @@ export function getResolvedTheme(): ThemeId {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   const stored = localStorage.getItem('theme');
-  if (stored === 'aura') return 'aura';
-  return stored === 'dark' ? 'dark' : 'light';
+  return isThemeId(stored) ? stored : 'light';
+}
+
+export function getStoredCatppuccinAccent(): CatppuccinAccent {
+  const stored = localStorage.getItem('catppuccin_accent');
+  return isCatppuccinAccent(stored) ? stored : DEFAULT_CATPPUCCIN_ACCENT;
 }
 
 /**
  * Apply a theme's tokens to the document root as CSS custom properties.
  * When called without an argument, resolves the theme from localStorage.
  */
-export function applyThemeTokens(theme?: ThemeId): void {
+export function applyThemeTokens(
+  theme?: ThemeId,
+  accent: CatppuccinAccent = getStoredCatppuccinAccent()
+): void {
   const resolved = theme ?? getResolvedTheme();
-  const { tokens } = themes[resolved] ?? themes.light;
+  const tokens = getThemeTokens(resolved, accent);
   const root = document.documentElement;
   for (const [key, value] of Object.entries(tokens)) {
     root.style.setProperty(key, value);

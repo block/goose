@@ -926,8 +926,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "無法更新工作目錄"
   },
@@ -4677,5 +4675,68 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "前往"
+  },
+  "themeSelector.builtinGroup": {
+    "defaultMessage": "內建"
+  },
+  "themeSelector.catppuccinGroup": {
+    "defaultMessage": "Catppuccin"
+  },
+  "themeSelector.accent": {
+    "defaultMessage": "強調色"
+  },
+  "themeSelector.catppuccinLatte": {
+    "defaultMessage": "Latte"
+  },
+  "themeSelector.catppuccinFrappe": {
+    "defaultMessage": "Frappé"
+  },
+  "themeSelector.catppuccinMacchiato": {
+    "defaultMessage": "Macchiato"
+  },
+  "themeSelector.catppuccinMocha": {
+    "defaultMessage": "Mocha"
+  },
+  "themeSelector.accentRosewater": {
+    "defaultMessage": "玫瑰水"
+  },
+  "themeSelector.accentFlamingo": {
+    "defaultMessage": "紅鶴"
+  },
+  "themeSelector.accentPink": {
+    "defaultMessage": "粉紅"
+  },
+  "themeSelector.accentMauve": {
+    "defaultMessage": "淡紫"
+  },
+  "themeSelector.accentRed": {
+    "defaultMessage": "紅色"
+  },
+  "themeSelector.accentMaroon": {
+    "defaultMessage": "栗色"
+  },
+  "themeSelector.accentPeach": {
+    "defaultMessage": "桃色"
+  },
+  "themeSelector.accentYellow": {
+    "defaultMessage": "黃色"
+  },
+  "themeSelector.accentGreen": {
+    "defaultMessage": "綠色"
+  },
+  "themeSelector.accentTeal": {
+    "defaultMessage": "青色"
+  },
+  "themeSelector.accentSky": {
+    "defaultMessage": "天空藍"
+  },
+  "themeSelector.accentSapphire": {
+    "defaultMessage": "寶石藍"
+  },
+  "themeSelector.accentBlue": {
+    "defaultMessage": "藍色"
+  },
+  "themeSelector.accentLavender": {
+    "defaultMessage": "薰衣草"
   }
 }
