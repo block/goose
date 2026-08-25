@@ -856,34 +856,55 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<(Session, SessionUsageTotals, usize), agent_client_protocol::Error> {
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to load session for setup notifications")?;
-        let agent = self.get_session_agent(session_id).await?;
-        let provider = agent
-            .provider()
-            .await
-            .internal_err_ctx("Failed to resolve session provider")?;
-        let model = session.model_config.as_ref().ok_or_else(|| {
-            agent_client_protocol::Error::internal_error().data("Session has no model")
-        })?;
-        let context_limit =
-            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
+        loop {
+            let session = self
+                .session_manager
+                .get_session(session_id, false)
                 .await
-                .internal_err_ctx("Failed to resolve context limit")?;
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to refresh session for setup notifications")?;
-        let totals = self
-            .session_manager
-            .get_session_usage_totals(session_id)
-            .await
-            .unwrap_or_default();
-        Ok((session, totals, context_limit))
+                .internal_err_ctx("Failed to load session for setup notifications")?;
+            let model_name = session
+                .model_config
+                .as_ref()
+                .map(|model| model.model_name.clone())
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::internal_error().data("Session has no model")
+                })?;
+            let provider_name = session.provider_name.clone();
+            let agent = self.get_session_agent(session_id).await?;
+            let provider = agent
+                .provider()
+                .await
+                .internal_err_ctx("Failed to resolve session provider")?;
+            let context_limit =
+                crate::context_limit::get_context_limit(provider.as_ref(), &model_name)
+                    .await
+                    .internal_err_ctx("Failed to resolve context limit")?;
+            let session = self
+                .session_manager
+                .get_session(session_id, false)
+                .await
+                .internal_err_ctx("Failed to refresh session for setup notifications")?;
+            let current_provider = agent
+                .provider()
+                .await
+                .internal_err_ctx("Failed to refresh session provider")?;
+            let refreshed_model_name = session
+                .model_config
+                .as_ref()
+                .map(|model| model.model_name.as_str());
+            if !Arc::ptr_eq(&provider, &current_provider)
+                || session.provider_name != provider_name
+                || refreshed_model_name != Some(model_name.as_str())
+            {
+                continue;
+            }
+            let totals = self
+                .session_manager
+                .get_session_usage_totals(session_id)
+                .await
+                .unwrap_or_default();
+            return Ok((session, totals, context_limit));
+        }
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
