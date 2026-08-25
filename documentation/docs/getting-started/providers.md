@@ -396,10 +396,10 @@ SCNet can be configured through goose's existing custom OpenAI-compatible provid
 
 - **Display Name**: `SCNet`
 - **API URL**: `https://api.scnet.cn/api/llm/v1/chat/completions`
-- **API key environment variable**: `SCNET_API_KEY`
-- **Available Models**: `DeepSeek-V4-Flash`, `DeepSeek-V4-Pro`, `GLM-5.2`, `Kimi-K2.7-Code`, or `Qwen3.8-Max`
+- **API key environment variable**: `CUSTOM_SCNET_API_KEY`
+- **Example pay-as-you-go models**: `DeepSeek-V4-Flash`, `DeepSeek-V4-Pro`, `GLM-5.2`, `Kimi-K2.7-Code`, or `Qwen3.8-Max`
 
-No provider-specific runtime code is required. Use the model IDs returned by SCNet's `/models` endpoint when refreshing the list.
+No provider-specific runtime code is required. These examples are from SCNet's pay-as-you-go catalog, which is separate from goose's `scnet-token-plan` canonical model catalog. Model availability may change; use the model IDs currently returned by SCNet's `/models` endpoint.
 
 **To add a custom provider:**
 <Tabs groupId="interface">
