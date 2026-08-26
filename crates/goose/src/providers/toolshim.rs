@@ -462,10 +462,26 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
         let is_execute_compatibility = contains_unresolved_execute_alias(raw_tool_name, tools);
 
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
+            let structured_execute_name = arguments_value
+                .get("name")
+                .and_then(Value::as_str)
+                .filter(|name| contains_unresolved_execute_alias(name, tools));
             if is_execute_compatibility {
                 if let Some(shell_call) =
                     maybe_convert_execute_to_shell_tool_call(raw_tool_name, &arguments_value, tools)
                 {
+                    calls.push(shell_call);
+                } else {
+                    rejected_execute = true;
+                }
+            } else if let Some(structured_execute_name) = structured_execute_name {
+                if let Some(shell_call) = arguments_value.get("arguments").and_then(|arguments| {
+                    maybe_convert_execute_to_shell_tool_call(
+                        structured_execute_name,
+                        arguments,
+                        tools,
+                    )
+                }) {
                     calls.push(shell_call);
                 } else {
                     rejected_execute = true;
@@ -1558,6 +1574,27 @@ mod tests {
             .unwrap();
 
         assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_validates_structured_execute_name_without_interpreter() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::ToolRequest(_))));
     }
 
     #[test]
