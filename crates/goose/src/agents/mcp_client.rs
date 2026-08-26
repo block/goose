@@ -53,7 +53,11 @@ const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
 fn extract_sampling_text(
     content: &[crate::conversation::message::MessageContent],
 ) -> Option<String> {
-    let text = content
+    let visible_content = content
+        .iter()
+        .filter_map(crate::conversation::message::MessageContent::user_visible_content)
+        .collect::<Vec<_>>();
+    let text = visible_content
         .iter()
         .filter_map(|content| match content {
             crate::conversation::message::MessageContent::Text(text)
@@ -485,8 +489,11 @@ impl ClientHandler for GooseClient {
 
         let sampling_content = if let Some(text) = extract_sampling_text(&response.content) {
             SamplingMessageContentBlock::text(text)
-        } else if let Some(crate::conversation::message::MessageContent::Image(img)) =
-            response.content.iter().find(|content| {
+        } else if let Some(crate::conversation::message::MessageContent::Image(img)) = response
+            .content
+            .iter()
+            .filter_map(crate::conversation::message::MessageContent::user_visible_content)
+            .find(|content| {
                 matches!(
                     content,
                     crate::conversation::message::MessageContent::Image(_)
@@ -1092,6 +1099,23 @@ mod tests {
         assert_eq!(
             extract_sampling_text(&response.content).as_deref(),
             Some("first\nsecond")
+        );
+    }
+
+    #[test]
+    fn sampling_text_excludes_assistant_only_blocks() {
+        let assistant_only = rmcp::model::TextContent::new("assistant only").with_annotations(
+            rmcp::model::Annotations::default().with_audience(vec![Role::Assistant]),
+        );
+        let response = crate::conversation::message::Message::assistant()
+            .with_text("visible")
+            .with_content(crate::conversation::message::MessageContent::Text(
+                assistant_only,
+            ));
+
+        assert_eq!(
+            extract_sampling_text(&response.content).as_deref(),
+            Some("visible")
         );
     }
 
