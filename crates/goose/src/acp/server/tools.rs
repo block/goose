@@ -91,16 +91,9 @@ impl GooseAcpAgent {
             params
         };
 
-        // App clients invoke tools directly, outside the model's tool-approval
-        // loop. Enforce the same permission policy here; the synchronous app
-        // path cannot prompt, so anything short of a definitive approval fails
-        // closed.
-        if let crate::agents::AppToolAuthorization::Rejected(reason) = agent
-            .authorize_app_tool_call(session_id, tool_call.clone())
-            .await
-        {
+        if agent.goose_mode().await != GooseMode::Auto {
             return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("tool call not permitted: {reason}")));
+                .data("app tool calls require auto mode"));
         }
 
         let session = self
