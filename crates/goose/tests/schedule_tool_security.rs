@@ -180,6 +180,13 @@ async fn session_content_only_serializes_agent_visible_conversation() {
     let ContentBlock::Text(content) = &result[0] else {
         panic!("expected text content");
     };
+    assert_eq!(
+        content
+            .annotations
+            .as_ref()
+            .and_then(|annotations| annotations.audience.as_deref()),
+        Some(&[Role::Assistant][..])
+    );
     let (_, session_json) = content.text.split_once("\nSession:\n").unwrap();
     let serialized: serde_json::Value = serde_json::from_str(session_json).unwrap();
 
