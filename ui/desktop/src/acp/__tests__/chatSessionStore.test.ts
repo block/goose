@@ -484,6 +484,23 @@ describe('acpChatSessionStore', () => {
     expect(finished.chatState).toBe(ChatState.Idle);
   });
 
+  it('clears cancellation state when a cancelled server-started run finishes', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'resume-run')
+    );
+    acpChatSessionActions.startPromptCancellation(currentSessionId, 'server-run:resume-run');
+
+    const finished = acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, null)
+    );
+
+    expect(finished.pendingCancelPromptAttemptId).toBeNull();
+    expect(finished.activePromptAttemptId).toBeNull();
+    expect(finished.chatState).toBe(ChatState.Idle);
+  });
+
   it('clears active run ids when the prompt attempt finishes', () => {
     const currentSessionId = sessionId('session-1');
 
