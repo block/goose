@@ -794,7 +794,9 @@ pub async fn search_local_models(query: &str, limit: usize) -> Result<Vec<HfMode
     if cfg!(target_os = "macos") {
         append_optional_mlx_results(&mut results, search_mlx_models(query, limit).await, query);
     }
+    filter_mlx_variants_for_current_platform(&mut results);
     dedupe_models(&mut results);
+    results.retain(|model| !model.variants.is_empty());
     results.sort_by(|a, b| {
         model_search_rank(query, a)
             .cmp(&model_search_rank(query, b))
@@ -816,6 +818,16 @@ fn append_optional_mlx_results(
             error = %error,
             "Failed to search MLX models; returning non-MLX results"
         ),
+    }
+}
+
+fn filter_mlx_variants_for_current_platform(results: &mut [HfModelInfo]) {
+    if cfg!(target_os = "macos") {
+        return;
+    }
+
+    for model in results {
+        model.variants.retain(|variant| variant.backend_id != MLX_BACKEND_ID);
     }
 }
 
@@ -1443,6 +1455,47 @@ mod tests {
     }
 
     #[test]
+    fn filter_mlx_variants_for_current_platform_vec_removes_mlx_on_non_macos() {
+        let mut variants = vec![
+            HfQuantVariant {
+                quantization: "Q4_K_M".into(),
+                size_bytes: 1,
+                filename: "model-Q4_K_M.gguf".into(),
+                download_url: "https://example.com/model-Q4_K_M.gguf".into(),
+                description: "GGUF",
+                quality_rank: 10,
+                sharded: false,
+            }
+            .to_model_variant("owner/repo"),
+            HfModelVariant {
+                variant_id: "default".into(),
+                label: "MLX".into(),
+                backend_id: MLX_BACKEND_ID.into(),
+                format: MLX_FORMAT.into(),
+                model_id: "owner/repo".into(),
+                download_id: "owner/repo".into(),
+                size_bytes: 2,
+                filename: None,
+                download_url: None,
+                description: "MLX safetensors snapshot".into(),
+                quality_rank: 91,
+                sharded: false,
+                supported: true,
+                unsupported_reason: None,
+            },
+        ];
+
+        filter_mlx_variants_for_current_platform_vec(&mut variants);
+
+        if cfg!(target_os = "macos") {
+            assert_eq!(variants.len(), 2);
+        } else {
+            assert_eq!(variants.len(), 1);
+            assert_eq!(variants[0].backend_id, LLAMACPP_BACKEND_ID);
+        }
+    }
+
+    #[test]
     fn best_download_count_ignores_zero_primary() {
         assert_eq!(best_download_count(Some(0), Some(42)), Some(42));
         assert_eq!(best_download_count(Some(7), Some(42)), Some(7));
@@ -2026,6 +2079,7 @@ async fn model_info_to_local_model_info(
         });
         variants.extend(mlx_variants_from_model_info(&repo_id, &info, &mlx_config));
     }
+    filter_mlx_variants_for_current_platform_vec(&mut variants);
 
     if variants.is_empty() {
         drop(gguf_variants?);
@@ -2107,6 +2161,7 @@ pub async fn get_repo_local_variants(repo_id: &str) -> Result<Vec<HfModelVariant
         .map(|variant| variant.to_model_variant(repo_id))
         .collect();
     variants.extend(get_repo_mlx_variants(repo_id).await.unwrap_or_default());
+    filter_mlx_variants_for_current_platform_vec(&mut variants);
     variants.sort_by(|a, b| {
         a.backend_id
             .cmp(&b.backend_id)
@@ -2383,6 +2438,14 @@ fn should_download_for_mlx(filename: &str) -> bool {
         || filename == "vocab.json"
         || filename == "merges.txt"
         || filename == "added_tokens.json"
+}
+
+fn filter_mlx_variants_for_current_platform_vec(variants: &mut Vec<HfModelVariant>) {
+    if cfg!(target_os = "macos") {
+        return;
+    }
+
+    variants.retain(|variant| variant.backend_id != MLX_BACKEND_ID);
 }
 
 fn mlx_variant_id(repo_id: &str, config: &Option<serde_json::Value>) -> String {
