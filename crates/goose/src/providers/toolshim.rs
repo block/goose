@@ -213,7 +213,10 @@ fn malformed_arguments_contain_unresolved_execute_alias(
     let mut remainder = raw_arguments.trim();
     while !remainder.is_empty() {
         let mut values = serde_json::Deserializer::from_str(remainder).into_iter::<Value>();
-        if let Some(Ok(_)) = values.next() {
+        if let Some(Ok(value)) = values.next() {
+            if contains_structured_unresolved_execute_alias(&value, tools) {
+                return true;
+            }
             remainder = remainder
                 .get(values.byte_offset()..)
                 .unwrap_or_default()
@@ -1698,6 +1701,24 @@ mod tests {
         assert!(augmented.content.is_empty());
     }
 
+    #[tokio::test]
+    async fn augment_rejects_execute_envelope_before_malformed_suffix() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}} x <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
     #[test]
     fn resolved_tool_accepts_nested_execute_shaped_arguments() {
         let tools = vec![
@@ -1729,6 +1750,21 @@ mod tests {
             serde_json::Map::new(),
         )];
         let content = "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"payload\":[{\"name\":\"transform\",\"arguments\":{\"value\":\"id\"}}]} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(parsed.calls.is_empty());
+        assert!(!parsed.rejected_execute);
+    }
+
+    #[test]
+    fn unresolved_header_does_not_reject_benign_json_prefix() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"payload\":{\"name\":\"transform\"}} x <|tool_call_end|> <|tool_calls_section_end|>";
 
         let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
 
