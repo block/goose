@@ -27,7 +27,6 @@ use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
 use crate::base::{MessageStream, ProviderDescriptor};
 use crate::model::ModelConfig;
@@ -937,32 +936,7 @@ pub fn from_declarative_config(
         api_client = api_client.with_headers(header_map)?;
     }
 
-    if let Some(ref header_name) = config.nonce_header {
-        // Parse the configured header name once, here, rather than on every request: a typo in
-        // `nonce_header` should fail at config load with a name you can act on, not turn every
-        // subsequent request into an opaque header-parse error.
-        let name = reqwest::header::HeaderName::from_bytes(header_name.as_bytes())
-            .map_err(|e| anyhow::anyhow!("invalid nonce_header {header_name:?}: {e}"))?;
-        // Reject names that a later stage overwrites, so a configured nonce cannot silently
-        // carry nothing: `session_id_request_builder` removes and rewrites the session header,
-        // and `ApiClient::send_request` applies authentication after every decorator.
-        const RESERVED: [&str; 3] = ["agent-session-id", "authorization", "proxy-authorization"];
-        if RESERVED.contains(&name.as_str()) {
-            return Err(anyhow::anyhow!(
-                "nonce_header {header_name:?} is reserved: it is overwritten by a later request \
-                 stage, so the nonce would not be sent. Choose a different header name."
-            ));
-        }
-        api_client = api_client.with_request_builder(Arc::new(move |request| {
-            let (client, req) = request.build_split();
-            let mut req = req?;
-            req.headers_mut().insert(
-                name.clone(),
-                reqwest::header::HeaderValue::from_str(&Uuid::new_v4().to_string())?,
-            );
-            Ok(reqwest::RequestBuilder::from_parts(client, req))
-        }));
-    }
+    api_client = api_client.with_nonce_header(config.nonce_header.as_deref())?;
 
     Ok(OpenAiProviderBuilder::new(api_client)
         .base_path(base_path)

@@ -400,18 +400,11 @@ mod tests {
         assert!(parse_base_url("  ").is_err());
     }
 
-    /// Regression pin for the decorator-composition bug.
-    ///
-    /// `from_custom_config` installs the session-id decorator *after*
-    /// `from_declarative_config` has installed the nonce decorator. While
-    /// `ApiClient::with_request_builder` replaced a single `Option` slot, the second
-    /// install silently discarded the first, so the CLI and Desktop paths sent no nonce
-    /// even though the `goose-providers` tests passed — those call
-    /// `from_declarative_config` directly and never exercise this wrapper.
-    ///
-    /// Both headers must arrive on the same request.
+    /// The nonce header (an `ApiClient` field set by `from_declarative_config`) and the
+    /// session-id header (a decorator `from_custom_config` installs on top) are independent
+    /// mechanisms; both must arrive on the same request.
     #[tokio::test]
-    async fn from_custom_config_composes_nonce_and_session_decorators() {
+    async fn from_custom_config_sends_nonce_and_session_headers_together() {
         use crate::providers::base::Provider;
         use crate::session_context::{with_session_id, SESSION_ID_HEADER};
 
@@ -444,12 +437,12 @@ mod tests {
 
         assert!(
             headers.get("x-test-nonce").is_some(),
-            "nonce header missing — the session decorator replaced it instead of composing"
+            "nonce header missing"
         );
         assert_eq!(
             headers.get(SESSION_ID_HEADER).map(|v| v.to_str().unwrap()),
             Some("session-abc"),
-            "session header missing — the nonce decorator replaced it instead of composing"
+            "session header missing"
         );
     }
 }

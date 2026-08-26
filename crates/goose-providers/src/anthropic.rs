@@ -459,6 +459,8 @@ pub fn from_declarative_config(
         api_client = api_client.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
     }
 
+    api_client = api_client.with_nonce_header(config.nonce_header.as_deref())?;
+
     let supports_streaming = config.supports_streaming.unwrap_or(true);
 
     if !supports_streaming {
