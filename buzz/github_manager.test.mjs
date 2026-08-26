@@ -138,6 +138,27 @@ test("retries a project read that changes while being listed", () => {
   assert.equal(result.byNumber.get(123), issueItem);
 });
 
+test("matches project repository names without case sensitivity", () => {
+  const issueItem = {
+    content: {
+      type: "Issue",
+      repository: "AAIF-Goose/Goose",
+      number: 123,
+    },
+  };
+  const result = getProjectIssues(
+    () => ({ totalCount: 1, items: [issueItem] }),
+    {
+      command: "gh",
+      projectNumber: 1,
+      projectOwner: "aaif-goose",
+      projectLimit: 1000,
+      repository: "aaif-goose/goose",
+    },
+  );
+  assert.equal(result.byNumber.get(123), issueItem);
+});
+
 test("normalizes paginated REST issues and excludes pull requests", () => {
   const issues = getOpenIssues(
     () => [

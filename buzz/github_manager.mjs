@@ -4,6 +4,7 @@ export function getProjectIssues(
   runJson,
   { command, projectNumber, projectOwner, projectLimit, repository },
 ) {
+  const normalizedRepository = repository.toLowerCase();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const project = runJson(command, [
       "project",
@@ -32,7 +33,7 @@ export function getProjectIssues(
             .filter(
               (item) =>
                 item.content?.type === "Issue" &&
-                item.content.repository === repository,
+                item.content.repository?.toLowerCase() === normalizedRepository,
             )
             .map((item) => [item.content.number, item]),
         ),
