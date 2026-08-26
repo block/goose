@@ -45,8 +45,7 @@ pub fn validate_recipe_template_from_content(
     recipe_content: &str,
     recipe_dir: Option<String>,
 ) -> Result<Recipe> {
-    parse_and_validate_parameters(recipe_content, recipe_dir.clone())?;
-    let (recipe, _) = parse_recipe_content(recipe_content, recipe_dir)?;
+    let recipe = parse_and_validate_parameters(recipe_content, recipe_dir)?;
 
     validate_prompt_or_instructions(&recipe)?;
     validate_retry_config(&recipe)?;
@@ -323,5 +322,90 @@ response:
         let error = validate_recipe_template_from_content(recipe_content, None).unwrap_err();
 
         assert!(error.to_string().contains("JSON schema validation failed"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inherited_recipe_is_validated_and_returned_from_one_snapshot() {
+        use crate::recipe::build_recipe::apply_values_to_parameters;
+        use std::ffi::CString;
+        use std::io::Write;
+        use std::os::unix::ffi::OsStrExt;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let parent_path = temp_dir.path().join("parent.yaml");
+        let retired_fifo_path = temp_dir.path().join("parent.fifo");
+        let secret_path = temp_dir.path().join("secret.txt");
+        let secret = "sensitive file contents";
+        std::fs::write(&secret_path, secret).unwrap();
+
+        let fifo_path = CString::new(parent_path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: fifo_path is a valid, NUL-terminated path and mode contains only permission bits.
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+
+        let safe_parent = format!(
+            r#"version: 1.0.0
+title: Safe parent
+description: Safe parent
+instructions: "Use {{{{ TARGET }}}}"
+parameters:
+  - key: TARGET
+    input_type: string
+    requirement: optional
+    description: Target value
+    default: "{}"
+"#,
+            secret_path.display()
+        );
+        let swapped_parent = format!(
+            r#"version: 1.0.0
+title: Swapped parent
+description: Swapped parent
+instructions: "Use {{{{ TARGET }}}}"
+parameters:
+  - key: TARGET
+    input_type: file
+    requirement: optional
+    description: Target file
+    default: "{}"
+"#,
+            secret_path.display()
+        );
+
+        let writer_parent_path = parent_path.clone();
+        let writer = std::thread::spawn(move || {
+            let mut fifo = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&writer_parent_path)
+                .unwrap();
+            fifo.write_all(safe_parent.as_bytes()).unwrap();
+            std::fs::rename(&writer_parent_path, retired_fifo_path).unwrap();
+            std::fs::write(&writer_parent_path, swapped_parent).unwrap();
+            drop(fifo);
+        });
+
+        let recipe = validate_recipe_template_from_content(
+            r#"{% extends "parent.yaml" %}"#,
+            Some(temp_dir.path().display().to_string()),
+        )
+        .unwrap();
+        writer.join().unwrap();
+
+        let parameters = recipe.parameters.unwrap();
+        assert!(matches!(
+            parameters[0].input_type,
+            RecipeParameterInputType::String
+        ));
+        let (values, missing) = apply_values_to_parameters(
+            &[],
+            Some(parameters),
+            &temp_dir.path().display().to_string(),
+            None::<fn(&str, &str) -> Result<String>>,
+        )
+        .unwrap();
+
+        assert!(missing.is_empty());
+        assert_eq!(values["TARGET"], secret_path.display().to_string());
+        assert_ne!(values["TARGET"], secret);
     }
 }
