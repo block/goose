@@ -1,3 +1,4 @@
+import type { IpcRendererEvent } from 'electron';
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider, useTheme } from './ThemeContext';
@@ -86,8 +87,11 @@ describe('ThemeContext broadcasts', () => {
   });
 
   it('applies a theme-only IPC update without resetting the local accent', async () => {
-    const listeners = new Map<string, (...args: unknown[]) => void>();
-    vi.mocked(window.electron.on).mockImplementation((channel: string, callback: (...args: unknown[]) => void) => {
+    const listeners = new Map<
+      string,
+      (event: IpcRendererEvent, ...args: unknown[]) => void
+    >();
+    vi.mocked(window.electron.on).mockImplementation((channel, callback) => {
       listeners.set(channel, callback);
     });
 
@@ -102,7 +106,7 @@ describe('ThemeContext broadcasts', () => {
     });
 
     await act(async () => {
-      listeners.get('theme-changed')?.(null, {
+      listeners.get('theme-changed')?.({} as IpcRendererEvent, {
         useSystemTheme: false,
         theme: 'catppuccin-latte',
       });
