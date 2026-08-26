@@ -2,10 +2,10 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   STREAMING_RENDER_COOLDOWN_MS,
-  useBackpressuredStreamingText,
-} from './useBackpressuredStreamingText';
+  useThrottledStreamingText,
+} from './useThrottledStreamingText';
 
-describe('useBackpressuredStreamingText', () => {
+describe('useThrottledStreamingText', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -16,7 +16,7 @@ describe('useBackpressuredStreamingText', () => {
 
   it('coalesces updates received during the cooldown', () => {
     const { result, rerender } = renderHook(
-      ({ content }) => useBackpressuredStreamingText(content, true),
+      ({ content }) => useThrottledStreamingText(content, true),
       { initialProps: { content: 'first' } }
     );
 
@@ -32,7 +32,7 @@ describe('useBackpressuredStreamingText', () => {
 
   it('publishes immediately when the previous cooldown has elapsed', () => {
     const { result, rerender } = renderHook(
-      ({ content }) => useBackpressuredStreamingText(content, true),
+      ({ content }) => useThrottledStreamingText(content, true),
       { initialProps: { content: 'first' } }
     );
 
@@ -45,7 +45,7 @@ describe('useBackpressuredStreamingText', () => {
   it('uses a longer cooldown when requested', () => {
     const longerCooldownMs = 250;
     const { result, rerender } = renderHook(
-      ({ content }) => useBackpressuredStreamingText(content, true, longerCooldownMs),
+      ({ content }) => useThrottledStreamingText(content, true, longerCooldownMs),
       { initialProps: { content: 'first' } }
     );
 
@@ -57,9 +57,9 @@ describe('useBackpressuredStreamingText', () => {
     expect(result.current).toBe('first second');
   });
 
-  it('returns the latest content immediately when backpressure is disabled', () => {
+  it('returns the latest content immediately when throttling is disabled', () => {
     const { result, rerender } = renderHook(
-      ({ content, enabled }) => useBackpressuredStreamingText(content, enabled),
+      ({ content, enabled }) => useThrottledStreamingText(content, enabled),
       { initialProps: { content: 'first', enabled: true } }
     );
 
@@ -72,7 +72,7 @@ describe('useBackpressuredStreamingText', () => {
   });
 
   it('cancels the cooldown on unmount', () => {
-    const { unmount } = renderHook(() => useBackpressuredStreamingText('first', true));
+    const { unmount } = renderHook(() => useThrottledStreamingText('first', true));
 
     expect(vi.getTimerCount()).toBe(1);
     unmount();

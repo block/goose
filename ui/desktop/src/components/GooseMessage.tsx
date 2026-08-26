@@ -22,8 +22,8 @@ import { cn } from '../utils';
 import type { ToolRenderState } from './messageRowContext';
 import {
   STREAMING_RENDER_COOLDOWN_MS,
-  useBackpressuredStreamingText,
-} from '../hooks/useBackpressuredStreamingText';
+  useThrottledStreamingText,
+} from '../hooks/useThrottledStreamingText';
 
 const MAX_STREAMING_MARKDOWN_LENGTH = 16_000;
 const LARGE_STREAMING_RENDER_COOLDOWN_MS = 250;
@@ -66,15 +66,15 @@ function GooseMessage({
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
-  const shouldBackpressureStreamingText =
+  const shouldThrottleStreamingText =
     isStreaming && displayText.length > 0 && toolRequests.length === 0 && imagePaths.length === 0;
   const streamingRenderCooldownMs =
     displayText.length > MAX_STREAMING_MARKDOWN_LENGTH
       ? LARGE_STREAMING_RENDER_COOLDOWN_MS
       : STREAMING_RENDER_COOLDOWN_MS;
-  const markdownText = useBackpressuredStreamingText(
+  const markdownText = useThrottledStreamingText(
     displayText,
-    shouldBackpressureStreamingText,
+    shouldThrottleStreamingText,
     streamingRenderCooldownMs
   );
   const toolConfirmationContent = getToolConfirmationContent(message);

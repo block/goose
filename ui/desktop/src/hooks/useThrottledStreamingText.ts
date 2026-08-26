@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export const STREAMING_RENDER_COOLDOWN_MS = 50;
 
-export function useBackpressuredStreamingText(
+export function useThrottledStreamingText(
   content: string,
   enabled: boolean,
   cooldownMs = STREAMING_RENDER_COOLDOWN_MS
