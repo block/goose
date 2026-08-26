@@ -113,7 +113,7 @@ pub(crate) async fn generate_session_name(
         String::new()
     } else {
         format!(
-            "---BEGIN HINTS (optional signals like the working folder; use identifiers from here when they clarify the subject)---\n{hint}\n---END HINTS---\n\n"
+            "---BEGIN HINTS (optional signals like the working folder; use them only when they match the subject of the messages)---\n{hint}\n---END HINTS---\n\n"
         )
     };
     let user_text = format!(
