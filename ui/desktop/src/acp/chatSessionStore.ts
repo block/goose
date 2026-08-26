@@ -666,6 +666,16 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         }
         if (change.activeRunId !== undefined) {
           entry.activeRunId = change.activeRunId;
+          if (change.activeRunId && !entry.activePromptAttemptId) {
+            entry.activePromptAttemptId = `server-run:${change.activeRunId}`;
+            entry.chatState = ChatState.Streaming;
+          } else if (
+            change.activeRunId === null &&
+            entry.activePromptAttemptId?.startsWith('server-run:')
+          ) {
+            entry.activePromptAttemptId = null;
+            entry.chatState = ChatState.Idle;
+          }
         }
         break;
       case 'localSteerConfirmed':
