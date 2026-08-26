@@ -87,23 +87,6 @@ fn get_initial_user_messages(messages: &Conversation) -> Vec<String> {
         .collect()
 }
 
-fn get_preprompt_context(messages: &Conversation) -> String {
-    messages
-        .iter()
-        .filter(|m| m.role == rmcp::model::Role::User)
-        .take(1)
-        .flat_map(|m| m.content.iter())
-        .filter_map(|c| {
-            if c.filter_for_audience(rmcp::model::Role::User).is_none() {
-                c.as_text().map(|s| s.to_string())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 pub(crate) async fn generate_session_name(
     provider: &dyn Provider,
     model_config: &goose_providers::model::ModelConfig,
@@ -112,7 +95,6 @@ pub(crate) async fn generate_session_name(
     working_dir: Option<&Path>,
 ) -> Result<String> {
     let context = get_initial_user_messages(messages);
-    let preprompt_context = get_preprompt_context(messages);
     let system = crate::prompt_template::render_template(
         "session_name.md",
         &std::collections::HashMap::<String, String>::new(),
@@ -122,13 +104,6 @@ pub(crate) async fn generate_session_name(
         SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
     };
 
-    let preprompt_section = if preprompt_context.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "---BEGIN BACKGROUND CONTEXT (for understanding only; you may borrow a ticket ID, feature, or project name from here, but do NOT base the title's topic on this)---\n{preprompt_context}\n---END BACKGROUND CONTEXT---\n\n"
-        )
-    };
     let hint = working_dir
         .and_then(Path::file_name)
         .and_then(|folder| folder.to_str())
@@ -142,8 +117,7 @@ pub(crate) async fn generate_session_name(
         )
     };
     let user_text = format!(
-        "{}{}{}\n{}\n{}\n\n{}",
-        preprompt_section,
+        "{}{}\n{}\n{}\n\n{}",
         hints_section,
         SESSION_NAME_BEGIN_MARKER,
         context.join("\n"),
