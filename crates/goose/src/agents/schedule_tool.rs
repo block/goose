@@ -8,6 +8,7 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 
+use crate::conversation::Conversation;
 use crate::recipe::template_recipe::parse_recipe_content;
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::scheduler::{
@@ -494,7 +495,7 @@ impl ScheduleTool {
                 )
             })?;
 
-        let session = match self.session_manager.get_session(session_id, true).await {
+        let mut session = match self.session_manager.get_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(
@@ -504,6 +505,10 @@ impl ScheduleTool {
                 ));
             }
         };
+
+        session.conversation = session.conversation.map(|conversation| {
+            Conversation::new_unvalidated(conversation.agent_visible_messages())
+        });
 
         // Format the response with metadata and messages
         let metadata_json = match serde_json::to_string_pretty(&session) {
