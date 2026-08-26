@@ -10,7 +10,7 @@ use crate::execution::manager::AgentManager;
 use crate::providers;
 use crate::providers::base::Provider;
 use crate::session::extension_data::EnabledExtensionsState;
-use crate::session::session_manager::SessionType;
+use crate::session::session_manager::{Session, SessionType};
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -450,18 +450,17 @@ impl OrchestratorClient {
     }
 
     async fn authorize_start_agent(&self, session_id: &str) -> Result<(), String> {
-        if self.caller_session_type(session_id).await? == SessionType::SubAgent {
+        if self.caller_session(session_id).await?.session_type == SessionType::SubAgent {
             return Err("Delegated tasks cannot start agent sessions".to_string());
         }
         Ok(())
     }
 
-    async fn caller_session_type(&self, session_id: &str) -> Result<SessionType, String> {
+    async fn caller_session(&self, session_id: &str) -> Result<Session, String> {
         self.context
             .session_manager
             .get_session(session_id, false)
             .await
-            .map(|session| session.session_type)
             .map_err(|error| format!("Failed to get caller session: {error}"))
     }
 
@@ -470,25 +469,32 @@ impl OrchestratorClient {
         caller_session_id: &str,
         target_session_id: &str,
     ) -> Result<(), String> {
-        let caller_type = self.caller_session_type(caller_session_id).await?;
+        let caller = self.caller_session(caller_session_id).await?;
 
         if target_session_id == caller_session_id {
             return Err("Cannot send a message to the orchestrator's own session".into());
         }
 
-        if caller_type != SessionType::SubAgent {
+        if caller.session_type != SessionType::SubAgent {
             return Ok(());
         }
 
-        let target_type = self
+        let caller_parent_id = caller
+            .parent_session_id
+            .as_deref()
+            .ok_or("Delegated tasks without a parent session cannot send messages")?;
+        let target = self
             .context
             .session_manager
             .get_session(target_session_id, false)
             .await
-            .map(|session| session.session_type)
             .map_err(|error| format!("Failed to get target session: {error}"))?;
-        if target_type != SessionType::SubAgent {
-            return Err("Delegated tasks can only send messages to delegated sessions".into());
+        if target.session_type != SessionType::SubAgent
+            || target.parent_session_id.as_deref() != Some(caller_parent_id)
+        {
+            return Err(
+                "Delegated tasks can only send messages to sibling delegated sessions".into(),
+            );
         }
 
         Ok(())
@@ -775,6 +781,24 @@ mod tests {
             .unwrap()
     }
 
+    async fn create_subagent_session(
+        session_manager: &SessionManager,
+        working_dir: &std::path::Path,
+        parent_session_id: &str,
+    ) -> crate::session::Session {
+        let session = create_session(session_manager, working_dir, SessionType::SubAgent).await;
+        session_manager
+            .update(&session.id)
+            .parent_session_id(Some(parent_session_id.to_string()))
+            .apply()
+            .await
+            .unwrap();
+        session_manager
+            .get_session(&session.id, false)
+            .await
+            .unwrap()
+    }
+
     async fn start_agent(
         client: &OrchestratorClient,
         session_id: &str,
@@ -900,12 +924,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn subagent_cannot_send_message_to_user_session() {
+    async fn subagent_cannot_send_message_to_parent_user_session() {
         let temp_dir = tempfile::tempdir().unwrap();
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-        let subagent =
-            create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
         let user = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let subagent = create_subagent_session(&session_manager, temp_dir.path(), &user.id).await;
         let client = client_for(Arc::clone(&session_manager), Some(subagent.clone()));
 
         let error = client
@@ -919,7 +942,7 @@ mod tests {
 
         assert_eq!(
             error,
-            "Delegated tasks can only send messages to delegated sessions"
+            "Delegated tasks can only send messages to sibling delegated sessions"
         );
         assert_eq!(
             session_manager
@@ -932,17 +955,95 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn subagent_can_send_message_to_subagent_session() {
+    async fn subagent_can_send_message_to_sibling_session() {
         let temp_dir = tempfile::tempdir().unwrap();
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-        let caller = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
-        let target = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let parent = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let caller = create_subagent_session(&session_manager, temp_dir.path(), &parent.id).await;
+        let target = create_subagent_session(&session_manager, temp_dir.path(), &parent.id).await;
         let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
 
         assert!(client
             .authorize_send_message(&caller.id, &target.id)
             .await
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn subagent_cannot_send_message_across_delegation_trees() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let caller_parent =
+            create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let target_parent =
+            create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let caller =
+            create_subagent_session(&session_manager, temp_dir.path(), &caller_parent.id).await;
+        let target =
+            create_subagent_session(&session_manager, temp_dir.path(), &target_parent.id).await;
+        let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
+
+        let error = client
+            .handle_send_message(
+                &caller.id,
+                &CancellationToken::default(),
+                Some(send_message_arguments(&target.id)),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Delegated tasks can only send messages to sibling delegated sessions"
+        );
+        assert_eq!(
+            session_manager
+                .get_session(&target.id, true)
+                .await
+                .unwrap()
+                .message_count,
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn subagent_cannot_send_message_to_descendant_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let parent = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let caller = create_subagent_session(&session_manager, temp_dir.path(), &parent.id).await;
+        let descendant =
+            create_subagent_session(&session_manager, temp_dir.path(), &caller.id).await;
+        let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
+
+        let error = client
+            .authorize_send_message(&caller.id, &descendant.id)
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Delegated tasks can only send messages to sibling delegated sessions"
+        );
+    }
+
+    #[tokio::test]
+    async fn subagent_without_parent_cannot_send_message() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let caller = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let target = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
+
+        let error = client
+            .authorize_send_message(&caller.id, &target.id)
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Delegated tasks without a parent session cannot send messages"
+        );
     }
 
     #[tokio::test]
