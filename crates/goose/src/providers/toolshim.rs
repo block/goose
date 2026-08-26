@@ -406,6 +406,12 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
             if let Some(arg_idx) = call_body.find(TOOL_CALL_ARGUMENT_BEGIN) {
                 let name = call_body[..arg_idx].trim();
                 let args = call_body[arg_idx + TOOL_CALL_ARGUMENT_BEGIN.len()..].trim();
+                let non_json_prefix = args.split_once('{').map_or(args, |(prefix, _)| prefix);
+                if contains_unresolved_execute_alias(non_json_prefix, tools) {
+                    rejected_execute = true;
+                    remainder = &after_begin[call_end_offset + TOOL_CALL_END.len()..];
+                    continue;
+                }
                 (name, args)
             } else if let Some(json_start) = call_body.find('{') {
                 let name = call_body[..json_start].trim();
@@ -1445,6 +1451,7 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> label functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1:functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> functions.execute:0 {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
         ];
 
         for content in rejected {
