@@ -71,8 +71,6 @@ impl PermissionManager {
         }
 
         let permission_map = if config_path.exists() {
-            let _file_guard = Self::lock_permission_file(config_path)
-                .expect("Failed to lock permission file while loading permissions");
             Self::load_permission_map(config_path)
         } else {
             // Consolidate directory creation for re-use in global singleton or ACP.
@@ -87,7 +85,22 @@ impl PermissionManager {
         state
     }
 
-    fn lock_permission_file(config_path: &Path) -> Result<File> {
+    fn lock_permission_file_for_read(config_path: &Path) -> Result<Option<File>> {
+        let lock_path = config_path.with_file_name(PERMISSION_LOCK_FILE);
+        let lock_file = match OpenOptions::new().read(true).open(&lock_path) {
+            Ok(lock_file) => lock_file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("Failed to open {}", lock_path.display()));
+            }
+        };
+        FileExt::lock_shared(&lock_file)
+            .with_context(|| format!("Failed to lock {}", lock_path.display()))?;
+        Ok(Some(lock_file))
+    }
+
+    fn lock_permission_file_for_write(config_path: &Path) -> Result<File> {
         let lock_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -102,7 +115,7 @@ impl PermissionManager {
     }
 
     fn load_permission_map(config_path: &Path) -> HashMap<String, PermissionConfig> {
-        Self::try_load_permission_map(config_path).unwrap_or_else(|error| {
+        Self::read_permission_map(config_path).unwrap_or_else(|error| {
             tracing::error!(
                 "Failed to parse {}: {}. Refusing to start with corrupted permission config.",
                 config_path.display(),
@@ -113,6 +126,21 @@ impl PermissionManager {
                 config_path.display(),
             );
         })
+    }
+
+    fn read_permission_map(config_path: &Path) -> Result<HashMap<String, PermissionConfig>> {
+        let lock_path = config_path.with_file_name(PERMISSION_LOCK_FILE);
+        loop {
+            let file_guard = Self::lock_permission_file_for_read(config_path)?;
+            let result = if config_path.exists() {
+                Self::try_load_permission_map(config_path)
+            } else {
+                Ok(HashMap::new())
+            };
+            if file_guard.is_some() || !lock_path.exists() {
+                return result;
+            }
+        }
     }
 
     fn try_load_permission_map(config_path: &Path) -> Result<HashMap<String, PermissionConfig>> {
@@ -127,7 +155,7 @@ impl PermissionManager {
         modify: impl FnOnce(&mut HashMap<String, PermissionConfig>),
     ) -> Result<()> {
         let _process_guard = self.state.file_lock.lock().unwrap();
-        let _file_guard = Self::lock_permission_file(&self.config_path)?;
+        let _file_guard = Self::lock_permission_file_for_write(&self.config_path)?;
         let mut map = self.state.permission_map.write().unwrap();
         if self.config_path.exists() {
             *map = Self::try_load_permission_map(&self.config_path)?;
@@ -143,13 +171,9 @@ impl PermissionManager {
 
     fn refresh_permission_map(&self) -> Result<()> {
         let _process_guard = self.state.file_lock.lock().unwrap();
-        let _file_guard = Self::lock_permission_file(&self.config_path)?;
+        let refreshed = Self::read_permission_map(&self.config_path)?;
         let mut map = self.state.permission_map.write().unwrap();
-        if self.config_path.exists() {
-            *map = Self::try_load_permission_map(&self.config_path)?;
-        } else {
-            map.clear();
-        }
+        *map = refreshed;
         Ok(())
     }
 
@@ -353,6 +377,26 @@ mod tests {
         let (manager, _temp_dir) = create_test_permission_manager();
 
         assert!(manager.get_permission_names().is_empty());
+    }
+
+    #[test]
+    fn test_permission_reads_do_not_create_lock_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let permission_path = temp_dir.path().join(PERMISSION_FILE);
+        let lock_path = temp_dir.path().join(PERMISSION_LOCK_FILE);
+        fs::write(
+            &permission_path,
+            "user:\n  always_allow:\n    - git__status\n  ask_before: []\n  never_allow: []\n",
+        )
+        .unwrap();
+
+        let manager = PermissionManager::new(temp_dir.path().to_path_buf());
+
+        assert_eq!(
+            manager.get_user_permission("git__status"),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+        assert!(!lock_path.exists());
     }
 
     #[test]
