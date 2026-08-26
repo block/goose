@@ -34,8 +34,8 @@
 use super::local_inference::LOCAL_LLM_MODEL_CONFIG_KEY;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent};
 use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
 use anyhow::Result;
@@ -44,8 +44,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
-use serde_json::{json, Value};
+use rmcp::model::{CallToolRequestParams, ContentBlock, Tool, object};
+use serde_json::{Value, json};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -450,19 +450,21 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
         let is_execute_compatibility = contains_unresolved_execute_alias(raw_tool_name, tools);
 
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
-            if let Some(tool_name) = resolved_tool_name {
+            if is_execute_compatibility {
+                if let Some(shell_call) =
+                    maybe_convert_execute_to_shell_tool_call(raw_tool_name, &arguments_value, tools)
+                {
+                    calls.push(shell_call);
+                } else {
+                    rejected_execute = true;
+                }
+            } else if let Some(tool_name) = resolved_tool_name {
                 if arguments_value.is_object() {
                     calls.push(
                         CallToolRequestParams::new(tool_name)
                             .with_arguments(object(arguments_value.clone())),
                     );
                 }
-            } else if let Some(shell_call) =
-                maybe_convert_execute_to_shell_tool_call(raw_tool_name, &arguments_value, tools)
-            {
-                calls.push(shell_call);
-            } else if is_execute_compatibility {
-                rejected_execute = true;
             }
         } else if is_execute_compatibility
             || malformed_arguments_contain_unresolved_execute_alias(raw_args, tools)
@@ -1449,10 +1451,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(augmented
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
+        assert!(
+            augmented
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+        );
         assert!(!augmented.as_concat_text().contains("<|tool_call_begin|>"));
     }
 
@@ -1490,6 +1494,24 @@ mod tests {
 
             assert!(augmented.content.is_empty());
         }
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_resolved_tool_prefix_with_execute_segment() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> shell:functions.execute:0 <|tool_call_argument_begin|> {\"command\":\"id\"} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
     }
 
     #[tokio::test]
@@ -1543,10 +1565,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(augmented
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
+        assert!(
+            augmented
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+        );
     }
 
     // ── Regression tests: malformed marker leakage ──────────────────────
