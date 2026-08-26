@@ -445,6 +445,16 @@ impl ApiClient {
     /// The header name is parsed and validated once, here, rather than on every request: a
     /// typo should fail at config load with a name you can act on, not turn every subsequent
     /// request into an opaque header-parse error.
+    ///
+    /// Validation covers two kinds of collision, both because `send_request` applies auth
+    /// *after* the nonce header:
+    /// - a fixed set of names owned by other request stages (`RESERVED_NONCE_HEADER_NAMES`),
+    ///   independent of how this client is configured;
+    /// - this client's own `AuthMethod::ApiKey` header name, checked dynamically against
+    ///   `self.auth` rather than a hardcoded list, since it varies per provider (Anthropic's
+    ///   `x-api-key`, Azure's `api-key`, etc). `AuthMethod::BearerToken` always uses
+    ///   `Authorization`, already in the fixed set. `AuthMethod::Custom` resolves its header
+    ///   name asynchronously at request time and can't be checked here.
     pub fn with_nonce_header(mut self, header_name: Option<&str>) -> Result<Self> {
         let Some(header_name) = header_name else {
             return Ok(self);
@@ -456,6 +466,21 @@ impl ApiClient {
                 "nonce_header {header_name:?} is reserved: it is overwritten by a later request \
                  stage, so the nonce would not be sent. Choose a different header name."
             ));
+        }
+        if let AuthMethod::ApiKey {
+            header_name: auth_header_name,
+            ..
+        } = &self.auth
+        {
+            if matches!(HeaderName::from_bytes(auth_header_name.as_bytes()), Ok(auth_name) if auth_name == name)
+            {
+                return Err(anyhow::anyhow!(
+                    "nonce_header {header_name:?} collides with this provider's configured \
+                     API-key auth header ({auth_header_name:?}): authentication is applied \
+                     after the nonce header, so the nonce would be silently overwritten and \
+                     never sent. Choose a different header name."
+                ));
+            }
         }
         self.nonce_header = Some(name);
         Ok(self)
@@ -1117,5 +1142,62 @@ mod tests {
                 .and_then(|value| value.to_str().ok());
             assert_eq!(actual, Some("test-session_id-456"));
         });
+    }
+
+    #[test]
+    fn with_nonce_header_rejects_collision_with_configured_api_key_auth_header() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "x-api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        let err = client
+            .with_nonce_header(Some("x-api-key"))
+            .expect_err("nonce_header matching the configured auth header must be rejected");
+        assert!(
+            err.to_string().contains("collides"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn with_nonce_header_rejects_collision_case_insensitively() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        let err = client
+            .with_nonce_header(Some("Api-Key"))
+            .expect_err("header names must collide case-insensitively");
+        assert!(
+            err.to_string().contains("collides"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn with_nonce_header_allows_non_colliding_name_alongside_api_key_auth() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "x-api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        assert!(client.with_nonce_header(Some("x-request-nonce")).is_ok());
     }
 }

@@ -165,10 +165,12 @@ pub struct DeclarativeProviderConfig {
     /// the single seam every provider request passes through, so no engine needs its
     /// own nonce-generation logic.
     ///
-    /// Names overwritten by a later request stage are rejected at config load:
-    /// `agent-session-id`, `authorization`, `proxy-authorization`. A name matching
-    /// a provider's own configured `ApiKey` auth header is also overwritten, since
-    /// authentication is applied after the nonce header.
+    /// Names overwritten by a later request stage are rejected at config load: a fixed set
+    /// (`agent-session-id`, `authorization`, `proxy-authorization`) plus, checked dynamically
+    /// against this provider's actual configured auth header rather than a hardcoded list,
+    /// any name matching an `AuthMethod::ApiKey` header (e.g. Anthropic's `x-api-key`, Azure's
+    /// `api-key`) — authentication is applied after the nonce header, so a collision would
+    /// silently drop the nonce.
     #[serde(default)]
     pub nonce_header: Option<String>,
 }
