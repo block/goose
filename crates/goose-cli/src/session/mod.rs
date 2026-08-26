@@ -268,7 +268,7 @@ pub struct CliSession {
     /// Background extension loader; drained exclusively by
     /// [`CliSession::ensure_extensions_loaded`], the session's single loading
     /// gate.
-    extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
+    extension_loading: Option<AbortOnDropHandle<Result<Vec<ExtensionFailure>>>>,
     loading_announced: bool,
 }
 
@@ -374,12 +374,25 @@ impl CliSession {
             .await
             .map(|session| session.conversation.unwrap_or_default())
             .unwrap();
+        let completion_cache = Arc::new(std::sync::RwLock::new(CompletionCache::new()));
+        let extension_loading = extension_loading.map(|handle| {
+            let agent = agent.clone();
+            let session_id = session_id.clone();
+            let completion_cache = completion_cache.clone();
+            AbortOnDropHandle::new(tokio::spawn(async move {
+                let failures = handle
+                    .await
+                    .map_err(|error| anyhow::anyhow!("Extension loading task failed: {}", error))?;
+                Self::refresh_completion_cache(&agent, &session_id, &completion_cache).await?;
+                Ok(failures)
+            }))
+        });
 
         CliSession {
             agent,
             messages,
             session_id,
-            completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
+            completion_cache,
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
@@ -656,7 +669,7 @@ impl CliSession {
         // The completion cache starts empty: populating it here would issue
         // prompts/list to every connected extension, so a slow responder could
         // block the prompt right after we announced loading continues in the
-        // background. The REPL loop refreshes the cache once loading finishes.
+        // background. The loader refreshes the shared cache when it finishes.
         let mut editor = self.create_editor()?;
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
@@ -1904,13 +1917,13 @@ impl CliSession {
     }
 
     /// The session's single extension-loading gate: wait for the background
-    /// loader, surface any failures, and refresh the completion cache.
+    /// loader and surface any failures.
     ///
     /// Entry points that can touch the agent or the extension set call this
     /// rather than gating handlers individually, so new commands inherit the
     /// gate automatically. `interactive` controls the waiting/ready
-    /// indicators; `update_completion_cache` deliberately stays ungated so
-    /// completions build from whatever has loaded so far.
+    /// indicators. The loader refreshes the shared completion cache when it
+    /// finishes so completions become available while readline is active.
     async fn ensure_extensions_loaded(&mut self, interactive: bool) -> Result<()> {
         if let Some(handle) = self.extension_loading.take() {
             let was_in_progress = !handle.is_finished();
@@ -1919,22 +1932,29 @@ impl CliSession {
             }
             let failures = handle
                 .await
-                .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))??;
             output::show_extension_failures(&failures);
 
             if interactive && (was_in_progress || self.loading_announced) {
                 output::show_extensions_ready();
             }
             self.loading_announced = false;
-            self.update_completion_cache().await?;
         }
         Ok(())
     }
 
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        Self::refresh_completion_cache(&self.agent, &self.session_id, &self.completion_cache).await
+    }
+
+    async fn refresh_completion_cache(
+        agent: &Agent,
+        session_id: &str,
+        completion_cache: &Arc<std::sync::RwLock<CompletionCache>>,
+    ) -> Result<()> {
+        let prompts = agent.list_extension_prompts(session_id).await;
         let all_providers = goose::providers::providers().await;
-        let session_provider = self.agent.provider().await?.get_name().to_string();
+        let session_provider = agent.provider().await?.get_name().to_string();
 
         let provider_ids: Vec<String> = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         let inventory_models: HashMap<String, Vec<String>> = {
@@ -1963,7 +1983,7 @@ impl CliSession {
             })
             .collect();
 
-        let mut cache = self.completion_cache.write().unwrap();
+        let mut cache = completion_cache.write().unwrap();
         cache.prompts.clear();
         cache.prompt_info.clear();
 
@@ -3503,5 +3523,41 @@ mod tests {
         // A second pass is a no-op, not an error.
         session.ensure_extensions_loaded(false).await.unwrap();
         assert!(session.extension_loading.is_none());
+    }
+
+    #[tokio::test]
+    async fn background_loader_refreshes_completions_before_the_gate_runs() {
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let loader = AbortOnDropHandle::new(tokio::spawn(async move {
+            let _ = released.await;
+            Vec::<ExtensionFailure>::new()
+        }));
+        let session = session_with_loader(Some(loader)).await;
+
+        assert!(session
+            .completion_cache
+            .read()
+            .unwrap()
+            .current_session_provider
+            .is_empty());
+        release.send(()).unwrap();
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if session
+                    .completion_cache
+                    .read()
+                    .unwrap()
+                    .current_session_provider
+                    == "stub"
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("completion cache was not refreshed in the background");
+        assert!(session.extension_loading.is_some());
     }
 }
