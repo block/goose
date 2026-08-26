@@ -1,7 +1,7 @@
 use super::api_client::TlsConfig;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
-use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
+use crate::config::{Config, DeclarativeProviderConfig, ExtensionConfig};
 use anyhow::Result;
 use futures::future::BoxFuture;
 use goose_providers::model::ModelConfig;
@@ -57,13 +57,26 @@ impl ProviderEntry {
 
     /// Apply provider-specific normalization to a model config: materialize
     /// global defaults and backfill `context_limit` from the provider's known
-    /// models when the canonical registry didn't already resolve one. Used by
-    /// the agent/session layer to resolve effective limits (e.g. for custom
-    /// providers that declare explicit context limits in their config).
+    /// models. Used by the agent/session layer to resolve effective limits
+    /// (e.g. for custom providers that declare explicit context limits in
+    /// their config).
+    ///
+    /// Priority (highest → lowest):
+    ///   1. `GOOSE_CONTEXT_LIMIT` env var           — user override
+    ///   2. Provider's known model `context_limit`   — provider config
+    ///   3. Canonical model defaults                 — static fallback
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
-        if model.context_limit.is_none() {
+        // After materialization, context_limit was set by either the env var
+        // (highest priority — keep it) or the canonical registry (static
+        // default). If the provider declares an explicit context_limit for
+        // this model in its own config, it should take priority over the
+        // canonical default.
+        if Config::global()
+            .get_param::<usize>("GOOSE_CONTEXT_LIMIT")
+            .is_err()
+        {
             if let Some(info) = self
                 .metadata
                 .known_models
