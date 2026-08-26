@@ -105,7 +105,7 @@ impl SecurityManager {
         );
 
         let scanner = Arc::new(if settings.ml_enabled() {
-            match PromptInjectionScanner::with_ml_detection(&settings) {
+            match PromptInjectionScanner::with_ml_detection_for_settings(&settings) {
                 Ok(scanner) => {
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_scanner_enabled = 1,

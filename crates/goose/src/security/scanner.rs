@@ -124,7 +124,11 @@ impl PromptInjectionScanner {
         }
     }
 
-    pub(crate) fn with_ml_detection(settings: &ScannerSettings) -> Result<Self> {
+    pub fn with_ml_detection() -> Result<Self> {
+        Self::with_ml_detection_for_settings(&ScannerSettings::current())
+    }
+
+    pub(crate) fn with_ml_detection_for_settings(settings: &ScannerSettings) -> Result<Self> {
         let command_classifier =
             Self::create_classifier(ClassifierType::Command, &settings.command).ok();
         let prompt_classifier =
