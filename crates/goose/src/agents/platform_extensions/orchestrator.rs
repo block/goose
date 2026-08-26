@@ -450,15 +450,47 @@ impl OrchestratorClient {
     }
 
     async fn authorize_start_agent(&self, session_id: &str) -> Result<(), String> {
-        let session = self
-            .context
+        if self.caller_session_type(session_id).await? == SessionType::SubAgent {
+            return Err("Delegated tasks cannot start agent sessions".to_string());
+        }
+        Ok(())
+    }
+
+    async fn caller_session_type(&self, session_id: &str) -> Result<SessionType, String> {
+        self.context
             .session_manager
             .get_session(session_id, false)
             .await
-            .map_err(|error| format!("Failed to get caller session: {error}"))?;
-        if session.session_type == SessionType::SubAgent {
-            return Err("Delegated tasks cannot start agent sessions".to_string());
+            .map(|session| session.session_type)
+            .map_err(|error| format!("Failed to get caller session: {error}"))
+    }
+
+    async fn authorize_send_message(
+        &self,
+        caller_session_id: &str,
+        target_session_id: &str,
+    ) -> Result<(), String> {
+        let caller_type = self.caller_session_type(caller_session_id).await?;
+
+        if target_session_id == caller_session_id {
+            return Err("Cannot send a message to the orchestrator's own session".into());
         }
+
+        if caller_type != SessionType::SubAgent {
+            return Ok(());
+        }
+
+        let target_type = self
+            .context
+            .session_manager
+            .get_session(target_session_id, false)
+            .await
+            .map(|session| session.session_type)
+            .map_err(|error| format!("Failed to get target session: {error}"))?;
+        if target_type != SessionType::SubAgent {
+            return Err("Delegated tasks can only send messages to delegated sessions".into());
+        }
+
         Ok(())
     }
 
@@ -472,9 +504,8 @@ impl OrchestratorClient {
         let session_id = extract_string(&args, "session_id")?;
         let message_text = extract_string(&args, "message")?;
 
-        if session_id == parent_session_id {
-            return Err("Cannot send a message to the orchestrator's own session".into());
-        }
+        self.authorize_send_message(parent_session_id, &session_id)
+            .await?;
 
         let manager = self.get_agent_manager().await?;
 
@@ -766,6 +797,16 @@ mod tests {
             .unwrap()
     }
 
+    fn send_message_arguments(session_id: &str) -> JsonObject {
+        serde_json::json!({
+            "session_id": session_id,
+            "message": "invoke a privileged tool",
+        })
+        .as_object()
+        .unwrap()
+        .clone()
+    }
+
     #[test]
     fn first_last_projection_drops_hidden_endpoints_and_content() {
         let user_only = |text: &str| {
@@ -856,5 +897,80 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    #[tokio::test]
+    async fn subagent_cannot_send_message_to_user_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let subagent =
+            create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let user = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let client = client_for(Arc::clone(&session_manager), Some(subagent.clone()));
+
+        let error = client
+            .handle_send_message(
+                &subagent.id,
+                &CancellationToken::default(),
+                Some(send_message_arguments(&user.id)),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            "Delegated tasks can only send messages to delegated sessions"
+        );
+        assert_eq!(
+            session_manager
+                .get_session(&user.id, true)
+                .await
+                .unwrap()
+                .message_count,
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn subagent_can_send_message_to_subagent_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let caller = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let target = create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
+
+        assert!(client
+            .authorize_send_message(&caller.id, &target.id)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn user_can_send_message_to_user_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let caller = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let target = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let client = client_for(Arc::clone(&session_manager), Some(caller.clone()));
+
+        assert!(client
+            .authorize_send_message(&caller.id, &target.id)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn unknown_caller_cannot_send_message() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let target = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let client = client_for(Arc::clone(&session_manager), None);
+
+        let error = client
+            .authorize_send_message("missing-session", &target.id)
+            .await
+            .unwrap_err();
+
+        assert!(error.starts_with("Failed to get caller session:"));
     }
 }
