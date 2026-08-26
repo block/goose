@@ -182,7 +182,7 @@ const i18n = defineMessages({
   acpBadge: { id: 'sessions.acpBadge', defaultMessage: 'ACP' },
 });
 
-const INCLUDE_ACP_SESSIONS_KEY = 'sessions.includeAcp';
+const INCLUDE_ACP_SESSIONS_KEY = 'sessions_include_acp';
 
 interface EditSessionModalProps {
   session: SessionListItem | null;
