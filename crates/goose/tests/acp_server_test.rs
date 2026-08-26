@@ -3,9 +3,9 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, ListSessionsRequest, ListSessionsResponse, NewSessionRequest, PromptRequest,
-    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, StopReason, TextContent,
+    ContentBlock, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
+    PromptRequest, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
+    SessionInfo, SetSessionConfigOptionRequest, SetSessionModeRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::{
@@ -149,6 +149,18 @@ async fn set_session_mode_legacy(
             session_id.to_string(),
             mode.to_string(),
         ))
+        .block_task()
+        .await
+        .map(|_| ())
+}
+
+async fn load_session(
+    conn: &AcpServerConnection,
+    session_id: &str,
+    working_dir: &Path,
+) -> Result<(), agent_client_protocol::Error> {
+    conn.cx()
+        .send_request(LoadSessionRequest::new(session_id.to_string(), working_dir))
         .block_task()
         .await
         .map(|_| ())
@@ -941,6 +953,70 @@ fn test_session_mutations_allow_active_client_created_hidden_session() {
         assert_eq!(stored.session_type, SessionType::Hidden);
         assert_eq!(stored.goose_mode, GooseMode::Approve);
         assert_eq!(stored.working_dir, replacement_dir.path());
+    });
+}
+
+#[test]
+fn test_session_mutations_reject_loaded_hidden_session() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let replacement_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let seed_conn = new_connection(data_root.path()).await;
+        let seed_session_id =
+            new_session_with_meta(&seed_conn, working_dir.path(), serde_json::Map::new())
+                .await
+                .unwrap();
+        let seed_session = session_manager
+            .get_session(&seed_session_id, false)
+            .await
+            .unwrap();
+        drop(seed_conn);
+
+        let hidden = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Hidden session".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .update(&hidden.id)
+            .provider_name(seed_session.provider_name.as_ref().unwrap())
+            .model_config(seed_session.model_config.unwrap())
+            .apply()
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        load_session(&conn, &hidden.id, working_dir.path())
+            .await
+            .unwrap();
+
+        let error = set_session_mode(&conn, &hidden.id, "approve")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let error = set_session_mode_legacy(&conn, &hidden.id, "approve")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let error = update_working_dir(&conn, &hidden.id, replacement_dir.path())
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let stored = session_manager
+            .get_session(&hidden.id, false)
+            .await
+            .unwrap();
+        assert_eq!(stored.goose_mode, GooseMode::default());
+        assert_eq!(stored.working_dir, working_dir.path());
     });
 }
 

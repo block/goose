@@ -232,6 +232,7 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 /// below is keyed by session ID.
 struct GooseAcpSession {
     agent: Arc<Agent>,
+    client_created: bool,
 }
 
 pub struct ActivePromptRun {
@@ -1218,9 +1219,15 @@ impl GooseAcpAgent {
         enabled_extensions_data(session, extensions)
     }
 
-    async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
+    async fn register_acp_session(
+        &self,
+        session_id: String,
+        agent: Arc<Agent>,
+        client_created: bool,
+    ) {
         let acp_session = GooseAcpSession {
             agent: agent.clone(),
+            client_created,
         };
         self.sessions
             .lock()
@@ -1289,9 +1296,10 @@ impl GooseAcpAgent {
         &self,
         cx: &ConnectionTo<Client>,
         session: &Session,
+        client_created: bool,
     ) -> Result<(Arc<Agent>, Vec<ExtensionLoadResult>), agent_client_protocol::Error> {
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, session).await?;
-        self.register_acp_session(session.id.clone(), agent.clone())
+        self.register_acp_session(session.id.clone(), agent.clone(), client_created)
             .await;
 
         Ok((agent, extension_results))
@@ -1868,7 +1876,7 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                     .data(format!("Session not found: {}", session_id))
             })?;
-        let (agent, _) = self.activate_acp_session(cx, &session).await?;
+        let (agent, _) = self.activate_acp_session(cx, &session, false).await?;
         Ok(agent)
     }
 
@@ -1882,7 +1890,13 @@ impl GooseAcpAgent {
             ))
             .data(format!("Session not found: {session_id}")));
         }
-        if self.sessions.lock().await.contains_key(session_id) {
+        if self
+            .sessions
+            .lock()
+            .await
+            .get(session_id)
+            .is_some_and(|session| session.client_created)
+        {
             return Ok(());
         }
         if self
@@ -3604,7 +3618,7 @@ print(\"hello, world\")
             .await
             .unwrap();
         server
-            .register_acp_session(session.id.clone(), session_agent)
+            .register_acp_session(session.id.clone(), session_agent, false)
             .await;
 
         let (client_read, server_write) = tokio::io::duplex(64 * 1024);
