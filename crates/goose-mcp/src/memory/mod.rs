@@ -252,6 +252,26 @@ fn open_memory_file_at(
     Ok(file.into_std())
 }
 
+fn create_memory_temp_file_at(
+    directory: &Dir,
+    name: &OsStr,
+    _source: &fs::File,
+) -> io::Result<fs::File> {
+    let file = open_memory_file_at(directory, name, MemoryFileOpen::CreateNew)?;
+    let result = (|| {
+        restrict_memory_temp_file(&file)?;
+        #[cfg(windows)]
+        preserve_memory_file_security(_source, &file)?;
+        Ok(())
+    })();
+    if let Err(error) = result {
+        drop(file);
+        let _ = directory.remove_file_or_symlink(Path::new(name));
+        return Err(error);
+    }
+    Ok(file)
+}
+
 fn is_reserved_windows_category(category: &str) -> bool {
     let basename = category
         .split('.')
@@ -511,7 +531,7 @@ impl MemoryServer {
         let (temp_name, mut temp_file) = loop {
             let sequence = NEXT_MEMORY_TEMP_FILE.fetch_add(1, Ordering::Relaxed);
             let temp_name = OsString::from(format!(".goose-memory-{process_id}-{sequence}.tmp"));
-            match open_memory_file_at(directory, &temp_name, MemoryFileOpen::CreateNew) {
+            match create_memory_temp_file_at(directory, &temp_name, source) {
                 Ok(file) => break (temp_name, file),
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error),
@@ -519,8 +539,8 @@ impl MemoryServer {
         };
 
         let result = (|| {
-            restrict_memory_temp_file(&temp_file)?;
             temp_file.write_all(content)?;
+            #[cfg(not(windows))]
             preserve_memory_file_security(source, &temp_file)?;
             temp_file.sync_all()?;
             drop(temp_file);
@@ -1200,6 +1220,44 @@ mod tests {
         unsafe {
             LocalFree(descriptor as HLOCAL);
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_memory_temp_file_applies_windows_dacl_before_content() {
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        router
+            .remember(
+                "context",
+                "category",
+                "sensitive",
+                &[],
+                false,
+                Some(&working_dir),
+            )
+            .unwrap();
+        let category = working_dir.join(".goose/memory/category.txt");
+        set_owner_only_protected_dacl(&category);
+
+        let directory = router
+            .open_memory_directory(false, Some(&working_dir), false)
+            .unwrap()
+            .unwrap();
+        let source =
+            open_memory_file_at(&directory, OsStr::new("category.txt"), MemoryFileOpen::Read)
+                .unwrap();
+        let temp_name = OsStr::new(".ordering-test.tmp");
+        let temp_file = create_memory_temp_file_at(&directory, temp_name, &source).unwrap();
+
+        assert_eq!(temp_file.metadata().unwrap().len(), 0);
+        assert_owner_only_protected_dacl(&working_dir.join(".goose/memory/.ordering-test.tmp"));
     }
 
     #[cfg(windows)]
