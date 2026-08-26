@@ -377,6 +377,20 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
 
         // Find the end of this tool call first
         let Some(call_end_offset) = after_begin.find(TOOL_CALL_END) else {
+            let name_end = after_begin
+                .find(TOOL_CALL_ARGUMENT_BEGIN)
+                .or_else(|| after_begin.find('{'))
+                .unwrap_or(after_begin.len());
+            let raw_tool_name = after_begin[..name_end]
+                .split_whitespace()
+                .next()
+                .unwrap_or_default();
+            let alias = normalized_tool_alias(raw_tool_name);
+            if resolve_tool_name(raw_tool_name, tools).is_none()
+                && matches!(alias.as_str(), "execute" | "execute_code")
+            {
+                rejected_execute = true;
+            }
             break;
         };
         let call_body = &after_begin[..call_end_offset];
@@ -1426,6 +1440,7 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: getCommand() });\"} <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\": <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
         ];
 
         for content in rejected {
