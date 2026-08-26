@@ -383,8 +383,11 @@ impl OrchestratorClient {
 
     async fn handle_start_agent(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<CallToolResult, String> {
+        self.authorize_start_agent(session_id).await?;
+
         let args = arguments.ok_or("Missing arguments")?;
         let working_dir = extract_string(&args, "working_dir")?;
         let name = args
@@ -444,6 +447,19 @@ impl OrchestratorClient {
             "Started agent session '{}' with ID: {}\n\nUse send_message with this session_id to interact with it.",
             name, session.id
         ))]))
+    }
+
+    async fn authorize_start_agent(&self, session_id: &str) -> Result<(), String> {
+        let session = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|error| format!("Failed to get caller session: {error}"))?;
+        if session.session_type == SessionType::SubAgent {
+            return Err("Delegated tasks cannot start agent sessions".to_string());
+        }
+        Ok(())
     }
 
     async fn handle_send_message(
@@ -591,11 +607,11 @@ fn agent_visible_session_messages(conversation: &Conversation) -> Vec<Message> {
 impl McpClientTrait for OrchestratorClient {
     async fn list_tools(
         &self,
-        _session_id: &str,
+        session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        let tools = vec![
+        let mut tools = vec![
             Tool::new(
                 "list_sessions".to_string(),
                 "List agent sessions with their status (loaded, busy, idle). Returns the most recent 10 by default. Optionally filter by session type."
@@ -608,12 +624,18 @@ impl McpClientTrait for OrchestratorClient {
                     .to_string(),
                 schema::<ViewSessionParams>(),
             ),
-            Tool::new(
+        ];
+
+        if self.authorize_start_agent(session_id).await.is_ok() {
+            tools.push(Tool::new(
                 "start_agent".to_string(),
                 "Start a new agent session with its own working directory. Inherits the current provider and model. Returns a session_id for future interaction."
                     .to_string(),
                 schema::<StartAgentParams>(),
-            ),
+            ));
+        }
+
+        tools.extend([
             Tool::new(
                 "send_message".to_string(),
                 "Send a message to an existing agent session and get the response. Returns an error if the agent is currently busy."
@@ -626,7 +648,7 @@ impl McpClientTrait for OrchestratorClient {
                     .to_string(),
                 schema::<InterruptAgentParams>(),
             ),
-        ];
+        ]);
 
         Ok(ListToolsResult {
             tools,
@@ -646,7 +668,7 @@ impl McpClientTrait for OrchestratorClient {
         let result = match name {
             "list_sessions" => self.handle_list_sessions(arguments).await,
             "view_session" => self.handle_view_session(&ctx.session_id, arguments).await,
-            "start_agent" => self.handle_start_agent(arguments).await,
+            "start_agent" => self.handle_start_agent(&ctx.session_id, arguments).await,
             "send_message" => {
                 self.handle_send_message(&ctx.session_id, &cancel_token, arguments)
                     .await
@@ -689,7 +711,60 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
+    use crate::session::SessionManager;
     use rmcp::model::{Annotations, Role, TextContent};
+
+    fn client_for(
+        session_manager: Arc<SessionManager>,
+        session: Option<crate::session::Session>,
+    ) -> OrchestratorClient {
+        OrchestratorClient::new(PlatformExtensionContext {
+            extension_manager: None,
+            session_manager,
+            scheduler: None,
+            session: session.map(Arc::new),
+            use_login_shell_path: false,
+        })
+        .unwrap()
+    }
+
+    async fn create_session(
+        session_manager: &SessionManager,
+        working_dir: &std::path::Path,
+        session_type: SessionType,
+    ) -> crate::session::Session {
+        session_manager
+            .create_session(
+                working_dir.to_path_buf(),
+                "orchestrator test".to_string(),
+                session_type,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap()
+    }
+
+    async fn start_agent(
+        client: &OrchestratorClient,
+        session_id: &str,
+        working_dir: &std::path::Path,
+    ) -> CallToolResult {
+        let arguments = serde_json::json!({
+            "working_dir": working_dir.to_string_lossy(),
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        client
+            .call_tool(
+                &ToolCallContext::new(session_id.to_string(), None, None),
+                "start_agent",
+                Some(arguments),
+                CancellationToken::default(),
+            )
+            .await
+            .unwrap()
+    }
 
     #[test]
     fn first_last_projection_drops_hidden_endpoints_and_content() {
@@ -713,5 +788,73 @@ mod tests {
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].as_concat_text(), "visible first");
         assert_eq!(messages[1].as_concat_text(), "visible last");
+    }
+
+    #[tokio::test]
+    async fn subagent_direct_call_cannot_persist_peer_user_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let subagent =
+            create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let client = client_for(Arc::clone(&session_manager), Some(subagent.clone()));
+
+        let result = start_agent(&client, &subagent.id, temp_dir.path()).await;
+
+        assert!(result.is_error.unwrap_or(false));
+        assert!(session_manager
+            .list_sessions_by_types(&[SessionType::User])
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn start_agent_listing_is_scoped_to_authorized_callers() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let user = create_session(&session_manager, temp_dir.path(), SessionType::User).await;
+        let subagent =
+            create_session(&session_manager, temp_dir.path(), SessionType::SubAgent).await;
+        let client = client_for(Arc::clone(&session_manager), Some(user.clone()));
+
+        assert!(client.authorize_start_agent(&user.id).await.is_ok());
+        let user_tools = client
+            .list_tools(&user.id, None, CancellationToken::default())
+            .await
+            .unwrap();
+        assert!(user_tools
+            .tools
+            .iter()
+            .any(|tool| tool.name == "start_agent"));
+
+        for session_id in [&subagent.id, "missing-session"] {
+            let tools = client
+                .list_tools(session_id, None, CancellationToken::default())
+                .await
+                .unwrap();
+            assert!(tools.tools.iter().all(|tool| tool.name != "start_agent"));
+            assert!(tools.tools.iter().any(|tool| tool.name == "send_message"));
+        }
+
+        assert!(client
+            .authorize_start_agent("missing-session")
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn unknown_caller_cannot_persist_user_session() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let client = client_for(Arc::clone(&session_manager), None);
+
+        let result = start_agent(&client, "missing-session", temp_dir.path()).await;
+
+        assert!(result.is_error.unwrap_or(false));
+        assert!(session_manager
+            .list_sessions_by_types(&[SessionType::User])
+            .await
+            .unwrap()
+            .is_empty());
     }
 }
