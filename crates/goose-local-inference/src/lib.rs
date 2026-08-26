@@ -261,6 +261,12 @@ fn resolve_model_local_path(model_id: &str) -> Option<PathBuf> {
         .map(|entry| entry.local_path.clone())
 }
 
+pub fn local_context_limit(model_id: &str) -> Option<usize> {
+    resolve_model_path(model_id)
+        .map(|resolved| resolved.context_limit)
+        .filter(|limit| *limit > 0)
+}
+
 /// Resolve model path, context limit, settings, and mmproj path for a model ID from the registry.
 fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
     use crate::local_model_registry::{default_settings_for_model, get_registry};
@@ -481,7 +487,7 @@ fn extract_text_content(msg: &Message) -> String {
     for content in &msg.content {
         match content {
             MessageContent::Text(text) => {
-                let text = strip_info_messages(&text.text);
+                let text = text.text.to_string();
                 if !text.trim().is_empty() {
                     parts.push(text);
                 }
@@ -532,24 +538,6 @@ fn extract_text_content(msg: &Message) -> String {
     }
 
     parts.join("\n")
-}
-
-fn strip_info_messages(text: &str) -> String {
-    let mut remaining = text;
-    let mut output = String::new();
-
-    while let Some((before, after_start)) = remaining.split_once("<info-msg>") {
-        output.push_str(before);
-        if let Some((_, after_end)) = after_start.split_once("</info-msg>") {
-            remaining = after_end;
-        } else {
-            remaining = "";
-            break;
-        }
-    }
-
-    output.push_str(remaining);
-    output.trim().to_string()
 }
 
 /// Build a `ProviderUsage` and write the request log entry.
@@ -635,6 +623,14 @@ impl ProviderDescriptor for LocalInferenceProvider {
 impl Provider for LocalInferenceProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_provider_types::context_limit::ContextLimitResolver::new(&self.name)
+            .resolve(model, override_limit, || async {
+                Ok(resolve_model_path(model).map(|resolved| resolved.context_limit))
+            })
+            .await
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -946,5 +942,33 @@ mod tests {
                 {"type": "media_marker", "text": "<__media__>"},
             ])
         );
+    }
+
+    #[test]
+    fn preserves_balanced_info_tags_in_text_content() {
+        let message =
+            Message::user().with_text("before <info-msg>executed payload</info-msg> after");
+
+        assert_eq!(
+            extract_text_content(&message),
+            "before <info-msg>executed payload</info-msg> after"
+        );
+    }
+
+    #[test]
+    fn preserves_unterminated_info_tags_in_text_content() {
+        let message = Message::user().with_text("before <info-msg>executed payload");
+
+        assert_eq!(
+            extract_text_content(&message),
+            "before <info-msg>executed payload"
+        );
+    }
+
+    #[test]
+    fn preserves_legitimate_text_content() {
+        let message = Message::user().with_text("ordinary user content");
+
+        assert_eq!(extract_text_content(&message), "ordinary user content");
     }
 }

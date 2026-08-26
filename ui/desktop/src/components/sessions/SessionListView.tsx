@@ -14,6 +14,9 @@ import {
   LoaderCircle,
   ExternalLink,
   Copy,
+  ChevronDown,
+  ChevronRight,
+  Clock,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -163,6 +166,14 @@ const i18n = defineMessages({
       'Anyone with this link can fetch and decrypt the session. Treat it like a secret.',
   },
   close: { id: 'sessions.close', defaultMessage: 'Close' },
+  scheduledJobs: {
+    id: 'sessions.scheduledJobs',
+    defaultMessage: 'Scheduled Jobs',
+  },
+  scheduledJobsCount: {
+    id: 'sessions.scheduledJobsCount',
+    defaultMessage: '{count} {count, plural, one {job} other {jobs}}',
+  },
 });
 
 interface EditSessionModalProps {
@@ -314,6 +325,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
   const [error, setError] = useState<string | null>(null);
 
   const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
+  const [isScheduledExpanded, setIsScheduledExpanded] = useState(false);
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -343,9 +355,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const memoizedAllDateGroups = useMemo(() => {
+    if (sessions.length > 0) {
+      return groupSessionsByDate(sessions);
+    }
+    return [];
+  }, [sessions]);
+
+  const activeDateGroups = useMemo(() => {
+    return debouncedSearchTerm.length > 0 ? memoizedAllDateGroups : dateGroups;
+  }, [debouncedSearchTerm, memoizedAllDateGroups, dateGroups]);
+
   const visibleDateGroups = useMemo(() => {
-    return dateGroups.slice(0, visibleGroupsCount);
-  }, [dateGroups, visibleGroupsCount]);
+    return activeDateGroups.slice(0, visibleGroupsCount);
+  }, [activeDateGroups, visibleGroupsCount]);
 
   const previousSearchTermRef = useRef('');
   useEffect(() => {
@@ -354,11 +377,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     previousSearchTermRef.current = debouncedSearchTerm;
 
     if (isSearching) {
-      setVisibleGroupsCount(dateGroups.length);
+      setVisibleGroupsCount(memoizedAllDateGroups.length);
     } else if (wasSearching) {
       setVisibleGroupsCount(15);
     }
-  }, [debouncedSearchTerm, dateGroups.length]);
+  }, [debouncedSearchTerm, memoizedAllDateGroups.length]);
 
   const loadRemainingSessionPages = useCallback(
     async (initialCursor: string, loadId: number, keyword?: string) => {
@@ -437,11 +460,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
 
       if (scrollHeight - scrollTop - clientHeight >= threshold) return;
 
-      if (visibleGroupsCount < dateGroups.length) {
-        setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
+      if (visibleGroupsCount < activeDateGroups.length) {
+        setVisibleGroupsCount((prev) => Math.min(prev + 5, activeDateGroups.length));
       }
     },
-    [visibleGroupsCount, dateGroups.length]
+    [visibleGroupsCount, activeDateGroups.length]
   );
 
   useEffect(() => {
@@ -474,13 +497,32 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     return () => void 0;
   }, [isLoading, showSkeleton]);
 
-  // Memoize date groups calculation to prevent unnecessary recalculations
+  const { humanSessions, scheduledSessions } = useMemo(() => {
+    const human: SessionListItem[] = [];
+    const scheduled: SessionListItem[] = [];
+    for (const s of sessions) {
+      if (s.sessionType === 'scheduled') {
+        scheduled.push(s);
+      } else {
+        human.push(s);
+      }
+    }
+    return { humanSessions: human, scheduledSessions: scheduled };
+  }, [sessions]);
+
   const memoizedDateGroups = useMemo(() => {
-    if (sessions.length > 0) {
-      return groupSessionsByDate(sessions);
+    if (humanSessions.length > 0) {
+      return groupSessionsByDate(humanSessions);
     }
     return [];
-  }, [sessions]);
+  }, [humanSessions]);
+
+  const memoizedScheduledDateGroups = useMemo(() => {
+    if (scheduledSessions.length > 0) {
+      return groupSessionsByDate(scheduledSessions);
+    }
+    return [];
+  }, [scheduledSessions]);
 
   // Update date groups when filtered sessions change
   useEffect(() => {
@@ -971,6 +1013,61 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             </div>
           </div>
         ))}
+
+        {!debouncedSearchTerm &&
+          visibleGroupsCount >= activeDateGroups.length &&
+          memoizedScheduledDateGroups.length > 0 && (
+            <div className="space-y-4">
+            <button
+              onClick={() => setIsScheduledExpanded((v) => !v)}
+              aria-expanded={isScheduledExpanded}
+              aria-controls="scheduled-job-sessions"
+              className="sticky top-0 z-10 w-full flex items-center justify-between bg-background-primary/95 backdrop-blur-sm py-2 px-1 rounded-lg hover:bg-background-secondary transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-text-secondary" />
+                <h2 className="text-text-secondary font-medium">
+                  {intl.formatMessage(i18n.scheduledJobs)}
+                </h2>
+                <span className="text-xs text-text-tertiary bg-background-secondary px-2 py-0.5 rounded-full">
+                  {intl.formatMessage(i18n.scheduledJobsCount, { count: scheduledSessions.length })}
+                </span>
+              </div>
+              {isScheduledExpanded ? (
+                <ChevronDown className="w-4 h-4 text-text-secondary" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-text-secondary" />
+              )}
+            </button>
+
+            {isScheduledExpanded && (
+              <div id="scheduled-job-sessions" className="space-y-8">
+                {memoizedScheduledDateGroups.map((group) => (
+                  <div key={group.label} className="space-y-4">
+                    <div className="sticky top-0 z-10 bg-background-primary/95 backdrop-blur-sm">
+                      <h2 className="text-text-secondary">{group.label}</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      {group.sessions.map((session) => (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          onEditClick={handleEditSession}
+                          onDuplicateClick={handleDuplicateSession}
+                          onDeleteClick={handleDeleteSession}
+                          onExportClick={handleExportSession}
+                          onShareClick={handleShareSessionNostr}
+                          onOpenInNewWindow={handleOpenInNewWindow}
+                          isSharing={sharingSessionId === session.id}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            </div>
+          )}
 
         {isPrefetchingSessions && (
           <div className="flex justify-center py-8">

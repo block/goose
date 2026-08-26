@@ -523,21 +523,21 @@ impl McpClientTrait for AppsManagerClient {
                 "List all available Goose apps with their names and descriptions. Use this to see what apps exist before creating or modifying apps.".to_string(),
                 schema::<ListAppsParams>(),
             ),
-            McpTool::new(
+            model_only_tool(McpTool::new(
                 "create_app".to_string(),
                 "Create a new Goose app based on a description or PRD. The extension will use an LLM to generate the HTML/CSS/JavaScript. Apps are sandboxed and run in standalone windows.".to_string(),
                 schema::<CreateAppParams>(),
-            ),
-            McpTool::new(
+            )),
+            model_only_tool(McpTool::new(
                 "iterate_app".to_string(),
                 "Improve an existing app based on feedback. The extension will use an LLM to update the HTML while preserving the app's intent.".to_string(),
                 schema::<IterateAppParams>(),
-            ),
-            McpTool::new(
+            )),
+            model_only_tool(McpTool::new(
                 "delete_app".to_string(),
                 "Delete an app permanently".to_string(),
                 schema::<DeleteAppParams>(),
-            ),
+            )),
         ];
 
         Ok(ListToolsResult {
@@ -660,6 +660,15 @@ fn schema<T: JsonSchema>() -> JsonObject {
     obj
 }
 
+fn model_only_tool(tool: McpTool) -> McpTool {
+    tool.with_meta(MetaObject(
+        json!({ "ui": { "visibility": ["model"] } })
+            .as_object()
+            .unwrap()
+            .clone(),
+    ))
+}
+
 fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(|v| v.as_str())
@@ -713,6 +722,7 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::reply_parts::{is_tool_visible_to_app, is_tool_visible_to_model};
     use crate::session::SessionManager;
     use std::path::Path;
 
@@ -765,6 +775,58 @@ mod tests {
             error.contains("Invalid app name"),
             "expected app-name validation error, got: {error}"
         );
+    }
+
+    #[tokio::test]
+    async fn management_tools_are_model_only_while_listing_remains_shared() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = test_client(temp.path().join("apps"));
+        let tools = client
+            .list_tools("session", None, CancellationToken::new())
+            .await
+            .unwrap()
+            .tools;
+
+        for name in ["create_app", "iterate_app", "delete_app"] {
+            let tool = tools.iter().find(|tool| tool.name == name).unwrap();
+            let visibility = &tool.meta.as_ref().unwrap().0["ui"]["visibility"];
+
+            assert_eq!(visibility, &json!(["model"]));
+            assert!(!is_tool_visible_to_app(tool));
+            assert!(is_tool_visible_to_model(tool));
+        }
+
+        let list_apps = tools.iter().find(|tool| tool.name == "list_apps").unwrap();
+        assert!(list_apps.meta.is_none());
+        assert!(is_tool_visible_to_app(list_apps));
+        assert!(is_tool_visible_to_model(list_apps));
+    }
+
+    #[tokio::test]
+    async fn model_visible_management_tool_still_dispatches() {
+        let temp = tempfile::tempdir().unwrap();
+        let apps_dir = temp.path().join("apps");
+        fs::create_dir_all(&apps_dir).unwrap();
+        let client = test_client(apps_dir);
+        client.save_app(&test_app("legitimate-app")).unwrap();
+
+        let result = client
+            .call_tool(
+                &ToolCallContext::new("session".to_string(), None, None),
+                "delete_app",
+                Some(
+                    json!({ "name": "legitimate-app" })
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.is_error, Some(false));
+        assert!(!client.apps_dir.join("legitimate-app.html").exists());
     }
 
     #[tokio::test]

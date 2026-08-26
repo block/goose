@@ -247,9 +247,10 @@ function ProviderCards({
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
-    // Sort providers alphabetically by display name
-    const sortedProviders = [...providersArray].sort((a, b) =>
-      a.metadata.display_name.localeCompare(b.metadata.display_name)
+    const sortedProviders = [...providersArray].sort(
+      (a, b) =>
+        Number(b.is_configured) - Number(a.is_configured) ||
+        a.metadata.display_name.localeCompare(b.metadata.display_name)
     );
     const filteredProviders = query
       ? sortedProviders.filter(

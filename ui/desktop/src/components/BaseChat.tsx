@@ -8,6 +8,7 @@ import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
+import { Button } from './ui/button';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { ChatState } from '../types/chatState';
@@ -45,11 +46,17 @@ const i18n = defineMessages({
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
   },
+  retry: {
+    id: 'baseChat.retry',
+    defaultMessage: 'Retry',
+  },
   reconnecting: {
     id: 'baseChat.reconnecting',
     defaultMessage: 'Connection lost. Reconnecting…',
   },
 });
+
+const isUserMessage = (message: Message) => message.role === 'user';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
@@ -106,6 +113,7 @@ export default function BaseChat({
     onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
+    retrySessionLoad,
     sessionLoadError,
     tokenState,
     notifications: toolCallNotifications,
@@ -116,6 +124,10 @@ export default function BaseChat({
     sessionId,
     onStreamFinish,
   });
+  const appendToChat = useCallback(
+    (text: string) => handleSubmit({ msg: text, images: [] }),
+    [handleSubmit]
+  );
 
   const handleWorkingDirChange = useCallback(
     async (newDir: string) => {
@@ -384,14 +396,14 @@ export default function BaseChat({
                   </h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setView('chat');
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
-                >
-                  {intl.formatMessage(i18n.goHome)}
-                </button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => void retrySessionLoad()}>
+                    {intl.formatMessage(i18n.retry)}
+                  </Button>
+                  <Button variant="outline" onClick={() => setView('chat')}>
+                    {intl.formatMessage(i18n.goHome)}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -449,7 +461,7 @@ export default function BaseChat({
             {recipe && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
-                  append={(text: string) => handleSubmit({ msg: text, images: [] })}
+                  append={appendToChat}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
                   parameterValues={session?.user_recipe_values || {}}
@@ -462,10 +474,10 @@ export default function BaseChat({
                 <SearchView>
                   <ProgressiveMessageList
                     messages={messages}
-                    chat={{ sessionId }}
+                    sessionId={sessionId}
                     toolCallNotifications={toolCallNotifications}
-                    append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                    isUserMessage={(m: Message) => m.role === 'user'}
+                    append={appendToChat}
+                    isUserMessage={isUserMessage}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}
@@ -493,7 +505,7 @@ export default function BaseChat({
 
         <ChatInputCard
           className={cn(
-            'relative z-10 mx-4 mb-4',
+            'relative z-30 mx-4 mb-4',
             !disableAnimation && 'animate-[fadein_400ms_ease-in_forwards]'
           )}
         >
@@ -510,6 +522,7 @@ export default function BaseChat({
             initialValue={initialPrompt}
             setView={setView}
             totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
+            contextLimit={tokenState?.contextLimit}
             accumulatedInputTokens={
               tokenState?.accumulatedInputTokens ??
               session?.accumulated_usage?.input_tokens ??

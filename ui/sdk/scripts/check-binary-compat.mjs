@@ -35,10 +35,13 @@ if (!GOOSE_BINARY || !existsSync(GOOSE_BINARY)) {
   process.exit(1);
 }
 
-const { GooseClient } = await import(join(SDK_DIST, "goose-client.js"));
-const { PROTOCOL_VERSION, ndJsonStream } = await import(
-  "@agentclientprotocol/sdk"
-);
+const { GooseExtClient } = await import(join(SDK_DIST, "index.js"));
+const {
+  client: createAcpClient,
+  methods,
+  PROTOCOL_VERSION,
+  ndJsonStream,
+} = await import("@agentclientprotocol/sdk");
 
 // Each entry is a read-only ACP method we expect to succeed against a fresh,
 // unconfigured goose install. Platform-specific skips keep hardware-sensitive
@@ -123,15 +126,16 @@ const stream = ndJsonStream(
   Readable.toWeb(child.stdout),
 );
 
-const client = new GooseClient(
-  () => ({
-    requestPermission: async () => ({
-      outcome: { outcome: "cancelled" },
-    }),
-    sessionUpdate: async () => {},
-  }),
-  stream,
-);
+const app = createAcpClient({ name: "publish-npm-compat" })
+  .onRequest(methods.client.session.requestPermission, async () => ({
+    outcome: { outcome: "cancelled" },
+  }))
+  .onNotification(methods.client.session.update, async () => {});
+const connection = app.connect(stream);
+const client = {
+  connection,
+  goose: new GooseExtClient(connection.agent),
+};
 
 let failed = 0;
 let passed = 0;
@@ -143,7 +147,7 @@ const timeout = (ms, label) =>
 
 try {
   await Promise.race([
-    client.initialize({
+    client.connection.agent.request(methods.agent.initialize, {
       protocolVersion: PROTOCOL_VERSION,
       clientInfo: { name: "publish-npm-compat", version: "0.0.0" },
       clientCapabilities: {},
@@ -164,13 +168,15 @@ try {
       passed += 1;
     } catch (err) {
       failed += 1;
-      const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      const msg =
+        err instanceof Error ? (err.stack ?? err.message) : String(err);
       console.error(`[compat] ❌ ${check.name}`);
       console.error(indent(msg, "  "));
     }
   }
 } finally {
   exitedEarly = true;
+  connection.close();
   child.kill("SIGTERM");
   try {
     rmSync(sandbox, { recursive: true, force: true });

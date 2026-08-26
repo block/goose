@@ -1,7 +1,8 @@
 # goose-sdk
 
-The bindings layer for Goose. It houses the shared types used for both ACP and
-SDK access, and exposes a cross-language version of the Goose API.
+The bindings layer for goose, published as the goose Development Kit (GDK). It
+houses the shared types used for both ACP and GDK access, and exposes a
+cross-language version of the goose API.
 
 With `--features uniffi` the crate compiles to native bindings for Python and
 Kotlin (namespace `goose` / `io.github.aaif_goose`). The UniFFI surface lets

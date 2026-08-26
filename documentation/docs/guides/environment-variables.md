@@ -250,8 +250,7 @@ These variables allow you to override the default context window size (token lim
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
-| `GOOSE_INPUT_LIMIT` | Override input prompt limit for ollama requests (maps to `num_ctx`) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
-| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/context-engineering/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_INPUT_LIMIT` | Override input prompt limit for ollama requests (maps to `num_ctx`) | Integer (number of tokens) | Unset; Ollama uses its model default |
 
 **Examples**
 
@@ -260,9 +259,6 @@ These variables allow you to override the default context window size (token lim
 export GOOSE_CONTEXT_LIMIT=200000
 # Override ollama input prompt limit
 export GOOSE_INPUT_LIMIT=32000
-
-# Set context limit for planner
-export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
 
 For more details and examples, see [Model Context Limit Overrides](/docs/guides/sessions/smart-context-management#model-context-limit-overrides).
@@ -274,8 +270,10 @@ These variables control how goose handles [tool execution](/docs/guides/managing
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "auto" |
-| `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case-insensitive) to enable | false |
-| `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
+| `GOOSE_TOOLSHIM` | Enables the [tool shim](/docs/guides/tool-shim) for models that output text-based tool calls | "1", "true" (case-insensitive) to enable | false |
+| `GOOSE_TOOLSHIM_BACKEND` | Interpreter backend for the tool shim | "ollama" (default), "local", "llama.cpp" | "ollama" |
+| `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Ollama model used as the [tool shim](/docs/guides/tool-shim) interpreter | Model name (e.g. llama3.2, mistral-nemo) | "mistral-nemo" |
+| `GOOSE_TOOLSHIM_MODEL` | Model for the local tool shim interpreter backend | Model name | Uses `LOCAL_LLM_MODEL` config |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_SHOW_FULL_OUTPUT` | Shows full tool parameters in CLI output instead of truncating them to the terminal width | true/false | false |

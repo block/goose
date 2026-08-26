@@ -53,10 +53,24 @@ struct DatabricksUpstreamModel {
 
 #[derive(Debug, Clone)]
 struct CachedDatabricksEndpointInfo {
-    info: DatabricksEndpointInfo,
+    info: Option<DatabricksEndpointInfo>,
     fetched_at: Instant,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EndpointMetadataLookup {
+    ContextDiscovery,
+    InferenceRouting,
+}
+
+impl CachedDatabricksEndpointInfo {
+    fn applies_to(&self, lookup: EndpointMetadataLookup) -> bool {
+        self.fetched_at.elapsed() < Duration::from_secs(DATABRICKS_ENDPOINT_METADATA_TTL_SECS)
+            && (lookup == EndpointMetadataLookup::ContextDiscovery || self.info.is_some())
+    }
+}
+
+const DATABRICKS_ENDPOINT_METADATA_TIMEOUT_SECS: u64 = 5;
 const DATABRICKS_ENDPOINT_METADATA_TTL_SECS: u64 = 60;
 static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
@@ -424,6 +438,7 @@ impl DatabricksProvider {
     async fn resolve_endpoint_info_cached(
         &self,
         endpoint_name: &str,
+        lookup: EndpointMetadataLookup,
     ) -> Result<DatabricksEndpointInfo, ProviderError> {
         let cache_key = format!("{}:{}", self.host, endpoint_name);
         let cached = DATABRICKS_ENDPOINT_INFO_CACHE
@@ -433,14 +448,22 @@ impl DatabricksProvider {
             .cloned();
 
         if let Some(cached) = cached {
-            if cached.fetched_at.elapsed()
-                < Duration::from_secs(DATABRICKS_ENDPOINT_METADATA_TTL_SECS)
-            {
-                return Ok(cached.info);
+            if cached.applies_to(lookup) {
+                return cached.info.ok_or_else(|| {
+                    ProviderError::RequestFailed(
+                        "Databricks endpoint metadata is unavailable".to_string(),
+                    )
+                });
             }
         }
 
-        let info = self.resolve_endpoint_info(endpoint_name).await?;
+        let info = tokio::time::timeout(
+            Duration::from_secs(DATABRICKS_ENDPOINT_METADATA_TIMEOUT_SECS),
+            self.resolve_endpoint_info(endpoint_name),
+        )
+        .await
+        .ok()
+        .and_then(Result::ok);
         DATABRICKS_ENDPOINT_INFO_CACHE.lock().unwrap().insert(
             cache_key,
             CachedDatabricksEndpointInfo {
@@ -448,14 +471,16 @@ impl DatabricksProvider {
                 fetched_at: Instant::now(),
             },
         );
-        Ok(info)
+        info.ok_or_else(|| {
+            ProviderError::RequestFailed("Databricks endpoint metadata is unavailable".to_string())
+        })
     }
 
     fn model_info_from_endpoint(info: DatabricksEndpointInfo) -> ModelInfo {
         let context_model = info.upstream_model_name.as_deref().unwrap_or(&info.name);
-        let context_limit = ModelConfig::new(context_model)
-            .with_canonical_limits(DATABRICKS_PROVIDER_NAME)
-            .context_limit();
+        let context_limit =
+            crate::canonical::maybe_get_canonical_model(DATABRICKS_PROVIDER_NAME, context_model)
+                .map(|model| model.limit.context);
         let reasoning = info
             .reasoning
             .unwrap_or_else(|| ModelConfig::new(context_model).is_reasoning_model());
@@ -521,6 +546,16 @@ impl Provider for DatabricksProvider {
         self.retry_config.clone()
     }
 
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        crate::context_limit::ContextLimitResolver::new(self.get_name())
+            .resolve(model, override_limit, || async {
+                self.fetch_model_info(model)
+                    .await
+                    .map(|info| info.context_limit)
+            })
+            .await
+    }
+
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
         if let Some(refresh_hook) = &self.refresh_hook {
             refresh_hook();
@@ -543,7 +578,10 @@ impl Provider for DatabricksProvider {
             .and_then(|provider| provider())
             .unwrap_or_default();
         let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
-        let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
+        let endpoint_info = self
+            .resolve_endpoint_info_cached(&endpoint_name, EndpointMetadataLookup::InferenceRouting)
+            .await
+            .ok();
         let effective_model_name = endpoint_info
             .as_ref()
             .and_then(|info| info.upstream_model_name.as_deref())
@@ -780,7 +818,9 @@ impl Provider for DatabricksProvider {
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
         let (endpoint_name, _) = extract_reasoning_effort(model_name);
-        let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await?;
+        let endpoint_info = self
+            .resolve_endpoint_info_cached(&endpoint_name, EndpointMetadataLookup::ContextDiscovery)
+            .await?;
         Ok(Self::model_info_from_endpoint(endpoint_info))
     }
 
@@ -795,6 +835,34 @@ impl Provider for DatabricksProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn routing_retries_cached_metadata_failures() {
+        let cached = CachedDatabricksEndpointInfo {
+            info: None,
+            fetched_at: Instant::now(),
+        };
+
+        assert!(cached.applies_to(EndpointMetadataLookup::ContextDiscovery));
+        assert!(!cached.applies_to(EndpointMetadataLookup::InferenceRouting));
+    }
+
+    #[test]
+    fn routing_reuses_cached_metadata_successes() {
+        let cached = CachedDatabricksEndpointInfo {
+            info: Some(DatabricksEndpointInfo {
+                name: "production-chat".to_string(),
+                upstream_model_name: Some("gpt-5".to_string()),
+                upstream_model_provider: Some("openai".to_string()),
+                reasoning: Some(true),
+                supports_responses_api: true,
+            }),
+            fetched_at: Instant::now(),
+        };
+
+        assert!(cached.applies_to(EndpointMetadataLookup::ContextDiscovery));
+        assert!(cached.applies_to(EndpointMetadataLookup::InferenceRouting));
+    }
 
     #[test]
     fn endpoint_metadata_marks_reasoning_alias_from_external_model() {

@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "연결이 끊어졌습니다. 다시 연결하는 중…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "다시 시도"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
   },
@@ -914,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "현재 디렉터리"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "작업 디렉터리를 업데이트하지 못했습니다."
   },
@@ -928,6 +942,18 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "최근 디렉터리"
+  },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} 브랜치로 전환하지 못했습니다"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "브랜치를 찾을 수 없습니다"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "브랜치 검색…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "커밋되지 않은 변경 사항이 있을 수 있습니다."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "수락"
@@ -1225,6 +1251,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "다른 곳에서 실행 중인 ACP 호환 백엔드에 연결합니다."
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "원격 작업 디렉터리(선택 사항)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "외부 백엔드의 절대 경로입니다. 비워 두면 로컬 작업 디렉터리를 전송합니다."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
@@ -1877,9 +1912,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} 사용"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "취소"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "코드 복사"
   },
@@ -1889,23 +1921,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "이 링크를 열 수 있는 애플리케이션을 찾을 수 없습니다."
   },
-  "markdownContent.open": {
-    "defaultMessage": "열기"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "열립니다: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "앱"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "취소"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "닫기"
@@ -1930,18 +1947,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Picture-in-Picture 창 이동(화살표 키 사용)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "열기"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "열립니다: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "PIP(Picture-in-Picture)"
@@ -2748,7 +2753,7 @@
     "defaultMessage": "계속"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "브라우저 창이 열리고 인증 코드가 클립보드에 복사됩니다. 로그인을 완료하려면 브라우저에 붙여넣으세요."
+    "defaultMessage": "브라우저 창이 열립니다. 인증 코드가 여기에 표시되면 입력하여 로그인을 완료하세요."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API 키가 없나요?"
@@ -2787,7 +2792,7 @@
     "defaultMessage": "현재 제공업체 구성이 영구적으로 삭제됩니다."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "브라우저 창이 열리고 인증 코드가 클립보드에 복사됩니다. 로그인을 완료하려면 브라우저에 붙여넣으세요."
+    "defaultMessage": "브라우저 창이 열립니다. 인증 코드가 여기에 표시되면 입력하여 로그인을 완료하세요."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "이 제공업체 구성을 확인하는 동안 오류가 발생했습니다."
@@ -3431,6 +3436,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "일정 ID 보기: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (이미 예약됨)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML 파일 찾아보기..."
   },
@@ -3455,6 +3463,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "일정 편집"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "레시피를 불러오지 못했습니다."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "파일에서 레시피를 구문 분석하지 못했습니다."
   },
@@ -3467,14 +3478,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "잘못된 파일 형식: YAML 파일(.yaml 또는 .yml)을 선택하세요."
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "레시피 불러오는 중..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "이름:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "예: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "저장된 레시피가 없습니다."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "유효한 레시피 소스를 입력하세요."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "이 레시피에는 이미 일정이 있습니다. 레시피 목록에서 편집하세요."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "설명: {description}"
@@ -3485,11 +3505,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "제목: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "저장된 레시피"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "일정 ID가 필요합니다."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "일정:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "저장된 레시피 선택"
   },
   "scheduleModal.selected": {
     "defaultMessage": "선택됨: {path}"
@@ -3844,6 +3870,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "저장 중..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "일치하는 세션이 없습니다."
@@ -4415,6 +4447,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "원격 분석 설정을 업데이트하지 못했습니다."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "다크"
   },
@@ -4496,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "자동 다운로드가 비활성화되어 있습니다. 수동으로 다운로드하려면 \"지금 다운로드\"를 클릭하세요."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "수동 설치가 필요하지 않습니다."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "업데이트 확인"
   },
@@ -4529,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "설치 및 다시 시작"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "지금 업데이트하려면 \"설치 및 다시 시작\"을 클릭하세요."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "최신 버전을 사용 중입니다!"
   },
   "updateSection.loading": {
     "defaultMessage": "로드 중..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "다운로드한 후에는 업데이트를 수동으로 설치해야 합니다."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "이 업데이트 방법에는 수동 설치가 필요합니다."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ 업데이트가 준비되었습니다. 설치를 완료하려면 goose를 다시 시작하거나, 작업이 끝나면 종료하세요."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ 업데이트가 준비되었습니다! 설치 지침을 보려면 \"설치 및 다시 시작\"을 클릭하세요."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(최신 상태)"
@@ -4612,5 +4629,53 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "메시지에서 이미지 제거"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "최근"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "모델 선택"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "더 이상 사용되지 않습니다. 대신 {replacement}을(를) 사용하세요."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP 어댑터를 찾았습니다"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP 어댑터를 찾을 수 없습니다"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "제공업체 CLI에서 로그인한 후 다시 확인하세요."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "다시 확인"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "확인 중..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "연결되었습니다"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "계속하기 전에 계정 연결을 확인하세요."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "코드를 입력하세요:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "복사"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "방문하여"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "코드를 입력하세요:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "복사"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "방문하여"
   }
 }

@@ -541,6 +541,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -713,6 +715,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -894,6 +898,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1253,6 +1259,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1531,6 +1539,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1732,6 +1742,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1883,6 +1895,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -2242,6 +2256,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -2938,6 +2954,249 @@ mod tests {
         }
     }
 
+    mod add_extensions_bulk_tests {
+        use super::*;
+        use goose::agents::extension::Envs;
+        use goose::agents::{AgentConfig, ExtensionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::session::session_manager::SessionType;
+        use goose::session::{
+            EnabledExtensionsState, ExtensionData, ExtensionState, SessionManager,
+        };
+        use rmcp::model::Tool;
+        use rmcp::object;
+        use tempfile::TempDir;
+
+        fn frontend_extension(name: &str) -> ExtensionConfig {
+            ExtensionConfig::Frontend {
+                name: name.to_string(),
+                description: format!("Frontend test extension {name}"),
+                tools: vec![Tool::new(
+                    format!("{name}__tool"),
+                    format!("Run a tool from {name}"),
+                    object!({
+                        "type": "object",
+                        "properties": {
+                            "message": { "type": "string" }
+                        },
+                        "required": ["message"]
+                    }),
+                )],
+                instructions: None,
+                bundled: None,
+                available_tools: vec![],
+            }
+        }
+
+        fn unloadable_stdio_extension(name: &str) -> ExtensionConfig {
+            ExtensionConfig::Stdio {
+                name: name.to_string(),
+                description: format!("Unloadable test extension {name}"),
+                cmd: "goose-test-definitely-missing-binary".to_string(),
+                args: vec![],
+                envs: Envs::default(),
+                env_keys: vec![],
+                timeout: Some(1),
+                cwd: None,
+                bundled: None,
+                available_tools: vec![],
+            }
+        }
+
+        async fn setup_agent_and_session(
+            test_name: &str,
+        ) -> (Arc<Agent>, Arc<SessionManager>, String, TempDir) {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+            let agent = Arc::new(Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                permission_manager,
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            )));
+
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir().unwrap(),
+                    test_name.to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+
+            (agent, session_manager, session.id, temp_dir)
+        }
+
+        async fn persisted_extension_names(
+            session_manager: &SessionManager,
+            session_id: &str,
+        ) -> Vec<String> {
+            let session = session_manager
+                .get_session(session_id, false)
+                .await
+                .unwrap();
+            let mut names: Vec<String> =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .expect("enabled extensions state should be persisted")
+                    .extensions
+                    .iter()
+                    .map(|extension| extension.name())
+                    .collect();
+            names.sort();
+            names
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_persists_loaded_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-success").await;
+
+            let results = agent
+                .add_extensions_bulk(
+                    vec![
+                        frontend_extension("frontend-a"),
+                        frontend_extension("frontend-b"),
+                    ],
+                    &session_id,
+                )
+                .await
+                .unwrap();
+
+            assert!(results.iter().all(|result| result.success));
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["frontend-a".to_string(), "frontend-b".to_string()]
+            );
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_partial_failure_persists_only_loaded_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-partial-failure").await;
+
+            let results = agent
+                .add_extensions_bulk(
+                    vec![
+                        frontend_extension("frontend-ok"),
+                        unloadable_stdio_extension("broken"),
+                    ],
+                    &session_id,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 2);
+            assert!(results
+                .iter()
+                .any(|result| result.name == "frontend-ok" && result.success));
+            let broken = results
+                .iter()
+                .find(|result| result.name == "broken")
+                .expect("broken extension should report a result");
+            assert!(!broken.success);
+            assert!(broken.error.is_some());
+
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["frontend-ok".to_string()]
+            );
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_total_failure_drops_failed_extensions_from_session_state() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-total-failure").await;
+
+            // Seed the session with the extensions up front, mirroring a resume
+            // where the enabled list is read back from session metadata.
+            let extensions = vec![
+                unloadable_stdio_extension("broken-one"),
+                unloadable_stdio_extension("broken-two"),
+            ];
+            let mut extension_data = ExtensionData::new();
+            EnabledExtensionsState::new(extensions.clone())
+                .to_extension_data(&mut extension_data)
+                .unwrap();
+            session_manager
+                .update(&session_id)
+                .extension_data(extension_data)
+                .apply()
+                .await
+                .unwrap();
+
+            let results = agent
+                .add_extensions_bulk(extensions, &session_id)
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 2);
+            assert!(
+                results.iter().all(|result| !result.success),
+                "expected every extension load to fail: {results:?}"
+            );
+
+            // The failed extensions must not stay marked as enabled in the
+            // session, otherwise every future resume retries them.
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                Vec::<String>::new()
+            );
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_cancellation_preserves_pending_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-cancellation").await;
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let (accepted_tx, accepted_rx) = tokio::sync::oneshot::channel();
+            let server = tokio::spawn(async move {
+                let (_connection, _) = listener.accept().await.unwrap();
+                let _ = accepted_tx.send(());
+                std::future::pending::<()>().await;
+            });
+
+            let extension = ExtensionConfig::streamable_http(
+                "pending".to_string(),
+                format!("http://{address}"),
+                "Pending test extension".to_string(),
+                30_u64,
+            );
+            agent
+                .persist_extension_configs(&session_id, vec![extension.clone()])
+                .await
+                .unwrap();
+            let load = tokio::spawn({
+                let agent = agent.clone();
+                let session_id = session_id.clone();
+                async move {
+                    agent
+                        .add_extensions_bulk(vec![extension], &session_id)
+                        .await
+                }
+            });
+
+            tokio::time::timeout(std::time::Duration::from_secs(5), accepted_rx)
+                .await
+                .expect("extension did not connect")
+                .expect("test server stopped before accepting a connection");
+
+            load.abort();
+            assert!(load.await.unwrap_err().is_cancelled());
+            server.abort();
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["pending".to_string()]
+            );
+        }
+    }
+
     mod audience_tool_result_tests {
         use super::*;
         use async_trait::async_trait;
@@ -3130,6 +3389,7 @@ mod tests {
             call_count: AtomicUsize,
             empty_count: usize,
             wrap_empty_text: bool,
+            manages_own_context: bool,
         }
 
         struct AssistantOnlyProvider;
@@ -3151,6 +3411,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3196,6 +3458,7 @@ mod tests {
                     call_count: AtomicUsize::new(0),
                     empty_count,
                     wrap_empty_text: false,
+                    manages_own_context: false,
                 }
             }
 
@@ -3204,6 +3467,14 @@ mod tests {
                     call_count: AtomicUsize::new(0),
                     empty_count,
                     wrap_empty_text: true,
+                    manages_own_context: false,
+                }
+            }
+
+            fn with_own_context() -> Self {
+                Self {
+                    manages_own_context: true,
+                    ..Self::new(usize::MAX)
                 }
             }
         }
@@ -3229,6 +3500,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3272,6 +3545,10 @@ mod tests {
 
             fn get_name(&self) -> &str {
                 "empty-then-text-mock"
+            }
+
+            fn manages_own_context(&self) -> bool {
+                self.manages_own_context
             }
         }
 
@@ -3560,6 +3837,70 @@ mod tests {
             Ok(())
         }
 
+        #[tokio::test]
+        async fn legacy_structured_output_fails_before_provider_inference() -> Result<()> {
+            use goose::recipe::Response;
+
+            let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "unsupported-structured-output".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let provider = Arc::new(EmptyThenTextProvider::with_own_context());
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+            agent
+                .add_final_output_tool(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } }
+                    })),
+                })
+                .await?;
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Hi"),
+                    SessionConfig {
+                        id: session.id,
+                        schedule_id: None,
+                        max_turns: Some(3),
+                        retry_config: None,
+                    },
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    messages.push(message);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("empty-then-text-mock") && text.contains("final_output"),
+                "expected the unsupported structured-output error, got: {text:?}"
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+
+            Ok(())
+        }
+
         /// When a final-output tool is installed and the model stops without
         /// calling it, the empty turn must yield the mandatory final-output nudge
         /// — not the generic empty-response fallback — so structured-output
@@ -3594,7 +3935,7 @@ mod tests {
                         "properties": { "result": { "type": "string" } }
                     })),
                 })
-                .await;
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -3712,7 +4053,7 @@ mod tests {
                         "required": ["result"]
                     })),
                 })
-                .await;
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id,

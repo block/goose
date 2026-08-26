@@ -1,8 +1,4 @@
-import type {
-  CreateElicitationRequest,
-  RequestPermissionRequest,
-  SessionNotification,
-} from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Message } from '../../types/message';
@@ -15,6 +11,8 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../chatSessionStore';
+import type { AcpElicitationRequest } from '../elicitationRequests';
+import type { AcpPermissionRequest } from '../permissionRequestTypes';
 
 function message(id: string, text: string): Message {
   return {
@@ -42,8 +40,8 @@ function session(id: string, conversation: Message[] = []): Session {
   } as Session;
 }
 
-function permissionRequest(sessionId: string, toolCallId = 'tool-1'): RequestPermissionRequest {
-  return {
+function permissionRequest(sessionId: string, toolCallId = 'tool-1'): AcpPermissionRequest {
+  const request: RequestPermissionRequest = {
     sessionId,
     options: [{ optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' }],
     toolCall: {
@@ -65,16 +63,10 @@ function permissionRequest(sessionId: string, toolCallId = 'tool-1'): RequestPer
       },
     },
   };
+  return { generation: `generation-${toolCallId}`, request };
 }
 
-function elicitationRequest(sessionId: string): {
-  id: string;
-  sessionId: string;
-  request: CreateElicitationRequest & {
-    mode: 'form';
-    sessionId: string;
-  };
-} {
+function elicitationRequest(sessionId: string): AcpElicitationRequest {
   return {
     id: 'acp_elicitation_1',
     sessionId,
@@ -242,13 +234,9 @@ describe('acpChatSessionStore', () => {
     acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-a');
     acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-b');
 
-    expect(
-      acpChatSessionActions.finishPromptAttemptIfCurrent(
-        currentSessionId,
-        'attempt-a',
-        'late error'
-      )
-    ).toBe(false);
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-a')).toBe(
+      false
+    );
 
     expect(acpChatSessionStore.getSnapshot(currentSessionId)).toMatchObject({
       activePromptAttemptId: 'attempt-b',
@@ -571,6 +559,20 @@ describe('acpChatSessionStore', () => {
         id: 'tool-1',
       },
     });
+  });
+
+  it('removes the current permission card when the request is cancelled', () => {
+    const currentSessionId = sessionId('session-1');
+    const request = permissionRequest(currentSessionId, 'tool-1');
+    acpChatSessionActions.applyPermissionRequest(request);
+
+    const snapshot = acpChatSessionActions.cancelPermissionRequest(
+      currentSessionId,
+      'tool-1',
+      request.generation
+    );
+
+    expect(snapshot?.messages).toEqual([]);
   });
 
   it('resumes streaming only after the final pending user input request resolves', () => {

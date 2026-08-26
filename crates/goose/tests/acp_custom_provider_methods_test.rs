@@ -25,25 +25,22 @@ fn write_secrets(config_dir: &std::path::Path, contents: &str) {
 #[test]
 #[serial]
 fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
-    let root = tempfile::tempdir().unwrap();
-    let root_path = root.path().to_string_lossy().to_string();
     let _env = env_lock::lock_env([
-        ("GOOSE_PATH_ROOT", Some(root_path.as_str())),
         ("GOOSE_DISABLE_KEYRING", Some("1")),
         ("XAI_API_KEY", None),
         ("XAI_HOST", None),
         ("CUSTOM_STARK_ACP_PROVIDER_API_KEY", None),
     ]);
 
-    let config_dir = Paths::config_dir();
-    write_config(
-        &config_dir,
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\nXAI_HOST: https://api.x.ai/v1\n",
-    );
-    write_secrets(&config_dir, "XAI_API_KEY: xai-configured-key\n");
-    Config::global().invalidate_secrets_cache();
-
     run_test(async move {
+        let config_dir = Paths::config_dir();
+        write_config(
+            &config_dir,
+            "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\nXAI_HOST: https://api.x.ai/v1\n",
+        );
+        write_secrets(&config_dir, "XAI_API_KEY: xai-configured-key\n");
+        Config::global().invalidate_secrets_cache();
+
         let openai = common_tests::fixtures::OpenAiFixture::new(
             vec![],
             Arc::new(EnforceSessionId::default()),
@@ -103,7 +100,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "setup catalog should include {provider_id}"
             );
         }
-        for provider_id in ["codex", "claude_code", "gemini_cli"] {
+        for provider_id in ["codex", "claude-code", "gemini-cli"] {
             assert!(
                 setup_providers
                     .iter()
@@ -112,6 +109,45 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "setup catalog should exclude deprecated provider {provider_id}"
             );
         }
+        let inventory = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/list",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("provider inventory list should succeed");
+        let inventory_providers = inventory
+            .get("entries")
+            .and_then(|entries| entries.as_array())
+            .expect("provider inventory response should include entries");
+        let deprecated = inventory_providers
+            .iter()
+            .find(|provider| provider.get("providerId") == Some(&serde_json::json!("claude-code")))
+            .expect("complete inventory should retain deprecated providers");
+        assert_eq!(deprecated.get("deprecated"), Some(&serde_json::json!(true)));
+        assert_eq!(
+            deprecated.get("visibleInSetup"),
+            Some(&serde_json::json!(false))
+        );
+        assert!(
+            setup_providers
+                .iter()
+                .all(|provider| provider.get("providerId")
+                    != Some(&serde_json::json!("claude-code"))),
+            "setup catalog should omit deprecated providers"
+        );
+        assert!(
+            inventory_providers.iter().any(
+                |provider| provider.get("providerId") == Some(&serde_json::json!("claude-acp"))
+            ),
+            "complete inventory should include replacement providers"
+        );
+        assert!(
+            setup_providers.iter().any(
+                |provider| provider.get("providerId") == Some(&serde_json::json!("claude-acp"))
+            ),
+            "setup catalog should include replacement providers"
+        );
         let codex_setup = setup_providers
             .iter()
             .find(|provider| provider.get("providerId") == Some(&serde_json::json!("codex-acp")))

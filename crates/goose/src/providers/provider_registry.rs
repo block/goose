@@ -14,6 +14,7 @@ pub type ProviderConstructor = Arc<
             Vec<ExtensionConfig>,
             Option<PathBuf>,
             Option<TlsConfig>,
+            bool,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -54,37 +55,19 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    /// Apply provider-specific normalization to a model config: materialize
-    /// global defaults and backfill `context_limit` from the provider's known
-    /// models when the canonical registry didn't already resolve one. Used by
-    /// the agent/session layer to resolve effective limits (e.g. for custom
-    /// providers that declare explicit context limits in their config).
-    pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
-
-        if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
-            {
-                model.context_limit = Some(info.context_limit);
-            }
-        }
-
-        Ok(model)
+    pub fn normalize_model_config(&self, model: ModelConfig) -> Result<ModelConfig> {
+        crate::model_config::materialize_model_config(&self.metadata.name, model)
     }
 
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        self.create(extensions).await
+        (self.constructor)(extensions, None, self.tls_config.clone(), true).await
     }
 
     pub async fn create(&self, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, None, self.tls_config.clone()).await
+        (self.constructor)(extensions, None, self.tls_config.clone(), false).await
     }
 
     pub async fn create_with_working_dir(
@@ -92,7 +75,13 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, Some(working_dir), self.tls_config.clone()).await
+        (self.constructor)(
+            extensions,
+            Some(working_dir),
+            self.tls_config.clone(),
+            false,
+        )
+        .await
     }
 }
 
@@ -133,14 +122,15 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|extensions, working_dir, tls_config| {
+                constructor: Arc::new(|extensions, working_dir, tls_config, use_default_model| {
                     Box::pin(async move {
-                        let provider = match working_dir {
-                            Some(working_dir) => {
-                                F::from_env_with_working_dir(extensions, working_dir, tls_config)
-                                    .await?
-                            }
-                            None => F::from_env(extensions, tls_config).await?,
+                        let provider = if use_default_model {
+                            F::from_env_with_default_model(extensions, tls_config).await?
+                        } else if let Some(working_dir) = working_dir {
+                            F::from_env_with_working_dir(extensions, working_dir, tls_config)
+                                .await?
+                        } else {
+                            F::from_env(extensions, tls_config).await?
                         };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
@@ -293,6 +283,8 @@ impl ProviderRegistry {
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
             fast_model: config.fast_model.clone(),
+            setup: config.setup.clone(),
+            deprecated: None,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {
@@ -306,7 +298,7 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
+                constructor: Arc::new(move |_extensions, _working_dir, tls_config, _| {
                     let result = constructor(tls_config);
                     Box::pin(async move {
                         let provider = result?;
@@ -376,7 +368,7 @@ mod tests {
             description: None,
             api_key_env: String::new(),
             base_url: "https://router.huggingface.co/v1".to_string(),
-            models: vec![ModelInfo::new("test-model", 128_000)],
+            models: vec![ModelInfo::new("test-model").with_context_limit(128_000)],
             headers: None,
             timeout_seconds: None,
             supports_streaming: Some(true),
@@ -390,6 +382,8 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            emit_clear_thinking: false,
+            setup: None,
         }
     }
 
@@ -408,5 +402,7 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+        assert!(entry.metadata().setup.is_none());
+        assert!(entry.metadata().deprecated.is_none());
     }
 }

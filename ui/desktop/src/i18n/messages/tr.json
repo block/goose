@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Bağlantı kesildi. Yeniden bağlanılıyor…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Yeniden dene"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
   },
@@ -914,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Geçerli dizin"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Çalışma dizini güncellenemedi"
   },
@@ -928,6 +942,18 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Son dizinler"
+  },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} dalına geçilemedi"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Dal bulunamadı"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Dal ara…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Commit edilmemiş değişiklikleriniz olabilir."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Kabul et"
@@ -1225,6 +1251,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Başka bir yerde çalışan bir goose sunucusuna bağlanın (uygulamanın yeniden başlatılmasını gerektirir)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Uzak çalışma dizini (isteğe bağlı)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Harici arka uçtaki mutlak yol. Yerel çalışma dizinini göndermek için boş bırakın."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Kapat"
@@ -1877,9 +1912,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId}'yi kullanın"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "İptal"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Kodu kopyala"
   },
@@ -1889,23 +1921,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Bu bağlantıyı açacak uygulama bulunamadı."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Açık"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Bu açılacak: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Uygulama"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "İptal"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Kapat"
@@ -1930,18 +1947,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Resim İçinde Resim penceresini taşıyın (ok tuşlarını kullanın)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Açık"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Bu açılacak: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Resim İçinde Resim"
@@ -2748,7 +2753,7 @@
     "defaultMessage": "Devam et"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API anahtarınız yok mu?"
@@ -2787,7 +2792,7 @@
     "defaultMessage": "Bu, mevcut sağlayıcı yapılandırmasını kalıcı olarak silecektir."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Bu sağlayıcı yapılandırması kontrol edilirken bir hata oluştu."
@@ -3431,6 +3436,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Program Kimliğini Görüntüleme: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (zaten zamanlanmış)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML dosyasına göz atın..."
   },
@@ -3455,6 +3463,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Programı Düzenle"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Tarifeler yüklenemedi."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Dosyadan tarif ayrıştırılamadı."
   },
@@ -3467,14 +3478,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Geçersiz dosya türü: Lütfen bir YAML dosyası seçin (.yaml veya.yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Tarifeler yükleniyor..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "İsim:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "örneğin günlük özet işi"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Kayıtlı tarife bulunamadı."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Lütfen geçerli bir tarif kaynağı sağlayın."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Bu tarifin zaten bir zamanlaması var. Tarif listesinden düzenleyin."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Açıklama: {description}"
@@ -3485,11 +3505,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Başlık: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Kayıtlı tarifeler"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Program kimliği gerekli."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Program:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Kayıtlı bir tarife seç"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Seçili: {path}"
@@ -3844,6 +3870,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Kaydediliyor..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Eşleşen oturum bulunamadı"
@@ -4415,6 +4447,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Telemetri ayarları güncellenemedi."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Karanlık"
   },
@@ -4496,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Güncellemeleri Kontrol Et"
   },
@@ -4529,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Yükle ve Yeniden Başlat"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Veya şimdi güncellemek için \"Yükle ve Yeniden Başlat\"ı tıklayın."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "En son sürümü çalıştırıyorsunuz!"
   },
   "updateSection.loading": {
     "defaultMessage": "Yükleniyor..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "İndirdikten sonra güncellemeyi manuel olarak yüklemeniz gerekecektir."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Bu güncelleme yöntemi için manuel kurulum gereklidir."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Güncelleme hazır! Goose'den çıktığınızda yüklenecektir."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Güncelleme hazır! Kurulum talimatları için \"Yükle ve Yeniden Başlat\"a tıklayın."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(güncel)"
@@ -4612,5 +4629,53 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Görseli mesajdan kaldır"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Son kullanılan"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Modeli seçin"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Kullanımdan kaldırıldı — bunun yerine {replacement} kullanın."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP bağdaştırıcısı bulundu"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP bağdaştırıcısı bulunamadı"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Sağlayıcı CLI üzerinden oturum açın, ardından tekrar kontrol edin."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Tekrar kontrol et"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Kontrol ediliyor..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Başarıyla bağlanıldı"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
   }
 }

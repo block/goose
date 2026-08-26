@@ -284,6 +284,7 @@ export default function ToolCallWithResponse({
             <div className="px-4 pb-2">
               <ToolApprovalButtons
                 data={{
+                  generation: confirmationContent.generation,
                   id: confirmationContent.id,
                   toolName: confirmationContent.toolName,
                   prompt: confirmationContent.prompt ?? undefined,
@@ -671,12 +672,6 @@ function ToolCallView({
         break;
       }
 
-      case 'web_scrape':
-        if (args.url) {
-          return `scraping ${getStringValue(args.url)}`;
-        }
-        break;
-
       case 'remember_memory':
         if (args.category && args.data) {
           return `storing ${getStringValue(args.category)}: ${getStringValue(args.data)}`;
@@ -694,12 +689,6 @@ function ToolCallView({
           return `capturing window "${getStringValue(args.window_title)}"`;
         }
         return `capturing screen`;
-
-      case 'automation_script':
-        if (args.language) {
-          return `running ${getStringValue(args.language)} script`;
-        }
-        break;
 
       case 'delegate': {
         if (args.instructions) {

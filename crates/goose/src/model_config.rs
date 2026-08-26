@@ -23,12 +23,11 @@ pub fn model_config_from_user_config_with_session_settings(
     model_name: impl AsRef<str>,
     previous: Option<&ModelConfig>,
     request_params: Option<HashMap<String, Value>>,
-    context_limit: Option<usize>,
+    _context_limit: Option<usize>,
 ) -> Result<ModelConfig> {
     let config = Config::global();
     let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     let model = materialize_model_config_inner(model, provider_name, false)?
-        .with_context_limit(context_limit)
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
@@ -63,9 +62,7 @@ fn materialize_model_config_inner(
         model = model.with_toolshim_model(get_goose_toolshim_model(config)?);
     }
 
-    model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?);
+    model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
@@ -87,7 +84,7 @@ fn configured_fast_model_name() -> Option<String> {
 }
 
 /// Resolve the model config to use for lightweight "fast" tasks (session
-/// naming, compaction, summarization). Resolution order:
+/// naming, tool-call labels, orchestrator routing). Resolution order:
 ///   1. `GOOSE_FAST_MODEL` (user override)
 ///   2. the provider's declared default fast model
 ///   3. the supplied `model_config` (i.e. the main model)
@@ -112,9 +109,17 @@ pub async fn get_fast_model(
     }
 }
 
-/// Run a completion for a lightweight "fast" task (session naming, compaction,
-/// summarization) using the provider's fast model, falling back to the supplied
-/// main `model_config` if the fast model errors.
+/// A one-shot task summarizes a transcript or tool result that never recurs, so
+/// a prompt cache entry written for it can never be read back and only costs the
+/// cache-write premium.
+fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
+    model_config
+        .with_thinking_effort(ThinkingEffort::Off)
+        .with_prompt_cache_disabled()
+}
+
+/// Run a completion for a lightweight "fast" task (session naming, tool-call
+/// labels, orchestrator routing) using the provider's fast model.
 pub async fn complete_fast(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -122,11 +127,13 @@ pub async fn complete_fast(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    fallback_to_main_model: bool,
 ) -> Result<(Message, ProviderUsage), ProviderError> {
-    let fast_model_config = get_fast_model(provider.get_name(), model_config)
-        .await
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-        .with_thinking_effort(ThinkingEffort::Off);
+    let fast_model_config = one_shot_model_config(
+        get_fast_model(provider.get_name(), model_config)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
+    );
 
     match crate::session_context::with_session_id(
         Some(session_id.to_string()),
@@ -135,16 +142,17 @@ pub async fn complete_fast(
     .await
     {
         Ok(response) => Ok(response),
-        Err(e) if fast_model_config.model_name != model_config.model_name => {
+        Err(e)
+            if fallback_to_main_model
+                && fast_model_config.model_name != model_config.model_name =>
+        {
             tracing::warn!(
                 "Fast model {} failed with error: {}. Falling back to main model {}",
                 fast_model_config.model_name,
                 e,
                 model_config.model_name
             );
-            let fallback_config = model_config
-                .clone()
-                .with_thinking_effort(ThinkingEffort::Off);
+            let fallback_config = one_shot_model_config(model_config.clone());
             crate::session_context::with_session_id(
                 Some(session_id.to_string()),
                 provider.complete(&fallback_config, system, messages, tools),
@@ -153,6 +161,25 @@ pub async fn complete_fast(
         }
         Err(e) => Err(e),
     }
+}
+
+/// Run a completion for compaction or tool-result summarization on the main
+/// session model with one-shot semantics (thinking off, no prompt-cache writes).
+pub async fn complete_compaction(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let compaction_model_config = one_shot_model_config(model_config.clone());
+
+    crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&compaction_model_config, system, messages, tools),
+    )
+    .await
 }
 
 async fn provider_default_fast_model(provider_name: &str) -> Option<String> {
@@ -191,6 +218,7 @@ fn base_model_config_from_user_config(
         toolshim_model: get_goose_toolshim_model(config)?,
         request_params: None,
         reasoning: None,
+        supports_vision: None,
         request_headers: None,
     };
     if provider_name != goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
@@ -258,6 +286,16 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod one_shot_tests {
+    use super::*;
+
+    #[test]
+    fn prompt_cache_is_disabled() {
+        assert!(one_shot_model_config(ModelConfig::new("claude-haiku-4-5")).prompt_cache_disabled());
     }
 }
 

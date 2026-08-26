@@ -113,7 +113,7 @@ pub fn validate_provider_id(id: &str) -> Result<()> {
     }
 }
 
-fn custom_provider_file_path(id: &str) -> Result<PathBuf> {
+pub(crate) fn custom_provider_file_path(id: &str) -> Result<PathBuf> {
     if id.is_empty()
         || id
             .chars()
@@ -138,7 +138,7 @@ pub struct CreateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -154,7 +154,7 @@ pub struct UpdateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -183,11 +183,7 @@ pub fn create_custom_provider(
         String::new()
     };
 
-    let model_infos: Vec<ModelInfo> = params
-        .models
-        .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
-        .collect();
+    let model_infos = params.models;
 
     let engine = ProviderEngine::from_str(&params.engine)?;
     let preserves_thinking = params
@@ -215,6 +211,8 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
+        emit_clear_thinking: false,
+        setup: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -255,10 +253,32 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
-        let model_infos: Vec<ModelInfo> = params
+        let model_infos = params
             .models
             .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
+            .map(|mut model| {
+                if let Some(existing) = existing_config
+                    .models
+                    .iter()
+                    .find(|existing| existing.name == model.name)
+                {
+                    model.resolved_model = model.resolved_model.or(existing.resolved_model.clone());
+                    model.context_limit = model.context_limit.or(existing.context_limit);
+                    model.input_token_cost = model.input_token_cost.or(existing.input_token_cost);
+                    model.output_token_cost =
+                        model.output_token_cost.or(existing.output_token_cost);
+                    model.currency = model.currency.or(existing.currency.clone());
+                    model.supports_cache_control = model
+                        .supports_cache_control
+                        .or(existing.supports_cache_control);
+                    model.reasoning |= existing.reasoning;
+                    model.thinking_preservation_format = model
+                        .thinking_preservation_format
+                        .or(existing.thinking_preservation_format);
+                    model.request_params = model.request_params.or(existing.request_params.clone());
+                }
+                model
+            })
             .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;
@@ -295,6 +315,8 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
+            emit_clear_thinking: existing_config.emit_clear_thinking,
+            setup: existing_config.setup,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -543,7 +565,7 @@ mod tests {
             models: vec![ModelInfo {
                 name: "test/model".to_string(),
                 resolved_model: None,
-                context_limit: 128_000,
+                context_limit: Some(128_000),
                 input_token_cost: None,
                 output_token_cost: None,
                 currency: None,
@@ -565,6 +587,8 @@ mod tests {
             setup_steps: Vec::new(),
             fast_model: None,
             preserves_thinking: true,
+            emit_clear_thinking: false,
+            setup: None,
         }
     }
 
@@ -674,6 +698,59 @@ mod tests {
     }
 
     #[test]
+    fn custom_provider_update_preserves_model_metadata() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_root = temp_dir.path().display().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let mut model = ModelInfo::with_cost("large-model", 1_048_576, 0.000002, 0.000006);
+        model.request_params = Some(HashMap::from([(
+            "temperature".to_string(),
+            serde_json::json!(0.25),
+        )]));
+        let created = create_custom_provider(CreateCustomProviderParams {
+            engine: "openai".to_string(),
+            display_name: "Large Context".to_string(),
+            api_url: "https://example.invalid/v1".to_string(),
+            api_key: None,
+            models: vec![model],
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            preserves_thinking: None,
+        })
+        .unwrap();
+
+        update_custom_provider(UpdateCustomProviderParams {
+            id: created.name.clone(),
+            engine: "openai".to_string(),
+            display_name: created.display_name.clone(),
+            api_url: created.base_url.clone(),
+            api_key: None,
+            models: vec![ModelInfo::new("large-model").with_context_limit(2_097_152)],
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            preserves_thinking: None,
+        })
+        .unwrap();
+
+        let loaded = load_provider(&created.name).unwrap();
+        let model = &loaded.config.models[0];
+        assert_eq!(model.context_limit, Some(2_097_152));
+        assert_eq!(model.input_token_cost, Some(0.000002));
+        assert_eq!(model.output_token_cost, Some(0.000006));
+        assert_eq!(
+            model.request_params.as_ref().unwrap()["temperature"],
+            serde_json::json!(0.25)
+        );
+    }
+
+    #[test]
     fn test_custom_openai_provider_missing_preserves_thinking_defaults_true() {
         let json = r#"{
             "name": "custom_reasoning",
@@ -768,7 +845,7 @@ mod tests {
             display_name: "Z.AI Updated".to_string(),
             api_url: "https://updated.example.invalid/v1/chat/completions".to_string(),
             api_key: None,
-            models: vec!["z-model".to_string()],
+            models: vec![ModelInfo::new("z-model")],
             supports_streaming: Some(true),
             headers: None,
             requires_auth: false,

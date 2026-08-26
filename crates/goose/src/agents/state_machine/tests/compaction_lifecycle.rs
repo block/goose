@@ -3,6 +3,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage as Provide
 use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 
 use super::calculator_extension::{value, ADD};
+use super::dummy_api::ProviderFeatures;
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
@@ -81,10 +82,11 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
         state_machine::StateMachine::new(Vec::new(), tokio_util::sync::CancellationToken::new());
     let (tx, _rx) = tokio::sync::mpsc::channel(4);
     let emit = state_machine::Emitter::new(tx, tokio_util::sync::CancellationToken::new());
-    let apply = async |effects: Vec<state_machine::StateEffect>| -> Result<()> {
+    let apply = async |effects: Vec<state_machine::GooseEffect>| -> Result<()> {
         let session = pipeline.session().await?;
         let mut result = state_machine::StepResult {
             effects,
+            applied_step: None,
             yield_to_client: false,
         };
         machine
@@ -112,7 +114,7 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
     );
     apply(vec![
         replacement.into(),
-        state_machine::StateEffect::RecordUsage(usage),
+        state_machine::GooseEffect::RecordUsage(usage),
         Message::assistant()
             .with_text("response after replacement")
             .into(),
@@ -129,6 +131,39 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
             .and_then(|usage| usage.total_tokens),
         Some(15)
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn tokenless_provider_compacts_estimated_context() -> Result<()> {
+    let (pipeline, api) = pipeline::test_pipeline_with(ProviderFeatures {
+        reports_usage: false,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(200)),
+        )
+        .await;
+    let large_context = (0..500)
+        .map(|index| format!("token-{index}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    pipeline
+        .seed([Message::user().with_text(large_context)])
+        .await?;
+    assert!(pipeline.session().await?.usage.total_tokens.is_none());
+
+    api.on(SUMMARIZE_HISTORY).reply("summary");
+    api.on("Your context was compacted")
+        .reply("continued after estimated compaction");
+
+    let compacted = pipeline.run(["continue"]).await?;
+    compacted.assert_message(-1, Agent, "continued after estimated compaction");
+    compacted.assert_emitted("Performing auto-compaction");
+    assert_eq!(compacted.history_replacements(), 1);
 
     Ok(())
 }
@@ -152,6 +187,35 @@ async fn a_failed_compact_command_reports_the_error_and_keeps_working() -> Resul
     api.on("still there?").reply("still here");
     let recovered = pipeline.run(["still there?"]).await?;
     recovered.assert_message(-1, Agent, "still here");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn context_owning_provider_has_no_compaction_operation() -> Result<()> {
+    let (pipeline, api) = pipeline::test_pipeline_with(ProviderFeatures {
+        manages_own_context: true,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+    api.on("continue").reply("continued");
+    pipeline
+        .set_total_tokens((pipeline.context_limit() as f64 * 0.81) as i32)
+        .await;
+
+    let continued = pipeline.run(["continue"]).await?;
+    continued.assert_message(-1, Agent, "continued");
+    assert_eq!(continued.history_replacements(), 0);
+    assert_eq!(api.calls().len(), 1);
+
+    for command in ["clear", "compact"] {
+        let input = format!("/{command}");
+        api.on(&input).reply(format!("provider handled /{command}"));
+        let handled = pipeline.run([input.as_str()]).await?;
+        handled.assert_message(-1, Agent, &format!("provider handled /{command}"));
+        assert_eq!(handled.history_replacements(), 0);
+    }
+    assert_eq!(api.calls().len(), 3);
 
     Ok(())
 }

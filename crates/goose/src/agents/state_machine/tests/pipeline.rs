@@ -15,11 +15,12 @@ use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabil
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
+    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
+    ExitOnErrorOperation, GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, StatusOperation,
+    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -36,13 +37,13 @@ use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use goose_providers::model::ModelConfig;
 
-struct ResolvedModelProvider {
+struct FeatureProvider {
     inner: Arc<dyn Provider>,
-    resolved_model: &'static str,
+    features: ProviderFeatures,
 }
 
 #[async_trait::async_trait]
-impl Provider for ResolvedModelProvider {
+impl Provider for FeatureProvider {
     fn get_name(&self) -> &str {
         self.inner.get_name()
     }
@@ -59,11 +60,12 @@ impl Provider for ResolvedModelProvider {
             .await
     }
 
-    async fn get_context_limit(
-        &self,
-        model_config: &ModelConfig,
-    ) -> Result<usize, goose_providers::errors::ProviderError> {
-        self.inner.get_context_limit(model_config).await
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        self.inner.get_context_limit(model, override_limit).await
+    }
+
+    fn manages_own_context(&self) -> bool {
+        self.features.manages_own_context
     }
 
     async fn fetch_model_info(
@@ -71,7 +73,9 @@ impl Provider for ResolvedModelProvider {
         model_name: &str,
     ) -> Result<goose_providers::base::ModelInfo, goose_providers::errors::ProviderError> {
         let mut model_info = self.inner.fetch_model_info(model_name).await?;
-        model_info.resolved_model = Some(self.resolved_model.to_string());
+        if let Some(resolved_model) = self.features.resolved_model {
+            model_info.resolved_model = Some(resolved_model.to_string());
+        }
         Ok(model_info)
     }
 }
@@ -105,30 +109,37 @@ pub(super) struct TestPipeline {
 }
 
 impl TestPipeline {
-    pub(super) fn machine(&self, cancel: CancellationToken) -> StateMachine<'_> {
+    pub(super) fn machine(
+        &self,
+        cancel: CancellationToken,
+    ) -> StateMachine<'_, Session, GooseEffect> {
         let provider = self.provider.clone();
         let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
             self.model_config.context_limit(),
             COMPACTION_THRESHOLD,
         );
-        let operations: Vec<Arc<dyn Operation + '_>> = vec![
+        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(SteerOperation::new(
                 self.steer_queue.clone(),
                 self.hook_manager.clone(),
             )),
             Arc::new(MaxTurnsOperation::new(self.max_turns)),
             Arc::new(BangShellOperation::new()),
-            Arc::new(CompactionOperation::new(
+        ];
+        if !self.provider_features.manages_own_context {
+            operations.push(Arc::new(CompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
                 self.model_config.context_limit(),
                 COMPACTION_THRESHOLD,
-            )),
+            )));
+        }
+        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
                 tool_call_cutoff,
-                true,
+                !self.provider_features.manages_own_context,
             )),
             Arc::new(ToolApprovalOperation::new(
                 &self.goose_mode,
@@ -136,14 +147,17 @@ impl TestPipeline {
             )),
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),
-            Arc::new(SkillOperation),
-            Arc::new(RecipeOperation),
+            Arc::new(SkillOperation::new(self.hook_manager.clone())),
+            Arc::new(RecipeOperation::new(
+                provider.clone(),
+                self.hook_manager.clone(),
+            )),
             Arc::new(ToolExecutionOperation::new(
                 &self.goose_mode,
                 self.extension_manager.clone(),
                 self.hook_manager.clone(),
             )),
-            Arc::new(UnknownToolOperation),
+            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
             Arc::new(RetryOperation::new(
                 &self.goal,
                 &self.grind,
@@ -156,26 +170,38 @@ impl TestPipeline {
             )),
             Arc::new(ExitOnErrorOperation),
         ];
-        let inference = Arc::new(InferenceRunner::new(
-            provider,
+        operations.extend(remaining_operations);
+        let request_preparer = GooseInferenceRequestPreparer {
+            #[cfg(feature = "code-mode")]
+            extension_manager: self.extension_manager.clone(),
+            goose_mode: &self.goose_mode,
+            prompt_manager: &self.prompt_manager,
+            tool_inspection_manager: &self.tool_inspection_manager,
+            frontend_instructions: &self.frontend_instructions,
+            context_limit: self.model_config.context_limit(),
+        };
+        let status_operation = Arc::new(StatusOperation::new(
+            provider.clone(),
             self.model_config.clone(),
-            self.extension_manager.clone(),
-            &self.goose_mode,
-            &self.prompt_manager,
-            &self.tool_inspection_manager,
-            &self.frontend_instructions,
         ));
+        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
+        let inference = Arc::new(
+            InferenceRunner::new(inference_provider, self.model_config.clone())
+                .with_request_preparer(Arc::new(request_preparer)),
+        );
         let mut command_handlers = operations.clone();
-        command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> =
+        command_handlers.push(status_operation);
+        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
+        let steps = std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
+            as Arc<dyn Operation<Session, GooseEffect> + '_>)
+        .chain(std::iter::once(command_operation))
+        .chain(operations)
+        .map(Step::Operation)
+        .chain(std::iter::once(Step::Inference(inference)))
+        .collect();
 
-        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
+        StateMachine::new(steps, cancel)
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {
@@ -735,13 +761,15 @@ async fn build_test_pipeline(
             .preserve_thinking_context(provider_features.preserves_thinking)
             .build(),
     );
-    let provider: Arc<dyn Provider> = match provider_features.resolved_model {
-        Some(resolved_model) => Arc::new(ResolvedModelProvider {
-            inner: provider,
-            resolved_model,
-        }),
-        None => provider,
-    };
+    let provider: Arc<dyn Provider> =
+        if provider_features.resolved_model.is_some() || provider_features.manages_own_context {
+            Arc::new(FeatureProvider {
+                inner: provider,
+                features: provider_features,
+            })
+        } else {
+            provider
+        };
     let shared_provider = Arc::new(TokioMutex::new(Some(provider.clone())));
     let extension_manager = Arc::new(ExtensionManager::new(
         shared_provider.clone(),
@@ -753,6 +781,8 @@ async fn build_test_pipeline(
         ExtensionManagerCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
+            protocol_version: None,
         },
         false,
     ));
