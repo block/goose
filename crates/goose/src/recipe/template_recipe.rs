@@ -31,14 +31,18 @@ impl ParsedRecipeTemplate {
         self.recipe
     }
 
-    pub(crate) fn render(mut self, params: &HashMap<String, String>) -> Result<String> {
+    pub(crate) fn render(
+        mut self,
+        params: &HashMap<String, String>,
+    ) -> Result<(String, HashSet<String>)> {
         self.environment
             .set_undefined_behavior(UndefinedBehavior::Strict);
         self.environment.set_loader(|_| Ok(None));
         let template = self.environment.get_template(CURRENT_TEMPLATE_NAME)?;
-        template
+        let rendered = template
             .render(params)
-            .map_err(|error| anyhow::anyhow!("Failed to render the recipe {error}"))
+            .map_err(|error| anyhow::anyhow!("Failed to render the recipe {error}"))?;
+        Ok((rendered, self.template_variables))
     }
 }
 

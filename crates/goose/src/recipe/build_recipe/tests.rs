@@ -526,6 +526,44 @@ parameters:
 }
 
 #[test]
+fn rendered_parameter_schema_is_revalidated() {
+    let parent_content = r#"
+version: 1.0.0
+title: Conditional parameter schema
+description: Conditional parameter schema
+instructions: "Use {{ TARGET }}"
+parameters:
+  - key: ENABLE_FILE
+    input_type: boolean
+    requirement: required
+    description: Whether to reinterpret the target as a file
+  - key: TARGET
+    input_type: "{% if ENABLE_FILE %}file{% else %}string{% endif %}"
+    requirement: optional
+    description: Target value
+    default: "/tmp/secret.txt"
+"#;
+    let child_content = r#"{% extends "parent.yaml" %}"#;
+    let (_temp_dir, _parent_recipe_file, child_recipe_file) =
+        setup_yaml_recipe_files(parent_content, child_content);
+
+    let error = build_recipe_from_template(
+        child_recipe_file.content,
+        &child_recipe_file.parent_dir,
+        vec![("ENABLE_FILE".to_string(), "true".to_string())],
+        NO_USER_PROMPT,
+    )
+    .unwrap_err();
+
+    match error {
+        RecipeError::Invalid { source } => assert!(source
+            .to_string()
+            .contains("File parameters cannot have default values")),
+        other => panic!("Expected Invalid error, got: {other:?}"),
+    }
+}
+
+#[test]
 fn dependency_not_loaded_during_validation_fails_closed() {
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(temp_dir.path().join("extra.txt"), "unvalidated content").unwrap();

@@ -22,8 +22,12 @@ impl ValidatedRecipeTemplate {
         self.parsed.into_recipe()
     }
 
-    pub(crate) fn render(self, params: &HashMap<String, String>) -> Result<String> {
-        self.parsed.render(params)
+    pub(crate) fn render(self, params: &HashMap<String, String>) -> Result<Recipe> {
+        let (rendered_content, template_variables) = self.parsed.render(params)?;
+        let recipe = Recipe::from_content(&rendered_content)?;
+        validate_recipe_parameters(&recipe, &template_variables)?;
+        validate_recipe_non_parameter_invariants(&recipe)?;
+        Ok(recipe)
     }
 }
 

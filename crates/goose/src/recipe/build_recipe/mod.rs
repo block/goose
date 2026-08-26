@@ -1,7 +1,5 @@
 use crate::recipe::read_recipe_file_content::read_parameter_file_content;
-use crate::recipe::validate_recipe::{
-    validate_recipe_non_parameter_invariants, validate_recipe_template,
-};
+use crate::recipe::validate_recipe::validate_recipe_template;
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
@@ -23,7 +21,7 @@ fn render_recipe_template<F>(
     recipe_dir: &Path,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
-) -> Result<(String, Vec<String>)>
+) -> Result<(Option<Recipe>, Vec<String>)>
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
@@ -35,13 +33,13 @@ where
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, &recipe_dir_str, user_prompt_fn)?;
 
-    let rendered_content = if missing_params.is_empty() {
-        validated_recipe.render(&params_for_template)?
+    let rendered_recipe = if missing_params.is_empty() {
+        Some(validated_recipe.render(&params_for_template)?)
     } else {
-        String::new()
+        None
     };
 
-    Ok((rendered_content, missing_params))
+    Ok((rendered_recipe, missing_params))
 }
 
 pub fn build_recipe_from_template<F>(
@@ -53,20 +51,15 @@ pub fn build_recipe_from_template<F>(
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
-    let (rendered_content, missing_params) =
+    let (rendered_recipe, missing_params) =
         render_recipe_template(recipe_content, recipe_dir, params.clone(), user_prompt_fn)
             .map_err(|source| RecipeError::Invalid { source })?;
 
-    if !missing_params.is_empty() {
+    let Some(mut recipe) = rendered_recipe else {
         return Err(RecipeError::MissingParams {
             parameters: missing_params,
         });
-    }
-
-    let mut recipe = Recipe::from_content(&rendered_content)
-        .map_err(|source| RecipeError::Invalid { source })?;
-    validate_recipe_non_parameter_invariants(&recipe)
-        .map_err(|source| RecipeError::Invalid { source })?;
+    };
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
