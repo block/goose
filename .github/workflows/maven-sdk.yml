@@ -1,6 +1,13 @@
 name: Maven GDK
 
 on:
+  workflow_call:
+    inputs:
+      publish:
+        description: "Publish gdk to Maven Central after building"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       publish:
@@ -126,7 +133,7 @@ jobs:
     name: Publish to Maven Central
     needs: package
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: inputs.publish
     environment: maven-central
     steps:
       - name: Checkout code

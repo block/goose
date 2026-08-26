@@ -1,6 +1,13 @@
 name: Python GDK Wheels
 
 on:
+  workflow_call:
+    inputs:
+      publish:
+        description: "Publish wheels to PyPI after building"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       publish:
@@ -99,7 +106,7 @@ jobs:
     name: Publish wheels to PyPI
     needs: build-wheels
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: inputs.publish
     environment: pypi
     steps:
       - name: Download wheel artifacts

@@ -110,6 +110,60 @@ crates-publish dry_run="true":
         cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
     done
 
+check-version rust_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 - "{{rust_version}}" <<'PY'
+    import re
+    import sys
+    from pathlib import Path
+
+    rust_version = sys.argv[1]
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-alpha\.(\d+))?", rust_version)
+    if not match:
+        raise SystemExit("version must look like 0.1.0 or 0.1.0-alpha.0")
+
+    major, minor, patch, alpha = match.groups()
+    python_version = f"{major}.{minor}.{patch}" if alpha is None else f"{major}.{minor}.{patch}a{alpha}"
+    crate_names = [
+        "goose-provider-types",
+        "goose-sdk-types",
+        "goose-download-manager",
+        "goose-local-inference",
+        "goose-providers",
+        "goose-agent",
+        "goose-context-management",
+        "goose-sdk",
+    ]
+
+    def package_version(path: Path, section: str) -> str:
+        text = path.read_text()
+        section_match = re.search(rf"(?ms)^\[{re.escape(section)}\]\s*$(.*?)(?=^\[|\Z)", text)
+        if not section_match:
+            raise SystemExit(f"missing [{section}] in {path}")
+        version_match = re.search(r'^version\s*=\s*"([^"]+)"', section_match.group(1), re.MULTILINE)
+        if not version_match:
+            raise SystemExit(f"missing version in [{section}] in {path}")
+        return version_match.group(1)
+
+    errors = []
+    for crate in crate_names:
+        path = Path("crates") / crate / "Cargo.toml"
+        actual = package_version(path, "package")
+        if actual != rust_version:
+            errors.append(f"{path}: expected {rust_version}, found {actual}")
+
+    pyproject = Path("crates/goose-sdk/python/pyproject.toml")
+    actual_python = package_version(pyproject, "project")
+    if actual_python != python_version:
+        errors.append(f"{pyproject}: expected {python_version}, found {actual_python}")
+
+    if errors:
+        raise SystemExit("\n".join(errors))
+
+    print(f"Validated Rust/Maven version {rust_version} and Python version {python_version}")
+    PY
+
 bump-version rust_version:
     #!/usr/bin/env bash
     set -euo pipefail
