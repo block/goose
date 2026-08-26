@@ -76,6 +76,7 @@ jobs:
     uses: ./.github/workflows/maven-sdk.yml
     with:
       publish: true
+    secrets: inherit
 
   pypi:
     name: Publish Python wheels
