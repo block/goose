@@ -3,6 +3,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::Operation;
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -10,7 +11,7 @@ use crate::session::Session;
 pub struct ProjectOperation;
 
 #[async_trait]
-impl Operation for ProjectOperation {
+impl Operation<Session, GooseEffect> for ProjectOperation {
     fn name(&self) -> &'static str {
         "project"
     }

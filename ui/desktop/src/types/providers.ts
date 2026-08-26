@@ -13,7 +13,7 @@ export type ConfigKey = {
 };
 
 export type ModelInfo = {
-  context_limit: number;
+  context_limit?: number | null;
   currency?: string | null;
   input_token_cost?: number | null;
   name: string;
@@ -38,9 +38,18 @@ export type ProviderMetadata = {
 
 export type ProviderDetails = {
   is_configured: boolean;
+  is_available: boolean;
+  is_refreshing?: boolean;
+  last_refresh_error?: string | null;
+  supports_refresh?: boolean;
+  visible_in_setup: boolean;
+  deprecated: boolean;
+  replacement?: string | null;
   metadata: ProviderMetadata;
   name: string;
   provider_type: ProviderType;
+  setup_category: 'agent' | 'model';
+  uses_acp: boolean;
   saved_model?: string | null;
 };
 

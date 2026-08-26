@@ -5,7 +5,7 @@ use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::providers::private_file::write_private_file;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
@@ -414,17 +414,6 @@ impl GithubCopilotProvider {
         Ok(info)
     }
 
-    async fn get_access_token(&self) -> Result<String> {
-        for attempt in 0..3 {
-            tracing::trace!("attempt {} to get access token", attempt + 1);
-            match self.login().await {
-                Ok(token) => return Ok(token),
-                Err(err) => tracing::warn!("failed to get access token: {}", err),
-            }
-        }
-        Err(anyhow!("failed to get access token after 3 attempts"))
-    }
-
     async fn login(&self) -> Result<String> {
         let cfg = DeviceFlowConfig {
             device_auth_url: Some(&self.urls.device_code_url),
@@ -600,6 +589,15 @@ impl goose_providers::base::ProviderDescriptor for GithubCopilotProvider {
                 ConfigKey::new("GITHUB_COPILOT_TOKEN_URL", false, false, None, false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::OauthDeviceCode,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_native_connect_query("GitHub Copilot")
+            .with_capabilities(false, true, false),
+        )
     }
 }
 
@@ -722,7 +720,7 @@ impl Provider for GithubCopilotProvider {
         }
 
         let token = self
-            .get_access_token()
+            .login()
             .await
             .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
 

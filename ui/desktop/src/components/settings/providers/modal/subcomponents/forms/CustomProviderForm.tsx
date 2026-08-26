@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
@@ -227,6 +227,20 @@ const i18n = defineMessages({
 
 type Step = 'choice' | 'catalog' | 'form';
 
+type ProviderEngine = 'openai_compatible' | 'anthropic_compatible' | 'ollama_compatible';
+
+const ENGINE_ALIASES: Record<string, ProviderEngine> = {
+  openai: 'openai_compatible',
+  openai_compatible: 'openai_compatible',
+  anthropic: 'anthropic_compatible',
+  anthropic_compatible: 'anthropic_compatible',
+  ollama: 'ollama_compatible',
+  ollama_compatible: 'ollama_compatible',
+};
+
+const normalizeEngine = (engine: string): ProviderEngine =>
+  ENGINE_ALIASES[engine.trim().toLowerCase()] ?? 'openai_compatible';
+
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void | Promise<void>;
   onCancel: () => void;
@@ -245,7 +259,12 @@ export default function CustomProviderForm({
   isEditable,
 }: CustomProviderFormProps) {
   const intl = useIntl();
-  const [engine, setEngine] = useState('openai_compatible');
+  const engineOptions: { value: ProviderEngine; label: string }[] = [
+    { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
+    { value: 'anthropic_compatible', label: intl.formatMessage(i18n.anthropicCompatible) },
+    { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
+  ];
+  const [engine, setEngine] = useState<ProviderEngine>('openai_compatible');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [basePath, setBasePath] = useState('');
@@ -264,19 +283,27 @@ export default function CustomProviderForm({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const contextVersionRef = useRef(0);
 
   // Template + step state
   const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplateDto | null>(null);
   const [step, setStep] = useState<Step>(initialData ? 'form' : 'choice');
 
+  const clearSensitiveState = () => {
+    contextVersionRef.current += 1;
+    setApiKey('');
+    setHeaders([]);
+    setNewHeaderKey('');
+    setNewHeaderValue('');
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+    setValidationErrors({});
+    setSubmitError(null);
+  };
+
   useEffect(() => {
     if (initialData) {
-      const engineMap: Record<string, string> = {
-        openai: 'openai_compatible',
-        anthropic: 'anthropic_compatible',
-        ollama: 'ollama_compatible',
-      };
-      setEngine(engineMap[initialData.engine] || 'openai_compatible');
+      setEngine(normalizeEngine(initialData.engine));
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setBasePath(initialData.base_path ?? '');
@@ -297,6 +324,7 @@ export default function CustomProviderForm({
   }, [initialData]);
 
   const handleTemplateSelect = (template: ProviderTemplateDto) => {
+    clearSensitiveState();
     setSelectedTemplate(template);
 
     // Prefill fields from template
@@ -306,12 +334,7 @@ export default function CustomProviderForm({
     setSupportsStreaming(template.supportsStreaming);
     setRequiresAuth(true);
 
-    const formatToEngine: Record<string, string> = {
-      openai: 'openai_compatible',
-      anthropic: 'anthropic_compatible',
-      ollama: 'ollama_compatible',
-    };
-    setEngine(formatToEngine[template.format] || 'openai_compatible');
+    setEngine(normalizeEngine(template.format));
 
     const templateModels = template.models.filter((m) => !m.deprecated).map((m) => m.id);
     setModels(templateModels.join(', '));
@@ -320,6 +343,7 @@ export default function CustomProviderForm({
   };
 
   const handleClearTemplate = () => {
+    clearSensitiveState();
     setSelectedTemplate(null);
     setDisplayName('');
     setApiUrl('');
@@ -329,6 +353,16 @@ export default function CustomProviderForm({
     setSupportsStreaming(true);
     setRequiresAuth(false);
     setStep('choice');
+  };
+
+  const handleBackToChoice = () => {
+    clearSensitiveState();
+    setStep('choice');
+  };
+
+  const handleCancel = () => {
+    clearSensitiveState();
+    onCancel();
   };
 
   const handleRequiresAuthChange = (checked: boolean) => {
@@ -406,6 +440,7 @@ export default function CustomProviderForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const contextVersion = contextVersionRef.current;
     setSubmitError(null);
     setValidationErrors({});
 
@@ -424,8 +459,8 @@ export default function CustomProviderForm({
 
     const modelList = models
       .split(',')
-      .map((m) => m.trim())
-      .filter((m) => m);
+      .map((name) => name.trim())
+      .filter(Boolean);
 
     let allHeaders = [...headers];
 
@@ -464,6 +499,7 @@ export default function CustomProviderForm({
         base_path: basePath || undefined,
       });
     } catch (error) {
+      if (contextVersionRef.current !== contextVersion) return;
       console.error('Failed to save custom provider:', error);
       setSubmitError(intl.formatMessage(i18n.submitError));
     }
@@ -522,7 +558,7 @@ export default function CustomProviderForm({
           </div>
         </button>
         <div className="flex justify-end pt-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
         </div>
@@ -534,12 +570,12 @@ export default function CustomProviderForm({
   if (step === 'catalog') {
     return (
       <div className="mt-4">
-        <ProviderCatalogPicker onSelect={handleTemplateSelect} onCancel={onCancel} embedded />
+        <ProviderCatalogPicker onSelect={handleTemplateSelect} onCancel={handleCancel} embedded />
         <div className="flex justify-between pt-4">
-          <Button type="button" variant="ghost" onClick={() => setStep('choice')}>
+          <Button type="button" variant="ghost" onClick={handleBackToChoice}>
             {intl.formatMessage(i18n.back)}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
         </div>
@@ -587,7 +623,7 @@ export default function CustomProviderForm({
 
       {/* Back to choice (create without template only) */}
       {!initialData && !selectedTemplate && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => setStep('choice')}>
+        <Button type="button" variant="ghost" size="sm" onClick={handleBackToChoice}>
           {intl.formatMessage(i18n.back)}
         </Button>
       )}
@@ -606,25 +642,10 @@ export default function CustomProviderForm({
             id="provider-select"
             aria-invalid={!!validationErrors.providerType}
             aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
-            options={[
-              { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
-              {
-                value: 'anthropic_compatible',
-                label: intl.formatMessage(i18n.anthropicCompatible),
-              },
-              { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
-            ]}
-            value={{
-              value: engine,
-              label:
-                engine === 'openai_compatible'
-                  ? intl.formatMessage(i18n.openaiCompatible)
-                  : engine === 'anthropic_compatible'
-                    ? intl.formatMessage(i18n.anthropicCompatible)
-                    : intl.formatMessage(i18n.ollamaCompatible),
-            }}
+            options={engineOptions}
+            value={engineOptions.find((option) => option.value === engine)}
             onChange={(option: unknown) => {
-              const selectedOption = option as { value: string; label: string } | null;
+              const selectedOption = option as { value: ProviderEngine } | null;
               if (selectedOption) setEngine(selectedOption.value);
             }}
             isSearchable={false}
@@ -952,7 +973,7 @@ export default function CustomProviderForm({
               {intl.formatMessage(i18n.deleteProvider)}
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
           <Button type="submit">

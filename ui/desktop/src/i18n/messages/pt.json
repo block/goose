@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Conexão perdida. Reconectando…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Tentar novamente"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensão atualizada"
   },
@@ -914,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Diretório atual"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Falha ao atualizar o diretório de trabalho"
   },
@@ -928,6 +942,18 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Diretórios recentes"
+  },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Falha ao mudar para {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Nenhum ramo encontrado"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Pesquisar ramos…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Pode haver alterações sem commit."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceitar"
@@ -1886,9 +1912,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Usar {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Cancelar"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copiar código"
   },
@@ -1898,23 +1921,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Nenhum aplicativo encontrado para abrir este link."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Abrir"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Abrir Link Externo"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Abrir link {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Isto abrirá: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Aplicativo"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Cancelar"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Fechar"
@@ -1939,18 +1947,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Mover a janela Picture-in-Picture (use as teclas de seta)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Abrir"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Abrir Link Externo"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Isto abrirá: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Abrir link {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -2757,7 +2753,7 @@
     "defaultMessage": "Continuar"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Será aberta uma janela do navegador e o código de verificação será copiado para a área de transferência. Cole-o no navegador para concluir o início de sessão."
+    "defaultMessage": "Será aberta uma janela do navegador. O código de verificação aparecerá aqui para que possa introduzi-lo e concluir o início de sessão."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Não tem uma chave de API?"
@@ -2796,7 +2792,7 @@
     "defaultMessage": "Isto irá eliminar permanentemente a configuração atual do fornecedor."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Será aberta uma janela do navegador e o código de verificação será copiado para a área de transferência. Cole-o no navegador para concluir o início de sessão."
+    "defaultMessage": "Será aberta uma janela do navegador. O código de verificação aparecerá aqui para que possa introduzi-lo e concluir o início de sessão."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Ocorreu um erro ao verificar a configuração deste fornecedor."
@@ -3440,6 +3436,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "A visualizar o ID do agendamento: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (já agendada)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Procurar ficheiro YAML..."
   },
@@ -3464,6 +3463,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Editar agendamento"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Falha ao carregar receitas."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Falha ao analisar a receita a partir do ficheiro."
   },
@@ -3476,14 +3478,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Tipo de ficheiro inválido: selecione um ficheiro YAML (.yaml ou .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Carregando receitas..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nome:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ex., tarefa-resumo-diario"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Nenhuma receita salva encontrada."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Forneça uma origem de receita válida."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Esta receita já tem um agendamento. Edite-o na lista de Receitas."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Descrição: {description}"
@@ -3494,11 +3505,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Título: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Receitas salvas"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "O ID do agendamento é obrigatório."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Agendamento:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Selecionar uma receita salva"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Selecionado: {path}"
@@ -3853,6 +3870,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "A guardar..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Nenhuma sessão correspondente encontrada"
@@ -4424,6 +4447,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Falha ao atualizar as definições de telemetria."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Escuro"
   },
@@ -4505,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "A transferência automática está desativada. Clique em \"Transferir Agora\" para transferir manualmente."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Não é necessária instalação manual."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Verificar Atualizações"
   },
@@ -4538,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Instalar e Reiniciar"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Clique em \"Instalar e Reiniciar\" para atualizar agora."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Está a executar a versão mais recente!"
   },
   "updateSection.loading": {
     "defaultMessage": "A carregar..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Após a transferência, terá de instalar a atualização manualmente."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Instalação manual necessária para este método de atualização."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ A atualização está pronta. Reinicie o Goose para concluir a instalação, ou saia quando terminar."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ A atualização está pronta! Clique em \"Instalar e Reiniciar\" para ver as instruções de instalação."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(atualizado)"
@@ -4621,5 +4629,53 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Remover imagem da mensagem"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recentes"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Escolher modelo"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Obsoleto — use {replacement} em vez disso."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptador ACP encontrado"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptador ACP não encontrado"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Inicie sessão através da CLI do fornecedor e verifique novamente."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Verificar novamente"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "A verificar..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Ligação efetuada com sucesso"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Verifique a ligação da sua conta antes de continuar."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "e insira:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copiar"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Acesse"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "e insira:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copiar"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Acesse"
   }
 }

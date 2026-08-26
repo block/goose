@@ -9,6 +9,7 @@ use super::GooseAcpAgent;
 use agent_client_protocol::schema::v1::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffortSupport;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::warn;
@@ -35,8 +36,14 @@ impl GooseAcpAgent {
     pub(super) async fn handle_new_session(
         &self,
         cx: &ConnectionTo<Client>,
-        args: NewSessionRequest,
+        mut args: NewSessionRequest,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
+        // When the host imposes a working directory (e.g. roaming, where the
+        // connector's absolute path is meaningless on this machine), ignore the
+        // cwd the client sent and use the host-controlled one instead.
+        if let Some(host_cwd) = &self.session_cwd {
+            args.cwd = host_cwd.clone();
+        }
         validate_absolute_cwd(&args.cwd)?;
         let config = Config::global();
         let session_type = session_type_from_meta(args.meta.as_ref())?;
@@ -81,12 +88,16 @@ impl GooseAcpAgent {
         let reloaded_session = self.reload_session(&session.id).await?;
         let (agent, extension_results) = self.activate_acp_session(cx, &reloaded_session).await?;
         if let Some(recipe) = &rendered_recipe {
-            self.apply_recipe(&agent, recipe).await;
+            self.apply_recipe(&agent, recipe).await?;
         }
 
         let reloaded_session = self.reload_session(&session.id).await?;
         let response = self
-            .build_new_session_response(&reloaded_session, &extension_results)
+            .build_new_session_response(
+                &reloaded_session,
+                &extension_results,
+                &super::agent_thinking_effort_support(&agent).await,
+            )
             .await?;
         Ok(response)
     }
@@ -122,8 +133,14 @@ impl GooseAcpAgent {
         recipe: Option<(Recipe, PathBuf)>,
         meta: NewSessionMetaFields,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
+        let recipe_parameter_scope_id = meta_string(args.meta.as_ref(), "recipeParameterScopeId")?;
         let (rendered, user_recipe_values) = self
-            .render_recipe_for_session(cx, &session.id, recipe.as_ref())
+            .render_recipe_for_session(
+                cx,
+                &session.id,
+                recipe.as_ref(),
+                recipe_parameter_scope_id.as_deref(),
+            )
             .await?;
 
         let recipe_settings = rendered.as_ref().and_then(|r| r.settings.as_ref());
@@ -237,9 +254,11 @@ impl GooseAcpAgent {
         &self,
         session: &Session,
         extension_results: &[ExtensionLoadResult],
+        effort_support: &ThinkingEffortSupport,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let (mode_state, config_options) =
-            super::build_session_setup_config(&self.provider_inventory, session).await?;
+            super::build_session_setup_config(&self.provider_inventory, session, effort_support)
+                .await?;
 
         let mut response =
             NewSessionResponse::new(SessionId::new(session.id.clone())).modes(mode_state);

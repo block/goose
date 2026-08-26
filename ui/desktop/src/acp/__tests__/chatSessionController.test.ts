@@ -169,6 +169,20 @@ describe('acpChatSessionController.loadSession', () => {
     );
   });
 
+  it('retries a failed cached session load', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      session: loadedSession(),
+      sessionLoadError: 'Sign in to your provider, then try again.',
+    });
+    vi.mocked(isAcpSessionLoadInFlight).mockReturnValue(false);
+
+    await acpChatSessionController.loadSession(SESSION_ID);
+
+    expect(acpChatSessionActions.startSessionLoad).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
+  });
+
   it('restores a cached session from the server', async () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
       ...snapshotWithActivePrompt(null),
@@ -252,6 +266,7 @@ describe('acpChatSessionController.submitMessage', () => {
     expect(acpChatSessionActions.startPromptAttempt).not.toHaveBeenCalled();
     expect(acpPromptSession).not.toHaveBeenCalled();
   });
+
 });
 
 describe('acpChatSessionController.updateMessage', () => {

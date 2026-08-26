@@ -197,7 +197,7 @@ impl Connection for AcpProviderConnection {
             })),
         };
 
-        let transport: DynConnectTo<Client> = DynConnectTo::new(transport);
+        let transport: DynConnectTo<Client> = DynConnectTo::new(transport.into_byte_streams());
         let provider = AcpProvider::connect_with_transport(
             "acp-test".to_string(),
             goose_mode,

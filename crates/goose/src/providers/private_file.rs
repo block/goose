@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 fn to_windows_api_path(path: &Path) -> io::Result<Vec<u16>> {
@@ -132,13 +132,23 @@ fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
 }
 
 #[cfg(windows)]
-fn create_private_temporary_file(parent: &Path) -> io::Result<tempfile::NamedTempFile> {
-    tempfile::Builder::new().make_in(parent, create_owner_only_file)
+pub(crate) fn create_private_named_temp_file(
+    builder: &mut tempfile::Builder<'_, '_>,
+    parent: &Path,
+) -> io::Result<tempfile::NamedTempFile> {
+    builder.make_in(parent, create_owner_only_file)
 }
 
 #[cfg(not(windows))]
+pub(crate) fn create_private_named_temp_file(
+    builder: &mut tempfile::Builder<'_, '_>,
+    parent: &Path,
+) -> io::Result<tempfile::NamedTempFile> {
+    builder.tempfile_in(parent)
+}
+
 fn create_private_temporary_file(parent: &Path) -> io::Result<tempfile::NamedTempFile> {
-    tempfile::NamedTempFile::new_in(parent)
+    create_private_named_temp_file(&mut tempfile::Builder::new(), parent)
 }
 
 #[cfg(windows)]
@@ -186,13 +196,50 @@ fn persist_private_temporary_file(
         .map_err(|error| error.error)
 }
 
+pub(crate) fn private_file_target_path(path: &Path) -> io::Result<PathBuf> {
+    const MAX_SYMLINK_HOPS: usize = 1;
+
+    let mut resolved = PathBuf::from(path);
+    let mut hops = 0;
+    loop {
+        match std::fs::symlink_metadata(&resolved) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                if hops >= MAX_SYMLINK_HOPS {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "Too many symlink levels (or a cycle) while resolving private file path: {path:?}"
+                        ),
+                    ));
+                }
+                hops += 1;
+
+                let target = std::fs::read_link(&resolved)?;
+                resolved = if target.is_absolute() {
+                    target
+                } else {
+                    resolved
+                        .parent()
+                        .unwrap_or_else(|| Path::new("."))
+                        .join(target)
+                };
+            }
+            Ok(_) => return Ok(resolved),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(resolved),
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn private_file_parent(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
 pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
-    let parent = path.parent().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "private file path must have a parent directory",
-        )
-    })?;
+    let write_path = private_file_target_path(path)?;
+    let parent = private_file_parent(&write_path);
     std::fs::create_dir_all(parent)?;
 
     let mut temporary = create_private_temporary_file(parent)?;
@@ -205,7 +252,7 @@ pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> 
     }
     temporary.write_all(contents.as_bytes())?;
     temporary.as_file().sync_all()?;
-    persist_private_temporary_file(temporary, path)?;
+    persist_private_temporary_file(temporary, &write_path)?;
     Ok(())
 }
 
@@ -230,6 +277,64 @@ mod tests {
         assert_ne!(metadata.ino(), old_inode);
         assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
         assert_eq!(std::fs::read_to_string(path).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn preserves_symlink_and_replaces_target() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("token.json");
+        let target = directory.path().join("managed-token.json");
+        std::fs::write(&target, "old").unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let old_inode = std::fs::metadata(&target).unwrap().ino();
+        symlink("managed-token.json", &path).unwrap();
+
+        write_private_file(&path, "new-secret").unwrap();
+
+        assert!(std::fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let metadata = std::fs::metadata(&target).unwrap();
+        assert_ne!(metadata.ino(), old_inode);
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+        assert_eq!(std::fs::read_to_string(target).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn parentless_relative_path_uses_current_directory() {
+        let path = Path::new("token.json");
+        let resolved = private_file_target_path(path).unwrap();
+
+        assert_eq!(private_file_parent(&resolved), Path::new("."));
+    }
+
+    #[test]
+    fn rejects_chained_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("token.json");
+        let intermediate = directory.path().join("managed-token.json");
+        let target = directory.path().join("actual-token.json");
+        std::fs::write(&target, "old").unwrap();
+        symlink("actual-token.json", &intermediate).unwrap();
+        symlink("managed-token.json", &path).unwrap();
+
+        let error = write_private_file(&path, "new-secret").unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(std::fs::read_to_string(target).unwrap(), "old");
+        assert!(std::fs::symlink_metadata(path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(std::fs::symlink_metadata(intermediate)
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 }
 

@@ -1,4 +1,4 @@
-//! In-process uniffi bindings for the Goose SDK.
+//! In-process uniffi bindings for the GDK.
 //!
 //! This is the API surface exposed to Python and Kotlin. It focuses on native
 //! Goose providers and mirrors the provider message/tool/streaming model closely
@@ -25,8 +25,7 @@ use goose_providers::{
     utils::sanitize_unicode_tags,
 };
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock as Content, ErrorCode, ErrorData, Role,
-    Tool,
+    CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, Role, Tool,
 };
 use serde_json::Value;
 
@@ -306,15 +305,15 @@ fn call_tool_result(value: Value, is_error: bool) -> CallToolResult {
     }
 }
 
-fn value_to_content(value: Value) -> Content {
+fn value_to_content(value: Value) -> ContentBlock {
     match value {
-        Value::String(text) => Content::text(text),
+        Value::String(text) => ContentBlock::text(text),
         Value::Object(object) => match object.get("type").and_then(|value| value.as_str()) {
             Some("text") => object
                 .get("text")
                 .and_then(|value| value.as_str().map(str::to_owned))
-                .map(Content::text)
-                .unwrap_or_else(|| Content::text(Value::Object(object).to_string())),
+                .map(ContentBlock::text)
+                .unwrap_or_else(|| ContentBlock::text(Value::Object(object).to_string())),
             Some("image") => {
                 let mime_type = object
                     .get("mimeType")
@@ -325,11 +324,11 @@ fn value_to_content(value: Value) -> Content {
                     .get("data")
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .unwrap_or_default();
-                Content::image(data, mime_type)
+                ContentBlock::image(data, mime_type)
             }
-            _ => Content::text(Value::Object(object).to_string()),
+            _ => ContentBlock::text(Value::Object(object).to_string()),
         },
-        other => Content::text(other.to_string()),
+        other => ContentBlock::text(other.to_string()),
     }
 }
 
@@ -390,7 +389,6 @@ pub struct ProviderModelConfig {
 impl ProviderModelConfig {
     fn to_goose_model_config(&self) -> Result<ModelConfig, GooseError> {
         let mut config = ModelConfig::new(&self.model_name)
-            .with_context_limit(self.context_limit.map(|limit| limit.max(0) as usize))
             .with_temperature(self.temperature)
             .with_max_tokens(self.max_tokens)
             .with_toolshim(self.toolshim)
@@ -616,6 +614,20 @@ impl ProviderHandle {
         self.provider.get_name().to_string()
     }
 
+    async fn context_limit(&self, model: ProviderModelConfig) -> Result<usize, GooseError> {
+        let normalized_model = ModelConfig::new(&model.model_name);
+        let override_limit = model
+            .context_limit
+            .and_then(|limit| (limit > 0).then_some(limit as usize));
+        let provider = Arc::clone(&self.provider);
+        run_on_runtime(async move {
+            provider
+                .get_context_limit(&normalized_model.model_name, override_limit)
+                .await
+        })
+        .await
+    }
+
     async fn stream(
         &self,
         model: ProviderModelConfig,
@@ -735,6 +747,10 @@ impl Provider {
             features.push(Feature::Reasoning);
         }
         features
+    }
+
+    pub async fn context_limit(&self, model: ProviderModelConfig) -> Result<u64, GooseError> {
+        Ok(self.handle.context_limit(model).await? as u64)
     }
 
     pub async fn stream(
@@ -1124,6 +1140,43 @@ mod tests {
             timeout_ms: None,
             request_headers: None,
         }
+    }
+
+    #[test]
+    fn context_limit_override_filters_nonpositive_values() {
+        let none = base_model_config();
+        assert_eq!(
+            none.context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            None
+        );
+
+        let negative = ProviderModelConfig {
+            context_limit: Some(-1),
+            ..base_model_config()
+        };
+        assert_eq!(
+            negative
+                .context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            None
+        );
+
+        let positive = ProviderModelConfig {
+            context_limit: Some(64_000),
+            ..base_model_config()
+        };
+        assert_eq!(
+            positive
+                .context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            Some(64_000)
+        );
+    }
+
+    #[test]
+    fn model_config_normalizes_effort_suffix() {
+        assert_eq!(ModelConfig::new("gpt-5.4-xhigh").model_name, "gpt-5.4");
     }
 
     #[test]

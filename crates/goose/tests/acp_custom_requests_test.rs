@@ -343,7 +343,7 @@ fn test_custom_session_extensions_add_list_remove() {
                 .expect("extensions should be an array");
             extensions
                 .iter()
-                .find(|extension| extension["name"] == extension_name)
+                .find(|entry| entry["extension"]["name"] == extension_name)
                 .cloned()
         };
 
@@ -369,18 +369,39 @@ fn test_custom_session_extensions_add_list_remove() {
         .await;
         assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
 
-        let extension = list_extension()
+        let entry = list_extension()
             .await
             .unwrap_or_else(|| panic!("missing added session extension"));
+        assert_eq!(entry["extensionKey"], extension_name);
+        let extension = &entry["extension"];
         assert_eq!(extension["type"], "platform");
         assert_eq!(extension["name"], extension_name);
+
+        let unknown_remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/remove",
+            serde_json::json!({
+                "sessionId": session_id.clone(),
+                "extensionKey": "missing-extension",
+            }),
+        )
+        .await;
+        assert_eq!(
+            unknown_remove_result.unwrap_err(),
+            agent_client_protocol::Error::invalid_params()
+                .data("Extension 'missing-extension' not found")
+        );
+        assert!(
+            list_extension().await.is_some(),
+            "unknown key must not remove another extension"
+        );
 
         let remove_result = send_custom(
             conn.cx(),
             "_goose/unstable/session/extensions/remove",
             serde_json::json!({
                 "sessionId": session_id.clone(),
-                "name": extension_name,
+                "extensionKey": extension_name,
             }),
         )
         .await;
@@ -1174,8 +1195,9 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, _extensions, _working_dir| {
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |provider_name, _extensions, _working_dir, use_default_model| {
+                assert!(use_default_model);
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
@@ -1186,7 +1208,8 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                         ]),
                     }) as Arc<dyn Provider>)
                 })
-            });
+            },
+        );
         let conn = AcpServerConnection::new(
             TestConnectionConfig {
                 provider_factory: Some(provider_factory),
@@ -1224,7 +1247,7 @@ fn test_custom_provider_supported_models_maps_not_configured_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,
@@ -1261,7 +1284,7 @@ fn test_custom_provider_supported_models_maps_authentication_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,

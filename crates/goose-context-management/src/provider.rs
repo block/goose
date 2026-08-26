@@ -96,11 +96,48 @@ impl Provider for CompactingProvider {
         }
     }
 
-    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        self.inner.get_context_limit(model_config).await
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        self.inner.get_context_limit(model, override_limit).await
     }
 
     fn manages_own_context(&self) -> bool {
         true
+    }
+
+    fn supports_builtin_tools(&self) -> bool {
+        self.inner.supports_builtin_tools()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestProvider;
+
+    #[async_trait]
+    impl Provider for TestProvider {
+        fn get_name(&self) -> &str {
+            "test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn builtin_tool_support_is_delegated_to_inner_provider() {
+        let inner: Arc<dyn Provider> = Arc::new(TestProvider);
+        let provider = CompactingProvider::new(inner);
+
+        assert!(provider.manages_own_context());
+        assert!(provider.supports_builtin_tools());
     }
 }

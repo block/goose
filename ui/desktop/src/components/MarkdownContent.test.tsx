@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, type RenderOptions } from '@testing-library/react';
+import { fireEvent, render, type RenderOptions } from '@testing-library/react';
 import { screen, waitFor } from '@testing-library/dom';
 import MarkdownContent from './MarkdownContent';
 import { IntlTestWrapper } from '../i18n/test-utils';
@@ -220,6 +220,20 @@ console.log('Hello, World!');
         expect(link).toHaveAttribute('target', '_blank');
         expect(link).toHaveAttribute('rel', 'noopener noreferrer');
       });
+    });
+
+    it('delegates unknown protocol confirmation to the main process once', async () => {
+      const openExternal = vi.fn().mockResolvedValue('cancelled');
+      window.electron.openExternal = openExternal;
+      renderWithIntl(<MarkdownContent content="[Open app](custom-handler:resource)" />);
+
+      fireEvent.click(await screen.findByRole('link', { name: 'Open app' }));
+
+      await waitFor(() => {
+        expect(openExternal).toHaveBeenCalledOnce();
+        expect(openExternal).toHaveBeenCalledWith('custom-handler:resource');
+      });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('renders tables correctly', async () => {

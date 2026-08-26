@@ -174,6 +174,7 @@ pub(crate) async fn generate_session_name(
             &system,
             &[message],
             &[],
+            true,
         )
         .await?
     };
