@@ -1041,6 +1041,10 @@ fn fallback_inventory_identity(provider_id: &str) -> InventoryIdentityInput {
     )
 }
 
+fn is_databricks_v2_model_service(provider_family: &str, model_id: &str) -> bool {
+    provider_family == "databricks_v2" && model_id.splitn(3, '.').count() == 3
+}
+
 fn enrich_model_ids_with_canonical(
     provider_family: &str,
     model_ids: &[String],
@@ -1060,11 +1064,16 @@ fn enrich_model_ids_with_canonical(
     }
 
     let mut models: Vec<InventoryModel> = Vec::new();
-    let mut seen_names: HashSet<String> = HashSet::new();
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     for id in model_ids {
         let model = enriched_model(provider_family, id, None);
-        if !seen_names.insert(model.name.clone()) {
+        let dedup_key = if is_databricks_v2_model_service(provider_family, id) {
+            id
+        } else {
+            &model.name
+        };
+        if !seen_keys.insert(dedup_key.clone()) {
             continue;
         }
         models.push(model);
@@ -1076,7 +1085,9 @@ fn enrich_model_ids_with_canonical(
     if matches!(provider_family, "databricks" | "databricks_v2") {
         let mut name_to_idx: HashMap<String, usize> = HashMap::new();
         for (idx, model) in models.iter().enumerate() {
-            name_to_idx.insert(model.name.clone(), idx);
+            if !is_databricks_v2_model_service(provider_family, &model.id) {
+                name_to_idx.insert(model.name.clone(), idx);
+            }
         }
         for id in model_ids {
             if !id.starts_with("goose-") {
@@ -1345,6 +1356,30 @@ mod tests {
             !models.iter().any(|model| model.id == "databricks-gpt-5-5"),
             "expected databricks-gpt-5-5 to be replaced by goose-gpt-5-5, got {models:?}"
         );
+    }
+
+    #[test]
+    fn databricks_v2_inventory_preserves_distinct_model_service_fqns() {
+        let model_ids = [
+            "alpha.prod.claude-sonnet-4-5",
+            "beta.prod.claude-sonnet-4-5",
+            "alpha.prod.claude-sonnet-4-5",
+        ]
+        .map(String::from);
+        let models = enrich_model_ids_with_canonical("databricks_v2", &model_ids);
+
+        let ids = models
+            .iter()
+            .map(|model| model.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            [
+                "alpha.prod.claude-sonnet-4-5",
+                "beta.prod.claude-sonnet-4-5"
+            ]
+        );
+        assert_eq!(models[0].name, models[1].name);
     }
 
     #[test]
