@@ -86,12 +86,6 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                     ))])),
                     false,
                 ),
-                ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => (
-                    Ok(CallToolResult::success(vec![ContentBlock::text(
-                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
-                    )])),
-                    false,
-                ),
                 ToolDisposition::Execute if !request_was_advertised(messages, &request) => {
                     span.record("error.type", "tool_not_available");
                     (
@@ -101,6 +95,12 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                         true,
                     )
                 }
+                ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => (
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )])),
+                    false,
+                ),
                 ToolDisposition::Execute => {
                     match request.tool_call.as_ref() {
                         Ok(tool_call) => {

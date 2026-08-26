@@ -1212,7 +1212,7 @@ async fn chat_mode_does_not_collect_skipped_recipe_final_output_or_run_hooks() -
 }
 
 #[tokio::test]
-async fn chat_mode_skips_unknown_tool_without_tool_hooks() -> Result<()> {
+async fn chat_mode_rejects_unadvertised_unknown_tool_without_hooks() -> Result<()> {
     let env = RecordingHookEnv::new(&[
         ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
         ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
@@ -1231,13 +1231,12 @@ async fn chat_mode_skips_unknown_tool_without_tool_hooks() -> Result<()> {
         .await;
     api.on("try the missing tool")
         .unadvertised_call("missing__tool", serde_json::json!({}));
-    api.on(CHAT_MODE_TOOL_SKIPPED_RESPONSE)
-        .reply("continued without the missing tool");
+    api.on("not available").reply("hidden tool rejected");
 
     let result = pipeline.run(["try the missing tool"]).await?;
 
-    result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
-    result.assert_message(-1, Agent, "continued without the missing tool");
+    result.assert_message(-2, ToolResponse, "Tool 'missing__tool' is not available.");
+    result.assert_message(-1, Agent, "hidden tool rejected");
     assert!(env.payloads("pre.log").is_empty());
     assert!(env.payloads("result.log").is_empty());
     assert!(env.payloads("post.log").is_empty());
