@@ -179,14 +179,41 @@ fn normalized_tool_alias(raw_tool_name: &str) -> String {
 
 fn contains_unresolved_execute_alias(raw_tool_header: &str, tools: &[Tool]) -> bool {
     raw_tool_header.split_whitespace().any(|raw_tool_name| {
-        resolve_tool_name(raw_tool_name, tools).is_none()
-            && raw_tool_name.split(':').any(|segment| {
-                matches!(
-                    normalized_tool_alias(segment).as_str(),
-                    "execute" | "execute_code"
-                )
-            })
+        raw_tool_name.split(':').any(|segment| {
+            matches!(
+                normalized_tool_alias(segment).as_str(),
+                "execute" | "execute_code"
+            ) && resolve_tool_name(segment, tools).is_none()
+        })
     })
+}
+
+fn malformed_arguments_contain_unresolved_execute_alias(
+    raw_arguments: &str,
+    tools: &[Tool],
+) -> bool {
+    let mut remainder = raw_arguments.trim();
+    while !remainder.is_empty() {
+        let mut values = serde_json::Deserializer::from_str(remainder).into_iter::<Value>();
+        if let Some(Ok(_)) = values.next() {
+            remainder = remainder
+                .get(values.byte_offset()..)
+                .unwrap_or_default()
+                .trim_start();
+            continue;
+        }
+
+        let prefix_end = remainder.find('{').unwrap_or(remainder.len());
+        let (non_json_prefix, json_suffix) = remainder.split_at(prefix_end);
+        if contains_unresolved_execute_alias(non_json_prefix, tools) {
+            return true;
+        }
+        if prefix_end == 0 || prefix_end == remainder.len() {
+            return false;
+        }
+        remainder = json_suffix;
+    }
+    false
 }
 
 fn decode_quoted_string(literal: &str) -> Option<String> {
@@ -406,12 +433,6 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
             if let Some(arg_idx) = call_body.find(TOOL_CALL_ARGUMENT_BEGIN) {
                 let name = call_body[..arg_idx].trim();
                 let args = call_body[arg_idx + TOOL_CALL_ARGUMENT_BEGIN.len()..].trim();
-                let non_json_prefix = args.split_once('{').map_or(args, |(prefix, _)| prefix);
-                if contains_unresolved_execute_alias(non_json_prefix, tools) {
-                    rejected_execute = true;
-                    remainder = &after_begin[call_end_offset + TOOL_CALL_END.len()..];
-                    continue;
-                }
                 (name, args)
             } else if let Some(json_start) = call_body.find('{') {
                 let name = call_body[..json_start].trim();
@@ -426,8 +447,7 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
             };
 
         let resolved_tool_name = resolve_tool_name(raw_tool_name, tools);
-        let is_execute_compatibility =
-            resolved_tool_name.is_none() && contains_unresolved_execute_alias(raw_tool_name, tools);
+        let is_execute_compatibility = contains_unresolved_execute_alias(raw_tool_name, tools);
 
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
             if let Some(tool_name) = resolved_tool_name {
@@ -444,7 +464,9 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
             } else if is_execute_compatibility {
                 rejected_execute = true;
             }
-        } else if is_execute_compatibility {
+        } else if is_execute_compatibility
+            || malformed_arguments_contain_unresolved_execute_alias(raw_args, tools)
+        {
             rejected_execute = true;
         }
 
@@ -1452,9 +1474,15 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1:functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> functions.execute:0 {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {} functions.execute:0 {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> shell:functions.execute:0 Developer.shell({ command: 'pwd' }) <|tool_call_end|> <|tool_calls_section_end|>",
         ];
 
         for content in rejected {
+            assert!(
+                parse_tokenized_tool_calls_with_status(content, &tools).rejected_execute,
+                "expected execute block to be rejected: {content}"
+            );
             let message = Message::assistant().with_text(content);
             let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
                 .await
