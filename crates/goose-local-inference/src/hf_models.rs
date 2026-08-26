@@ -490,6 +490,57 @@ fn is_prefix(prefix: &[&str], parts: &[&str]) -> bool {
     prefix.len() <= parts.len() && prefix.iter().zip(parts).all(|(a, b)| a == b)
 }
 
+fn gguf_family_key(filename: &str, projector: bool) -> String {
+    let basename = filename.rsplit('/').next().unwrap_or(filename);
+    let mut stem = basename.trim_end_matches(".gguf");
+    if let Some(pos) = stem.rfind("-of-") {
+        stem = stem
+            .get(..pos)
+            .and_then(|prefix| prefix.rsplit_once('-').map(|(prefix, _)| prefix))
+            .unwrap_or(stem);
+    }
+
+    let mut family = stem.to_ascii_lowercase();
+    let quantization = parse_quantization(filename).to_ascii_lowercase();
+    if quantization != "unknown" {
+        if let Some(position) = family.rfind(&quantization) {
+            family.replace_range(position..position + quantization.len(), "");
+        }
+    }
+    if projector {
+        if let Some(position) = family.rfind("mmproj") {
+            family.replace_range(position..position + "mmproj".len(), "");
+        }
+    }
+
+    family.retain(|character| character.is_ascii_alphanumeric());
+    family
+}
+
+fn mmproj_matches_model_family(
+    siblings: &[HfApiSibling],
+    mmproj_filename: &str,
+    model_filename: &str,
+) -> bool {
+    let mmproj_dir = parent_components(mmproj_filename);
+    let model_families: std::collections::HashSet<String> = siblings
+        .iter()
+        .filter(|sibling| {
+            sibling.rfilename.ends_with(".gguf")
+                && !is_auxiliary_gguf_file(&sibling.rfilename)
+                && is_prefix(&mmproj_dir, &parent_components(&sibling.rfilename))
+        })
+        .map(|sibling| gguf_family_key(&sibling.rfilename, false))
+        .collect();
+
+    if model_families.len() <= 1 {
+        return true;
+    }
+
+    let projector_family = gguf_family_key(mmproj_filename, true);
+    !projector_family.is_empty() && projector_family == gguf_family_key(model_filename, false)
+}
+
 fn select_best_mmproj(
     repo_id: &str,
     siblings: &[HfApiSibling],
@@ -507,7 +558,9 @@ fn select_best_mmproj(
         })
         .filter_map(|s| {
             let mmproj_dir = parent_components(&s.rfilename);
-            if !is_prefix(&mmproj_dir, &model_dir) {
+            if !is_prefix(&mmproj_dir, &model_dir)
+                || !mmproj_matches_model_family(siblings, &s.rfilename, model_filename)
+            {
                 return None;
             }
 
@@ -1726,6 +1779,59 @@ mod tests {
         .unwrap();
 
         assert_eq!(mmproj.filename, "mmproj-F32.gguf");
+    }
+
+    #[test]
+    fn test_select_best_mmproj_ignores_ambiguous_projector() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "ModelA-Q4_K_M.gguf".into(),
+                size: Some(4_000),
+            },
+            HfApiSibling {
+                rfilename: "ModelB-Q8_0.gguf".into(),
+                size: Some(8_000),
+            },
+            HfApiSibling {
+                rfilename: "mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+        ];
+
+        assert!(
+            select_best_mmproj("someone/models-GGUF", &files, "ModelB-Q8_0.gguf", "Q8_0").is_none()
+        );
+    }
+
+    #[test]
+    fn test_select_best_mmproj_matches_named_model_family() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "ModelA-Q4_K_M.gguf".into(),
+                size: Some(4_000),
+            },
+            HfApiSibling {
+                rfilename: "ModelB-Q8_0.gguf".into(),
+                size: Some(8_000),
+            },
+            HfApiSibling {
+                rfilename: "ModelA-mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+        ];
+
+        let mmproj = select_best_mmproj(
+            "someone/models-GGUF",
+            &files,
+            "ModelA-Q4_K_M.gguf",
+            "Q4_K_M",
+        )
+        .unwrap();
+
+        assert_eq!(mmproj.filename, "ModelA-mmproj-BF16.gguf");
+        assert!(
+            select_best_mmproj("someone/models-GGUF", &files, "ModelB-Q8_0.gguf", "Q8_0").is_none()
+        );
     }
 }
 
