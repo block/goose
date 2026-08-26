@@ -490,20 +490,10 @@ fn is_prefix(prefix: &[&str], parts: &[&str]) -> bool {
     prefix.len() <= parts.len() && prefix.iter().zip(parts).all(|(a, b)| a == b)
 }
 
-fn gguf_family_key(filename: &str, projector: bool) -> String {
-    let basename = filename.rsplit('/').next().unwrap_or(filename);
-    let mut stem = basename.trim_end_matches(".gguf");
-    if let Some(pos) = stem.rfind("-of-") {
-        stem = stem
-            .get(..pos)
-            .and_then(|prefix| prefix.rsplit_once('-').map(|(prefix, _)| prefix))
-            .unwrap_or(stem);
-    }
-
-    let mut family = stem.to_ascii_lowercase();
-    let quantization = parse_quantization(filename).to_ascii_lowercase();
+fn normalize_family_fragment(value: &str, quantization: &str, projector: bool) -> String {
+    let mut family = value.to_ascii_lowercase();
     if quantization != "unknown" {
-        if let Some(position) = family.rfind(&quantization) {
+        if let Some(position) = family.rfind(quantization) {
             family.replace_range(position..position + quantization.len(), "");
         }
     }
@@ -515,6 +505,53 @@ fn gguf_family_key(filename: &str, projector: bool) -> String {
 
     family.retain(|character| character.is_ascii_alphanumeric());
     family
+}
+
+fn gguf_family_key(filename: &str, projector: bool) -> String {
+    let basename = filename.rsplit('/').next().unwrap_or(filename);
+    let mut stem = basename.trim_end_matches(".gguf");
+    if let Some(pos) = stem.rfind("-of-") {
+        stem = stem
+            .get(..pos)
+            .and_then(|prefix| prefix.rsplit_once('-').map(|(prefix, _)| prefix))
+            .unwrap_or(stem);
+    }
+
+    let quantization = parse_quantization(filename).to_ascii_lowercase();
+    normalize_family_fragment(stem, &quantization, projector)
+}
+
+fn gguf_family_identity(filename: &str) -> String {
+    let quantization = parse_quantization(filename).to_ascii_lowercase();
+    parent_components(filename)
+        .into_iter()
+        .map(|component| normalize_family_fragment(component, &quantization, false))
+        .chain(std::iter::once(gguf_family_key(filename, false)))
+        .filter(|component| !component.is_empty())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn ensure_unambiguous_model_family(
+    repo_id: &str,
+    quantization: &str,
+    files: &[&HfApiSibling],
+) -> Result<()> {
+    let families: std::collections::HashSet<String> = files
+        .iter()
+        .map(|file| gguf_family_identity(&file.rfilename))
+        .collect();
+    if families.len() > 1 {
+        let mut filenames: Vec<&str> = files.iter().map(|file| file.rfilename.as_str()).collect();
+        filenames.sort_unstable();
+        bail!(
+            "Quantization '{}' is ambiguous in {} because it belongs to multiple GGUF model families: {}",
+            quantization,
+            repo_id,
+            filenames.join(", ")
+        );
+    }
+    Ok(())
 }
 
 fn mmproj_matches_model_family(
@@ -530,7 +567,7 @@ fn mmproj_matches_model_family(
                 && !is_auxiliary_gguf_file(&sibling.rfilename)
                 && is_prefix(&mmproj_dir, &parent_components(&sibling.rfilename))
         })
-        .map(|sibling| gguf_family_key(&sibling.rfilename, false))
+        .map(|sibling| gguf_family_identity(&sibling.rfilename))
         .collect();
 
     if model_families.len() <= 1 {
@@ -633,7 +670,7 @@ pub fn is_auxiliary_gguf_file(filename: &str) -> bool {
 /// Single-file quants use the file directly.
 /// Sharded quants (multiple files for one quantization) aggregate sizes and use the
 /// first shard filename as the representative — the download path must handle all shards.
-fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVariant> {
+fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Result<Vec<HfQuantVariant>> {
     use std::collections::HashMap;
 
     let gguf_files: Vec<_> = files
@@ -644,6 +681,17 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
                 && parse_quantization(&s.rfilename) != "unknown"
         })
         .collect();
+
+    let mut files_by_quant: HashMap<String, Vec<&HfApiSibling>> = HashMap::new();
+    for file in &gguf_files {
+        files_by_quant
+            .entry(parse_quantization(&file.rfilename))
+            .or_default()
+            .push(file);
+    }
+    for (quantization, files) in files_by_quant {
+        ensure_unambiguous_model_family(repo_id, &quantization, &files)?;
+    }
 
     // Separate single files from shards
     let mut single_files: Vec<&HfApiSibling> = Vec::new();
@@ -658,9 +706,8 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
         }
     }
 
-    // A repo can ship the same quant twice (e.g. "Model-Q4_K_M" alongside an
-    // MTP-enabled "Model-Q4_K_M-mtp"); keep the plainest name so each
-    // quantization appears once.
+    // A repo can expose the same family and quantization through multiple paths;
+    // keep the plainest path so each quantization appears once.
     single_files.sort_by_key(|s| {
         (
             parse_quantization(&s.rfilename),
@@ -718,7 +765,7 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
             .cmp(&a.quality_rank)
             .then_with(|| b.size_bytes.cmp(&a.size_bytes))
     });
-    variants
+    Ok(variants)
 }
 
 pub async fn search_local_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
@@ -857,7 +904,7 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
     let model: HfApiModel = response.json().await?;
     let siblings = model.siblings.unwrap_or_default();
 
-    Ok(group_into_variants(repo_id, siblings))
+    group_into_variants(repo_id, siblings)
 }
 
 /// Fetch raw GGUF files (kept for resolve_model_spec).
@@ -965,6 +1012,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
             repo_id
         );
     }
+    ensure_unambiguous_model_family(&repo_id, &quant, &matching)?;
 
     // Separate single files from shards
     let mut single_files: Vec<&HfApiSibling> = Vec::new();
@@ -1539,7 +1587,7 @@ mod tests {
                 size: Some(800_000_000),
             },
         ];
-        let variants = group_into_variants("unsloth/gemma-3-27b-it-GGUF", files);
+        let variants = group_into_variants("unsloth/gemma-3-27b-it-GGUF", files).unwrap();
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].quantization, "Q4_K_M");
     }
@@ -1560,7 +1608,7 @@ mod tests {
                 size: Some(4_000_000_000),
             },
         ];
-        let variants = group_into_variants("unsloth/gemma-3-27b-it-GGUF", files);
+        let variants = group_into_variants("unsloth/gemma-3-27b-it-GGUF", files).unwrap();
         assert_eq!(variants.len(), 2);
         // Sorted descending by quality_rank: BF16 (91) > Q4_K_M (45)
         assert_eq!(variants[0].quantization, "BF16");
@@ -1582,16 +1630,16 @@ mod tests {
                 size: Some(1_000_000_000),
             },
             HfApiSibling {
-                rfilename: "Model-Q4_K_M-mtp-00001-of-00002.gguf".into(),
+                rfilename: "Q4_K_M/Model-Q4_K_M-00001-of-00002.gguf".into(),
                 size: Some(2_500_000_000),
             },
             HfApiSibling {
-                rfilename: "Model-Q4_K_M-mtp-00002-of-00002.gguf".into(),
+                rfilename: "Q4_K_M/Model-Q4_K_M-00002-of-00002.gguf".into(),
                 size: Some(1_500_000_000),
             },
         ];
 
-        let variants = group_into_variants("someone/Model-GGUF", files);
+        let variants = group_into_variants("someone/Model-GGUF", files).unwrap();
 
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].quantization, "Q4_K_M");
@@ -1603,24 +1651,44 @@ mod tests {
     fn test_group_into_variants_prefers_complete_duplicate_shard_set() {
         let files = vec![
             HfApiSibling {
-                rfilename: "Model-Q4_K_M-00001-of-00002.gguf".into(),
+                rfilename: "Q4_K_M/Model-Q4_K_M-00001-of-00002.gguf".into(),
                 size: Some(2_000_000_000),
             },
             HfApiSibling {
-                rfilename: "Model-Q4_K_M-mtp-00001-of-00002.gguf".into(),
+                rfilename: "Model-Q4_K_M-00001-of-00002.gguf".into(),
                 size: Some(2_500_000_000),
             },
             HfApiSibling {
-                rfilename: "Model-Q4_K_M-mtp-00002-of-00002.gguf".into(),
+                rfilename: "Model-Q4_K_M-00002-of-00002.gguf".into(),
                 size: Some(1_500_000_000),
             },
         ];
 
-        let variants = group_into_variants("someone/Model-GGUF", files);
+        let variants = group_into_variants("someone/Model-GGUF", files).unwrap();
 
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].size_bytes, 4_000_000_000);
-        assert_eq!(variants[0].filename, "Model-Q4_K_M-mtp-00001-of-00002.gguf");
+        assert_eq!(variants[0].filename, "Model-Q4_K_M-00001-of-00002.gguf");
+    }
+
+    #[test]
+    fn test_group_into_variants_rejects_same_quant_different_families() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "ModelA-Q4_K_M.gguf".into(),
+                size: Some(4_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "ModelB-Q4_K_M.gguf".into(),
+                size: Some(5_000_000_000),
+            },
+        ];
+
+        let error = group_into_variants("someone/models-GGUF", files).unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Quantization 'Q4_K_M' is ambiguous"));
     }
 
     #[test]
@@ -1648,7 +1716,7 @@ mod tests {
             },
         ];
 
-        let variants = group_into_variants("someone/Model-GGUF", files);
+        let variants = group_into_variants("someone/Model-GGUF", files).unwrap();
 
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].size_bytes, 3_000_000_000);
@@ -1671,7 +1739,7 @@ mod tests {
                 size: Some(8_000_000_000),
             },
         ];
-        let variants = group_into_variants("someone/Model-GGUF", files);
+        let variants = group_into_variants("someone/Model-GGUF", files).unwrap();
         assert_eq!(variants.len(), 3);
         assert_eq!(variants[0].quantization, "Q8_0");
         assert_eq!(variants[1].quantization, "Q4_K_M");
