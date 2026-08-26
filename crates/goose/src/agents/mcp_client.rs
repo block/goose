@@ -15,6 +15,7 @@ use rmcp::model::{
     ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, MetaObject,
 };
 use rmcp::{
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
@@ -28,7 +29,6 @@ use rmcp::{
         ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{
@@ -38,8 +38,8 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{
-    mpsc::{self, Sender},
     Mutex,
+    mpsc::{self, Sender},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -67,30 +67,6 @@ fn extract_sampling_text(
         .join("\n");
 
     (!text.is_empty()).then_some(text)
-}
-
-fn extract_structured_sampling_fallback(
-    content: &[crate::conversation::message::MessageContent],
-) -> Option<String> {
-    let candidate = content
-        .iter()
-        .filter_map(|content| match content {
-            crate::conversation::message::MessageContent::Thinking(thinking) => {
-                Some(thinking.thinking.as_str())
-            }
-            _ => None,
-        })
-        .collect::<String>();
-    let candidate = candidate.trim();
-
-    if candidate.is_empty() {
-        return None;
-    }
-
-    match serde_json::from_str::<Value>(candidate) {
-        Ok(Value::Object(_) | Value::Array(_)) => Some(candidate.to_string()),
-        _ => None,
-    }
 }
 
 fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
@@ -521,8 +497,6 @@ impl ClientHandler for GooseClient {
                 img.data.clone(),
                 img.mime_type.clone(),
             ))
-        } else if let Some(text) = extract_structured_sampling_fallback(&response.content) {
-            SamplingMessageContentBlock::text(text)
         } else {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -1130,42 +1104,14 @@ mod tests {
     }
 
     #[test]
-    fn structured_sampling_fallback_accepts_json_from_thinking_only_response() {
+    fn sampling_does_not_expose_json_from_thinking_only_response() {
         let response = crate::conversation::message::Message::assistant()
-            .with_thinking("{\"verdict\":\"pass\"}", "signature");
+            .with_thinking("{\"private\":true}", "signature");
 
-        assert_eq!(
-            extract_structured_sampling_fallback(&response.content).as_deref(),
-            Some("{\"verdict\":\"pass\"}")
-        );
+        assert_eq!(extract_sampling_text(&response.content), None);
     }
-
-    #[test]
-    fn structured_sampling_fallback_joins_streamed_json_fragments() {
-        let response = crate::conversation::message::Message::assistant()
-            .with_thinking("{\"verdict\":", "signature-1")
-            .with_thinking("\"pass\"}", "signature-2");
-
-        assert_eq!(
-            extract_structured_sampling_fallback(&response.content).as_deref(),
-            Some("{\"verdict\":\"pass\"}")
-        );
-    }
-
-    #[test]
-    fn structured_sampling_fallback_rejects_natural_language_reasoning() {
-        let response = crate::conversation::message::Message::assistant().with_thinking(
-            "I should inspect the request before answering.",
-            "signature",
-        );
-
-        assert_eq!(
-            extract_structured_sampling_fallback(&response.content),
-            None
-        );
-    }
-    use crate::agents::extension::ExtensionConfig;
     use crate::agents::GoosePlatform;
+    use crate::agents::extension::ExtensionConfig;
     use rmcp::model::Tool;
     use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
