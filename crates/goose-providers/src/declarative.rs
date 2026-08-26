@@ -49,6 +49,7 @@ pub(crate) mod declarative_providers {
         saladcloud,
         saygm,
         scaleway,
+        synthorai,
         tanzu,
         tensorix,
         together,

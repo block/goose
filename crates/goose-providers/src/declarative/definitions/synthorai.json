@@ -1,0 +1,60 @@
+{
+  "name": "synthorai",
+  "engine": "openai",
+  "display_name": "Synthorai",
+  "description": "Models from Anthropic, OpenAI, Google, Z.ai, Moonshot, DeepSeek and Qwen through Synthorai's OpenAI-compatible API, billed at each upstream provider's own list price.",
+  "api_key_env": "SYNTHORAI_API_KEY",
+  "base_url": "https://synthorai.io/v1",
+  "dynamic_models": true,
+  "models": [
+    {
+      "name": "claude-opus-5",
+      "context_limit": 1000000
+    },
+    {
+      "name": "claude-sonnet-5",
+      "context_limit": 1000000
+    },
+    {
+      "name": "claude-opus-4-8",
+      "context_limit": 1000000
+    },
+    {
+      "name": "gpt-5.6-sol",
+      "context_limit": 1050000
+    },
+    {
+      "name": "gemini-3.7-flash",
+      "context_limit": 1048576
+    },
+    {
+      "name": "glm-5.2",
+      "context_limit": 1048576
+    },
+    {
+      "name": "kimi-k3",
+      "context_limit": 1000000
+    },
+    {
+      "name": "deepseek-v4-pro",
+      "context_limit": 1000000
+    },
+    {
+      "name": "deepseek-v4-flash",
+      "context_limit": 1000000
+    },
+    {
+      "name": "qwen3.5-flash",
+      "context_limit": 1048576
+    }
+  ],
+  "preserves_thinking": true,
+  "supports_streaming": true,
+  "model_doc_link": "https://synthorai.io/docs/",
+  "setup_steps": [
+    "Sign up at https://synthorai.io",
+    "Open the API keys page in the console",
+    "Create a new API key",
+    "Copy the key and paste it above"
+  ]
+}
