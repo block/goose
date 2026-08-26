@@ -358,6 +358,20 @@ impl ModelConfig {
         )]))
     }
 
+    /// Remove any prompt-cache TTL request parameter. The TTL is
+    /// configuration state, not session state: callers that resume a
+    /// persisted config drop the stored value and re-derive it from the
+    /// current configuration so a clamped run never sticks to the session.
+    pub fn without_cache_ttl(mut self) -> Self {
+        if let Some(params) = self.request_params.as_mut() {
+            params.remove("cache_ttl");
+            if params.is_empty() {
+                self.request_params = None;
+            }
+        }
+        self
+    }
+
     /// Clamp the prompt-cache TTL back to the provider default (5m).
     /// Burst-only surfaces (headless runs, subagents, scheduled recipes) call
     /// this so a user-level 1h opt-in never pays the 2x cache-write premium on
@@ -402,6 +416,31 @@ mod tests {
             .with_cache_ttl("1h")
             .with_cache_ttl_clamped();
         assert_eq!(config.cache_ttl().as_deref(), Some("5m"));
+    }
+
+    #[test]
+    fn without_cache_ttl_removes_the_param_and_empty_map() {
+        let config = ModelConfig::new("claude-sonnet-4-5")
+            .with_cache_ttl("1h")
+            .without_cache_ttl();
+        assert!(config.cache_ttl().is_none());
+        assert!(config.request_params.is_none());
+    }
+
+    #[test]
+    fn without_cache_ttl_preserves_other_request_params() {
+        let config = ModelConfig::new("claude-sonnet-4-5")
+            .with_merged_request_params(HashMap::from([(
+                "thinking_effort".to_string(),
+                serde_json::json!("high"),
+            )]))
+            .with_cache_ttl("1h")
+            .without_cache_ttl();
+        assert!(config.cache_ttl().is_none());
+        assert_eq!(
+            config.request_param::<String>("thinking_effort").as_deref(),
+            Some("high")
+        );
     }
 
     #[test]

@@ -236,6 +236,18 @@ fn base_model_config_from_user_config(
     Ok(model)
 }
 
+/// Re-derive the prompt-cache TTL from the current configuration, discarding
+/// any value stored on the model config. The TTL is configuration state, not
+/// session state: a resumed session must reflect the user's current opt-in,
+/// not a value persisted by an earlier (possibly clamped) run.
+pub fn with_rederived_cache_ttl(model: ModelConfig) -> Result<ModelConfig> {
+    let mut model = model.without_cache_ttl();
+    if let Some(ttl) = get_goose_cache_ttl(Config::global())? {
+        model = model.with_cache_ttl(&ttl);
+    }
+    Ok(model)
+}
+
 fn get_goose_cache_ttl(config: &Config) -> Result<Option<String>> {
     match config.get_param::<String>("GOOSE_CACHE_TTL") {
         Ok(ttl) => {
@@ -361,6 +373,24 @@ mod cache_ttl_tests {
             false,
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn rederive_replaces_stored_ttl_with_configured_value() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", Some("1h"))]);
+        let model =
+            with_rederived_cache_ttl(ModelConfig::new("claude-sonnet-4-5").with_cache_ttl("5m"))
+                .unwrap();
+        assert_eq!(model.cache_ttl().as_deref(), Some("1h"));
+    }
+
+    #[test]
+    fn rederive_drops_stored_ttl_when_config_absent() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", None::<&str>)]);
+        let model =
+            with_rederived_cache_ttl(ModelConfig::new("claude-sonnet-4-5").with_cache_ttl("1h"))
+                .unwrap();
+        assert!(model.cache_ttl().is_none());
     }
 
     #[test]

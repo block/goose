@@ -3715,7 +3715,8 @@ impl Agent {
             .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
 
         let mut model_config = match session.model_config.clone() {
-            Some(saved_config) => saved_config,
+            Some(saved_config) => crate::model_config::with_rederived_cache_ttl(saved_config)
+                .map_err(|e| anyhow!("Could not configure agent: {}", e))?,
             None => {
                 let model_name = config
                     .get_goose_model()
