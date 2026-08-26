@@ -211,9 +211,15 @@ mod canonicalization_tests {
     }
 
     #[test]
-    fn canonicalizes_owner_qualified_unprefixed_tools() {
+    fn canonicalizes_owner_qualified_unprefixed_tool_aliases() {
         let advertised = vec![("shell".to_string(), Some("developer".to_string()))];
         let mut message = request("developer.shell");
+
+        canonicalize_tool_request_names(&mut message, &advertised);
+
+        assert_eq!(tool_name(&message), "shell");
+
+        let mut message = request("developer__shell");
 
         canonicalize_tool_request_names(&mut message, &advertised);
 
