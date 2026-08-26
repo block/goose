@@ -852,6 +852,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
         session_config.stats,
+        session_config.interactive,
         Some(loading_handle),
     )
     .await;

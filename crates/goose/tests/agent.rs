@@ -3166,7 +3166,7 @@ mod tests {
                 "pending".to_string(),
                 format!("http://{address}"),
                 "Pending test extension".to_string(),
-                30,
+                30_u64,
             );
             agent
                 .persist_extension_configs(&session_id, vec![extension.clone()])

@@ -260,6 +260,7 @@ where
         None,
         "text".to_string(),
         false,
+        false,
         None,
     )
     .await;

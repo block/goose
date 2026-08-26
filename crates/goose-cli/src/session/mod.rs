@@ -365,6 +365,7 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
         stats: bool,
+        refresh_completions: bool,
         extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
     ) -> Self {
         let messages = agent
@@ -383,7 +384,9 @@ impl CliSession {
                 let failures = handle
                     .await
                     .map_err(|error| anyhow::anyhow!("Extension loading task failed: {}", error))?;
-                Self::refresh_completion_cache(&agent, &session_id, &completion_cache).await?;
+                if refresh_completions {
+                    Self::refresh_completion_cache(&agent, &session_id, &completion_cache).await?;
+                }
                 Ok(failures)
             }))
         });
@@ -3425,6 +3428,7 @@ mod tests {
 
     async fn session_with_loader(
         extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
+        refresh_completions: bool,
     ) -> CliSession {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
@@ -3469,6 +3473,7 @@ mod tests {
             None,
             "text".to_string(),
             false,
+            refresh_completions,
             extension_loading,
         )
         .await
@@ -3482,7 +3487,7 @@ mod tests {
             Vec::<ExtensionFailure>::new()
         }));
 
-        let mut session = session_with_loader(Some(loader)).await;
+        let mut session = session_with_loader(Some(loader), false).await;
         let mut editor = session.create_editor().unwrap();
 
         let handled = tokio::spawn(async move {
@@ -3515,7 +3520,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_extensions_loaded_drains_the_loader_once() {
         let loader = AbortOnDropHandle::new(tokio::spawn(async { Vec::<ExtensionFailure>::new() }));
-        let mut session = session_with_loader(Some(loader)).await;
+        let mut session = session_with_loader(Some(loader), false).await;
 
         session.ensure_extensions_loaded(false).await.unwrap();
         assert!(session.extension_loading.is_none());
@@ -3532,7 +3537,7 @@ mod tests {
             let _ = released.await;
             Vec::<ExtensionFailure>::new()
         }));
-        let session = session_with_loader(Some(loader)).await;
+        let session = session_with_loader(Some(loader), true).await;
 
         assert!(session
             .completion_cache
@@ -3559,5 +3564,20 @@ mod tests {
         .await
         .expect("completion cache was not refreshed in the background");
         assert!(session.extension_loading.is_some());
+    }
+
+    #[tokio::test]
+    async fn headless_loader_skips_completion_refresh() {
+        let loader = AbortOnDropHandle::new(tokio::spawn(async { Vec::<ExtensionFailure>::new() }));
+        let mut session = session_with_loader(Some(loader), false).await;
+
+        session.ensure_extensions_loaded(false).await.unwrap();
+
+        assert!(session
+            .completion_cache
+            .read()
+            .unwrap()
+            .current_session_provider
+            .is_empty());
     }
 }
