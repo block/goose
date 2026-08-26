@@ -14,17 +14,18 @@ impl GooseAcpAgent {
         let agent = self.get_session_agent(&req.session_id).await?;
         let goose_mode = agent.goose_mode().await;
         let permission_manager = self.permission_manager();
+        let permission_snapshot = permission_manager.snapshot();
 
         let mut tools: Vec<ToolListItem> = agent
             .list_tools(session_id, req.extension_name)
             .await
             .into_iter()
             .map(|tool| {
-                let permission = permission_manager
+                let permission = permission_snapshot
                     .get_user_permission(&tool.name)
                     .or_else(|| {
                         if goose_mode == GooseMode::SmartApprove {
-                            permission_manager.get_smart_approve_permission(&tool.name)
+                            permission_snapshot.get_smart_approve_permission(&tool.name)
                         } else if goose_mode == GooseMode::Approve {
                             Some(PermissionLevel::AskBefore)
                         } else {

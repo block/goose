@@ -151,6 +151,9 @@ impl ToolInspector for PermissionInspector {
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
         let permission_manager = &self.permission_manager;
+        let permission_snapshot =
+            matches!(goose_mode, GooseMode::Approve | GooseMode::SmartApprove)
+                .then(|| permission_manager.snapshot());
         let mut llm_detect_candidates: Vec<&ToolRequest> = Vec::new();
 
         for request in tool_requests {
@@ -161,8 +164,9 @@ impl ToolInspector for PermissionInspector {
                     GooseMode::Chat => continue,
                     GooseMode::Auto => InspectionAction::Allow,
                     GooseMode::Approve | GooseMode::SmartApprove => {
+                        let permission_snapshot = permission_snapshot.as_ref().unwrap();
                         // 1. Check user-defined permission first
-                        if let Some(level) = permission_manager.get_user_permission(tool_name) {
+                        if let Some(level) = permission_snapshot.get_user_permission(tool_name) {
                             match level {
                                 PermissionLevel::AlwaysAllow => InspectionAction::Allow,
                                 PermissionLevel::NeverAllow => InspectionAction::Deny,
@@ -183,7 +187,7 @@ impl ToolInspector for PermissionInspector {
                         // 4. Defer to LLM detection (SmartApprove, uncached or legacy cached allow)
                         } else if goose_mode == GooseMode::SmartApprove
                             && matches!(
-                                permission_manager.get_smart_approve_permission(tool_name),
+                                permission_snapshot.get_smart_approve_permission(tool_name),
                                 None | Some(PermissionLevel::AlwaysAllow)
                             )
                         {

@@ -47,6 +47,11 @@ pub struct PermissionManager {
     state: Arc<SharedPermissionState>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PermissionSnapshot {
+    permission_map: Option<HashMap<String, PermissionConfig>>,
+}
+
 // Constants representing specific permission categories
 const USER_PERMISSION: &str = "user";
 const SMART_APPROVE_PERMISSION: &str = "smart_approve";
@@ -181,6 +186,14 @@ impl PermissionManager {
         Arc::clone(&PERMISSION_MANAGER)
     }
 
+    pub fn snapshot(&self) -> PermissionSnapshot {
+        let permission_map = self
+            .refresh_permission_map()
+            .ok()
+            .map(|()| self.state.permission_map.read().unwrap().clone());
+        PermissionSnapshot { permission_map }
+    }
+
     /// Returns a list of all the names (keys) in the permission map.
     pub fn get_permission_names(&self) -> Vec<String> {
         if self.refresh_permission_map().is_err() {
@@ -265,27 +278,7 @@ impl PermissionManager {
             return Some(PermissionLevel::NeverAllow);
         }
         let map = self.state.permission_map.read().unwrap();
-        // Check if the permission category exists in the map
-        if let Some(permission_config) = map.get(name) {
-            // Check the permission levels for the given tool
-            if permission_config
-                .never_allow
-                .contains(&principal_name.to_string())
-            {
-                return Some(PermissionLevel::NeverAllow);
-            } else if permission_config
-                .always_allow
-                .contains(&principal_name.to_string())
-            {
-                return Some(PermissionLevel::AlwaysAllow);
-            } else if permission_config
-                .ask_before
-                .contains(&principal_name.to_string())
-            {
-                return Some(PermissionLevel::AskBefore);
-            }
-        }
-        None // Return None if no matching permission level is found
+        permission_from_map(&map, name, principal_name)
     }
 
     /// Updates the user permission level for a specific tool.
@@ -366,6 +359,53 @@ impl PermissionManager {
             && principal_name
                 .strip_prefix(extension_name)
                 .is_some_and(|suffix| suffix.starts_with("__"))
+    }
+}
+
+impl PermissionSnapshot {
+    pub fn get_user_permission(&self, principal_name: &str) -> Option<PermissionLevel> {
+        self.get_permission(USER_PERMISSION, principal_name)
+    }
+
+    pub fn get_smart_approve_permission(&self, principal_name: &str) -> Option<PermissionLevel> {
+        self.get_permission(SMART_APPROVE_PERMISSION, principal_name)
+    }
+
+    fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
+        self.permission_map
+            .as_ref()
+            .map_or(Some(PermissionLevel::NeverAllow), |map| {
+                permission_from_map(map, name, principal_name)
+            })
+    }
+}
+
+fn permission_from_map(
+    map: &HashMap<String, PermissionConfig>,
+    name: &str,
+    principal_name: &str,
+) -> Option<PermissionLevel> {
+    let permission_config = map.get(name)?;
+    if permission_config
+        .never_allow
+        .iter()
+        .any(|permission| permission == principal_name)
+    {
+        Some(PermissionLevel::NeverAllow)
+    } else if permission_config
+        .always_allow
+        .iter()
+        .any(|permission| permission == principal_name)
+    {
+        Some(PermissionLevel::AlwaysAllow)
+    } else if permission_config
+        .ask_before
+        .iter()
+        .any(|permission| permission == principal_name)
+    {
+        Some(PermissionLevel::AskBefore)
+    } else {
+        None
     }
 }
 
@@ -702,6 +742,58 @@ mod tests {
         FileExt::unlock(&lock_file).unwrap();
 
         assert_eq!(manager.get_user_permission("git__status"), None);
+    }
+
+    #[test]
+    fn permission_snapshot_refreshes_once_per_batch() {
+        let (manager, temp_dir) = create_test_permission_manager();
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
+        let snapshot = manager.snapshot();
+
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(temp_dir.path().join(PERMISSION_LOCK_FILE))
+            .unwrap();
+        lock_file.lock_exclusive().unwrap();
+        fs::write(
+            manager.get_config_path(),
+            "user:\n  always_allow: []\n  ask_before: []\n  never_allow:\n    - git__status\n",
+        )
+        .unwrap();
+        FileExt::unlock(&lock_file).unwrap();
+
+        assert_eq!(
+            snapshot.get_user_permission("git__status"),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+        assert_eq!(
+            manager.snapshot().get_user_permission("git__status"),
+            Some(PermissionLevel::NeverAllow)
+        );
+    }
+
+    #[test]
+    fn permission_snapshot_fails_closed_when_refresh_fails() {
+        let (manager, _temp_dir) = create_test_permission_manager();
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
+        fs::write(manager.get_config_path(), "{{invalid yaml: [broken").unwrap();
+
+        let snapshot = manager.snapshot();
+        assert_eq!(
+            snapshot.get_user_permission("git__status"),
+            Some(PermissionLevel::NeverAllow)
+        );
+        assert_eq!(
+            snapshot.get_smart_approve_permission("unknown"),
+            Some(PermissionLevel::NeverAllow)
+        );
     }
 
     #[test]

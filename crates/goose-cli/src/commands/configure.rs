@@ -1797,6 +1797,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .await?;
 
     let permission_manager = PermissionManager::instance();
+    let permission_snapshot = permission_manager.snapshot();
     let selected_tools = agent
         .list_tools(&session.id, Some(selected_extension_name.clone()))
         .await
@@ -1809,7 +1810,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                     .map(|d| d.as_ref())
                     .unwrap_or_default(),
                 get_parameter_names(&tool),
-                permission_manager.get_user_permission(&tool.name),
+                permission_snapshot.get_user_permission(&tool.name),
             )
         })
         .collect::<Vec<ToolInfo>>();
