@@ -1853,6 +1853,8 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<Arc<Agent>, agent_client_protocol::Error> {
+        self.ensure_session_access(session_id).await?;
+
         if self.closed_session_ids.lock().await.contains(session_id) {
             return Err(agent_client_protocol::Error::resource_not_found(Some(
                 session_id.to_string(),

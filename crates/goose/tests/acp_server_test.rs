@@ -801,6 +801,41 @@ fn test_session_mutations_reject_internal_session_types_without_changes() {
 }
 
 #[test]
+fn test_prompt_rejects_hidden_persisted_session_without_changes() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let hidden = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Hidden session".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        let error = conn
+            .cx()
+            .send_request(PromptRequest::new(
+                agent_client_protocol::schema::v1::SessionId::new(hidden.id.clone()),
+                vec![ContentBlock::Text(TextContent::new("unauthorized prompt"))],
+            ))
+            .block_task()
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+        let stored = session_manager.get_session(&hidden.id, true).await.unwrap();
+        assert!(stored
+            .conversation
+            .is_none_or(|conversation| conversation.messages().is_empty()));
+    });
+}
+
+#[test]
 fn test_session_mutations_reject_unknown_raw_type_including_same_path() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
