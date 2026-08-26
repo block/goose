@@ -420,11 +420,19 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
 
         // Find the end of this tool call first
         let Some(call_end_offset) = after_begin.find(TOOL_CALL_END) else {
-            let name_end = after_begin
-                .find(TOOL_CALL_ARGUMENT_BEGIN)
+            let argument_start = after_begin.find(TOOL_CALL_ARGUMENT_BEGIN);
+            let name_end = argument_start
                 .or_else(|| after_begin.find('{'))
                 .unwrap_or(after_begin.len());
-            if contains_unresolved_execute_alias(&after_begin[..name_end], tools) {
+            let arguments_contain_execute = argument_start.is_some_and(|argument_start| {
+                malformed_arguments_contain_unresolved_execute_alias(
+                    &after_begin[argument_start + TOOL_CALL_ARGUMENT_BEGIN.len()..],
+                    tools,
+                )
+            });
+            if contains_unresolved_execute_alias(&after_begin[..name_end], tools)
+                || arguments_contain_execute
+            {
                 rejected_execute = true;
             }
             break;
@@ -1532,6 +1540,39 @@ mod tests {
             .unwrap();
 
         assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_execute_alias_in_unterminated_arguments() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> functions.execute:0 {\"code\":\"Developer.shell({ command: 'id' })\"}",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
+    #[test]
+    fn unterminated_non_execute_arguments_are_not_rejected() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.shell:0 <|tool_call_argument_begin|> {\"command\":\"id\"}";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(parsed.calls.is_empty());
+        assert!(!parsed.rejected_execute);
     }
 
     #[tokio::test]
