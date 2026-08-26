@@ -176,6 +176,7 @@ fn normalized_tool_alias(raw_tool_name: &str) -> String {
         .next()
         .unwrap_or(without_functions_prefix)
         .trim()
+        .trim_matches(|character: char| !character.is_ascii_alphanumeric() && character != '_')
         .to_ascii_lowercase()
 }
 
@@ -1674,6 +1675,58 @@ mod tests {
             .unwrap();
 
         assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_validates_execute_alias_with_call_punctuation() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute():0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'id' })\"} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::ToolRequest(_))));
+    }
+
+    #[test]
+    fn punctuated_benign_alias_is_not_rejected() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute_helper():0 <|tool_call_argument_begin|> {\"value\":\"id\"} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(parsed.calls.is_empty());
+        assert!(!parsed.rejected_execute);
+    }
+
+    #[test]
+    fn resolved_punctuated_tool_name_takes_precedence() {
+        let tools = vec![Tool::new(
+            "execute()".to_string(),
+            "A distinct offered tool".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute():0 <|tool_call_argument_begin|> {\"value\":\"id\"} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(!parsed.rejected_execute);
+        assert_eq!(parsed.calls.len(), 1);
+        assert_eq!(parsed.calls[0].name, "execute()");
     }
 
     #[tokio::test]
