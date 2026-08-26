@@ -15,6 +15,7 @@
     }
   ],
   "catalog_provider_id": "volcengine",
+  "dynamic_models": false,
   "models": [
     {"name": "doubao-seed-2-1-pro-260628", "context_limit": 262144, "reasoning": true},
     {"name": "doubao-seed-2-1-turbo-260628", "context_limit": 262144, "reasoning": true},
@@ -24,6 +25,8 @@
     {"name": "doubao-seed-2-0-mini-260428", "context_limit": 262144, "reasoning": true},
     {"name": "doubao-seed-2-0-code-preview-260215", "context_limit": 262144, "reasoning": true},
     {"name": "doubao-seed-character-260628", "context_limit": 131072, "reasoning": true},
+    {"name": "doubao-seed-1-8-251228", "context_limit": 262144, "reasoning": true},
+    {"name": "doubao-seed-1-6-251015", "context_limit": 262144, "reasoning": true},
     {"name": "deepseek-v4-pro-ga-260813", "context_limit": 1048576, "reasoning": true},
     {"name": "deepseek-v4-flash-ga-260731", "context_limit": 1048576, "reasoning": true},
     {"name": "glm-5-2-260617", "context_limit": 1048576, "reasoning": true}
