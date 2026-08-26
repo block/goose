@@ -182,15 +182,12 @@ const MarkdownContent = memo(function MarkdownContent({
   className = '',
 }: MarkdownContentProps) {
   const intl = useIntl();
-  const [processedContent, setProcessedContent] = useState(content);
-
-  useEffect(() => {
+  const processedContent = useMemo(() => {
     try {
-      const processed = wrapHTMLInCodeBlock(content);
-      setProcessedContent(processed);
+      return wrapHTMLInCodeBlock(content);
     } catch (error) {
       console.error('Error processing content:', error);
-      setProcessedContent(content);
+      return content;
     }
   }, [content]);
 
