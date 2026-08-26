@@ -67,8 +67,7 @@ fn extract_sampling_text(
             }
             _ => None,
         })
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect::<String>();
 
     (!text.is_empty()).then_some(text)
 }
@@ -1207,32 +1206,33 @@ mod tests {
     }
 
     #[test]
-    fn sampling_text_joins_multiple_text_blocks_without_exposing_thinking() {
+    fn sampling_text_preserves_fragments_around_thinking() {
         let response = crate::conversation::message::Message::assistant()
             .with_text("first")
             .with_thinking("internal reasoning", "signature")
-            .with_text("second");
+            .with_text(" second");
 
         assert_eq!(
             extract_sampling_text(&response.content).as_deref(),
-            Some("first\nsecond")
+            Some("first second")
         );
     }
 
     #[test]
-    fn sampling_text_excludes_assistant_only_blocks() {
+    fn sampling_text_excludes_assistant_only_blocks_without_changing_visible_text() {
         let assistant_only = rmcp::model::TextContent::new("assistant only").with_annotations(
             rmcp::model::Annotations::default().with_audience(vec![Role::Assistant]),
         );
         let response = crate::conversation::message::Message::assistant()
-            .with_text("visible")
+            .with_text("Hello")
             .with_content(crate::conversation::message::MessageContent::Text(
                 assistant_only,
-            ));
+            ))
+            .with_text(" world");
 
         assert_eq!(
             extract_sampling_text(&response.content).as_deref(),
-            Some("visible")
+            Some("Hello world")
         );
     }
 
