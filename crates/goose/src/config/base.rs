@@ -49,21 +49,34 @@ fn keyring_lock_path_with_roots(
     environment_home: Option<PathBuf>,
 ) -> Result<PathBuf, ConfigError> {
     let service_hash = URL_SAFE_NO_PAD.encode(Sha256::digest(service.as_bytes()));
-    let lock_directory = os_user_home
-        .map(|home| home.join(".goose").join("locks"))
-        .or_else(|| path_root.map(|root| root.join("state").join("locks")))
-        .or_else(|| {
-            environment_home
-                .filter(|home| home.is_absolute())
-                .map(|home| home.join(".goose").join("locks"))
-        })
-        .ok_or_else(|| {
-            ConfigError::LockError(
-                "unable to determine keyring lock directory: no passwd home, GOOSE_PATH_ROOT, or HOME"
-                    .to_string(),
-            )
-        })?;
-    Ok(lock_directory.join(format!("keyring-{service_hash}.lock")))
+    let lock_name = format!("keyring-{service_hash}.lock");
+    [
+        os_user_home.map(|home| home.join(".goose").join("locks")),
+        path_root.map(|root| root.join("state").join("locks")),
+        environment_home
+            .filter(|home| home.is_absolute())
+            .map(|home| home.join(".goose").join("locks")),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|directory| {
+        let lock_path = private_file_target_path(&directory.join(&lock_name)).ok()?;
+        std::fs::create_dir_all(lock_path.parent()?).ok()?;
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .ok()?;
+        Some(lock_path)
+    })
+    .ok_or_else(|| {
+        ConfigError::LockError(
+            "unable to open a keyring lock under the passwd home, GOOSE_PATH_ROOT, or HOME"
+                .to_string(),
+        )
+    })
 }
 
 #[cfg(feature = "system-keyring")]
@@ -2426,6 +2439,28 @@ mod tests {
             None,
             Some(path_root.path().to_path_buf()),
             Some(environment_home.path().to_path_buf()),
+        )?;
+
+        assert_eq!(
+            lock_path.parent(),
+            Some(path_root.path().join("state/locks").as_path())
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "system-keyring")]
+    #[test]
+    fn keyring_service_lock_uses_path_root_when_passwd_home_is_unusable() -> Result<(), ConfigError>
+    {
+        let os_user_home = TempDir::new().unwrap();
+        let path_root = TempDir::new().unwrap();
+        std::fs::write(os_user_home.path().join(".goose"), "not a directory")?;
+
+        let lock_path = keyring_lock_path_with_roots(
+            "shared-service",
+            Some(os_user_home.path().to_path_buf()),
+            Some(path_root.path().to_path_buf()),
+            None,
         )?;
 
         assert_eq!(
