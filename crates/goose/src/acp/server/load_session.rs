@@ -300,6 +300,7 @@ impl GooseAcpAgent {
         debug!(?args, "load session request");
 
         let session_id_str = args.session_id.0.to_string();
+        self.ensure_session_access(&session_id_str).await?;
 
         let mut session = self
             .session_manager

@@ -957,7 +957,7 @@ fn test_session_mutations_allow_active_client_created_hidden_session() {
 }
 
 #[test]
-fn test_session_mutations_reject_loaded_hidden_session() {
+fn test_load_session_rejects_hidden_session_without_changes() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
         let working_dir = tempfile::tempdir().unwrap();
@@ -992,9 +992,10 @@ fn test_session_mutations_reject_loaded_hidden_session() {
             .unwrap();
 
         let conn = new_connection(data_root.path()).await;
-        load_session(&conn, &hidden.id, working_dir.path())
+        let error = load_session(&conn, &hidden.id, replacement_dir.path())
             .await
-            .unwrap();
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
 
         let error = set_session_mode(&conn, &hidden.id, "approve")
             .await
