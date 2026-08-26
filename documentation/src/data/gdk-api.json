@@ -874,7 +874,7 @@
                 }
               ],
               "returns": "u64",
-              "throws": null,
+              "throws": "GooseError",
               "isAsync": true
             },
             {

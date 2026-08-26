@@ -614,14 +614,18 @@ impl ProviderHandle {
         self.provider.get_name().to_string()
     }
 
-    async fn context_limit(&self, model: ProviderModelConfig) -> usize {
+    async fn context_limit(&self, model: ProviderModelConfig) -> Result<usize, GooseError> {
         let normalized_model = ModelConfig::new(&model.model_name);
         let override_limit = model
             .context_limit
             .and_then(|limit| (limit > 0).then_some(limit as usize));
-        self.provider
-            .get_context_limit(&normalized_model.model_name, override_limit)
-            .await
+        let provider = Arc::clone(&self.provider);
+        run_on_runtime(async move {
+            provider
+                .get_context_limit(&normalized_model.model_name, override_limit)
+                .await
+        })
+        .await
     }
 
     async fn stream(
@@ -745,8 +749,8 @@ impl Provider {
         features
     }
 
-    pub async fn context_limit(&self, model: ProviderModelConfig) -> u64 {
-        self.handle.context_limit(model).await as u64
+    pub async fn context_limit(&self, model: ProviderModelConfig) -> Result<u64, GooseError> {
+        Ok(self.handle.context_limit(model).await? as u64)
     }
 
     pub async fn stream(
