@@ -1035,7 +1035,8 @@ async fn execute_job(
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
     let model_config =
-        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?;
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?
+            .with_cache_ttl_clamped();
 
     let session = agent
         .config

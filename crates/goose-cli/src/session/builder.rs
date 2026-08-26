@@ -458,7 +458,7 @@ async fn resolve_provider_and_model(
             process::exit(1);
         });
 
-    let model_config = if session_config.resume
+    let mut model_config = if session_config.resume
         && saved_provider_matches
         && saved_model_config
             .as_ref()
@@ -482,6 +482,10 @@ async fn resolve_provider_and_model(
         }
         config
     };
+
+    if !session_config.interactive {
+        model_config = model_config.with_cache_ttl_clamped();
+    }
 
     ResolvedProviderConfig {
         provider_name,
