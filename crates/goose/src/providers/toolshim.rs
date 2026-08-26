@@ -179,9 +179,13 @@ fn normalized_tool_alias(raw_tool_name: &str) -> String {
 
 fn contains_unresolved_execute_alias(raw_tool_header: &str, tools: &[Tool]) -> bool {
     raw_tool_header.split_whitespace().any(|raw_tool_name| {
-        let alias = normalized_tool_alias(raw_tool_name);
         resolve_tool_name(raw_tool_name, tools).is_none()
-            && matches!(alias.as_str(), "execute" | "execute_code")
+            && raw_tool_name.split(':').any(|segment| {
+                matches!(
+                    normalized_tool_alias(segment).as_str(),
+                    "execute" | "execute_code"
+                )
+            })
     })
 }
 
@@ -1440,6 +1444,7 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> label functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1:functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
         ];
 
         for content in rejected {
