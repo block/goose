@@ -45,7 +45,9 @@ use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
 use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
+use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde_json::{json, Value};
+use std::fmt;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -204,6 +206,110 @@ fn contains_structured_unresolved_execute_alias(value: &Value, tools: &[Tool]) -
             .any(|value| contains_structured_unresolved_execute_alias(value, tools)),
         _ => false,
     }
+}
+
+struct RawStructuredExecuteAliasSeed<'a> {
+    tools: &'a [Tool],
+    inspect_string: bool,
+}
+
+struct RawStructuredExecuteAliasVisitor<'a> {
+    tools: &'a [Tool],
+    inspect_string: bool,
+}
+
+impl<'de> DeserializeSeed<'de> for RawStructuredExecuteAliasSeed<'_> {
+    type Value = bool;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(RawStructuredExecuteAliasVisitor {
+            tools: self.tools,
+            inspect_string: self.inspect_string,
+        })
+    }
+}
+
+impl<'de> Visitor<'de> for RawStructuredExecuteAliasVisitor<'_> {
+    type Value = bool;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E> {
+        Ok(false)
+    }
+
+    fn visit_i64<E>(self, _value: i64) -> Result<Self::Value, E> {
+        Ok(false)
+    }
+
+    fn visit_u64<E>(self, _value: u64) -> Result<Self::Value, E> {
+        Ok(false)
+    }
+
+    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E> {
+        Ok(false)
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(self.inspect_string && contains_unresolved_execute_alias(value, self.tools))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(self.inspect_string && contains_unresolved_execute_alias(&value, self.tools))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(false)
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut contains_execute = false;
+        while let Some(value_contains_execute) =
+            sequence.next_element_seed(RawStructuredExecuteAliasSeed {
+                tools: self.tools,
+                inspect_string: false,
+            })?
+        {
+            contains_execute |= value_contains_execute;
+        }
+        Ok(contains_execute)
+    }
+
+    fn visit_map<A>(self, mut object: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut contains_execute = false;
+        while let Some(key) = object.next_key::<String>()? {
+            let value_contains_execute = object.next_value_seed(RawStructuredExecuteAliasSeed {
+                tools: self.tools,
+                inspect_string: key == "name",
+            })?;
+            contains_execute |= value_contains_execute;
+        }
+        Ok(contains_execute)
+    }
+}
+
+fn raw_arguments_contain_structured_unresolved_execute_alias(
+    raw_arguments: &str,
+    tools: &[Tool],
+) -> bool {
+    let mut deserializer = serde_json::Deserializer::from_str(raw_arguments);
+    RawStructuredExecuteAliasSeed {
+        tools,
+        inspect_string: false,
+    }
+    .deserialize(&mut deserializer)
+    .unwrap_or(false)
 }
 
 fn malformed_arguments_contain_unresolved_execute_alias(
@@ -483,6 +589,8 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
 
         let resolved_tool_name = resolve_tool_name(raw_tool_name, tools);
         let is_execute_compatibility = contains_unresolved_execute_alias(raw_tool_name, tools);
+        let raw_arguments_contain_structured_execute =
+            raw_arguments_contain_structured_unresolved_execute_alias(raw_args, tools);
 
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
             let structured_execute_name = arguments_value
@@ -518,10 +626,11 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 } else {
                     rejected_execute = true;
                 }
-            } else if contains_structured_execute {
+            } else if contains_structured_execute || raw_arguments_contain_structured_execute {
                 rejected_execute = true;
             }
         } else if is_execute_compatibility
+            || raw_arguments_contain_structured_execute
             || malformed_arguments_contain_unresolved_execute_alias(raw_args, tools)
         {
             rejected_execute = true;
@@ -1717,6 +1826,62 @@ mod tests {
             .unwrap();
 
         assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_execute_name_overwritten_by_duplicate_key() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"name\":\"functions.execute:0\",\"name\":\"transform\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
+    #[test]
+    fn unresolved_header_does_not_reject_benign_duplicate_names() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"name\":\"first\",\"name\":\"transform\",\"arguments\":{\"value\":\"id\"}} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(parsed.calls.is_empty());
+        assert!(!parsed.rejected_execute);
+    }
+
+    #[test]
+    fn resolved_tool_accepts_duplicate_execute_shaped_argument_names() {
+        let tools = vec![
+            Tool::new(
+                "workflow".to_string(),
+                "Run a workflow".to_string(),
+                serde_json::Map::new(),
+            ),
+            Tool::new(
+                "shell".to_string(),
+                "Shell command execution".to_string(),
+                serde_json::Map::new(),
+            ),
+        ];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.workflow:0 <|tool_call_argument_begin|> {\"name\":\"functions.execute:0\",\"name\":\"transform\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(!parsed.rejected_execute);
+        assert_eq!(parsed.calls.len(), 1);
+        assert_eq!(parsed.calls[0].name, "workflow");
     }
 
     #[test]
