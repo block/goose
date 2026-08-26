@@ -132,6 +132,10 @@ pub(crate) enum EmulatorAction {
     ExecuteCode(String),
 }
 
+// pulldown-cmark parses complete documents, so fail closed once reparsing would become expensive.
+const MAX_MARKDOWN_CONTEXT_BYTES: usize = 256 * 1024;
+const MAX_MARKDOWN_PARSE_BYTES: usize = 1024 * 1024;
+
 #[derive(Clone, Copy)]
 enum ParserState {
     Normal,
@@ -141,6 +145,8 @@ enum ParserState {
 pub(crate) struct StreamingEmulatorParser {
     buffer: String,
     document: String,
+    markdown_context_available: bool,
+    markdown_parse_bytes_remaining: usize,
     state: ParserState,
     code_mode_enabled: bool,
 }
@@ -268,14 +274,63 @@ impl StreamingEmulatorParser {
         Self {
             buffer: String::new(),
             document: String::new(),
+            markdown_context_available: true,
+            markdown_parse_bytes_remaining: MAX_MARKDOWN_PARSE_BYTES,
             state: ParserState::Normal,
             code_mode_enabled,
         }
     }
 
+    fn append_markdown_context(&mut self, chunk: &str) {
+        if !self.markdown_context_available {
+            return;
+        }
+
+        if self.document.len().saturating_add(chunk.len()) > MAX_MARKDOWN_CONTEXT_BYTES {
+            self.disable_markdown_emulation();
+        } else {
+            self.document.push_str(chunk);
+        }
+    }
+
+    fn consume_markdown_parse_budget(&mut self, bytes: usize) -> bool {
+        if bytes > self.markdown_parse_bytes_remaining {
+            self.disable_markdown_emulation();
+            false
+        } else {
+            self.markdown_parse_bytes_remaining -= bytes;
+            true
+        }
+    }
+
+    fn markdown_matches(
+        &mut self,
+        range: Option<(usize, usize)>,
+        predicate: fn(&str, usize) -> bool,
+    ) -> bool {
+        let Some((line_start, markdown_end)) = range else {
+            return false;
+        };
+        if !self.consume_markdown_parse_budget(markdown_end) {
+            return false;
+        }
+
+        let markdown = self
+            .document
+            .get(..markdown_end)
+            .expect("markdown end must be a character boundary");
+        predicate(markdown, line_start)
+    }
+
+    fn disable_markdown_emulation(&mut self) {
+        self.document.clear();
+        self.markdown_context_available = false;
+        self.markdown_parse_bytes_remaining = 0;
+    }
+
     pub(crate) fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
         self.buffer.push_str(chunk);
-        self.document.push_str(chunk);
+        self.append_markdown_context(chunk);
         let mut results = Vec::new();
 
         loop {
@@ -305,8 +360,10 @@ impl StreamingEmulatorParser {
                     let Some(line_end) = self.buffer.find('\n') else {
                         break;
                     };
-                    let line_start = self.document.len() - self.buffer.len();
-                    let markdown_end = line_start + line_end + 1;
+                    let markdown_range = self.markdown_context_available.then(|| {
+                        let line_start = self.document.len() - self.buffer.len();
+                        (line_start, line_start + line_end + 1)
+                    });
                     let line = self
                         .buffer
                         .get(..line_end)
@@ -321,11 +378,7 @@ impl StreamingEmulatorParser {
 
                     if self.code_mode_enabled {
                         if let Some(fence_len) = execute_fence_len(&line) {
-                            let markdown = self
-                                .document
-                                .get(..markdown_end)
-                                .expect("markdown end must be a character boundary");
-                            if is_top_level_execute_fence(markdown, line_start) {
+                            if self.markdown_matches(markdown_range, is_top_level_execute_fence) {
                                 self.state = ParserState::InExecuteBlock { fence_len };
                                 continue;
                             }
@@ -334,11 +387,7 @@ impl StreamingEmulatorParser {
 
                     let line_without_cr = line.strip_suffix('\r').unwrap_or(&line);
                     if let Some(command) = line_without_cr.strip_prefix('$') {
-                        let markdown = self
-                            .document
-                            .get(..markdown_end)
-                            .expect("markdown end must be a character boundary");
-                        if is_top_level_paragraph_line(markdown, line_start) {
+                        if self.markdown_matches(markdown_range, is_top_level_paragraph_line) {
                             let command = command.trim();
                             if !command.is_empty() {
                                 results.push(EmulatorAction::ShellCommand(command.to_string()));
@@ -378,15 +427,22 @@ impl StreamingEmulatorParser {
                 }
             }
             ParserState::Normal if !self.buffer.is_empty() => {
-                let line_start = self.document.len() - self.buffer.len();
-                let line = self.buffer.strip_suffix('\r').unwrap_or(&self.buffer);
+                let line = self
+                    .buffer
+                    .strip_suffix('\r')
+                    .unwrap_or(&self.buffer)
+                    .to_string();
+                let markdown_range = self.markdown_context_available.then(|| {
+                    let line_start = self.document.len() - self.buffer.len();
+                    (line_start, self.document.len())
+                });
 
                 if self.code_mode_enabled
-                    && execute_fence_len(line).is_some()
-                    && is_top_level_execute_fence(&self.document, line_start)
+                    && execute_fence_len(&line).is_some()
+                    && self.markdown_matches(markdown_range, is_top_level_execute_fence)
                 {
                 } else if let Some(command) = line.strip_prefix('$') {
-                    if is_top_level_paragraph_line(&self.document, line_start) {
+                    if self.markdown_matches(markdown_range, is_top_level_paragraph_line) {
                         let command = command.trim();
                         if !command.is_empty() {
                             results.push(EmulatorAction::ShellCommand(command.to_string()));
@@ -403,6 +459,8 @@ impl StreamingEmulatorParser {
 
         self.buffer.clear();
         self.document.clear();
+        self.markdown_context_available = true;
+        self.markdown_parse_bytes_remaining = MAX_MARKDOWN_PARSE_BYTES;
         self.state = ParserState::Normal;
         results
     }
@@ -635,6 +693,21 @@ mod tests {
             execute_blocks(&actions),
             ["let before = 1;\n```\u{a0}\nlet after = 2;"]
         );
+    }
+
+    #[test]
+    fn markdown_parse_work_is_bounded() {
+        let mut input = String::from("````markdown\n");
+        for _ in 0..1000 {
+            input.push_str("$ inert\n");
+        }
+        input.push_str("````\n$ still inert\n");
+
+        let actions = parse_all(&input, true);
+
+        assert_eq!(text(&actions), input);
+        assert!(shell_commands(&actions).is_empty());
+        assert!(execute_blocks(&actions).is_empty());
     }
 
     #[test]
