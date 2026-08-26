@@ -9,6 +9,7 @@ impl GooseAcpAgent {
     ) -> Result<ForkSessionResponse, agent_client_protocol::Error> {
         let conversation_before = conversation_before_from_meta(args.meta.as_ref())?;
         let source_session_id = &*args.session_id.0;
+        self.ensure_session_access(source_session_id).await?;
 
         let source = self
             .session_manager

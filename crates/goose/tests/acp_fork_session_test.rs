@@ -168,3 +168,39 @@ fn fork_session_conversation_before_matches_rest_cutoff() {
         );
     });
 }
+
+#[test]
+fn fork_session_rejects_hidden_persisted_source_without_copying() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let hidden = session_manager
+            .create_session(
+                cwd.path().to_path_buf(),
+                "Hidden source".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        let error = fork_session_request(
+            &conn,
+            ForkSessionRequest::new(SessionId::new(hidden.id.clone()), cwd.path()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("Session not found"));
+        assert_eq!(
+            session_manager
+                .list_sessions_by_types(&[SessionType::Hidden])
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    });
+}
