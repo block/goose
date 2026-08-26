@@ -577,6 +577,12 @@ pre:has(> code.bg-inline-code) {
   padding: 1em;
 }
 
+pre > code.bg-inline-code {
+  background-color: transparent;
+  font-size: inherit;
+  padding: 0;
+}
+
 .bg-inline-code:after {
   content: '';
 }
