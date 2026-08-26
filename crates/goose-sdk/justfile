@@ -98,6 +98,8 @@ crates-publish dry_run="true":
         echo 'dry_run must be true or false' >&2; \
         exit 1; \
     fi; \
+    version=$(cargo metadata --no-deps --format-version 1 | python3 -c \
+        'import json, sys; print(next(package["version"] for package in json.load(sys.stdin)["packages"] if package["name"] == "goose-sdk"))'); \
     for crate in \
         goose-provider-types \
         goose-sdk-types \
@@ -107,6 +109,16 @@ crates-publish dry_run="true":
         goose-agent \
         goose-context-management \
         goose-sdk; do \
+        if [ "{{dry_run}}" = "false" ]; then \
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+                --user-agent 'goose-gdk-release (https://github.com/aaif-goose/goose)' \
+                "https://crates.io/api/v1/crates/$crate/$version"); \
+            case "$status" in \
+                200) echo "$crate $version is already published; skipping"; continue ;; \
+                404) ;; \
+                *) echo "crates.io returned HTTP $status while checking $crate $version" >&2; exit 1 ;; \
+            esac; \
+        fi; \
         cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
     done
 
@@ -147,11 +159,26 @@ check-version rust_version:
         return version_match.group(1)
 
     errors = []
+    dependency_names = set(crate_names) - {"goose-sdk"}
     for crate in crate_names:
         path = Path("crates") / crate / "Cargo.toml"
+        text = path.read_text()
         actual = package_version(path, "package")
         if actual != rust_version:
             errors.append(f"{path}: expected {rust_version}, found {actual}")
+
+        for dependency in dependency_names:
+            for dependency_match in re.finditer(
+                rf'(?m)^{re.escape(dependency)}\s*=\s*' + re.escape("{") + r'([^}]*)' + re.escape("}"), text
+            ):
+                version_match = re.search(r'version\s*=\s*"([^"]+)"', dependency_match.group(1))
+                if not version_match:
+                    errors.append(f"{path}: {dependency} is missing a version requirement")
+                elif version_match.group(1) != rust_version:
+                    errors.append(
+                        f"{path}: {dependency} expected {rust_version}, "
+                        f"found {version_match.group(1)}"
+                    )
 
     pyproject = Path("crates/goose-sdk/python/pyproject.toml")
     actual_python = package_version(pyproject, "project")
