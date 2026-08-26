@@ -28,7 +28,7 @@ use rmcp::{
         RequestContext, RequestHandle, RunningService, ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError,
 };
 use serde_json::Value;
 use std::{
