@@ -188,6 +188,24 @@ fn contains_unresolved_execute_alias(raw_tool_header: &str, tools: &[Tool]) -> b
     })
 }
 
+fn contains_structured_unresolved_execute_alias(value: &Value, tools: &[Tool]) -> bool {
+    match value {
+        Value::Object(object) => {
+            object
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| contains_unresolved_execute_alias(name, tools))
+                || object
+                    .values()
+                    .any(|value| contains_structured_unresolved_execute_alias(value, tools))
+        }
+        Value::Array(array) => array
+            .iter()
+            .any(|value| contains_structured_unresolved_execute_alias(value, tools)),
+        _ => false,
+    }
+}
+
 fn malformed_arguments_contain_unresolved_execute_alias(
     raw_arguments: &str,
     tools: &[Tool],
@@ -468,6 +486,8 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 .get("name")
                 .and_then(Value::as_str)
                 .filter(|name| contains_unresolved_execute_alias(name, tools));
+            let contains_structured_execute =
+                contains_structured_unresolved_execute_alias(&arguments_value, tools);
             if is_execute_compatibility {
                 if let Some(shell_call) =
                     maybe_convert_execute_to_shell_tool_call(raw_tool_name, &arguments_value, tools)
@@ -495,6 +515,8 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 } else {
                     rejected_execute = true;
                 }
+            } else if contains_structured_execute {
+                rejected_execute = true;
             }
         } else if is_execute_compatibility
             || malformed_arguments_contain_unresolved_execute_alias(raw_args, tools)
@@ -1638,6 +1660,80 @@ mod tests {
                 .and_then(Value::as_str),
             Some("functions.execute:0")
         );
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_execute_envelope_in_argument_array() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> [{\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}}] <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_execute_envelope_in_nested_arguments() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"payload\":{\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}}} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
+    #[test]
+    fn resolved_tool_accepts_nested_execute_shaped_arguments() {
+        let tools = vec![
+            Tool::new(
+                "workflow".to_string(),
+                "Run a workflow".to_string(),
+                serde_json::Map::new(),
+            ),
+            Tool::new(
+                "shell".to_string(),
+                "Shell command execution".to_string(),
+                serde_json::Map::new(),
+            ),
+        ];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.workflow:0 <|tool_call_argument_begin|> {\"payload\":[{\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}}]} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(!parsed.rejected_execute);
+        assert_eq!(parsed.calls.len(), 1);
+        assert_eq!(parsed.calls[0].name, "workflow");
+    }
+
+    #[test]
+    fn unresolved_header_does_not_reject_benign_nested_json() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {\"payload\":[{\"name\":\"transform\",\"arguments\":{\"value\":\"id\"}}]} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let parsed = parse_tokenized_tool_calls_with_status(content, &tools);
+
+        assert!(parsed.calls.is_empty());
+        assert!(!parsed.rejected_execute);
     }
 
     #[tokio::test]
