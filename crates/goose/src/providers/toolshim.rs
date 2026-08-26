@@ -408,11 +408,7 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 let args = call_body[json_start..].trim();
                 (name, args)
             } else {
-                let raw_tool_name = call_body.split_whitespace().next().unwrap_or(call_body);
-                let alias = normalized_tool_alias(raw_tool_name);
-                if resolve_tool_name(raw_tool_name, tools).is_none()
-                    && matches!(alias.as_str(), "execute" | "execute_code")
-                {
+                if contains_unresolved_execute_alias(call_body, tools) {
                     rejected_execute = true;
                 }
                 remainder = &after_begin[call_end_offset + TOOL_CALL_END.len()..];
@@ -1440,6 +1436,7 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: getCommand() });\"} <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\": <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> label functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
