@@ -177,6 +177,14 @@ fn normalized_tool_alias(raw_tool_name: &str) -> String {
         .to_ascii_lowercase()
 }
 
+fn contains_unresolved_execute_alias(raw_tool_header: &str, tools: &[Tool]) -> bool {
+    raw_tool_header.split_whitespace().any(|raw_tool_name| {
+        let alias = normalized_tool_alias(raw_tool_name);
+        resolve_tool_name(raw_tool_name, tools).is_none()
+            && matches!(alias.as_str(), "execute" | "execute_code")
+    })
+}
+
 fn decode_quoted_string(literal: &str) -> Option<String> {
     let quote = literal.chars().next()?;
     if !matches!(quote, '"' | '\'') || !literal.ends_with(quote) {
@@ -381,15 +389,7 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 .find(TOOL_CALL_ARGUMENT_BEGIN)
                 .or_else(|| after_begin.find('{'))
                 .unwrap_or(after_begin.len());
-            let contains_unresolved_execute =
-                after_begin[..name_end]
-                    .split_whitespace()
-                    .any(|raw_tool_name| {
-                        let alias = normalized_tool_alias(raw_tool_name);
-                        resolve_tool_name(raw_tool_name, tools).is_none()
-                            && matches!(alias.as_str(), "execute" | "execute_code")
-                    });
-            if contains_unresolved_execute {
+            if contains_unresolved_execute_alias(&after_begin[..name_end], tools) {
                 rejected_execute = true;
             }
             break;
@@ -420,9 +420,8 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
             };
 
         let resolved_tool_name = resolve_tool_name(raw_tool_name, tools);
-        let alias = normalized_tool_alias(raw_tool_name);
         let is_execute_compatibility =
-            resolved_tool_name.is_none() && matches!(alias.as_str(), "execute" | "execute_code");
+            resolved_tool_name.is_none() && contains_unresolved_execute_alias(raw_tool_name, tools);
 
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
             if let Some(tool_name) = resolved_tool_name {
@@ -1443,6 +1442,7 @@ mod tests {
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_end|> <|tool_calls_section_end|>",
             "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
             "<|tool_calls_section_begin|> <|tool_call_begin|> label functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"}",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> analysis:1 functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'pwd' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
         ];
 
         for content in rejected {
