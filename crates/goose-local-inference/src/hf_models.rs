@@ -827,7 +827,9 @@ fn filter_mlx_variants_for_current_platform(results: &mut [HfModelInfo]) {
     }
 
     for model in results {
-        model.variants.retain(|variant| variant.backend_id != MLX_BACKEND_ID);
+        model
+            .variants
+            .retain(|variant| variant.backend_id != MLX_BACKEND_ID);
     }
 }
 
