@@ -5,7 +5,7 @@ mod common_tests;
 use agent_client_protocol::schema::v1::{
     ContentBlock, ListSessionsRequest, ListSessionsResponse, NewSessionRequest, PromptRequest,
     SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest, StopReason, TextContent,
+    SetSessionConfigOptionRequest, SetSessionModeRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::{
@@ -133,6 +133,21 @@ async fn set_session_mode(
             session_id.to_string(),
             "mode".to_string(),
             SessionConfigOptionValue::value_id(mode.to_string()),
+        ))
+        .block_task()
+        .await
+        .map(|_| ())
+}
+
+async fn set_session_mode_legacy(
+    conn: &AcpServerConnection,
+    session_id: &str,
+    mode: &str,
+) -> Result<(), agent_client_protocol::Error> {
+    conn.cx()
+        .send_request(SetSessionModeRequest::new(
+            session_id.to_string(),
+            mode.to_string(),
         ))
         .block_task()
         .await
@@ -753,6 +768,11 @@ fn test_session_mutations_reject_internal_session_types_without_changes() {
                 .unwrap_err();
             assert_eq!(error.code, ErrorCode::ResourceNotFound);
 
+            let error = set_session_mode_legacy(&conn, &session.id, "approve")
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
             let error = update_working_dir(&conn, &session.id, replacement_dir.path())
                 .await
                 .unwrap_err();
@@ -799,6 +819,11 @@ fn test_session_mutations_reject_unknown_raw_type_including_same_path() {
 
         let conn = new_connection(data_root.path()).await;
         let error = set_session_mode(&conn, &session.id, "approve")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let error = set_session_mode_legacy(&conn, &session.id, "approve")
             .await
             .unwrap_err();
         assert_eq!(error.code, ErrorCode::ResourceNotFound);
@@ -863,7 +888,10 @@ fn test_session_mutations_allow_visible_persisted_session_types() {
 
         let conn = new_connection(data_root.path()).await;
         for session in visible_sessions {
-            set_session_mode(&conn, &session.id, "approve")
+            set_session_mode(&conn, &session.id, "smart_approve")
+                .await
+                .unwrap();
+            set_session_mode_legacy(&conn, &session.id, "approve")
                 .await
                 .unwrap();
             update_working_dir(&conn, &session.id, replacement_dir.path())
@@ -896,7 +924,10 @@ fn test_session_mutations_allow_active_client_created_hidden_session() {
         .await
         .unwrap();
 
-        set_session_mode(&conn, &session_id, "approve")
+        set_session_mode(&conn, &session_id, "smart_approve")
+            .await
+            .unwrap();
+        set_session_mode_legacy(&conn, &session_id, "approve")
             .await
             .unwrap();
         update_working_dir(&conn, &session_id, replacement_dir.path())

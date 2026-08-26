@@ -2477,6 +2477,8 @@ impl GooseAcpAgent {
         session_id: &str,
         mode_id: &str,
     ) -> Result<SetSessionModeResponse, agent_client_protocol::Error> {
+        self.ensure_session_access(session_id).await?;
+
         let mode = mode_id.parse::<GooseMode>().map_err(|_| {
             agent_client_protocol::Error::invalid_params()
                 .data(format!("Invalid mode: {}", mode_id))
