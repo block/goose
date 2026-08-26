@@ -123,76 +123,14 @@ fn replace_unparseable_vars_with_raw(
     Ok(result)
 }
 
-fn preprocess_empty_yaml_mapping_values(content: &str) -> String {
-    let empty_mapping_value =
-        Regex::new(r#"^([ \t]*(?:-[ \t]+)?[^#\r\n][^:\r\n]*:[ \t]*)""([ \t]*(?:#.*)?)$"#).unwrap();
-    let block_scalar_mapping =
-        Regex::new(r#"^[ \t]*(?:-[ \t]+)?[^#\r\n][^:\r\n]*:[ \t]*[|>][1-9+-]{0,2}[ \t]*(?:#.*)?$"#)
-            .unwrap();
-    let mut block_scalar_parent_indent = None;
-    let mut result = String::with_capacity(content.len());
-
-    for segment in content.split_inclusive('\n') {
-        let line_with_optional_carriage_return = segment.strip_suffix('\n').unwrap_or(segment);
-        let line = line_with_optional_carriage_return
-            .strip_suffix('\r')
-            .unwrap_or(line_with_optional_carriage_return);
-        let line_ending = if segment.ends_with("\r\n") {
-            "\r\n"
-        } else if segment.ends_with('\n') {
-            "\n"
-        } else {
-            ""
-        };
-        let indent = line
-            .bytes()
-            .take_while(|byte| matches!(byte, b' ' | b'\t'))
-            .count();
-
-        let inside_block_scalar = match block_scalar_parent_indent {
-            Some(parent_indent) if line.trim().is_empty() || indent > parent_indent => true,
-            Some(_) => {
-                block_scalar_parent_indent = None;
-                false
-            }
-            None => false,
-        };
-
-        if inside_block_scalar {
-            result.push_str(line);
-        } else {
-            let replaced = empty_mapping_value.replace(line, "$1''$2");
-            result.push_str(&replaced);
-            if block_scalar_mapping.is_match(line) {
-                let sequence_mapping_indent = line
-                    .get(indent..)
-                    .and_then(|content| content.strip_prefix('-'))
-                    .and_then(|rest| {
-                        let spacing = rest
-                            .bytes()
-                            .take_while(|byte| matches!(byte, b' ' | b'\t'))
-                            .count();
-                        (spacing > 0).then_some(indent + 1 + spacing)
-                    });
-                block_scalar_parent_indent = Some(sequence_mapping_indent.unwrap_or(indent));
-            }
-        }
-        result.push_str(line_ending);
-    }
-
-    result
-}
-
-fn preprocess_recipe_template(content: &str) -> Result<String> {
-    let content = preprocess_empty_yaml_mapping_values(content);
-    preprocess_template_variables(&content)
-}
-
 pub fn render_recipe_content_with_params(
     content: &str,
     params: &HashMap<String, String>,
 ) -> Result<String> {
-    let content_with_safe_variables = preprocess_recipe_template(content)?;
+    let empty_quotes = Regex::new(r#":\s*"""#).unwrap();
+    let content_with_empty_quotes_replaced = empty_quotes.replace_all(content, ": ''");
+    let content_with_safe_variables =
+        preprocess_template_variables(&content_with_empty_quotes_replaced)?;
 
     let env = add_template_in_env(
         &content_with_safe_variables,
@@ -309,7 +247,7 @@ pub(crate) fn parse_recipe_template(
     content: &str,
     recipe_dir: Option<String>,
 ) -> Result<ParsedRecipeTemplate> {
-    let preprocessed_content = preprocess_recipe_template(content)?;
+    let preprocessed_content = preprocess_template_variables(content)?;
 
     let (env, template_variables) = get_env_with_template_variables(
         &preprocessed_content,
@@ -340,10 +278,10 @@ pub(crate) fn parse_recipe_template(
 #[cfg(test)]
 mod tests {
     mod parse_recipe_content_tests {
-        use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+        use crate::recipe::{validate_recipe::validate_recipe_template_from_content, Recipe};
 
         #[test]
-        fn preserves_empty_string_examples_in_instructions() {
+        fn preserves_empty_string_json_in_instruction_block_scalar() {
             let content = r#"version: 1.0.0
 title: Empty string example
 description: Empty string example
@@ -353,12 +291,52 @@ instructions: |
   Example: ""
 "#;
 
+            let expected = Recipe::from_content(content).unwrap();
             let recipe = validate_recipe_template_from_content(content, None).unwrap();
 
-            assert_eq!(
-                recipe.instructions.as_deref(),
-                Some("Return this JSON unchanged:\n{\"value\": \"\"}\nExample: \"\"\n")
-            );
+            assert_eq!(recipe.instructions, expected.instructions);
+        }
+
+        #[test]
+        fn preserves_empty_string_in_bare_sequence_block_scalar() {
+            let content = r#"version: 1.0.0
+title: Activity empty string example
+description: Activity empty string example
+instructions: Keep activities unchanged
+activities:
+  - |
+    value: ""
+"#;
+
+            let expected = Recipe::from_content(content).unwrap();
+            let recipe = validate_recipe_template_from_content(content, None).unwrap();
+
+            assert_eq!(recipe.activities, expected.activities);
+        }
+
+        #[test]
+        fn preserves_empty_strings_in_multiline_quoted_instructions() {
+            let single_quoted = r#"version: 1.0.0
+title: Single quoted empty string example
+description: Single quoted empty string example
+instructions: 'Return:
+  value: ""
+  done'
+"#;
+            let double_quoted = r#"version: 1.0.0
+title: Double quoted empty string example
+description: Double quoted empty string example
+instructions: "Return:
+  value: \"\"
+  done"
+"#;
+
+            for content in [single_quoted, double_quoted] {
+                let expected = Recipe::from_content(content).unwrap();
+                let recipe = validate_recipe_template_from_content(content, None).unwrap();
+
+                assert_eq!(recipe.instructions, expected.instructions);
+            }
         }
     }
 
@@ -536,13 +514,6 @@ instructions: |
 prompt: ""
 name: "Simple Recipe"
 description: "A test recipe"
-instructions: |
-  Preserve {"value": ""}
-  Example: ""
-items:
-  - description: |
-      Preserve: ""
-    default: ""
 "#;
             let params = HashMap::from([("recipe_dir".to_string(), "test_dir".to_string())]);
             let result = render_recipe_content_with_params(content, &params).unwrap();
@@ -551,10 +522,6 @@ items:
             assert!(!result.contains(r#"prompt: "\"\"""#)); // Should not contain escaped quotes
 
             assert!(result.contains(r#"name: "Simple Recipe""#));
-            assert!(result.contains(r#"Preserve {"value": ""}"#));
-            assert!(result.contains(r#"Example: """#));
-            assert!(result.contains(r#"      Preserve: """#));
-            assert!(result.contains("    default: ''"));
         }
 
         #[test]
