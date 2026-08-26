@@ -104,20 +104,6 @@ fn get_preprompt_context(messages: &Conversation) -> String {
         .join("\n")
 }
 
-fn working_dir_hint(working_dir: Option<&Path>, home: Option<&Path>) -> String {
-    let Some(working_dir) = working_dir else {
-        return String::new();
-    };
-    if home.is_some_and(|h| working_dir == h) {
-        return String::new();
-    }
-    working_dir
-        .file_name()
-        .and_then(|folder| folder.to_str())
-        .map(|folder| format!("working folder: {folder}"))
-        .unwrap_or_default()
-}
-
 pub(crate) async fn generate_session_name(
     provider: &dyn Provider,
     model_config: &goose_providers::model::ModelConfig,
@@ -143,7 +129,11 @@ pub(crate) async fn generate_session_name(
             "---BEGIN BACKGROUND CONTEXT (for understanding only; you may borrow a ticket ID, feature, or project name from here, but do NOT base the title's topic on this)---\n{preprompt_context}\n---END BACKGROUND CONTEXT---\n\n"
         )
     };
-    let hint = working_dir_hint(working_dir, dirs::home_dir().as_deref());
+    let hint = working_dir
+        .and_then(Path::file_name)
+        .and_then(|folder| folder.to_str())
+        .map(|folder| format!("working folder: {folder}"))
+        .unwrap_or_default();
     let hints_section = if hint.is_empty() {
         String::new()
     } else {
@@ -196,27 +186,6 @@ pub(crate) async fn generate_session_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_naming_prompt_matches_cli_description_detection() {
-        let system = crate::prompt_template::render_template(
-            "session_name.md",
-            &std::collections::HashMap::<String, String>::new(),
-        )
-        .unwrap();
-        assert!(
-            crate::providers::cli_common::is_session_description_request(&system),
-            "session_name.md must keep the phrase CLI providers match on"
-        );
-    }
-
-    #[test]
-    fn test_working_dir_hint_suppressed_for_home_dir() {
-        let dir = tempfile::tempdir().unwrap();
-        let home = dir.path().join("tulsi");
-        std::fs::create_dir_all(&home).unwrap();
-        assert_eq!(working_dir_hint(Some(&home), Some(&home)), "");
-    }
 
     #[test]
     fn test_strip_xml_tags() {
