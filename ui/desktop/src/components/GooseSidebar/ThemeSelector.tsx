@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { useTheme } from '../../contexts/ThemeContext';
 import { defineMessages, useIntl } from '../../i18n';
 import { CATPPUCCIN_ACCENTS, CATPPUCCIN_THEME_IDS, isCatppuccinThemeId } from '../../theme/types';
-import { catppuccinFlavors, getCatppuccinPreview } from '../../theme/catppuccin';
+import { getCatppuccinPreview } from '../../theme/catppuccin';
 import type { CatppuccinAccent, CatppuccinThemeId } from '../../theme/types';
 
 const i18n = defineMessages({
@@ -234,13 +234,12 @@ const CatppuccinFlavorCard: React.FC<CatppuccinFlavorCardProps> = ({
   onSelect,
 }) => {
   const preview = getCatppuccinPreview(flavorId, accent);
-  const flavorName = catppuccinFlavors[flavorId].name;
 
   return (
     <button
       type="button"
       data-testid={`${flavorId}-theme-button`}
-      aria-label={flavorName}
+      aria-label={label}
       aria-pressed={selected}
       onClick={onSelect}
       className={`overflow-hidden rounded-md border text-left transition-colors ${

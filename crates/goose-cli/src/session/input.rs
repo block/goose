@@ -262,7 +262,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
                 .unwrap_or_default()
                 .trim()
                 .to_lowercase();
-            if super::output::CLI_THEME_NAMES.contains(&t.as_str()) {
+            if super::output::is_cli_theme_name(&t) {
                 Some(InputResult::SelectTheme(t))
             } else {
                 println!(
@@ -587,6 +587,11 @@ mod tests {
             assert_eq!(name, "latte");
         } else {
             panic!("Expected SelectTheme(latte)");
+        }
+        if let Some(InputResult::SelectTheme(name)) = handle_slash_command("/t catppuccin-mocha") {
+            assert_eq!(name, "catppuccin-mocha");
+        } else {
+            panic!("Expected SelectTheme(catppuccin-mocha)");
         }
         assert!(matches!(
             handle_slash_command("/t unknown-theme"),

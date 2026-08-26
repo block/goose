@@ -4,6 +4,7 @@ import type { GooseApp } from './types/apps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings } from './utils/settings';
 import type { OpenExternalUrlResult } from './utils/urlSecurity';
+import { isCatppuccinAccent, isThemeId } from './theme/types';
 
 // Mapping from settings keys to their old localStorage keys for lazy migration
 const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
@@ -23,13 +24,11 @@ function parseLocalStorageValue<K extends SettingKey>(
   try {
     switch (key) {
       case 'theme':
-        return (
-          rawValue === 'dark' || rawValue === 'light' || rawValue === 'aura' ? rawValue : null
-        ) as Settings[K];
+        return (isThemeId(rawValue) ? rawValue : null) as Settings[K];
       case 'useSystemTheme':
         return (rawValue === 'true') as unknown as Settings[K];
       case 'catppuccinAccent':
-        return rawValue as Settings[K];
+        return (isCatppuccinAccent(rawValue) ? rawValue : null) as Settings[K];
       case 'responseStyle':
         return rawValue as Settings[K];
       case 'showPricing':
@@ -159,9 +158,9 @@ type ElectronAPI = {
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
   broadcastThemeChange: (themeData: {
-    mode: string;
-    useSystemTheme: boolean;
-    theme: string;
+    mode?: string;
+    useSystemTheme?: boolean;
+    theme?: string;
     catppuccinAccent?: string;
     tokensUpdated?: boolean;
   }) => void;
@@ -300,9 +299,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.emit(channel, ...args);
   },
   broadcastThemeChange: (themeData: {
-    mode: string;
-    useSystemTheme: boolean;
-    theme: string;
+    mode?: string;
+    useSystemTheme?: boolean;
+    theme?: string;
     catppuccinAccent?: string;
     tokensUpdated?: boolean;
   }) => {
