@@ -1225,14 +1225,17 @@ impl GooseAcpAgent {
         agent: Arc<Agent>,
         client_created: bool,
     ) {
+        let mut sessions = self.sessions.lock().await;
+        let client_created = client_created
+            || sessions
+                .get(&session_id)
+                .is_some_and(|session| session.client_created);
         let acp_session = GooseAcpSession {
             agent: agent.clone(),
             client_created,
         };
-        self.sessions
-            .lock()
-            .await
-            .insert(session_id.clone(), acp_session);
+        sessions.insert(session_id.clone(), acp_session);
+        drop(sessions);
         self.subscribe_thinking_effort_updates(&session_id, &agent)
             .await;
     }

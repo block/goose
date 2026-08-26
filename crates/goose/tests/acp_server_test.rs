@@ -935,6 +935,9 @@ fn test_session_mutations_allow_active_client_created_hidden_session() {
         )
         .await
         .unwrap();
+        load_session(&conn, &session_id, working_dir.path())
+            .await
+            .unwrap();
 
         set_session_mode(&conn, &session_id, "smart_approve")
             .await
