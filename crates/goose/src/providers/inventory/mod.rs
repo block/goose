@@ -971,6 +971,10 @@ pub fn declarative_inventory_identity(
         "skip_canonical_filtering".to_string(),
         config.skip_canonical_filtering.to_string(),
     );
+    identity.public_inputs.insert(
+        "toolshim".to_string(),
+        (config.toolshim || crate::model_config::global_toolshim()).to_string(),
+    );
     if !config.models.is_empty() {
         identity.public_inputs.insert(
             "models".to_string(),

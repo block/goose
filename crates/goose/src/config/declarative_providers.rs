@@ -575,6 +575,24 @@ mod tests {
     }
 
     #[test]
+    fn toolshim_changes_declarative_inventory_identity() {
+        let _guard = env_lock::lock_env([("GOOSE_TOOLSHIM", None::<&str>)]);
+        let mut config = test_huggingface_config();
+
+        let native = declarative_inventory_identity(&config)
+            .unwrap()
+            .into_identity()
+            .unwrap();
+        config.toolshim = true;
+        let toolshim = declarative_inventory_identity(&config)
+            .unwrap()
+            .into_identity()
+            .unwrap();
+
+        assert_ne!(native.inventory_key, toolshim.inventory_key);
+    }
+
+    #[test]
     fn huggingface_inventory_allows_unauthenticated_custom_provider() {
         let mut config = test_huggingface_config();
         config.requires_auth = false;
