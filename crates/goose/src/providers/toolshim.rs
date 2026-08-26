@@ -34,8 +34,8 @@
 use super::local_inference::LOCAL_LLM_MODEL_CONFIG_KEY;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::conversation::Conversation;
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
 use anyhow::Result;
@@ -44,8 +44,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{CallToolRequestParams, ContentBlock, Tool, object};
-use serde_json::{Value, json};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
+use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -208,7 +208,11 @@ fn malformed_arguments_contain_unresolved_execute_alias(
         if contains_unresolved_execute_alias(non_json_prefix, tools) {
             return true;
         }
-        if prefix_end == 0 || prefix_end == remainder.len() {
+        if prefix_end == 0 {
+            remainder = remainder.strip_prefix('{').unwrap_or_default().trim_start();
+            continue;
+        }
+        if prefix_end == remainder.len() {
             return false;
         }
         remainder = json_suffix;
@@ -1451,12 +1455,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(
-            augmented
-                .content
-                .iter()
-                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
-        );
+        assert!(augmented
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
         assert!(!augmented.as_concat_text().contains("<|tool_call_begin|>"));
     }
 
@@ -1505,6 +1507,24 @@ mod tests {
         )];
         let message = Message::assistant().with_text(
             "<|tool_calls_section_begin|> <|tool_call_begin|> shell:functions.execute:0 <|tool_call_argument_begin|> {\"command\":\"id\"} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+
+        assert!(augmented.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn augment_rejects_execute_alias_after_malformed_opening_brace() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> label <|tool_call_argument_begin|> {] functions.execute:0 {\"name\":\"shell\",\"arguments\":{\"command\":\"id\"}}} <|tool_call_end|> <|tool_calls_section_end|>",
         );
 
         let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
@@ -1565,12 +1585,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(
-            augmented
-                .content
-                .iter()
-                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
-        );
+        assert!(augmented
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
     }
 
     // ── Regression tests: malformed marker leakage ──────────────────────
