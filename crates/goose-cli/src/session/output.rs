@@ -67,6 +67,24 @@ pub const CLI_THEME_NAMES: &[&str] = &[
     "mocha",
 ];
 
+pub fn is_cli_theme_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "light"
+            | "dark"
+            | "ansi"
+            | "latte"
+            | "frappe"
+            | "frappé"
+            | "macchiato"
+            | "mocha"
+            | "catppuccin-latte"
+            | "catppuccin-frappe"
+            | "catppuccin-macchiato"
+            | "catppuccin-mocha"
+    )
+}
+
 impl Theme {
     fn as_str(&self) -> String {
         match self {
@@ -1817,5 +1835,8 @@ mod tests {
         assert_eq!(Theme::from_config_str("dark"), Theme::Dark);
         assert_eq!(Theme::from_config_str("ansi"), Theme::Ansi);
         assert!(CLI_THEME_NAMES.contains(&"mocha"));
+        assert!(is_cli_theme_name("catppuccin-mocha"));
+        assert!(is_cli_theme_name("frappé"));
+        assert!(!is_cli_theme_name("unknown-theme"));
     }
 }

@@ -105,13 +105,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       console.warn('[ThemeContext] Failed to save theme settings:', error);
     }
 
+    // Theme-only: a newer accent can save+broadcast while these writes are in flight.
     window.electron?.broadcastThemeChange({
       mode: themes[resolvedId].variant,
       useSystemTheme: preference === 'system',
       theme: resolvedId,
-      catppuccinAccent,
     });
-  }, [catppuccinAccent]);
+  }, []);
 
   const setCatppuccinAccent = useCallback(async (accent: CatppuccinAccent) => {
     setCatppuccinAccentState(accent);
@@ -123,12 +123,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
 
     window.electron?.broadcastThemeChange({
-      mode: themes[resolvedThemeId].variant,
-      useSystemTheme: userThemePreference === 'system',
-      theme: resolvedThemeId,
       catppuccinAccent: accent,
     });
-  }, [resolvedThemeId, userThemePreference]);
+  }, []);
 
   // Listen for system theme changes when preference is 'system'
   useEffect(() => {
@@ -150,29 +147,33 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
       const themeData = args[0] as {
-        useSystemTheme: boolean;
-        theme: ThemeId;
+        useSystemTheme?: boolean;
+        theme?: ThemeId;
         catppuccinAccent?: CatppuccinAccent;
       };
-      const newPreference: ThemePreference = themeData.useSystemTheme
-        ? 'system'
-        : isThemeId(themeData.theme)
-          ? themeData.theme
-          : 'light';
+      const hasThemeUpdate =
+        typeof themeData.useSystemTheme === 'boolean' || isThemeId(themeData.theme);
 
-      setUserThemePreferenceState(newPreference);
-      setResolvedThemeId(resolveThemeId(newPreference));
+      if (hasThemeUpdate) {
+        const newPreference: ThemePreference = themeData.useSystemTheme
+          ? 'system'
+          : isThemeId(themeData.theme)
+            ? themeData.theme
+            : 'light';
+
+        setUserThemePreferenceState(newPreference);
+        setResolvedThemeId(resolveThemeId(newPreference));
+
+        if (newPreference === 'system') {
+          window.electron.setSetting('useSystemTheme', true);
+        } else {
+          window.electron.setSetting('useSystemTheme', false);
+          window.electron.setSetting('theme', newPreference);
+        }
+      }
+
       if (isCatppuccinAccent(themeData.catppuccinAccent)) {
         setCatppuccinAccentState(themeData.catppuccinAccent);
-      }
-
-      if (newPreference === 'system') {
-        window.electron.setSetting('useSystemTheme', true);
-      } else {
-        window.electron.setSetting('useSystemTheme', false);
-        window.electron.setSetting('theme', newPreference);
-      }
-      if (isCatppuccinAccent(themeData.catppuccinAccent)) {
         window.electron.setSetting('catppuccinAccent', themeData.catppuccinAccent);
       }
     };
