@@ -2320,19 +2320,6 @@ impl ExtensionManager {
                 });
             }
 
-            if let Some((prefix, actual)) = name.split_once("__") {
-                let owner = name_to_key(prefix);
-                if let Some(client) = self.get_server_client(&owner).await {
-                    return Ok(ResolvedTool {
-                        extension_name: owner,
-                        actual_tool_name: actual.to_string(),
-                        client,
-                        tool_meta: None,
-                        resource_uri: None,
-                    });
-                }
-            }
-
             if !recovery_attempted {
                 recovery_attempted = true;
                 let owners: Vec<(&str, Option<String>)> = tools
@@ -2996,9 +2983,8 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" | "available_tool" | "hidden_tool" | "render_chart" => {
-                    Ok(CallToolResult::success(vec![]))
-                }
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" | "render_chart"
+                | "unadvertised_tool" => Ok(CallToolResult::success(vec![])),
                 _ => Err(Error::TransportClosed),
             }
         }
@@ -3788,6 +3774,29 @@ mod tests {
             .expect("unprefixed extension namespace mangling should resolve");
         assert_eq!(resolved.actual_tool_name, "tool");
         assert_eq!(resolved.extension_name, "developer");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_rejects_unadvertised_tool_implemented_by_extension() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let ctx = ToolCallContext::new("test-session-id".to_string(), None, None);
+        let tool_call = CallToolRequestParams::new("test_client__unadvertised_tool".to_string());
+
+        let err = match extension_manager
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
+            .await
+        {
+            Ok(_) => panic!("an unadvertised tool must not be dispatched"),
+            Err(err) => err,
+        };
+
+        assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
     }
 
     #[test]
