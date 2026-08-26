@@ -13,7 +13,7 @@ use crate::base::{
 };
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
-use crate::formats::openai::is_openai_responses_model;
+use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
 use crate::model::ModelConfig;
 use crate::openai::{OpenAiProvider, OpenAiProviderBuilder};
 use crate::openai_compatible::{handle_response_openai_compat, OpenAiCompatibleProvider};
@@ -391,6 +391,19 @@ fn model_info_for_deployment(deployment_name: &str, model_name: &str) -> ModelIn
                 "azure_foundry",
                 &model_name.to_ascii_lowercase(),
             )
+        })
+        .or_else(|| {
+            let (base_model, effort) = extract_reasoning_effort(model_name);
+            effort.and_then(|_| {
+                crate::canonical::maybe_get_canonical_model("azure_foundry", &base_model).or_else(
+                    || {
+                        crate::canonical::maybe_get_canonical_model(
+                            "azure_foundry",
+                            &base_model.to_ascii_lowercase(),
+                        )
+                    },
+                )
+            })
         });
     ModelInfo {
         name: deployment_name.to_string(),
