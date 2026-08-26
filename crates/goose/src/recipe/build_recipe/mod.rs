@@ -1,6 +1,7 @@
 use crate::recipe::read_recipe_file_content::read_parameter_file_content;
-use crate::recipe::template_recipe::render_recipe_content_with_params;
-use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+use crate::recipe::validate_recipe::{
+    validate_recipe_non_parameter_invariants, validate_recipe_template,
+};
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
@@ -28,15 +29,14 @@ where
 {
     let recipe_dir_str = recipe_dir.display().to_string();
 
-    let recipe_parameters =
-        validate_recipe_template_from_content(&recipe_content, Some(recipe_dir_str.clone()))?
-            .parameters;
+    let validated_recipe = validate_recipe_template(&recipe_content, Some(recipe_dir_str.clone()))?;
+    let recipe_parameters = validated_recipe.recipe().parameters.clone();
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, &recipe_dir_str, user_prompt_fn)?;
 
     let rendered_content = if missing_params.is_empty() {
-        render_recipe_content_with_params(&recipe_content, &params_for_template)?
+        validated_recipe.render(&params_for_template)?
     } else {
         String::new()
     };
@@ -64,6 +64,8 @@ where
     }
 
     let mut recipe = Recipe::from_content(&rendered_content)
+        .map_err(|source| RecipeError::Invalid { source })?;
+    validate_recipe_non_parameter_invariants(&recipe)
         .map_err(|source| RecipeError::Invalid { source })?;
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {

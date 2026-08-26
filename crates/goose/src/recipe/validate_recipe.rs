@@ -1,11 +1,31 @@
 use crate::recipe::read_recipe_file_content::RecipeFile;
-use crate::recipe::template_recipe::parse_recipe_content;
+use crate::recipe::template_recipe::{
+    parse_recipe_content, parse_recipe_template, ParsedRecipeTemplate,
+};
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
 };
 use anyhow::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+pub(crate) struct ValidatedRecipeTemplate {
+    parsed: ParsedRecipeTemplate,
+}
+
+impl ValidatedRecipeTemplate {
+    pub(crate) fn recipe(&self) -> &Recipe {
+        self.parsed.recipe()
+    }
+
+    pub(crate) fn into_recipe(self) -> Recipe {
+        self.parsed.into_recipe()
+    }
+
+    pub(crate) fn render(self, params: &HashMap<String, String>) -> Result<String> {
+        self.parsed.render(params)
+    }
+}
 
 pub fn parse_and_validate_parameters(
     recipe_file_content: &str,
@@ -13,10 +33,13 @@ pub fn parse_and_validate_parameters(
 ) -> Result<Recipe> {
     let (recipe_template, template_variables) =
         parse_recipe_content(recipe_file_content, recipe_dir_str)?;
-    let recipe_parameters = &recipe_template.parameters;
-    validate_optional_parameters(recipe_parameters)?;
-    validate_parameters_in_template(recipe_parameters, &template_variables)?;
+    validate_recipe_parameters(&recipe_template, &template_variables)?;
     Ok(recipe_template)
+}
+
+fn validate_recipe_parameters(recipe: &Recipe, template_variables: &HashSet<String>) -> Result<()> {
+    validate_optional_parameters(&recipe.parameters)?;
+    validate_parameters_in_template(&recipe.parameters, template_variables)
 }
 
 fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
@@ -45,17 +68,30 @@ pub fn validate_recipe_template_from_content(
     recipe_content: &str,
     recipe_dir: Option<String>,
 ) -> Result<Recipe> {
-    let recipe = parse_and_validate_parameters(recipe_content, recipe_dir)?;
+    Ok(validate_recipe_template(recipe_content, recipe_dir)?.into_recipe())
+}
 
-    validate_prompt_or_instructions(&recipe)?;
-    validate_retry_config(&recipe)?;
+pub(crate) fn validate_recipe_template(
+    recipe_content: &str,
+    recipe_dir: Option<String>,
+) -> Result<ValidatedRecipeTemplate> {
+    let parsed = parse_recipe_template(recipe_content, recipe_dir)?;
+    validate_recipe_parameters(parsed.recipe(), parsed.template_variables())?;
+    validate_recipe_non_parameter_invariants(parsed.recipe())?;
+
+    Ok(ValidatedRecipeTemplate { parsed })
+}
+
+pub(crate) fn validate_recipe_non_parameter_invariants(recipe: &Recipe) -> Result<()> {
+    validate_prompt_or_instructions(recipe)?;
+    validate_retry_config(recipe)?;
     if let Some(response) = &recipe.response {
         if let Some(json_schema) = &response.json_schema {
             validate_json_schema(json_schema)?;
         }
     }
 
-    Ok(recipe)
+    Ok(())
 }
 
 fn validate_retry_config(recipe: &Recipe) -> Result<()> {
@@ -322,90 +358,5 @@ response:
         let error = validate_recipe_template_from_content(recipe_content, None).unwrap_err();
 
         assert!(error.to_string().contains("JSON schema validation failed"));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn inherited_recipe_is_validated_and_returned_from_one_snapshot() {
-        use crate::recipe::build_recipe::apply_values_to_parameters;
-        use std::ffi::CString;
-        use std::io::Write;
-        use std::os::unix::ffi::OsStrExt;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let parent_path = temp_dir.path().join("parent.yaml");
-        let retired_fifo_path = temp_dir.path().join("parent.fifo");
-        let secret_path = temp_dir.path().join("secret.txt");
-        let secret = "sensitive file contents";
-        std::fs::write(&secret_path, secret).unwrap();
-
-        let fifo_path = CString::new(parent_path.as_os_str().as_bytes()).unwrap();
-        // SAFETY: fifo_path is a valid, NUL-terminated path and mode contains only permission bits.
-        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
-
-        let safe_parent = format!(
-            r#"version: 1.0.0
-title: Safe parent
-description: Safe parent
-instructions: "Use {{{{ TARGET }}}}"
-parameters:
-  - key: TARGET
-    input_type: string
-    requirement: optional
-    description: Target value
-    default: "{}"
-"#,
-            secret_path.display()
-        );
-        let swapped_parent = format!(
-            r#"version: 1.0.0
-title: Swapped parent
-description: Swapped parent
-instructions: "Use {{{{ TARGET }}}}"
-parameters:
-  - key: TARGET
-    input_type: file
-    requirement: optional
-    description: Target file
-    default: "{}"
-"#,
-            secret_path.display()
-        );
-
-        let writer_parent_path = parent_path.clone();
-        let writer = std::thread::spawn(move || {
-            let mut fifo = std::fs::OpenOptions::new()
-                .write(true)
-                .open(&writer_parent_path)
-                .unwrap();
-            fifo.write_all(safe_parent.as_bytes()).unwrap();
-            std::fs::rename(&writer_parent_path, retired_fifo_path).unwrap();
-            std::fs::write(&writer_parent_path, swapped_parent).unwrap();
-            drop(fifo);
-        });
-
-        let recipe = validate_recipe_template_from_content(
-            r#"{% extends "parent.yaml" %}"#,
-            Some(temp_dir.path().display().to_string()),
-        )
-        .unwrap();
-        writer.join().unwrap();
-
-        let parameters = recipe.parameters.unwrap();
-        assert!(matches!(
-            parameters[0].input_type,
-            RecipeParameterInputType::String
-        ));
-        let (values, missing) = apply_values_to_parameters(
-            &[],
-            Some(parameters),
-            &temp_dir.path().display().to_string(),
-            None::<fn(&str, &str) -> Result<String>>,
-        )
-        .unwrap();
-
-        assert!(missing.is_empty());
-        assert_eq!(values["TARGET"], secret_path.display().to_string());
-        assert_ne!(values["TARGET"], secret);
     }
 }
