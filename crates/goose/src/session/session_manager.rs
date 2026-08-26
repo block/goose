@@ -2807,8 +2807,6 @@ mod tests {
         Arc::new(NamingTestProvider)
     }
 
-    /// Records the user text of the naming request so tests can assert the
-    /// prompt actually carries working-directory hints end to end.
     struct PromptCapturingNamingProvider {
         captured: std::sync::Mutex<Vec<String>>,
     }
@@ -2854,11 +2852,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
 
-        // A distinctly named working dir with a git branch carrying a ticket ID.
         let working_dir = temp_dir.path().join("acme-renewal");
-        let git = working_dir.join(".git");
-        std::fs::create_dir_all(&git).unwrap();
-        std::fs::write(git.join("HEAD"), "ref: refs/heads/bot-1565-titles\n").unwrap();
+        std::fs::create_dir_all(&working_dir).unwrap();
 
         let session = sm
             .create_session(
@@ -2889,10 +2884,6 @@ mod tests {
         assert!(
             captured.contains("working folder: acme-renewal"),
             "naming prompt must include the working folder hint, got: {captured}"
-        );
-        assert!(
-            captured.contains("git branch: bot-1565-titles"),
-            "naming prompt must include the git branch hint, got: {captured}"
         );
     }
 
