@@ -476,6 +476,13 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                 } else {
                     rejected_execute = true;
                 }
+            } else if let Some(tool_name) = resolved_tool_name {
+                if arguments_value.is_object() {
+                    calls.push(
+                        CallToolRequestParams::new(tool_name)
+                            .with_arguments(object(arguments_value.clone())),
+                    );
+                }
             } else if let Some(structured_execute_name) = structured_execute_name {
                 if let Some(shell_call) = arguments_value.get("arguments").and_then(|arguments| {
                     maybe_convert_execute_to_shell_tool_call(
@@ -487,13 +494,6 @@ fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> Toke
                     calls.push(shell_call);
                 } else {
                     rejected_execute = true;
-                }
-            } else if let Some(tool_name) = resolved_tool_name {
-                if arguments_value.is_object() {
-                    calls.push(
-                        CallToolRequestParams::new(tool_name)
-                            .with_arguments(object(arguments_value.clone())),
-                    );
                 }
             }
         } else if is_execute_compatibility
@@ -1597,6 +1597,47 @@ mod tests {
             .content
             .iter()
             .any(|content| matches!(content, MessageContent::ToolRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn augment_preserves_resolved_tool_with_execute_shaped_arguments() {
+        let tools = vec![
+            Tool::new(
+                "workflow".to_string(),
+                "Run a workflow".to_string(),
+                serde_json::Map::new(),
+            ),
+            Tool::new(
+                "shell".to_string(),
+                "Shell command execution".to_string(),
+                serde_json::Map::new(),
+            ),
+        ];
+        let message = Message::assistant().with_text(
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.workflow:0 <|tool_call_argument_begin|> {\"name\":\"functions.execute:0\",\"arguments\":{\"code\":\"Developer.shell({ command: 'id' })\"}} <|tool_call_end|> <|tool_calls_section_end|>",
+        );
+
+        let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+            .await
+            .unwrap();
+        let tool_call = augmented
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::ToolRequest(request) => request.tool_call.as_ref().ok(),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(tool_call.name, "workflow");
+        assert_eq!(
+            tool_call
+                .arguments
+                .as_ref()
+                .and_then(|arguments| arguments.get("name"))
+                .and_then(Value::as_str),
+            Some("functions.execute:0")
+        );
     }
 
     #[tokio::test]
