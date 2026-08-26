@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "正在导入..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "包含 ACP 会话"
   },
   "sessions.loadingMore": {
     "defaultMessage": "正在加载更多会话…"

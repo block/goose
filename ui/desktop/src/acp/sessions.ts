@@ -135,9 +135,11 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
 
 export interface SessionListFilter {
   keyword?: string;
+  includeAcp?: boolean;
 }
 
 const SESSION_LIST_TYPES = ['user', 'scheduled'] as const;
+const SESSION_LIST_TYPES_WITH_ACP = ['user', 'scheduled', 'acp'] as const;
 
 export async function acpListSessions(
   cursor?: string | null,
@@ -148,7 +150,9 @@ export async function acpListSessions(
   if (cursor) {
     request.cursor = cursor;
   }
-  const meta: Record<string, unknown> = { types: SESSION_LIST_TYPES };
+  const meta: Record<string, unknown> = {
+    types: filter?.includeAcp ? SESSION_LIST_TYPES_WITH_ACP : SESSION_LIST_TYPES,
+  };
   const keyword = filter?.keyword?.trim();
   if (keyword) {
     meta.query = keyword;

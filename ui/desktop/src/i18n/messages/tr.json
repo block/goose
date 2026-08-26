@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "İçe aktarılıyor..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "ACP oturumlarını dahil et"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Daha fazla oturum yükleniyor..."

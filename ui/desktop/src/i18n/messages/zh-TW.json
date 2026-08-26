@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "串流中"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "正在匯入…"
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "包含 ACP 工作階段"
   },
   "sessions.loadingMore": {
     "defaultMessage": "正在載入更多工作階段…"

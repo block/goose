@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Elimina sessione"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "Importazione in corso..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "Includi sessioni ACP"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Caricamento di altre sessioni..."

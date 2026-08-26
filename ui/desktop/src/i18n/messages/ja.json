@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "インポート中..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "ACP セッションを含める"
   },
   "sessions.loadingMore": {
     "defaultMessage": "さらにセッションを読み込み中..."

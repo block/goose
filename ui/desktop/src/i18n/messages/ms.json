@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "Mengimport..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "Sertakan sesi ACP"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Memuatkan lebih banyak sesi..."
