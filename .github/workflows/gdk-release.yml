@@ -1,73 +1,15 @@
 name: Publish GDK
 
 on:
-  push:
-    tags:
-      - "gdk-v*"
+  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: gdk-release-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  validate-version:
-    name: Validate package versions
+  register-workflow:
+    name: Register GDK release workflow
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.value }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Read version from tag
-        id: version
-        shell: bash
-        run: echo "value=${GITHUB_REF_NAME#gdk-v}" >> "$GITHUB_OUTPUT"
-
-      - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
-
-      - name: Validate package versions
-        run: just --justfile crates/goose-sdk/justfile check-version "${{ steps.version.outputs.value }}"
-
-  crates-io:
-    name: Publish Rust crates
-    needs: validate-version
-    runs-on: ubuntu-latest
-    environment: crates-io
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
-
-      - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
-
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: just --justfile crates/goose-sdk/justfile crates-publish false
-
-  maven-central:
-    name: Publish Maven package
-    needs: validate-version
-    permissions:
-      contents: read
-    uses: ./.github/workflows/maven-sdk.yml
-    with:
-      publish: true
-
-  pypi:
-    name: Publish Python wheels
-    needs: validate-version
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/python-sdk-wheels.yml
-    with:
-      publish: true
+      - name: No-op
+        run: echo "Registering the GDK release workflow before enabling manual dispatch"
