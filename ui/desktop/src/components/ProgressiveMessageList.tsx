@@ -1,17 +1,18 @@
 /**
  * ProgressiveMessageList Component
  *
- * A performance-optimized message list that renders messages progressively
- * to prevent UI blocking when loading long chat sessions. This component
- * renders messages in batches with a loading indicator, maintaining full
- * compatibility with the search functionality.
+ * A performance-optimized message list that renders messages from the end
+ * (newest messages first) and loads older messages on scroll to top.
+ * This prevents UI blocking when loading long chat sessions and ensures
+ * the user sees the most recent messages immediately.
  *
  * Key Features:
- * - Progressive rendering in configurable batches
- * - Loading indicator during batch processing
- * - Maintains search functionality compatibility
+ * - Renders newest messages first (last N messages)
+ * - Loads older messages when scrolling to top
+ * - Preserves scroll position when prepending older messages
+ * - "Load all" on Cmd/Ctrl+F for search
  * - Smooth user experience with responsive UI
- * - Configurable batch size and delay
+ * - Configurable batch size
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,7 +41,15 @@ import { getModelDisplayName } from './settings/models/predefinedModelsUtils';
 const i18n = defineMessages({
   loadingMessages: {
     id: 'progressiveMessageList.loadingMessages',
-    defaultMessage: 'Loading messages... ({renderedCount}/{totalCount})',
+    defaultMessage: 'Loading messages...',
+  },
+  loadOlder: {
+    id: 'progressiveMessageList.loadOlder',
+    defaultMessage: 'Load {count} older messages',
+  },
+  loadAll: {
+    id: 'progressiveMessageList.loadAll',
+    defaultMessage: 'Load all {count} messages',
   },
   searchHint: {
     id: 'progressiveMessageList.searchHint',
@@ -48,7 +57,7 @@ const i18n = defineMessages({
   },
   modelChanged: {
     id: 'progressiveMessageList.modelChanged',
-    defaultMessage: 'Model changed: {previousModel} → {currentModel}',
+    defaultMessage: 'Model changed: {previousModel} \u2192 {currentModel}',
   },
 });
 
@@ -59,8 +68,7 @@ interface ProgressiveMessageListProps {
   append?: (value: string) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
   batchSize?: number;
-  batchDelay?: number;
-  showLoadingThreshold?: number; // Only show loading if more than X messages
+  showLoadingThreshold?: number; // Only use windowed rendering if more than X messages
   // Custom render function for messages
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
@@ -70,7 +78,7 @@ interface ProgressiveMessageListProps {
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
   ) => void;
-  onRenderingComplete?: () => void; // Callback when all messages are rendered
+  onRenderingComplete?: () => void; // Callback when initial rendering is done
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -83,25 +91,204 @@ export default function ProgressiveMessageList({
   toolCallNotifications = new Map(),
   append = () => {},
   isUserMessage,
-  batchSize = 20,
-  batchDelay = 20,
+  batchSize = 30,
   showLoadingThreshold = 50,
-  renderMessage, // Custom render function
-  isStreamingMessage = false, // Whether messages are currently being streamed
+  renderMessage,
+  isStreamingMessage = false,
   onMessageUpdate,
   onRenderingComplete,
   submitElicitationResponse,
 }: ProgressiveMessageListProps) {
   const intl = useIntl();
-  const [renderedCount, setRenderedCount] = useState(() => {
-    // Initialize with either all messages (if small) or first batch (if large)
-    return messages.length <= showLoadingThreshold
-      ? messages.length
-      : Math.min(batchSize, messages.length);
-  });
-  const [isLoading, setIsLoading] = useState(() => messages.length > showLoadingThreshold);
-  const timeoutRef = useRef<number | null>(null);
-  const mountedRef = useRef(true);
+
+  // For short lists, show all messages from the start.
+  // For long lists, start from the end (show newest messages).
+  const isShortList = messages.length <= showLoadingThreshold;
+
+  // Index of the first message to render (0 = show all from beginning).
+  // For long lists we start from the end.
+  const [visibleStartIndex, setVisibleStartIndex] = useState(() =>
+    isShortList ? 0 : Math.max(0, messages.length - showLoadingThreshold)
+  );
+
+  const loadingOlderRef = useRef(false);
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollRestoreRef = useRef<{
+    oldScrollHeight: number;
+    oldScrollTop: number;
+  } | null>(null);
+  // Track previous message length to detect additions/removals
+  const prevMessagesLengthRef = useRef(messages.length);
+  // Global search listener ref (to avoid stale closure over visibleStartIndex)
+  const visibleStartIndexRef = useRef(visibleStartIndex);
+  visibleStartIndexRef.current = visibleStartIndex;
+
+  // Find the scrollable viewport (Radix scroll-area viewport) on mount
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    // Walk up to find the scrollable parent
+    let el: HTMLElement | null = sentinel.parentElement;
+    while (el) {
+      if (el.classList.contains('radix-scroll-area-viewport')) {
+        viewportRef.current = el;
+        return;
+      }
+      // Fallback: check if this element is scrollable
+      if (el.scrollHeight > el.clientHeight) {
+        const style = getComputedStyle(el);
+        if (style.overflow === 'auto' || style.overflowY === 'scroll' || style.overflow === 'scroll') {
+          viewportRef.current = el;
+          return;
+        }
+      }
+      el = el.parentElement;
+    }
+  }, []);
+
+  // Call onRenderingComplete when messages are first loaded, so BaseChat
+  // can auto-scroll to the bottom to show the most recent messages.
+  useEffect(() => {
+    if (!onRenderingComplete) return;
+    if (messages.length === 0) return;
+    const timer = setTimeout(() => onRenderingComplete(), 50);
+    return () => clearTimeout(timer);
+    // Re-fire only when messages go from empty to non-empty
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length > 0]);
+
+  // IntersectionObserver: detect when user scrolls near the top → load older messages
+  useEffect(() => {
+    if (isShortList || visibleStartIndex === 0 || loadingOlderRef.current) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          // Load more older messages (guard against rapid re-triggering)
+          if (loadingOlderRef.current) return;
+          loadingOlderRef.current = true;
+          setVisibleStartIndex((prev: number) => {
+            if (prev <= 0) {
+              loadingOlderRef.current = false;
+              return 0;
+            }
+            const viewport = viewportRef.current;
+            pendingScrollRestoreRef.current = {
+              oldScrollHeight: viewport?.scrollHeight ?? 0,
+              oldScrollTop: viewport?.scrollTop ?? 0,
+            };
+            return Math.max(0, prev - batchSize);
+          });
+        }
+      },
+      { rootMargin: '300px 0px 0px 0px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isShortList, visibleStartIndex, batchSize]);
+
+  // After rendering with updated visibleStartIndex, restore scroll position
+  // so prepended content doesn't jolt the viewport.
+  useEffect(() => {
+    const pending = pendingScrollRestoreRef.current;
+    if (!pending) return;
+    pendingScrollRestoreRef.current = null;
+
+    // Reset loading guard after render completes
+    loadingOlderRef.current = false;
+
+    // Find the viewport again (it may have been remounted)
+    const viewport = viewportRef.current;
+    if (viewport && pending.oldScrollHeight > 0) {
+      const newScrollHeight = viewport.scrollHeight;
+      const heightDiff = newScrollHeight - pending.oldScrollHeight;
+      if (heightDiff > 0) {
+        viewport.scrollTop = pending.oldScrollTop + heightDiff;
+      }
+    }
+  }, [visibleStartIndex]);
+
+  // When messages length changes (streaming, truncation, or initial load), adjust window
+  useEffect(() => {
+    if (isShortList) {
+      setVisibleStartIndex(0);
+      return;
+    }
+
+    // If messages just arrived (jumped from empty to many) and we're showing from index 0
+    // but there are more messages than the threshold, switch to showing only the last ones.
+    // During streaming we don't adjust — keep showing all messages.
+    if (visibleStartIndex === 0 && messages.length > showLoadingThreshold && prevMessagesLengthRef.current === 0) {
+      setVisibleStartIndex(messages.length - showLoadingThreshold);
+      return;
+    }
+
+    // If all messages are already visible, keep showing all
+    if (visibleStartIndex === 0) return;
+
+    // If messages were removed (truncation), clamp visibleStartIndex
+    if (messages.length < prevMessagesLengthRef.current) {
+      setVisibleStartIndex((prev: number) =>
+        Math.min(prev, Math.max(0, messages.length - batchSize))
+      );
+    }
+
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length, isShortList, visibleStartIndex, batchSize, showLoadingThreshold]);
+
+  // Force complete rendering (show all messages) when search shortcut is pressed
+  useEffect(() => {
+    if (isShortList || visibleStartIndex === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = window.electron.platform === 'darwin';
+      const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
+
+      if (isSearchShortcut) {
+        setVisibleStartIndex(0);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isShortList, visibleStartIndex]);
+
+  // Handle "load all" button click
+  const handleLoadAll = useCallback(() => {
+    setVisibleStartIndex(0);
+  }, []);
+
+  const doLoadOlder = useCallback(() => {
+    setVisibleStartIndex((prev: number) => {
+      if (prev <= 0) return 0;
+      const viewport = viewportRef.current;
+      pendingScrollRestoreRef.current = {
+        oldScrollHeight: viewport?.scrollHeight ?? 0,
+        oldScrollTop: viewport?.scrollTop ?? 0,
+      };
+      return Math.max(0, prev - batchSize);
+    });
+  }, [batchSize]);
+
+  // Handle "load older" button click
+  const handleLoadOlder = useCallback(() => {
+    if (loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    doLoadOlder();
+  }, [doLoadOlder]);
+
+  // Show/hide loading indicator when loading older messages
+  useEffect(() => {
+    setShowLoadingIndicator(loadingOlderRef.current);
+  }, [visibleStartIndex]);
+
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
@@ -112,6 +299,7 @@ export default function ProgressiveMessageList({
 
   const getPreviousResolvedModel = useCallback(
     (index: number): string | null => {
+      // index is the full message array index
       for (let i = index - 1; i >= 0; i--) {
         const model = getResolvedModel(messages[i]);
         if (model) return model;
@@ -151,106 +339,26 @@ export default function ProgressiveMessageList({
     }
   };
 
-  // Simple progressive loading - start immediately when component mounts if needed
-  useEffect(() => {
-    if (messages.length <= showLoadingThreshold) {
-      setRenderedCount(messages.length);
-      setIsLoading(false);
-      // For small lists, call completion callback immediately
-      if (onRenderingComplete) {
-        setTimeout(() => onRenderingComplete(), 50);
-      }
-      return;
-    }
-
-    // Large list - start progressive loading
-    const loadNextBatch = () => {
-      setRenderedCount((current) => {
-        const nextCount = Math.min(current + batchSize, messages.length);
-
-        if (nextCount >= messages.length) {
-          setIsLoading(false);
-          // Call the completion callback after a brief delay to ensure DOM is updated
-          if (onRenderingComplete) {
-            setTimeout(() => onRenderingComplete(), 50);
-          }
-        } else {
-          // Schedule next batch
-          timeoutRef.current = window.setTimeout(loadNextBatch, batchDelay);
-        }
-
-        return nextCount;
-      });
-    };
-
-    // Start loading after a short delay
-    timeoutRef.current = window.setTimeout(loadNextBatch, batchDelay);
-
-    return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-  }, [
-    messages.length,
-    batchSize,
-    batchDelay,
-    showLoadingThreshold,
-    renderedCount,
-    onRenderingComplete,
-  ]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Force complete rendering when search is active
-  useEffect(() => {
-    // Only add listener if we're actually loading
-    if (!isLoading) {
-      return;
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
-      const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
-
-      if (isSearchShortcut) {
-        // Immediately render all messages when search is triggered
-        setRenderedCount(messages.length);
-        setIsLoading(false);
-        if (timeoutRef.current) {
-          window.clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLoading, messages.length]);
-
-  // Detect tool call chains
+  // Detect tool call chains using the full messages array
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
 
-  // Render messages up to the current rendered count
+  // Messages to render (slice from visibleStartIndex to end)
+  const messagesToRender = isShortList ? messages : messages.slice(visibleStartIndex);
+  const isShowingAll = isShortList || visibleStartIndex === 0;
+  const hiddenCount = messages.length - messagesToRender.length;
+
+  // Render messages
   const renderMessages = useCallback(() => {
-    const messagesToRender = messages.slice(0, renderedCount);
     return messagesToRender
-      .map((message, index) => {
+      .map((message, visibleIndex) => {
+        // Calculate the index in the FULL messages array
+        const fullIndex = isShortList ? visibleIndex : visibleStartIndex + visibleIndex;
+
         if (!message.metadata.userVisible) {
           return null;
         }
         if (renderMessage) {
-          return renderMessage(message, index);
+          return renderMessage(message, fullIndex);
         }
 
         // Default rendering logic (for BaseChat)
@@ -265,8 +373,8 @@ export default function ProgressiveMessageList({
         if (notification) {
           return (
             <div
-              key={`notification-${message.id ?? `msg-${index}-${message.created}`}`}
-              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
+              key={`notification-${message.id ?? `msg-${fullIndex}-${message.created}`}`}
+              className={`relative ${fullIndex === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
               {renderSystemNotification(notification)}
@@ -275,16 +383,18 @@ export default function ProgressiveMessageList({
         }
 
         const isUser = isUserMessage(message);
-        const messageIsInChain = isInChain(index, toolCallChains);
+        const messageIsInChain = isInChain(fullIndex, toolCallChains);
         const currentResolvedModel = getResolvedModel(message);
-        const previousResolvedModel = currentResolvedModel ? getPreviousResolvedModel(index) : null;
+        const previousResolvedModel = currentResolvedModel
+          ? getPreviousResolvedModel(fullIndex)
+          : null;
         const showModelChangeDisclosure = Boolean(
           currentResolvedModel &&
           previousResolvedModel &&
           currentResolvedModel !== previousResolvedModel
         );
 
-        const messageKey = message.id ?? `msg-${index}-${message.created}`;
+        const messageKey = message.id ?? `msg-${fullIndex}-${message.created}`;
 
         return (
           <Fragment key={messageKey}>
@@ -293,7 +403,7 @@ export default function ProgressiveMessageList({
               previousResolvedModel &&
               renderModelChangeDisclosure(previousResolvedModel, currentResolvedModel)}
             <div
-              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
+              className={`relative ${fullIndex === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
               data-testid="message-container"
             >
               {isUser ? (
@@ -310,7 +420,7 @@ export default function ProgressiveMessageList({
                   isStreaming={
                     isStreamingMessage &&
                     !isUser &&
-                    index === messagesToRender.length - 1 &&
+                    fullIndex === messages.length - 1 &&
                     message.role === 'assistant'
                   }
                   submitElicitationResponse={submitElicitationResponse}
@@ -322,8 +432,10 @@ export default function ProgressiveMessageList({
       })
       .filter(Boolean);
   }, [
+    messagesToRender,
     messages,
-    renderedCount,
+    visibleStartIndex,
+    isShortList,
     renderMessage,
     isUserMessage,
     chat,
@@ -340,22 +452,49 @@ export default function ProgressiveMessageList({
 
   return (
     <>
-      {renderMessages()}
+      {/* Sentinel for scroll-to-top detection (hidden when all messages are visible) */}
+      {!isShortList && !isShowingAll && (
+        <div
+          ref={sentinelRef}
+          className="h-4 -mt-4"
+          aria-hidden="true"
+          data-testid="load-older-sentinel"
+        />
+      )}
 
-      {/* Loading indicator when progressively rendering */}
-      {isLoading && (
-        <div className="flex flex-col items-center justify-center py-8">
-          <LoadingGoose
-            message={intl.formatMessage(i18n.loadingMessages, {
-              renderedCount,
-              totalCount: messages.length,
-            })}
-          />
-          <div className="text-xs text-text-secondary mt-2">
+      {/* "Load older" section — shown when some messages are hidden */}
+      {!isShowingAll && hiddenCount > 0 && (
+        <div className="flex flex-col items-center py-4 px-4">
+          <button
+            type="button"
+            onClick={() => {
+              handleLoadOlder();
+            }}
+            className="text-sm text-accent hover:text-accent-hover underline transition-colors cursor-pointer"
+          >
+            {intl.formatMessage(i18n.loadOlder, { count: Math.min(hiddenCount, batchSize) })}
+          </button>
+          {showLoadingIndicator && (
+            <div className="mt-2">
+              <LoadingGoose
+                message={intl.formatMessage(i18n.loadingMessages)}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleLoadAll}
+            className="text-xs text-text-secondary hover:text-text-primary underline transition-colors mt-1 cursor-pointer"
+          >
+            {intl.formatMessage(i18n.loadAll, { count: hiddenCount })}
+          </button>
+          <div className="text-xs text-text-secondary mt-1">
             {intl.formatMessage(i18n.searchHint)}
           </div>
         </div>
       )}
+
+      {renderMessages()}
     </>
   );
 }
