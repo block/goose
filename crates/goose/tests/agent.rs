@@ -3148,6 +3148,53 @@ mod tests {
                 Vec::<String>::new()
             );
         }
+
+        #[tokio::test]
+        async fn test_bulk_load_cancellation_preserves_pending_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-cancellation").await;
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let (accepted_tx, accepted_rx) = tokio::sync::oneshot::channel();
+            let server = tokio::spawn(async move {
+                let (_connection, _) = listener.accept().await.unwrap();
+                let _ = accepted_tx.send(());
+                std::future::pending::<()>().await;
+            });
+
+            let extension = ExtensionConfig::streamable_http(
+                "pending".to_string(),
+                format!("http://{address}"),
+                "Pending test extension".to_string(),
+                30,
+            );
+            agent
+                .persist_extension_configs(&session_id, vec![extension.clone()])
+                .await
+                .unwrap();
+            let load = tokio::spawn({
+                let agent = agent.clone();
+                let session_id = session_id.clone();
+                async move {
+                    agent
+                        .add_extensions_bulk(vec![extension], &session_id)
+                        .await
+                }
+            });
+
+            tokio::time::timeout(std::time::Duration::from_secs(5), accepted_rx)
+                .await
+                .expect("extension did not connect")
+                .expect("test server stopped before accepting a connection");
+
+            load.abort();
+            assert!(load.await.unwrap_err().is_cancelled());
+            server.abort();
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["pending".to_string()]
+            );
+        }
     }
 
     mod audience_tool_result_tests {

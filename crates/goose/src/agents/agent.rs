@@ -1296,8 +1296,17 @@ impl Agent {
 
     /// Save current extension state to session by session_id
     pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
-        let extensions_state =
-            EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
+        self.persist_extension_configs(session_id, self.extension_configs_for_persistence().await)
+            .await
+    }
+
+    /// Save the provided extension configuration to session metadata.
+    pub async fn persist_extension_configs(
+        &self,
+        session_id: &str,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Result<()> {
+        let extensions_state = EnabledExtensionsState::new(extensions);
 
         let session_manager = self.config.session_manager.clone();
         let session = session_manager.get_session(session_id, false).await?;

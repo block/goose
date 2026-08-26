@@ -814,11 +814,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Extensions are loaded after session creation because we may change
     // directory when resuming.
     let agent_ptr = Arc::new(agent);
-    let loading_handle = AbortOnDropHandle::new(tokio::spawn({
-        let agent = agent_ptr.clone();
-        let sid = session_id.clone();
-        async move { load_extensions(agent, extensions_for_provider, &sid).await }
-    }));
+    let loading_handle = match agent_ptr
+        .persist_extension_configs(&session_id, extensions_for_provider.clone())
+        .await
+    {
+        Ok(()) => AbortOnDropHandle::new(tokio::spawn({
+            let agent = agent_ptr.clone();
+            let sid = session_id.clone();
+            async move { load_extensions(agent, extensions_for_provider, &sid).await }
+        })),
+        Err(error) => AbortOnDropHandle::new(tokio::spawn(async move {
+            vec![ExtensionFailure { label: None, error }]
+        })),
+    };
 
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
