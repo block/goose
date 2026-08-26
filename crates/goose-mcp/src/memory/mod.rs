@@ -1,4 +1,6 @@
 use cap_fs_ext::{DirExt, MetadataExt};
+#[cfg(windows)]
+use cap_std::fs::OpenOptionsExt;
 use cap_std::{
     ambient_authority,
     fs::{Dir, OpenOptions},
@@ -108,6 +110,79 @@ fn restrict_memory_temp_file(_file: &fs::File) -> io::Result<()> {
     Ok(())
 }
 
+fn preserve_memory_file_security(source: &fs::File, destination: &fs::File) -> io::Result<()> {
+    destination.set_permissions(source.metadata()?.permissions())?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+        use std::ptr;
+        use winapi::shared::minwindef::HLOCAL;
+        use winapi::shared::winerror::ERROR_SUCCESS;
+        use winapi::um::accctrl::SE_FILE_OBJECT;
+        use winapi::um::aclapi::{GetSecurityInfo, SetSecurityInfo};
+        use winapi::um::securitybaseapi::GetSecurityDescriptorControl;
+        use winapi::um::winbase::LocalFree;
+        use winapi::um::winnt::{
+            DACL_SECURITY_INFORMATION, PACL, PROTECTED_DACL_SECURITY_INFORMATION,
+            PSECURITY_DESCRIPTOR, SE_DACL_PROTECTED, UNPROTECTED_DACL_SECURITY_INFORMATION,
+        };
+
+        let mut dacl: PACL = ptr::null_mut();
+        let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
+        let status = unsafe {
+            GetSecurityInfo(
+                source.as_raw_handle(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                &mut dacl,
+                ptr::null_mut(),
+                &mut descriptor,
+            )
+        };
+        if status != ERROR_SUCCESS {
+            return Err(io::Error::from_raw_os_error(status as i32));
+        }
+
+        let mut control = 0;
+        let mut revision = 0;
+        if unsafe { GetSecurityDescriptorControl(descriptor, &mut control, &mut revision) } == 0 {
+            let error = io::Error::last_os_error();
+            unsafe {
+                LocalFree(descriptor as HLOCAL);
+            }
+            return Err(error);
+        }
+
+        let protection = if control & SE_DACL_PROTECTED != 0 {
+            PROTECTED_DACL_SECURITY_INFORMATION
+        } else {
+            UNPROTECTED_DACL_SECURITY_INFORMATION
+        };
+        let status = unsafe {
+            SetSecurityInfo(
+                destination.as_raw_handle(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | protection,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                dacl,
+                ptr::null_mut(),
+            )
+        };
+        unsafe {
+            LocalFree(descriptor as HLOCAL);
+        }
+        if status != ERROR_SUCCESS {
+            return Err(io::Error::from_raw_os_error(status as i32));
+        }
+    }
+
+    Ok(())
+}
+
 fn open_memory_file_at(
     directory: &Dir,
     name: &OsStr,
@@ -144,6 +219,12 @@ fn open_memory_file_at(
         }
         MemoryFileOpen::CreateNew => {
             options.write(true).create_new(true);
+            #[cfg(windows)]
+            options.access_mode({
+                use winapi::um::winnt::{GENERIC_READ, GENERIC_WRITE, READ_CONTROL, WRITE_DAC};
+
+                GENERIC_READ | GENERIC_WRITE | READ_CONTROL | WRITE_DAC
+            });
         }
     }
     // Capability-relative resolution confines any swap that lands during open, while the
@@ -424,7 +505,7 @@ impl MemoryServer {
         directory: &Dir,
         file_name: &OsStr,
         content: &[u8],
-        permissions: fs::Permissions,
+        source: &fs::File,
     ) -> io::Result<()> {
         let process_id = std::process::id();
         let (temp_name, mut temp_file) = loop {
@@ -440,7 +521,7 @@ impl MemoryServer {
         let result = (|| {
             restrict_memory_temp_file(&temp_file)?;
             temp_file.write_all(content)?;
-            temp_file.set_permissions(permissions)?;
+            preserve_memory_file_security(source, &temp_file)?;
             temp_file.sync_all()?;
             drop(temp_file);
             directory.rename(Path::new(&temp_name), directory, Path::new(file_name))
@@ -534,7 +615,6 @@ impl MemoryServer {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error),
         };
-        let permissions = file.metadata()?.permissions();
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
@@ -549,7 +629,7 @@ impl MemoryServer {
             &directory,
             &file_name,
             new_content.join("\n\n").as_bytes(),
-            permissions,
+            &file,
         )
     }
 
@@ -970,6 +1050,198 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o600);
         }
+    }
+
+    #[cfg(windows)]
+    fn set_owner_only_protected_dacl(path: &Path) {
+        use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+        use std::ptr;
+        use winapi::shared::minwindef::HLOCAL;
+        use winapi::shared::sddl::{
+            ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+        };
+        use winapi::shared::winerror::ERROR_SUCCESS;
+        use winapi::um::accctrl::SE_FILE_OBJECT;
+        use winapi::um::aclapi::SetSecurityInfo;
+        use winapi::um::securitybaseapi::GetSecurityDescriptorDacl;
+        use winapi::um::winbase::LocalFree;
+        use winapi::um::winnt::{
+            DACL_SECURITY_INFORMATION, PACL, PROTECTED_DACL_SECURITY_INFORMATION,
+            PSECURITY_DESCRIPTOR, READ_CONTROL, WRITE_DAC,
+        };
+
+        let sddl: Vec<u16> = "D:P(A;;FA;;;OW)\0".encode_utf16().collect();
+        let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
+        assert_ne!(
+            unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    sddl.as_ptr(),
+                    SDDL_REVISION_1 as u32,
+                    &mut descriptor,
+                    ptr::null_mut(),
+                )
+            },
+            0
+        );
+
+        let mut dacl: PACL = ptr::null_mut();
+        let mut dacl_present = 0;
+        let mut dacl_defaulted = 0;
+        assert_ne!(
+            unsafe {
+                GetSecurityDescriptorDacl(
+                    descriptor,
+                    &mut dacl_present,
+                    &mut dacl,
+                    &mut dacl_defaulted,
+                )
+            },
+            0
+        );
+        assert_ne!(dacl_present, 0);
+
+        let file = fs::OpenOptions::new()
+            .access_mode(READ_CONTROL | WRITE_DAC)
+            .open(path)
+            .unwrap();
+        let status = unsafe {
+            SetSecurityInfo(
+                file.as_raw_handle(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                dacl,
+                ptr::null_mut(),
+            )
+        };
+        unsafe {
+            LocalFree(descriptor as HLOCAL);
+        }
+        assert_eq!(status, ERROR_SUCCESS);
+    }
+
+    #[cfg(windows)]
+    fn assert_owner_only_protected_dacl(path: &Path) {
+        use std::ffi::c_void;
+        use std::os::windows::io::AsRawHandle;
+        use std::ptr;
+        use winapi::shared::minwindef::HLOCAL;
+        use winapi::shared::winerror::ERROR_SUCCESS;
+        use winapi::um::accctrl::SE_FILE_OBJECT;
+        use winapi::um::aclapi::GetSecurityInfo;
+        use winapi::um::securitybaseapi::{
+            CreateWellKnownSid, EqualSid, GetAce, GetSecurityDescriptorControl,
+        };
+        use winapi::um::winbase::LocalFree;
+        use winapi::um::winnt::{
+            WinCreatorOwnerRightsSid, ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE,
+            DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS, PACL, PSECURITY_DESCRIPTOR, PSID,
+            SECURITY_MAX_SID_SIZE, SE_DACL_PROTECTED,
+        };
+
+        let file = fs::File::open(path).unwrap();
+        let mut dacl: PACL = ptr::null_mut();
+        let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
+        let status = unsafe {
+            GetSecurityInfo(
+                file.as_raw_handle(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                &mut dacl,
+                ptr::null_mut(),
+                &mut descriptor,
+            )
+        };
+        assert_eq!(status, ERROR_SUCCESS);
+
+        let mut control = 0;
+        let mut revision = 0;
+        assert_ne!(
+            unsafe { GetSecurityDescriptorControl(descriptor, &mut control, &mut revision) },
+            0
+        );
+        assert_ne!(control & SE_DACL_PROTECTED, 0);
+        assert!(!dacl.is_null());
+        assert_eq!(unsafe { (*dacl).AceCount }, 1);
+
+        let mut ace: *mut c_void = ptr::null_mut();
+        assert_ne!(unsafe { GetAce(dacl, 0, &mut ace) }, 0);
+        let allowed = ace.cast::<ACCESS_ALLOWED_ACE>();
+        assert_eq!(
+            unsafe { (*allowed).Header.AceType },
+            ACCESS_ALLOWED_ACE_TYPE
+        );
+        assert_eq!(
+            unsafe { (*allowed).Mask } & FILE_ALL_ACCESS,
+            FILE_ALL_ACCESS
+        );
+
+        let mut expected_sid = [0u8; SECURITY_MAX_SID_SIZE];
+        let mut expected_sid_size = expected_sid.len() as u32;
+        assert_ne!(
+            unsafe {
+                CreateWellKnownSid(
+                    WinCreatorOwnerRightsSid,
+                    ptr::null_mut(),
+                    expected_sid.as_mut_ptr().cast(),
+                    &mut expected_sid_size,
+                )
+            },
+            0
+        );
+        let actual_sid = unsafe { &mut (*allowed).SidStart as *mut u32 as PSID };
+        assert_ne!(
+            unsafe { EqualSid(actual_sid, expected_sid.as_mut_ptr().cast()) },
+            0
+        );
+        unsafe {
+            LocalFree(descriptor as HLOCAL);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_remove_specific_memory_preserves_windows_dacl() {
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        router
+            .remember(
+                "context",
+                "category",
+                "keep",
+                &[],
+                false,
+                Some(&working_dir),
+            )
+            .unwrap();
+        router
+            .remember(
+                "context",
+                "category",
+                "remove",
+                &[],
+                false,
+                Some(&working_dir),
+            )
+            .unwrap();
+
+        let category = working_dir.join(".goose/memory/category.txt");
+        set_owner_only_protected_dacl(&category);
+
+        router
+            .remove_specific_memory_internal("category", "remove", false, Some(&working_dir))
+            .unwrap();
+
+        assert_owner_only_protected_dacl(&category);
     }
 
     #[cfg(unix)]

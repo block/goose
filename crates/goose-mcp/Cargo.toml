@@ -41,3 +41,6 @@ shell-words = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std", "process-session"] }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { workspace = true, features = ["accctrl", "aclapi", "sddl", "securitybaseapi", "winbase", "winerror"] }
