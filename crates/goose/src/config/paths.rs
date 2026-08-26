@@ -104,8 +104,8 @@ impl Paths {
     }
 
     #[cfg(feature = "system-keyring")]
-    pub(crate) fn os_user_home_dir() -> PathBuf {
-        os_user_home_dir().expect("goose requires an OS user home dir")
+    pub(crate) fn os_user_home_dir() -> Option<PathBuf> {
+        os_user_home_dir()
     }
 
     pub fn data_dir() -> PathBuf {

@@ -32,12 +32,38 @@ fn secrets_lock_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(feature = "system-keyring")]
-fn keyring_lock_path(service: &str) -> PathBuf {
+fn keyring_lock_path(service: &str) -> Result<PathBuf, ConfigError> {
+    keyring_lock_path_with_roots(
+        service,
+        Paths::os_user_home_dir(),
+        Paths::path_root(),
+        env::var_os("HOME").map(PathBuf::from),
+    )
+}
+
+#[cfg(feature = "system-keyring")]
+fn keyring_lock_path_with_roots(
+    service: &str,
+    os_user_home: Option<PathBuf>,
+    path_root: Option<PathBuf>,
+    environment_home: Option<PathBuf>,
+) -> Result<PathBuf, ConfigError> {
     let service_hash = URL_SAFE_NO_PAD.encode(Sha256::digest(service.as_bytes()));
-    Paths::os_user_home_dir()
-        .join(".goose")
-        .join("locks")
-        .join(format!("keyring-{service_hash}.lock"))
+    let lock_directory = os_user_home
+        .map(|home| home.join(".goose").join("locks"))
+        .or_else(|| path_root.map(|root| root.join("state").join("locks")))
+        .or_else(|| {
+            environment_home
+                .filter(|home| home.is_absolute())
+                .map(|home| home.join(".goose").join("locks"))
+        })
+        .ok_or_else(|| {
+            ConfigError::LockError(
+                "unable to determine keyring lock directory: no passwd home, GOOSE_PATH_ROOT, or HOME"
+                    .to_string(),
+            )
+        })?;
+    Ok(lock_directory.join(format!("keyring-{service_hash}.lock")))
 }
 
 #[cfg(feature = "system-keyring")]
@@ -977,7 +1003,7 @@ impl Config {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
             SecretStorage::Keyring { service, .. } => {
-                let service_lock = private_file_target_path(&keyring_lock_path(service))?;
+                let service_lock = private_file_target_path(&keyring_lock_path(service)?)?;
                 if service_lock == fallback_lock {
                     Ok(vec![service_lock])
                 } else {
@@ -2303,7 +2329,7 @@ mod tests {
             )?,
             "keyring-success"
         );
-        let service_lock = private_file_target_path(&keyring_lock_path("custom-service"))?;
+        let service_lock = private_file_target_path(&keyring_lock_path("custom-service")?)?;
         let fallback_lock = secrets_lock_path(&private_file_target_path(&custom_secrets_path)?);
         let config_locks = config.secrets_mutation_lock_paths()?;
         assert!(config_locks.contains(&service_lock));
@@ -2366,7 +2392,7 @@ mod tests {
     #[cfg(feature = "system-keyring")]
     #[test]
     #[serial]
-    fn keyring_service_lock_is_independent_of_config_roots() {
+    fn keyring_service_lock_is_independent_of_config_roots() -> Result<(), ConfigError> {
         let first_root = TempDir::new().unwrap();
         let second_root = TempDir::new().unwrap();
         let _env = env_lock::lock_env([
@@ -2375,14 +2401,67 @@ mod tests {
             ("HOME", first_root.path().to_str()),
         ]);
 
-        let first_lock = keyring_lock_path("shared-service");
+        let first_lock = keyring_lock_path("shared-service")?;
         std::env::set_var("GOOSE_PATH_ROOT", second_root.path());
         std::env::set_var("XDG_CONFIG_HOME", second_root.path());
         std::env::set_var("HOME", second_root.path());
 
-        assert_eq!(first_lock, keyring_lock_path("shared-service"));
-        let expected_lock_dir = Paths::os_user_home_dir().join(".goose").join("locks");
+        assert_eq!(first_lock, keyring_lock_path("shared-service")?);
+        let expected_lock_dir = Paths::os_user_home_dir()
+            .unwrap()
+            .join(".goose")
+            .join("locks");
         assert_eq!(first_lock.parent(), Some(expected_lock_dir.as_path()));
+        Ok(())
+    }
+
+    #[cfg(feature = "system-keyring")]
+    #[test]
+    fn keyring_service_lock_uses_path_root_without_passwd_home() -> Result<(), ConfigError> {
+        let path_root = TempDir::new().unwrap();
+        let environment_home = TempDir::new().unwrap();
+
+        let lock_path = keyring_lock_path_with_roots(
+            "shared-service",
+            None,
+            Some(path_root.path().to_path_buf()),
+            Some(environment_home.path().to_path_buf()),
+        )?;
+
+        assert_eq!(
+            lock_path.parent(),
+            Some(path_root.path().join("state/locks").as_path())
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "system-keyring")]
+    #[test]
+    fn keyring_service_lock_uses_home_without_passwd_home_or_path_root() -> Result<(), ConfigError>
+    {
+        let environment_home = TempDir::new().unwrap();
+
+        let lock_path = keyring_lock_path_with_roots(
+            "shared-service",
+            None,
+            None,
+            Some(environment_home.path().to_path_buf()),
+        )?;
+
+        assert_eq!(
+            lock_path.parent(),
+            Some(environment_home.path().join(".goose/locks").as_path())
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "system-keyring")]
+    #[test]
+    fn keyring_service_lock_errors_without_a_stable_root() {
+        assert!(matches!(
+            keyring_lock_path_with_roots("shared-service", None, None, None),
+            Err(ConfigError::LockError(_))
+        ));
     }
 
     #[cfg(all(feature = "system-keyring", unix))]
@@ -2405,7 +2484,7 @@ mod tests {
 
         assert_eq!(direct_locks[0], aliased_locks[0]);
         assert_ne!(direct_locks[1], aliased_locks[1]);
-        assert_eq!(direct_locks[0], keyring_lock_path("shared-service"));
+        assert_eq!(direct_locks[0], keyring_lock_path("shared-service")?);
 
         Ok(())
     }
