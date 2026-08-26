@@ -2956,7 +2956,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_maybe_update_name_feeds_working_dir_hints_into_prompt() {
+    async fn test_maybe_update_name_feeds_working_dir_hint_into_prompt() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
 

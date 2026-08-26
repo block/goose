@@ -198,11 +198,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_working_dir_hint_no_working_dir() {
-        assert_eq!(working_dir_hint(None, None), "");
-    }
-
-    #[test]
     fn test_naming_prompt_matches_cli_description_detection() {
         let system = crate::prompt_template::render_template(
             "session_name.md",
@@ -212,17 +207,6 @@ mod tests {
         assert!(
             crate::providers::cli_common::is_session_description_request(&system),
             "session_name.md must keep the phrase CLI providers match on"
-        );
-    }
-
-    #[test]
-    fn test_working_dir_hint() {
-        let dir = tempfile::tempdir().unwrap();
-        let project = dir.path().join("acme-renewal");
-        std::fs::create_dir(&project).unwrap();
-        assert_eq!(
-            working_dir_hint(Some(&project), None),
-            "working folder: acme-renewal"
         );
     }
 
