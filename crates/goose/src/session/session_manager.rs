@@ -448,6 +448,16 @@ impl SessionManager {
             .await
     }
 
+    pub(crate) async fn session_exists_with_types(
+        &self,
+        id: &str,
+        session_types: &[SessionType],
+    ) -> Result<bool> {
+        self.storage
+            .session_exists_with_types(id, session_types)
+            .await
+    }
+
     async fn apply_update_inner(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
         self.storage.apply_update(builder).await
     }
@@ -1860,6 +1870,32 @@ impl SessionStorage {
         }
 
         Ok(query.execute(pool).await?.rows_affected() == 1)
+    }
+
+    async fn session_exists_with_types(
+        &self,
+        id: &str,
+        session_types: &[SessionType],
+    ) -> Result<bool> {
+        if session_types.is_empty() {
+            return Ok(false);
+        }
+
+        let placeholders = session_types
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(", ");
+        let query = format!(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ? AND session_type IN ({placeholders}))"
+        );
+        let pool = self.pool().await?;
+        let mut query = sqlx::query_scalar::<_, bool>(AssertSqlSafe(query)).bind(id);
+        for session_type in session_types {
+            query = query.bind(session_type.to_string());
+        }
+
+        Ok(query.fetch_one(pool).await?)
     }
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {

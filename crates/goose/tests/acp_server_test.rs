@@ -33,6 +33,7 @@ use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{
     GetSessionInfoRequest, GetSessionInfoResponse, UpdateSessionProjectRequest,
+    UpdateWorkingDirRequest,
 };
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
@@ -120,6 +121,37 @@ async fn get_session_info_request(
         .block_task()
         .await
         .map_err(Into::into)
+}
+
+async fn set_session_mode(
+    conn: &AcpServerConnection,
+    session_id: &str,
+    mode: &str,
+) -> Result<(), agent_client_protocol::Error> {
+    conn.cx()
+        .send_request(SetSessionConfigOptionRequest::new(
+            session_id.to_string(),
+            "mode".to_string(),
+            SessionConfigOptionValue::value_id(mode.to_string()),
+        ))
+        .block_task()
+        .await
+        .map(|_| ())
+}
+
+async fn update_working_dir(
+    conn: &AcpServerConnection,
+    session_id: &str,
+    working_dir: &Path,
+) -> Result<(), agent_client_protocol::Error> {
+    conn.cx()
+        .send_request(UpdateWorkingDirRequest {
+            session_id: session_id.to_string(),
+            working_dir: working_dir.to_string_lossy().to_string(),
+        })
+        .block_task()
+        .await
+        .map(|_| ())
 }
 
 fn assert_invalid_params(error: anyhow::Error) {
@@ -683,6 +715,201 @@ fn test_update_session_project_allows_visible_session_types() {
                 None
             );
         }
+    });
+}
+
+#[test]
+fn test_session_mutations_reject_internal_session_types_without_changes() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let replacement_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let mut internal_sessions = Vec::new();
+
+        for session_type in [
+            SessionType::Gateway,
+            SessionType::SubAgent,
+            SessionType::Hidden,
+            SessionType::Terminal,
+        ] {
+            internal_sessions.push(
+                session_manager
+                    .create_session(
+                        working_dir.path().to_path_buf(),
+                        format!("{session_type} session"),
+                        session_type,
+                        GooseMode::default(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let conn = new_connection(data_root.path()).await;
+        for session in internal_sessions {
+            let error = set_session_mode(&conn, &session.id, "approve")
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+            let error = update_working_dir(&conn, &session.id, replacement_dir.path())
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+            let stored = session_manager
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+            assert_eq!(stored.goose_mode, GooseMode::default());
+            assert_eq!(stored.working_dir, working_dir.path());
+        }
+    });
+}
+
+#[test]
+fn test_session_mutations_reject_unknown_raw_type_including_same_path() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Future session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let db_path = data_root
+            .path()
+            .join(goose::session::session_manager::SESSIONS_FOLDER)
+            .join(goose::session::session_manager::DB_NAME);
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .connect_with(sqlx::sqlite::SqliteConnectOptions::new().filename(db_path))
+            .await
+            .unwrap();
+        sqlx::query("UPDATE sessions SET session_type = 'future_type' WHERE id = ?")
+            .bind(&session.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let error = set_session_mode(&conn, &session.id, "approve")
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let error = update_working_dir(&conn, &session.id, working_dir.path())
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let (session_type, goose_mode, stored_working_dir) =
+            sqlx::query_as::<_, (String, String, String)>(
+                "SELECT session_type, goose_mode, working_dir FROM sessions WHERE id = ?",
+            )
+            .bind(&session.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(session_type, "future_type");
+        assert_eq!(goose_mode, GooseMode::default().to_string());
+        assert_eq!(stored_working_dir, working_dir.path().to_string_lossy());
+    });
+}
+
+#[test]
+fn test_session_mutations_allow_visible_persisted_session_types() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let replacement_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let seed_conn = new_connection(data_root.path()).await;
+        let seed_session_id =
+            new_session_with_meta(&seed_conn, working_dir.path(), serde_json::Map::new())
+                .await
+                .unwrap();
+        let seed_session = session_manager
+            .get_session(&seed_session_id, false)
+            .await
+            .unwrap();
+        drop(seed_conn);
+        let mut visible_sessions = Vec::new();
+
+        for session_type in [SessionType::User, SessionType::Scheduled, SessionType::Acp] {
+            let session = session_manager
+                .create_session(
+                    working_dir.path().to_path_buf(),
+                    format!("{session_type} session"),
+                    session_type,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+            session_manager
+                .update(&session.id)
+                .provider_name(seed_session.provider_name.as_ref().unwrap())
+                .model_config(seed_session.model_config.clone().unwrap())
+                .apply()
+                .await
+                .unwrap();
+            visible_sessions.push(session);
+        }
+
+        let conn = new_connection(data_root.path()).await;
+        for session in visible_sessions {
+            set_session_mode(&conn, &session.id, "approve")
+                .await
+                .unwrap();
+            update_working_dir(&conn, &session.id, replacement_dir.path())
+                .await
+                .unwrap();
+
+            let stored = session_manager
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+            assert_eq!(stored.goose_mode, GooseMode::Approve);
+            assert_eq!(stored.working_dir, replacement_dir.path());
+        }
+    });
+}
+
+#[test]
+fn test_session_mutations_allow_active_client_created_hidden_session() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let replacement_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let conn = new_connection(data_root.path()).await;
+        let session_id = new_session_with_meta(
+            &conn,
+            working_dir.path(),
+            serde_json::from_value(serde_json::json!({ "hidden": true })).unwrap(),
+        )
+        .await
+        .unwrap();
+
+        set_session_mode(&conn, &session_id, "approve")
+            .await
+            .unwrap();
+        update_working_dir(&conn, &session_id, replacement_dir.path())
+            .await
+            .unwrap();
+
+        let stored = session_manager
+            .get_session(&session_id, false)
+            .await
+            .unwrap();
+        assert_eq!(stored.session_type, SessionType::Hidden);
+        assert_eq!(stored.goose_mode, GooseMode::Approve);
+        assert_eq!(stored.working_dir, replacement_dir.path());
     });
 }
 

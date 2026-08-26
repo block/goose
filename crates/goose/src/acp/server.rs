@@ -1872,6 +1872,34 @@ impl GooseAcpAgent {
         Ok(agent)
     }
 
+    async fn ensure_session_access(
+        &self,
+        session_id: &str,
+    ) -> Result<(), agent_client_protocol::Error> {
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            return Err(agent_client_protocol::Error::resource_not_found(Some(
+                session_id.to_string(),
+            ))
+            .data(format!("Session not found: {session_id}")));
+        }
+        if self.sessions.lock().await.contains_key(session_id) {
+            return Ok(());
+        }
+        if self
+            .session_manager
+            .session_exists_with_types(session_id, &ACP_VISIBLE_SESSION_TYPES)
+            .await
+            .internal_err()?
+        {
+            return Ok(());
+        }
+
+        Err(
+            agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                .data(format!("Session not found: {session_id}")),
+        )
+    }
+
     async fn start_active_run(
         &self,
         session_id: &str,

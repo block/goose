@@ -165,6 +165,10 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             };
                             let session_id = req.session_id.clone();
                             let config_id = req.config_id.0.to_string();
+                            if let Err(error) = agent.ensure_session_access(&session_id.0).await {
+                                responder.respond_with_error(error)?;
+                                return Ok(());
+                            }
                             match config_id.as_ref() {
                                 "provider" => {
                                     Config::global().invalidate_secrets_cache();

@@ -14,6 +14,8 @@ impl GooseAcpAgent {
         validate_absolute_cwd(&path)?;
         let session_id = &req.session_id;
 
+        self.ensure_session_access(session_id).await?;
+
         let session = self
             .session_manager
             .get_session(session_id, false)
