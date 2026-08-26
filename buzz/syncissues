@@ -146,20 +146,31 @@ for (const { channel, resolved } of selectedChannels.values()) {
 
   if (!issue) {
     const topic = "✅ GitHub issue: Closed";
-    if (!details.archived) {
-      if (!canManageChannel(channel.channel_id)) {
-        results.push({
-          channel_id: channel.channel_id,
-          channel: channel.name,
-          issue: issueNumber,
-          state: "CLOSED",
-          topic: currentTopic,
-          actions: ["skipped-not-owner"],
-          reason: "GitHub Manager is not a channel owner",
-        });
-        continue;
+    const topicNeedsUpdate = currentTopic !== topic;
+    if (
+      (!details.archived || topicNeedsUpdate) &&
+      !canManageChannel(channel.channel_id)
+    ) {
+      results.push({
+        channel_id: channel.channel_id,
+        channel: channel.name,
+        issue: issueNumber,
+        state: "CLOSED",
+        topic: currentTopic,
+        desired_topic: topic,
+        actions: ["skipped-not-owner"],
+        reason: "GitHub Manager is not a channel owner",
+      });
+      continue;
+    }
+    if (details.archived && topicNeedsUpdate) {
+      if (!options.dryRun) {
+        runBuzz(["channels", "unarchive", "--channel", channel.channel_id]);
       }
-      if (!options.dryRun && currentTopic !== topic) {
+      actions.push(options.dryRun ? "would-unarchive" : "unarchived");
+    }
+    if (topicNeedsUpdate) {
+      if (!options.dryRun) {
         runBuzz([
           "channels",
           "topic",
@@ -169,9 +180,9 @@ for (const { channel, resolved } of selectedChannels.values()) {
           topic,
         ]);
       }
-      if (currentTopic !== topic) {
-        actions.push(options.dryRun ? "would-update-topic" : "topic-updated");
-      }
+      actions.push(options.dryRun ? "would-update-topic" : "topic-updated");
+    }
+    if (!details.archived || topicNeedsUpdate) {
       if (!options.dryRun) {
         runBuzz(["channels", "archive", "--channel", channel.channel_id]);
       }
@@ -183,10 +194,30 @@ for (const { channel, resolved } of selectedChannels.values()) {
       channel: channel.name,
       issue: issueNumber,
       state: "CLOSED",
-      topic: details.archived ? currentTopic : topic,
+      topic,
+      ...(topicNeedsUpdate ? { previous_topic: currentTopic } : {}),
       actions: actions.length > 0 ? actions : ["unchanged"],
     });
     continue;
+  }
+
+  if (details.archived) {
+    if (!canManageChannel(channel.channel_id)) {
+      results.push({
+        channel_id: channel.channel_id,
+        channel: channel.name,
+        issue: issue.number,
+        state: "OPEN",
+        topic: currentTopic,
+        actions: ["skipped-not-owner"],
+        reason: "GitHub Manager is not a channel owner",
+      });
+      continue;
+    }
+    if (!options.dryRun) {
+      runBuzz(["channels", "unarchive", "--channel", channel.channel_id]);
+    }
+    actions.push(options.dryRun ? "would-unarchive" : "unarchived");
   }
 
   const projectItem = projectItemsByIssueNumber.get(issue.number);
@@ -213,10 +244,7 @@ for (const { channel, resolved } of selectedChannels.values()) {
       : "unassigned";
   const topic = `${marker ? `${marker} ` : ""}${phase} -- assigned to: ${assignment}`;
 
-  if (
-    (details.archived || currentTopic !== topic) &&
-    !canManageChannel(channel.channel_id)
-  ) {
+  if (currentTopic !== topic && !canManageChannel(channel.channel_id)) {
     results.push({
       channel_id: channel.channel_id,
       channel: channel.name,
@@ -230,13 +258,6 @@ for (const { channel, resolved } of selectedChannels.values()) {
       reason: "GitHub Manager is not a channel owner",
     });
     continue;
-  }
-
-  if (details.archived) {
-    if (!options.dryRun) {
-      runBuzz(["channels", "unarchive", "--channel", channel.channel_id]);
-    }
-    actions.push(options.dryRun ? "would-unarchive" : "unarchived");
   }
 
   if (currentTopic !== topic) {

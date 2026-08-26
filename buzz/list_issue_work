@@ -68,7 +68,12 @@ const inboxIssues = project.items
       item.status === "Inbox" &&
       openIssuesByNumber.has(item.content.number),
   )
-  .filter((item) => !item.assignees || item.assignees.length === 0);
+  .filter(
+    (item) =>
+      !item.assignees ||
+      item.assignees.length === 0 ||
+      !channelByIssueNumber.has(item.content.number),
+  );
 for (const item of inboxIssues) {
   issueWork.set(item.content.number, issueRecord(item, ["inbox"]));
 }

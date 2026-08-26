@@ -185,46 +185,60 @@ if (!channelId) {
   fail("Buzz created a channel but did not return its channel ID.");
 }
 const initialTopic = "⚪ GitHub phase: Inbox";
-runBuzz([
-  "channels",
-  "topic",
-  "--channel",
-  channelId,
-  "--topic",
-  initialTopic,
-]);
-
-for (const participant of [...owners, ...people, ...bots]) {
-  runBuzz([
+let postedMessage;
+try {
+  runBuzzOrThrow([
     "channels",
-    "add-member",
+    "topic",
     "--channel",
     channelId,
-    "--pubkey",
-    participant.pubkey,
-    "--role",
-    participant.role,
+    "--topic",
+    initialTopic,
   ]);
-}
 
-const message = [
-  `## ${issue.title}`,
-  "",
-  options.summary,
-  "",
-  `[View the issue on GitHub](${issue.url})`,
-].join("\n");
-const postedMessage = runBuzz(
-  [
-    "messages",
-    "send",
-    "--channel",
-    channelId,
-    "--content",
-    "-",
-  ],
-  message,
-);
+  for (const participant of [...owners, ...people, ...bots]) {
+    runBuzzOrThrow([
+      "channels",
+      "add-member",
+      "--channel",
+      channelId,
+      "--pubkey",
+      participant.pubkey,
+      "--role",
+      participant.role,
+    ]);
+  }
+
+  const message = [
+    `## ${issue.title}`,
+    "",
+    options.summary,
+    "",
+    `[View the issue on GitHub](${issue.url})`,
+  ].join("\n");
+  postedMessage = runBuzzOrThrow(
+    [
+      "messages",
+      "send",
+      "--channel",
+      channelId,
+      "--content",
+      "-",
+    ],
+    message,
+  );
+} catch (error) {
+  try {
+    runBuzzOrThrow(["channels", "delete", "--channel", channelId]);
+  } catch (cleanupError) {
+    fail(
+      `${error.message} Could not delete the incomplete channel: ${cleanupError.message}`,
+    );
+  }
+  fail(
+    `${error.message} Deleted the incomplete channel so creation can be retried.`,
+  );
+}
 
 console.log(
   JSON.stringify(
@@ -441,30 +455,46 @@ function rejectRoleConflicts(...groups) {
 }
 
 function runBuzz(arguments_, input) {
-  return runJson(buzz, arguments_, {
+  try {
+    return runBuzzOrThrow(arguments_, input);
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+function runBuzzOrThrow(arguments_, input) {
+  return runJsonOrThrow(buzz, arguments_, {
     env: buzzEnvironment,
     input,
   });
 }
 
 function runJson(command, arguments_, options = {}) {
+  try {
+    return runJsonOrThrow(command, arguments_, options);
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+function runJsonOrThrow(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
     encoding: "utf8",
     ...options,
   });
 
   if (result.error) {
-    fail(`Could not run ${command}: ${result.error.message}`);
+    throw new Error(`Could not run ${command}: ${result.error.message}`);
   }
   if (result.status !== 0) {
     const message = result.stderr.trim() || result.stdout.trim();
-    fail(`${command} failed${message ? `: ${message}` : "."}`);
+    throw new Error(`${command} failed${message ? `: ${message}` : "."}`);
   }
 
   try {
     return JSON.parse(result.stdout);
   } catch {
-    fail(`${command} returned invalid JSON: ${result.stdout.trim()}`);
+    throw new Error(`${command} returned invalid JSON: ${result.stdout.trim()}`);
   }
 }
 

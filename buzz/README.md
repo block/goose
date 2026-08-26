@@ -189,7 +189,9 @@ Channel names use `#<issue-number> <issue-title>` in the Buzz UI. The script
 refuses to create a duplicate when an active or archived channel already
 matches the issue number. For an existing channel, explicitly supplied owners,
 people, and bots are added without posting the summary a second time. An
-archived matching channel is unarchived before its roster is updated.
+archived matching channel is unarchived before its roster is updated. If setup
+of a new channel fails after creation, the incomplete channel is deleted so the
+next run can retry it.
 
 Adding a bot does not trigger it. After the channel is created, Github Manager
 must send a new message with an explicit bot mention:
@@ -203,15 +205,17 @@ must send a new message with an explicit bot mention:
 
 ### `list_issue_work`
 
-Lists unassigned issues in the project's Inbox and open issues linked from the
-Buzz `issues to add` channel. A queue entry can contain a Goose issue or pull
-request URL, or just `#<issue number>`. Queue entries with an existing issue
-channel are treated as processed. Pull request links resolve to their issue when
-GitHub reports exactly one closing issue. The JSON also includes the core team,
-GitHub handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
-can select an owner. `recent_assignment_load` counts core-team assignees across
-the 100 most recently created issues, including closed issues. Phase and issue
-age do not affect the count. It does not change GitHub or Buzz.
+Lists issues in the project's Inbox that need an owner or channel, and open
+issues linked from the Buzz `issues to add` channel. An assigned Inbox issue
+without a channel is included so a failed channel creation can be retried. A
+queue entry can contain a Goose issue or pull request URL, or just `#<issue
+number>`. Queue entries with an existing issue channel are treated as processed.
+Pull request links resolve to their issue when GitHub reports exactly one
+closing issue. The JSON also includes the core team, GitHub handles, Buzz public
+keys, interests, and assignment capacity so a Goose recipe can select an owner.
+`recent_assignment_load` counts core-team assignees across the 100 most recently
+created issues, including closed issues. Phase and issue age do not affect the
+count. It does not change GitHub or Buzz.
 
 ```sh
 ./buzz/list_issue_work
@@ -265,7 +269,8 @@ Multiple assignees are comma-separated. Issues without an assignee say
 
 Issue channels without a corresponding open GitHub issue get the topic
 `✅ GitHub issue: Closed` and are archived. If an issue reopens, its channel is
-unarchived and its project phase is restored. Other Buzz channels are ignored.
+unarchived even when it has no project status; its project phase is restored
+when available. Other Buzz channels are ignored.
 
 The script also checks for new replies from people outside the repository.
 GitHub authors associated as `OWNER`, `MEMBER`, or `COLLABORATOR` are considered
