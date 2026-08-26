@@ -791,7 +791,9 @@ pub async fn search_local_models(query: &str, limit: usize) -> Result<Vec<HfMode
     }
 
     results.extend(gguf_results);
-    append_optional_mlx_results(&mut results, search_mlx_models(query, limit).await, query);
+    if cfg!(target_os = "macos") {
+        append_optional_mlx_results(&mut results, search_mlx_models(query, limit).await, query);
+    }
     dedupe_models(&mut results);
     results.sort_by(|a, b| {
         model_search_rank(query, a)
