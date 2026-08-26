@@ -47,7 +47,7 @@ impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
         let goose_mode = *self.goose_mode.lock().await;
         if goose_mode == GooseMode::SmartApprove {
             self.tool_inspection_manager
-                .apply_tool_annotations(&input.tools);
+                .apply_tool_annotations(&input.tools)?;
         }
         let tools =
             crate::agents::reply_parts::prepare_inference_tools(input.tools, code_execution_mode);

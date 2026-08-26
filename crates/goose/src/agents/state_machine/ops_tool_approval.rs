@@ -68,11 +68,11 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                 {
                     self.tool_inspection_manager
                         .update_permission_manager(&tool_name, PermissionLevel::AlwaysAllow)
-                        .await;
+                        .await?;
                 } else if pending.permission == Permission::AlwaysDeny {
                     self.tool_inspection_manager
                         .update_permission_manager(&tool_name, PermissionLevel::NeverAllow)
-                        .await;
+                        .await?;
                 }
             }
 

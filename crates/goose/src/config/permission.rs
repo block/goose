@@ -210,7 +210,7 @@ impl PermissionManager {
         self.config_path.as_path()
     }
 
-    pub fn apply_tool_annotations(&self, tools: &[Tool]) {
+    pub fn apply_tool_annotations(&self, tools: &[Tool]) -> Result<()> {
         let mut write_annotated = Vec::new();
         for tool in tools {
             let Some(anns) = &tool.annotations else {
@@ -224,11 +224,16 @@ impl PermissionManager {
             self.bulk_update_smart_approve_permissions(
                 &write_annotated,
                 PermissionLevel::AskBefore,
-            );
+            )?;
         }
+        Ok(())
     }
 
-    fn bulk_update_smart_approve_permissions(&self, tool_names: &[String], level: PermissionLevel) {
+    fn bulk_update_smart_approve_permissions(
+        &self,
+        tool_names: &[String],
+        level: PermissionLevel,
+    ) -> Result<()> {
         self.modify_permission_map(|map| {
             let permission_config = map.entry(SMART_APPROVE_PERMISSION.to_string()).or_default();
 
@@ -252,7 +257,6 @@ impl PermissionManager {
                 }
             }
         })
-        .expect("Failed to update smart-approve permissions");
     }
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.
@@ -285,17 +289,30 @@ impl PermissionManager {
     }
 
     /// Updates the user permission level for a specific tool.
-    pub fn update_user_permission(&self, principal_name: &str, level: PermissionLevel) {
+    pub fn update_user_permission(
+        &self,
+        principal_name: &str,
+        level: PermissionLevel,
+    ) -> Result<()> {
         self.update_permission(USER_PERMISSION, principal_name, level)
     }
 
     /// Updates the smart approve permission level for a specific tool.
-    pub fn update_smart_approve_permission(&self, principal_name: &str, level: PermissionLevel) {
+    pub fn update_smart_approve_permission(
+        &self,
+        principal_name: &str,
+        level: PermissionLevel,
+    ) -> Result<()> {
         self.update_permission(SMART_APPROVE_PERMISSION, principal_name, level)
     }
 
     /// Helper function to update a permission level for a specific tool in a given permission category.
-    fn update_permission(&self, name: &str, principal_name: &str, level: PermissionLevel) {
+    fn update_permission(
+        &self,
+        name: &str,
+        principal_name: &str,
+        level: PermissionLevel,
+    ) -> Result<()> {
         self.modify_permission_map(|map| {
             // Get or create a new PermissionConfig for the specified category
             let permission_config = map.entry(name.to_string()).or_default();
@@ -322,7 +339,6 @@ impl PermissionManager {
                     .push(principal_name.to_string()),
             }
         })
-        .expect("Failed to update user permissions");
     }
 
     pub fn remove_extension(&self, extension_name: &str) -> Result<()> {
@@ -341,9 +357,8 @@ impl PermissionManager {
         })
     }
 
-    pub fn clear_permissions(&self) {
+    pub fn clear_permissions(&self) -> Result<()> {
         self.modify_permission_map(HashMap::clear)
-            .expect("Failed to clear permissions");
     }
 
     fn belongs_to_extension(principal_name: &str, extension_name: &str) -> bool {
@@ -402,7 +417,9 @@ mod tests {
     #[test]
     fn test_update_user_permission() {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("tool1", PermissionLevel::AlwaysAllow);
+        manager
+            .update_user_permission("tool1", PermissionLevel::AlwaysAllow)
+            .unwrap();
 
         let permission = manager.get_user_permission("tool1");
         assert_eq!(permission, Some(PermissionLevel::AlwaysAllow));
@@ -411,10 +428,25 @@ mod tests {
     #[test]
     fn test_update_smart_approve_permission() {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.update_smart_approve_permission("tool2", PermissionLevel::AskBefore);
+        manager
+            .update_smart_approve_permission("tool2", PermissionLevel::AskBefore)
+            .unwrap();
 
         let permission = manager.get_smart_approve_permission("tool2");
         assert_eq!(permission, Some(PermissionLevel::AskBefore));
+    }
+
+    #[test]
+    fn permission_update_returns_error_when_refresh_fails() {
+        let (manager, _temp_dir) = create_test_permission_manager();
+        manager
+            .update_user_permission("tool", PermissionLevel::AlwaysAllow)
+            .unwrap();
+        fs::write(manager.get_config_path(), "{{invalid yaml: [broken").unwrap();
+
+        assert!(manager
+            .update_user_permission("tool", PermissionLevel::NeverAllow)
+            .is_err());
     }
 
     #[test]
@@ -429,9 +461,15 @@ mod tests {
     fn test_permission_levels() {
         let (manager, _temp_dir) = create_test_permission_manager();
 
-        manager.update_user_permission("tool4", PermissionLevel::AlwaysAllow);
-        manager.update_user_permission("tool5", PermissionLevel::AskBefore);
-        manager.update_user_permission("tool6", PermissionLevel::NeverAllow);
+        manager
+            .update_user_permission("tool4", PermissionLevel::AlwaysAllow)
+            .unwrap();
+        manager
+            .update_user_permission("tool5", PermissionLevel::AskBefore)
+            .unwrap();
+        manager
+            .update_user_permission("tool6", PermissionLevel::NeverAllow)
+            .unwrap();
 
         // Check the permission levels
         assert_eq!(
@@ -498,14 +536,18 @@ mod tests {
         let (manager, _temp_dir) = create_test_permission_manager();
 
         // Initially AlwaysAllow
-        manager.update_user_permission("tool7", PermissionLevel::AlwaysAllow);
+        manager
+            .update_user_permission("tool7", PermissionLevel::AlwaysAllow)
+            .unwrap();
         assert_eq!(
             manager.get_user_permission("tool7"),
             Some(PermissionLevel::AlwaysAllow)
         );
 
         // Now change to NeverAllow
-        manager.update_user_permission("tool7", PermissionLevel::NeverAllow);
+        manager
+            .update_user_permission("tool7", PermissionLevel::NeverAllow)
+            .unwrap();
         assert_eq!(
             manager.get_user_permission("tool7"),
             Some(PermissionLevel::NeverAllow)
@@ -522,11 +564,21 @@ mod tests {
     #[test]
     fn test_remove_extension() {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
-        manager.update_user_permission("git__tool__with__delimiter", PermissionLevel::AskBefore);
-        manager.update_user_permission("github__delete_repo", PermissionLevel::NeverAllow);
-        manager.update_user_permission("gitlab__deploy", PermissionLevel::AskBefore);
-        manager.update_user_permission("__cli__ent____tool", PermissionLevel::NeverAllow);
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
+        manager
+            .update_user_permission("git__tool__with__delimiter", PermissionLevel::AskBefore)
+            .unwrap();
+        manager
+            .update_user_permission("github__delete_repo", PermissionLevel::NeverAllow)
+            .unwrap();
+        manager
+            .update_user_permission("gitlab__deploy", PermissionLevel::AskBefore)
+            .unwrap();
+        manager
+            .update_user_permission("__cli__ent____tool", PermissionLevel::NeverAllow)
+            .unwrap();
 
         manager.remove_extension("git").unwrap();
 
@@ -553,7 +605,7 @@ mod tests {
             Some(PermissionLevel::NeverAllow)
         );
 
-        manager.clear_permissions();
+        manager.clear_permissions().unwrap();
         assert!(manager.get_permission_names().is_empty());
     }
 
@@ -561,10 +613,14 @@ mod tests {
     fn test_remove_extension_preserves_newer_permissions() {
         let temp_dir = TempDir::new().unwrap();
         let deleting_manager = PermissionManager::new(temp_dir.path().to_path_buf());
-        deleting_manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        deleting_manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
 
         let newer_manager = PermissionManager::new(temp_dir.path().to_path_buf());
-        newer_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+        newer_manager
+            .update_user_permission("github__status", PermissionLevel::AskBefore)
+            .unwrap();
 
         deleting_manager.remove_extension("git").unwrap();
 
@@ -580,12 +636,16 @@ mod tests {
     fn test_stale_manager_update_does_not_restore_removed_extension_permissions() {
         let temp_dir = TempDir::new().unwrap();
         let deleting_manager = PermissionManager::new(temp_dir.path().to_path_buf());
-        deleting_manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        deleting_manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
         let stale_manager = PermissionManager::new(temp_dir.path().to_path_buf());
 
         deleting_manager.remove_extension("git").unwrap();
         assert_eq!(stale_manager.get_user_permission("git__status"), None);
-        stale_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+        stale_manager
+            .update_user_permission("github__status", PermissionLevel::AskBefore)
+            .unwrap();
 
         let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
         assert_eq!(persisted_manager.get_user_permission("git__status"), None);
@@ -610,7 +670,9 @@ mod tests {
         let (completed_tx, completed_rx) = mpsc::channel();
 
         let update = thread::spawn(move || {
-            manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+            manager
+                .update_user_permission("github__status", PermissionLevel::AskBefore)
+                .unwrap();
             completed_tx.send(()).unwrap();
         });
 
@@ -625,7 +687,9 @@ mod tests {
     #[test]
     fn test_reads_refresh_permissions_changed_by_another_process() {
         let (manager, temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
         let lock_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -643,7 +707,9 @@ mod tests {
     #[test]
     fn test_reads_fail_closed_when_permission_refresh_fails() {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
         fs::write(manager.get_config_path(), "{{invalid yaml: [broken").unwrap();
 
         assert_eq!(
@@ -655,10 +721,14 @@ mod tests {
     #[test]
     fn test_update_does_not_restore_externally_deleted_permissions() {
         let (manager, temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        manager
+            .update_user_permission("git__status", PermissionLevel::AlwaysAllow)
+            .unwrap();
         fs::remove_file(manager.get_config_path()).unwrap();
 
-        manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+        manager
+            .update_user_permission("github__status", PermissionLevel::AskBefore)
+            .unwrap();
         drop(manager);
 
         let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
@@ -699,7 +769,7 @@ mod tests {
     )]
     fn test_apply_tool_annotations(tools: Vec<Tool>, expect_cache: Option<PermissionLevel>) {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.apply_tool_annotations(&tools);
+        manager.apply_tool_annotations(&tools).unwrap();
         assert_eq!(manager.get_smart_approve_permission("tool"), expect_cache);
     }
 }

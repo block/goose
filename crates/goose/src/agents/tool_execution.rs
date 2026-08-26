@@ -218,7 +218,7 @@ impl Agent {
                     if confirmation.permission == Permission::AlwaysAllow {
                         self.tool_inspection_manager
                             .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
-                            .await;
+                            .await?;
                     }
                 } else {
                     if let Some(response) = request_to_response_map.get_mut(&request.id) {
@@ -232,7 +232,7 @@ impl Agent {
                     if confirmation.permission == Permission::AlwaysDeny {
                         self.tool_inspection_manager
                             .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
-                            .await;
+                            .await?;
                     }
                 }
             }

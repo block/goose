@@ -130,22 +130,24 @@ impl ToolInspectionManager {
             .and_then(|i| i.as_any().downcast_ref::<PermissionInspector>())
     }
 
-    pub fn apply_tool_annotations(&self, tools: &[rmcp::model::Tool]) {
+    pub fn apply_tool_annotations(&self, tools: &[rmcp::model::Tool]) -> Result<()> {
         if let Some(inspector) = self.get_permission_inspector() {
-            inspector.apply_tool_annotations(tools);
+            inspector.apply_tool_annotations(tools)?;
         }
+        Ok(())
     }
 
     pub async fn update_permission_manager(
         &self,
         tool_name: &str,
         permission_level: crate::config::permission::PermissionLevel,
-    ) {
+    ) -> Result<()> {
         if let Some(inspector) = self.get_permission_inspector() {
             inspector
                 .permission_manager
-                .update_user_permission(tool_name, permission_level);
+                .update_user_permission(tool_name, permission_level)?;
         }
+        Ok(())
     }
 
     pub fn process_inspection_results_with_permission_inspector(

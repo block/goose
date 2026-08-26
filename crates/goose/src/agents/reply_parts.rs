@@ -211,7 +211,8 @@ impl Agent {
         let goose_mode = *self.current_goose_mode.lock().await;
 
         if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
+            self.tool_inspection_manager
+                .apply_tool_annotations(&tools)?;
         }
 
         let prompt_manager = self.prompt_manager.lock().await;
@@ -1214,7 +1215,8 @@ mod tests {
         let session_manager = Arc::new(SessionManager::new(data_path.clone()));
         let permission_manager = Arc::new(PermissionManager::new(data_path));
         permission_manager
-            .update_smart_approve_permission("frontend__write_tool", PermissionLevel::AlwaysAllow);
+            .update_smart_approve_permission("frontend__write_tool", PermissionLevel::AlwaysAllow)
+            .unwrap();
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&session_manager),
             Arc::clone(&permission_manager),

@@ -142,7 +142,11 @@ impl GooseAcpAgent {
                 ToolPermissionLevel::AskBefore => PermissionLevel::AskBefore,
                 ToolPermissionLevel::NeverAllow => PermissionLevel::NeverAllow,
             };
-            permission_manager.update_user_permission(&entry.tool_name, level);
+            permission_manager
+                .update_user_permission(&entry.tool_name, level)
+                .map_err(|error| {
+                    agent_client_protocol::Error::internal_error().data(error.to_string())
+                })?;
         }
         Ok(SetToolPermissionsResponse {})
     }

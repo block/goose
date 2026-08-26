@@ -300,7 +300,7 @@ impl Connection for AcpProviderConnection {
     }
 
     fn reset_permissions(&self) {
-        self.permission_manager.clear_permissions();
+        self.permission_manager.clear_permissions().unwrap();
     }
 }
 

@@ -23,14 +23,15 @@ fn cache_non_readonly_decision(
     permission_manager: &PermissionManager,
     candidate: &ToolRequest,
     is_readonly: bool,
-) {
+) -> Result<()> {
     if is_readonly {
-        return;
+        return Ok(());
     }
     if let Ok(tool_call) = &candidate.tool_call {
         permission_manager
-            .update_smart_approve_permission(&tool_call.name, PermissionLevel::AskBefore);
+            .update_smart_approve_permission(&tool_call.name, PermissionLevel::AskBefore)?;
     }
+    Ok(())
 }
 
 impl PermissionInspector {
@@ -49,7 +50,7 @@ impl PermissionInspector {
 
     // readonly_tools is per-agent to avoid concurrent session clobbering; write-annotated
     // tools are cached globally via PermissionManager.
-    pub fn apply_tool_annotations(&self, tools: &[Tool]) {
+    pub fn apply_tool_annotations(&self, tools: &[Tool]) -> Result<()> {
         let mut readonly_annotated = HashSet::new();
         for tool in tools {
             let Some(anns) = &tool.annotations else {
@@ -60,7 +61,7 @@ impl PermissionInspector {
             }
         }
         *self.readonly_tools.write().unwrap() = readonly_annotated;
-        self.permission_manager.apply_tool_annotations(tools);
+        self.permission_manager.apply_tool_annotations(tools)
     }
 
     pub fn is_readonly_annotated_tool(&self, tool_name: &str) -> bool {
@@ -244,7 +245,7 @@ impl ToolInspector for PermissionInspector {
             for candidate in &llm_detect_candidates {
                 let is_readonly = detected_request_ids.contains(&candidate.id);
 
-                cache_non_readonly_decision(permission_manager, candidate, is_readonly);
+                cache_non_readonly_decision(permission_manager, candidate, is_readonly)?;
 
                 results.push(InspectionResult {
                     tool_request_id: candidate.id.clone(),
@@ -286,10 +287,10 @@ mod tests {
     ) -> (InspectionAction, Option<PermissionLevel>) {
         let pm = Arc::new(PermissionManager::new(tempfile::tempdir().unwrap().keep()));
         if let Some(level) = user_permission {
-            pm.update_user_permission("tool", level);
+            pm.update_user_permission("tool", level).unwrap();
         }
         if let Some(level) = smart_approve_cache {
-            pm.update_smart_approve_permission("tool", level);
+            pm.update_smart_approve_permission("tool", level).unwrap();
         }
         let session_manager = Arc::new(crate::session::SessionManager::new(
             tempfile::tempdir().unwrap().keep(),
@@ -383,10 +384,10 @@ mod tests {
             tool_meta: None,
         };
 
-        cache_non_readonly_decision(&pm, &req, true);
+        cache_non_readonly_decision(&pm, &req, true).unwrap();
         assert_eq!(pm.get_smart_approve_permission("multipurpose"), None);
 
-        cache_non_readonly_decision(&pm, &req, false);
+        cache_non_readonly_decision(&pm, &req, false).unwrap();
         assert_eq!(
             pm.get_smart_approve_permission("multipurpose"),
             Some(PermissionLevel::AskBefore)

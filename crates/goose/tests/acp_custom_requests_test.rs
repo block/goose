@@ -228,14 +228,21 @@ fn test_custom_get_extensions() {
     let smart_approve_sibling = format!("{config_key}_sibling__read_file");
     let permission_manager = PermissionManager::new(permission_dir.clone());
     for (principal, level) in &target_user_permissions {
-        permission_manager.update_user_permission(principal, level.clone());
+        permission_manager
+            .update_user_permission(principal, level.clone())
+            .unwrap();
     }
     for (principal, level) in &target_smart_approve_permissions {
-        permission_manager.update_smart_approve_permission(principal, level.clone());
+        permission_manager
+            .update_smart_approve_permission(principal, level.clone())
+            .unwrap();
     }
-    permission_manager.update_user_permission(&user_sibling, PermissionLevel::AlwaysAllow);
     permission_manager
-        .update_smart_approve_permission(&smart_approve_sibling, PermissionLevel::AskBefore);
+        .update_user_permission(&user_sibling, PermissionLevel::AlwaysAllow)
+        .unwrap();
+    permission_manager
+        .update_smart_approve_permission(&smart_approve_sibling, PermissionLevel::AskBefore)
+        .unwrap();
 
     run_test(async move {
         let _permission_root = permission_root;

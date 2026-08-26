@@ -1883,7 +1883,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         _ => unreachable!(),
     };
 
-    permission_manager.update_user_permission(&tool.name, new_permission);
+    permission_manager.update_user_permission(&tool.name, new_permission)?;
 
     cliclack::outro(format!(
         "Updated permission level for tool {} to {}.",

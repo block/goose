@@ -490,7 +490,9 @@ impl TestPipeline {
     }
 
     pub(super) fn set_permission(&self, tool: &str, level: PermissionLevel) {
-        self.permission_manager.update_user_permission(tool, level);
+        self.permission_manager
+            .update_user_permission(tool, level)
+            .unwrap();
     }
 
     pub(super) async fn remove_extension(&self, name: &str) -> Result<()> {
