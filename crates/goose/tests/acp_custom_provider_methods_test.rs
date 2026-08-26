@@ -4,7 +4,7 @@
 mod common_tests;
 
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, send_custom, Connection, TestConnectionConfig};
+use common_tests::fixtures::{run_test_with_env, send_custom, Connection, TestConnectionConfig};
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::declarative_providers::load_provider;
 use goose::config::paths::Paths;
@@ -25,14 +25,7 @@ fn write_secrets(config_dir: &std::path::Path, contents: &str) {
 #[test]
 #[serial]
 fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
-    let _env = env_lock::lock_env([
-        ("GOOSE_DISABLE_KEYRING", Some("1")),
-        ("XAI_API_KEY", None),
-        ("XAI_HOST", None),
-        ("CUSTOM_STARK_ACP_PROVIDER_API_KEY", None),
-    ]);
-
-    run_test(async move {
+    let test = async move {
         let config_dir = Paths::config_dir();
         write_config(
             &config_dir,
@@ -721,5 +714,15 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 .unwrap(),
             "shared-secret"
         );
-    });
+    };
+
+    run_test_with_env(
+        test,
+        [
+            ("GOOSE_DISABLE_KEYRING", Some("1")),
+            ("XAI_API_KEY", None),
+            ("XAI_HOST", None),
+            ("CUSTOM_STARK_ACP_PROVIDER_API_KEY", None),
+        ],
+    );
 }

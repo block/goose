@@ -797,9 +797,24 @@ pub fn run_test<F>(fut: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    run_test_with_env(fut, []);
+}
+
+#[allow(dead_code)]
+pub fn run_test_with_env<'a, F>(
+    fut: F,
+    variables: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+) where
+    F: Future<Output = ()> + Send + 'static,
+{
     let _guard = ACP_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
     let test_root = ACP_CONFIG_ROOT.path().to_string_lossy().into_owned();
-    let _env = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(test_root.as_str()))]);
+    let variables = [("GOOSE_PATH_ROOT", Some(test_root))].into_iter().chain(
+        variables
+            .into_iter()
+            .map(|(key, value)| (key, value.map(ToOwned::to_owned))),
+    );
+    let _env = env_lock::lock_env(variables);
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let handle = std::thread::Builder::new()
