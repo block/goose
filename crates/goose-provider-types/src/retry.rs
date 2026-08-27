@@ -5,6 +5,8 @@ use std::future::Future;
 use std::time::Duration;
 use tokio::time::sleep;
 
+const SKIP_BACKOFF_ENV: &str = "GOOSE_PROVIDER_SKIP_BACKOFF";
+
 pub const DEFAULT_MAX_RETRIES: usize = 3;
 pub const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 1000;
 pub const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
@@ -35,6 +37,16 @@ impl Default for RetryConfig {
             transient_only: false,
         }
     }
+}
+
+/// The retry loop runs many attempts inside one request, so reading the
+/// environment per attempt let a mid-request change produce a torn mix of old
+/// and new values within that request.
+fn skip_backoff_from_env() -> bool {
+    std::env::var(SKIP_BACKOFF_ENV)
+        .ok()
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(false)
 }
 
 impl RetryConfig {
@@ -117,6 +129,7 @@ where
     Fut: Future<Output = Result<T, ProviderError>> + Send,
     T: Send,
 {
+    let skip_backoff = skip_backoff_from_env();
     let mut attempts = 0;
 
     loop {
@@ -140,7 +153,9 @@ where
                         _ => config.delay_for_attempt(attempts),
                     };
 
-                    sleep(delay).await;
+                    if !skip_backoff {
+                        sleep(delay).await;
+                    }
                     continue;
                 }
                 return Err(error);
@@ -194,6 +209,7 @@ impl<P: Provider> ProviderRetry for P {
         Fut: Future<Output = Result<T, ProviderError>> + Send,
         T: Send,
     {
+        let skip_backoff = skip_backoff_from_env();
         let mut attempts = 0;
         let mut auth_retried = false;
 
@@ -239,13 +255,8 @@ impl<P: Provider> ProviderRetry for P {
                             _ => config.delay_for_attempt(attempts),
                         };
 
-                        let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
-                            .unwrap_or_default()
-                            .parse::<bool>()
-                            .unwrap_or(false);
-
                         if skip_backoff {
-                            tracing::info!("Skipping backoff due to GOOSE_PROVIDER_SKIP_BACKOFF");
+                            tracing::info!("Skipping backoff due to {SKIP_BACKOFF_ENV}");
                         } else {
                             tracing::info!("Backing off for {:?} before retry", delay);
                             sleep(delay).await;
@@ -342,5 +353,52 @@ mod tests {
             &ProviderError::Authentication("invalid key".into()),
             &config
         ));
+    }
+
+    #[tokio::test]
+    async fn mid_request_flag_change_only_affects_later_requests() {
+        let _guard = env_lock::lock_env([(SKIP_BACKOFF_ENV, Some("true"))]);
+
+        let slow_backoff = RetryConfig {
+            max_retries: 2,
+            initial_interval_ms: 60_000,
+            backoff_multiplier: 1.0,
+            max_interval_ms: 60_000,
+            transient_only: false,
+        };
+
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
+        let in_flight = tokio::time::timeout(
+            Duration::from_secs(5),
+            retry_operation(&slow_backoff, || {
+                let attempt = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if attempt == 0 {
+                    std::env::set_var(SKIP_BACKOFF_ENV, "false");
+                }
+                async move {
+                    Err::<(), _>(ProviderError::ServerError(format!("attempt {attempt}")))
+                }
+            }),
+        )
+        .await
+        .expect("in-flight request must keep using the snapshot taken when it started");
+
+        assert!(in_flight.is_err());
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 3);
+
+        assert!(!skip_backoff_from_env());
+
+        let subsequent = tokio::time::timeout(
+            Duration::from_millis(200),
+            retry_operation(&slow_backoff, || async {
+                Err::<(), _>(ProviderError::ServerError("still failing".to_string()))
+            }),
+        )
+        .await;
+
+        assert!(
+            subsequent.is_err(),
+            "subsequent request must observe the new flag value and back off"
+        );
     }
 }
