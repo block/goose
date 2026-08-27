@@ -42,38 +42,60 @@ type AgentMessagesFuture = Pin<
 
 /// Choose the model-facing text for an extension attach failure.
 ///
-/// The one dangerous variant is `ExtensionError::ProcessExit`, whose
-/// Display impl wraps the MCP process's full stderr. That stderr can
-/// contain credentials in arbitrary formats — URL-embedded database
-/// credentials, `Authorization` headers, session cookies, JWTs, private
-/// keys, or custom environment-variable dumps — that no denylist can
-/// enumerate exhaustively. Suppress the payload entirely and point the
-/// caller at the logs.
+/// `ExtensionError` has seven variants. Four wrap remote-server, process,
+/// or panic-derived text that can carry credentials in arbitrary shapes
+/// no denylist can enumerate:
 ///
-/// Other variants (`SetupError`, `IoError`, `ConfigError`, `Client`,
-/// `InitializeError`, `TaskJoinError`) are constructed from Goose-owned
-/// text with no user data embedded, and are safe to surface — but still
-/// bounded in length as belt-and-braces against runaway strings.
+/// - `ProcessExit`: MCP process stderr (URL-embedded creds, env dumps,
+///   auth headers, JWTs, private keys)
+/// - `Client(ServiceError)`: wraps `McpError` with a server-controlled
+///   `message` field, plus `Cancelled { reason: Option<String> }` where
+///   the reason is a server-supplied string
+/// - `InitializeError(ClientInitializeError)`: HTTP MCP servers can
+///   echo request headers (including `Authorization`) into protocol
+///   errors surfaced through this variant
+/// - `TaskJoinError(JoinError)`: `Display` includes the panic payload
+///   verbatim, which could be any Rust value the panicking code passed
+///
+/// For all four, suppress the payload and point the caller at the logs.
+///
+/// The remaining three (`SetupError`, `ConfigError`, `IoError`) are
+/// constructed from Goose-owned code — grep confirms every call site
+/// uses static strings or system-generated messages without user data.
+/// These pass through so the parent LLM sees an actionable diagnostic
+/// (e.g. "extension \"foo\" not registered"), bounded to 500 chars as
+/// belt-and-braces against runaway strings.
 ///
 /// The full unredacted error remains available via the `debug!` log at
-/// the attach site regardless of which branch is taken.
+/// the attach site regardless of which branch is taken. The exhaustive
+/// match means any future `ExtensionError` variant forces a compile
+/// error until the reviewer decides which branch it belongs in.
 fn model_facing_extension_error(e: &ExtensionError) -> String {
     const MAX_LEN: usize = 500;
 
-    if matches!(e, ExtensionError::ProcessExit(_)) {
-        return "(extension attach failed with unsafe-to-surface error; see logs)".to_string();
-    }
+    let safe_text: Option<String> = match e {
+        ExtensionError::SetupError(msg) => Some(msg.clone()),
+        ExtensionError::ConfigError(msg) => Some(msg.clone()),
+        ExtensionError::IoError(io_err) => Some(io_err.to_string()),
+        ExtensionError::ProcessExit(_)
+        | ExtensionError::Client(_)
+        | ExtensionError::InitializeError(_)
+        | ExtensionError::TaskJoinError(_) => None,
+    };
 
-    let raw = e.to_string();
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return "(extension attach failed; see logs)".to_string();
-    }
-    if trimmed.chars().count() > MAX_LEN {
-        let truncated: String = trimmed.chars().take(MAX_LEN).collect();
-        format!("{truncated}… (truncated; full error in logs)")
-    } else {
-        trimmed.to_string()
+    match safe_text {
+        None => "(extension attach failed with unsafe-to-surface error; see logs)".to_string(),
+        Some(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                "(extension attach failed; see logs)".to_string()
+            } else if trimmed.chars().count() > MAX_LEN {
+                let truncated: String = trimmed.chars().take(MAX_LEN).collect();
+                format!("{truncated}… (truncated; full error in logs)")
+            } else {
+                trimmed.to_string()
+            }
+        }
     }
 }
 
@@ -649,6 +671,42 @@ mod tests {
         let surfaced = model_facing_extension_error(&err);
         assert!(surfaced.chars().count() <= 600);
         assert!(surfaced.ends_with("(truncated; full error in logs)"));
+    }
+
+    #[test]
+    fn model_facing_extension_error_suppresses_initialize_error() {
+        // HTTP MCP servers can echo request headers (Authorization,
+        // Cookie) into the protocol errors that surface through this
+        // variant. Suppress the payload — the sentinel replaces any
+        // server-controlled text.
+        let inner = rmcp::service::ClientInitializeError::ConnectionClosed(
+            "connection reset by peer".to_string(),
+        );
+        let err = ExtensionError::InitializeError(inner);
+        let surfaced = model_facing_extension_error(&err);
+        assert_eq!(
+            surfaced,
+            "(extension attach failed with unsafe-to-surface error; see logs)"
+        );
+        assert!(!surfaced.contains("connection reset"));
+    }
+
+    #[test]
+    fn model_facing_extension_error_suppresses_client_error() {
+        // Client wraps ServiceError, which includes McpError with a
+        // server-controlled `message` field and Cancelled { reason }
+        // where the reason is a server-supplied string. Both are
+        // remote-controlled and must be suppressed.
+        let inner = rmcp::service::ServiceError::Cancelled {
+            reason: Some("server said sensitive-thing".to_string()),
+        };
+        let err = ExtensionError::Client(inner);
+        let surfaced = model_facing_extension_error(&err);
+        assert_eq!(
+            surfaced,
+            "(extension attach failed with unsafe-to-surface error; see logs)"
+        );
+        assert!(!surfaced.contains("sensitive-thing"));
     }
 
     #[test]
