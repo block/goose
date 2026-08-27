@@ -334,7 +334,7 @@ describe('acpChatSessionController.updateMessage', () => {
           onFinish: vi.fn(),
         }
       )
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
       SESSION_ID,
@@ -398,7 +398,7 @@ describe('acpChatSessionController.updateMessage', () => {
       messages: [existingMessage, permissionMessage],
     };
     resolvePromptCancellation!();
-    await updatePromise;
+    await expect(updatePromise).resolves.toBe(true);
 
     expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
       SESSION_ID,

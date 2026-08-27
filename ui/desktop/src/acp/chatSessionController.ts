@@ -66,7 +66,7 @@ export interface AcpChatSessionController {
     editType: 'fork' | 'edit',
     retainedImages: ImageData[],
     options: AcpSubmitMessageOptions
-  ): Promise<void>;
+  ): Promise<boolean>;
 }
 
 function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
@@ -245,7 +245,7 @@ async function updateMessage(
   editType: 'fork' | 'edit',
   retainedImages: ImageData[],
   options: AcpSubmitMessageOptions
-): Promise<void> {
+): Promise<boolean> {
   assertNoPendingPromptCancellation(sessionId);
 
   const currentSnapshot = options.getCurrentSnapshot();
@@ -260,7 +260,7 @@ async function updateMessage(
 
   if (editType === 'fork') {
     await forkSessionWithEditedMessage(sessionId, message, newContent, retainedImages);
-    return;
+    return true;
   }
 
   const editSnapshot = currentSnapshot ?? storedSnapshot;
@@ -274,7 +274,7 @@ async function updateMessage(
   const canEditInPlace = isIdle || pendingToolPermissionPromptAttemptId != null;
 
   if (!canEditInPlace) {
-    return;
+    return false;
   }
 
   if (pendingToolPermissionPromptAttemptId != null) {
@@ -318,6 +318,7 @@ async function updateMessage(
     acpChatSessionActions.setMessages(sessionId, messagesForUI);
 
     await submitMessage(sessionId, updatedUserMessage, options);
+    return true;
   } catch (error) {
     acpChatSessionActions.setChatState(sessionId, ChatState.Idle);
     throw error;

@@ -294,7 +294,7 @@ export function useChatSession({
       retainedImages: ImageData[]
     ) => {
       try {
-        await acpChatSessionController.updateMessage(
+        return await acpChatSessionController.updateMessage(
           sessionId,
           messageId,
           newContent,
@@ -305,7 +305,6 @@ export function useChatSession({
             onFinish,
           }
         );
-        return true;
       } catch (error) {
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
