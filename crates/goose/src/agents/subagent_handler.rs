@@ -210,8 +210,13 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
+        // Start with any drops that build_task_config recorded before the
+        // attach step (e.g. requested extension names not active in the
+        // parent session). Then append per-extension results from the
+        // attach loop below. The parent sees a single unified report.
         let mut extension_load_results: Vec<ExtensionLoadResult> =
-            Vec::with_capacity(task_config.extensions.len());
+            task_config.pre_attach_load_results.clone();
+        extension_load_results.reserve(task_config.extensions.len());
         for extension in &task_config.extensions {
             let name = extension.name();
             match agent.add_extension(extension.clone(), &session_id).await {

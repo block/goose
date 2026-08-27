@@ -5,7 +5,7 @@ use crate::agents::subagent_handler::{
 };
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter};
-use crate::agents::AgentConfig;
+use crate::agents::{AgentConfig, ExtensionLoadResult};
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
@@ -613,13 +613,13 @@ impl SummonClient {
         sink.lock().await.attach(emitter).await;
     }
 
-    async fn run_subagent_with_notifications<Run, RunFuture>(
+    async fn run_subagent_with_notifications<Run, RunFuture, Output>(
         sink: SharedNotificationSink,
         run_subagent: Run,
-    ) -> Result<String>
+    ) -> Result<Output>
     where
         Run: FnOnce(tokio::sync::mpsc::UnboundedSender<ServerNotification>) -> RunFuture,
-        RunFuture: Future<Output = Result<String>>,
+        RunFuture: Future<Output = Result<Output>>,
     {
         let (notification_tx, mut notification_rx) = tokio::sync::mpsc::unbounded_channel();
         let run = run_subagent(notification_tx);
@@ -1643,6 +1643,8 @@ impl SummonClient {
             Config::global(),
         );
 
+        let mut pre_attach_load_results: Vec<ExtensionLoadResult> = Vec::new();
+
         if let Some(filter) = &params.extensions {
             if filter.is_empty() {
                 extensions = Vec::new();
@@ -1660,6 +1662,20 @@ impl SummonClient {
                         "Delegate requested extensions not available in session: {:?}. Available: {:?}",
                         unmatched, available_names
                     );
+                    // Surface the drops on the returned TaskConfig so the
+                    // subagent's tool response reports them to the parent LLM.
+                    // Without this, filter-culled extensions vanish silently
+                    // and the parent has no signal that its request was not
+                    // honoured.
+                    for name in unmatched {
+                        pre_attach_load_results.push(ExtensionLoadResult {
+                            name: name.to_string(),
+                            success: false,
+                            error: Some(format!(
+                                "extension \"{name}\" not available in parent session"
+                            )),
+                        });
+                    }
                 }
             }
         }
@@ -1693,7 +1709,8 @@ impl SummonClient {
             &effective_working_dir,
             extensions,
         )
-        .with_max_turns(Some(max_turns));
+        .with_max_turns(Some(max_turns))
+        .with_pre_attach_load_results(pre_attach_load_results);
 
         Ok(task_config)
     }
@@ -2935,6 +2952,82 @@ You review code."#;
         assert!(task_config.extensions.is_empty());
     }
 
+    /// Regression test for the silent-drop bug that motivated this PR.
+    ///
+    /// Parent session has `developer` active. Delegate filter requests both
+    /// `developer` (should survive the filter) and `nonexistent` (should be
+    /// culled). Assert the returned `TaskConfig` reports the culled name
+    /// on `pre_attach_load_results` so the subagent handler can surface it
+    /// to the parent LLM alongside attach-time results.
+    #[tokio::test]
+    async fn test_build_task_config_reports_unmatched_extensions_as_pre_attach_drops() {
+        use crate::session::ExtensionState;
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        // Seed session.extension_data with `developer` as the only enabled extension.
+        let mut extension_data = crate::session::ExtensionData::new();
+        crate::session::extension_data::EnabledExtensionsState::new(vec![
+            crate::agents::ExtensionConfig::Builtin {
+                name: "developer".into(),
+                description: "dev".into(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            },
+        ])
+        .to_extension_data(&mut extension_data)
+        .unwrap();
+
+        let session = crate::session::Session {
+            provider_name: Some(parent_provider.get_name().to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new("test-model")),
+            working_dir: temp_dir.path().to_path_buf(),
+            extension_data,
+            ..Default::default()
+        };
+        let params = DelegateParams {
+            extensions: Some(vec![
+                "developer".to_string(),
+                "nonexistent".to_string(),
+            ]),
+            provider: Some(parent_provider.get_name().to_string()),
+            model: Some("test-model".to_string()),
+            ..Default::default()
+        };
+
+        let task_config = client
+            .build_task_config(&params, &empty_recipe(), &session)
+            .await
+            .unwrap();
+
+        // developer survived the filter and would be attached at runtime.
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
+
+        // nonexistent was culled but is reported for the parent to see.
+        assert_eq!(task_config.pre_attach_load_results.len(), 1);
+        let drop = &task_config.pre_attach_load_results[0];
+        assert_eq!(drop.name, "nonexistent");
+        assert!(!drop.success);
+        let err = drop.error.as_deref().unwrap_or("");
+        assert!(
+            err.contains("not available in parent session"),
+            "expected filter-drop reason in error: {}",
+            err
+        );
+    }
+
     const PARENT_MODEL: &str = "claude-3-5-sonnet-20241022";
     const OVERRIDE_MODEL: &str = "claude-opus-4-6";
     const PROVIDER: &str = "anthropic";
@@ -3434,7 +3527,7 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3483,7 +3576,7 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3555,7 +3648,7 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3797,7 +3890,7 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     task_token.cancelled().await;
-                    Ok("cancelled gracefully".to_string())
+                    Ok(SubagentRunResult { text: "cancelled gracefully".to_string(), extension_load_results: Vec::new() })
                 }),
                 cancellation_token: token.clone(),
                 notification_sink: buffered_notification_sink(vec![
@@ -3857,7 +3950,7 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     finish_rx.await.unwrap();
-                    Ok("done".to_string())
+                    Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() })
                 }),
                 cancellation_token: CancellationToken::new(),
                 notification_sink: buffered_notification_sink(vec![
