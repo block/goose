@@ -68,7 +68,7 @@ impl InventoryResolvers {
         let config_keys = metadata.config_keys.clone();
         let provider_id = metadata.name.clone();
         let default_configured = Arc::new(move || {
-            default_inventory_configured(&provider_id, &config_keys, Config::global())
+            default_inventory_configured(&provider_id, &config_keys, Config::global(), false)
         });
 
         match registration {

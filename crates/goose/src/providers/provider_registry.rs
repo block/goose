@@ -289,11 +289,11 @@ impl ProviderRegistry {
         let inventory_provider_id = custom_metadata.name.clone();
         let inventory_requires_auth = config.requires_auth;
         let default_inventory_configured = Arc::new(move || {
-            super::inventory::declared_inventory_configured(
+            super::inventory::default_inventory_configured(
                 &inventory_provider_id,
                 &inventory_config_keys,
                 crate::config::Config::global(),
-                inventory_requires_auth,
+                !inventory_requires_auth,
             )
         });
 

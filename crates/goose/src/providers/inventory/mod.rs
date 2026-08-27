@@ -899,26 +899,10 @@ pub fn default_inventory_identity(
     identity
 }
 
+/// `declaration_is_configuration` is set for authless custom providers, whose
+/// declaration supplies the base URL and models and is itself the user-supplied
+/// configuration.
 pub fn default_inventory_configured(
-    provider_id: &str,
-    config_keys: &[ConfigKey],
-    config: &Config,
-) -> bool {
-    inventory_configured(provider_id, config_keys, config, false)
-}
-
-/// A custom provider declaration supplies its own base URL and models, so an
-/// authless declaration is itself the user-supplied configuration.
-pub fn declared_inventory_configured(
-    provider_id: &str,
-    config_keys: &[ConfigKey],
-    config: &Config,
-    requires_auth: bool,
-) -> bool {
-    inventory_configured(provider_id, config_keys, config, !requires_auth)
-}
-
-fn inventory_configured(
     provider_id: &str,
     config_keys: &[ConfigKey],
     config: &Config,
@@ -1491,21 +1475,40 @@ mod tests {
         assert!(!default_inventory_configured(
             "defaulted",
             &defaulted_key,
-            &config
+            &config,
+            false
         ));
 
-        assert!(!default_inventory_configured("no_keys", &[], &config));
+        assert!(!default_inventory_configured(
+            "no_keys",
+            &[],
+            &config,
+            false
+        ));
+        assert!(default_inventory_configured("authless", &[], &config, true));
 
         let secret_key = vec![ConfigKey::new("GOOSE_TEST_API_KEY", true, true, None, true)];
         assert!(!default_inventory_configured(
             "secret",
             &secret_key,
-            &config
+            &config,
+            false
+        ));
+        assert!(!default_inventory_configured(
+            "secret",
+            &secret_key,
+            &config,
+            true
         ));
         config
             .set_secret("GOOSE_TEST_API_KEY", &"sk-test".to_string())
             .unwrap();
-        assert!(default_inventory_configured("secret", &secret_key, &config));
+        assert!(default_inventory_configured(
+            "secret",
+            &secret_key,
+            &config,
+            false
+        ));
 
         crate::config::set_provider_entry(
             &config,
@@ -1520,44 +1523,6 @@ mod tests {
         assert!(default_inventory_configured(
             "defaulted",
             &defaulted_key,
-            &config
-        ));
-    }
-
-    #[test]
-    fn declared_inventory_configured_treats_authless_declaration_as_configuration() {
-        let config_file = tempfile::NamedTempFile::new().unwrap();
-        let secrets_file = tempfile::NamedTempFile::new().unwrap();
-        let config =
-            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
-
-        assert!(declared_inventory_configured(
-            "authless",
-            &[],
-            &config,
-            false
-        ));
-        assert!(!declared_inventory_configured(
-            "authful",
-            &[],
-            &config,
-            true
-        ));
-
-        let secret_key = vec![ConfigKey::new("GOOSE_TEST_API_KEY", true, true, None, true)];
-        assert!(!declared_inventory_configured(
-            "needs_key",
-            &secret_key,
-            &config,
-            false
-        ));
-
-        config
-            .set_secret("GOOSE_TEST_API_KEY", &"sk-test".to_string())
-            .unwrap();
-        assert!(declared_inventory_configured(
-            "needs_key",
-            &secret_key,
             &config,
             false
         ));
