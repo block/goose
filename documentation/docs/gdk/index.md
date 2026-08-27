@@ -232,6 +232,16 @@ Errors raised before the stream starts are thrown as `GooseError`
 (`GooseException` in Kotlin). Errors that occur mid-stream arrive as an
 `ErrorChunk` instead.
 
+## Agent skill
+
+goose ships a built-in `gdk` skill covering this API, the ACP server, and the
+failure modes that matter, so goose can write GDK programs without being told the
+surface first. It is enabled by default — no installation needed.
+
+To give another agent the same context, download
+[`gdk.md`](pathname:///files/skills/gdk.md) and drop it in that agent's skills directory
+(for goose that is `~/.agents/skills/`).
+
 ## Next steps
 
 - [API Reference](/docs/gdk/api-reference) — every function, type, and error
