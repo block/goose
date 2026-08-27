@@ -257,7 +257,13 @@ struct AgentStreamOutcome {
 /// one session.
 pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
-/// Releases a registry entry if the task consuming an agent stream is dropped
+#[derive(Default)]
+struct PendingApprovalBatch {
+    pending: HashSet<String>,
+    responses: Vec<(String, Permission)>,
+}
+
+/// Releases a registry entry if the owning `on_prompt` future is dropped
 /// without reaching its explicit `clear_active_run` — e.g. a roaming
 /// connection is revoked or lost mid-turn. Without this, the shared registry
 /// retains the run forever and every later connection gets "session already
@@ -340,6 +346,7 @@ pub struct GooseAcpAgentOptions {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    pending_state_machine_approvals: std::sync::Mutex<HashMap<String, PendingApprovalBatch>>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -975,6 +982,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: options.active_prompt_runs,
+            pending_state_machine_approvals: std::sync::Mutex::new(HashMap::new()),
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -1607,6 +1615,16 @@ impl GooseAcpAgent {
         let permission_request =
             RequestPermissionRequest::new(session_id.clone(), tool_call_update, options);
 
+        if use_state_machine {
+            self.pending_state_machine_approvals
+                .lock()
+                .unwrap()
+                .entry(session_id.0.to_string())
+                .or_default()
+                .pending
+                .insert(request_id.clone());
+        }
+
         cx.send_request(permission_request)
             .on_receiving_result(move |result| async move {
                 let confirmation = match result {
@@ -1621,19 +1639,45 @@ impl GooseAcpAgent {
                 };
 
                 if !use_state_machine || agent.supports_action_required_permissions().await {
+                    if use_state_machine {
+                        let mut batches = server.pending_state_machine_approvals.lock().unwrap();
+                        if let Some(batch) = batches.get_mut(session_id.0.as_ref()) {
+                            batch.pending.remove(&request_id);
+                            if batch.pending.is_empty() {
+                                batches.remove(session_id.0.as_ref());
+                            }
+                        }
+                    }
                     agent
                         .handle_confirmation(session_id.0.as_ref(), request_id, confirmation)
                         .await;
                     return Ok(());
                 }
 
+                let responses = {
+                    let mut batches = server.pending_state_machine_approvals.lock().unwrap();
+                    let batch = batches.entry(session_id.0.to_string()).or_default();
+                    batch.pending.remove(&request_id);
+                    batch.responses.push((request_id, confirmation.permission));
+                    if !batch.pending.is_empty() {
+                        return Ok(());
+                    }
+                    batches
+                        .remove(session_id.0.as_ref())
+                        .map(|batch| batch.responses)
+                        .unwrap_or_default()
+                };
+
                 let mut goose = serde_json::Map::new();
                 goose.insert(
-                    "toolConfirmation".to_string(),
-                    serde_json::json!({
-                        "id": request_id,
-                        "permission": confirmation.permission,
-                    }),
+                    "toolConfirmations".to_string(),
+                    serde_json::json!(responses
+                        .into_iter()
+                        .map(|(id, permission)| serde_json::json!({
+                            "id": id,
+                            "permission": permission,
+                        }))
+                        .collect::<Vec<_>>()),
                 );
                 goose.insert(
                     "unrolledAgentLoop".to_string(),
@@ -2172,37 +2216,40 @@ impl GooseAcpAgent {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
 
-        let tool_confirmation = args
+        let tool_confirmations = args
             .meta
             .as_ref()
             .and_then(|meta| meta.get("goose"))
-            .and_then(|goose| goose.get("toolConfirmation"));
-        let user_message = if let Some(confirmation) = tool_confirmation {
-            let id = confirmation
-                .get("id")
-                .and_then(|id| id.as_str())
-                .ok_or_else(|| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data("toolConfirmation.id must be a string")
-                })?;
-            let permission = confirmation
-                .get("permission")
-                .cloned()
-                .ok_or_else(|| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data("toolConfirmation.permission is required")
-                })
-                .and_then(|permission| {
-                    serde_json::from_value(permission).map_err(|error| {
+            .and_then(|goose| goose.get("toolConfirmations"))
+            .and_then(|confirmations| confirmations.as_array());
+        let user_message = if let Some(confirmations) = tool_confirmations {
+            let mut message = Message::user().with_visibility(false, false);
+            for confirmation in confirmations {
+                let id = confirmation
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .ok_or_else(|| {
                         agent_client_protocol::Error::invalid_params()
-                            .data(format!("invalid toolConfirmation.permission: {error}"))
+                            .data("toolConfirmation.id must be a string")
+                    })?;
+                let permission = confirmation
+                    .get("permission")
+                    .cloned()
+                    .ok_or_else(|| {
+                        agent_client_protocol::Error::invalid_params()
+                            .data("toolConfirmation.permission is required")
                     })
-                })?;
-            Message::user()
-                .with_content(MessageContent::action_required_tool_confirmation_response(
-                    id, permission,
-                ))
-                .with_visibility(false, false)
+                    .and_then(|permission| {
+                        serde_json::from_value(permission).map_err(|error| {
+                            agent_client_protocol::Error::invalid_params()
+                                .data(format!("invalid toolConfirmation.permission: {error}"))
+                        })
+                    })?;
+                message = message.with_content(
+                    MessageContent::action_required_tool_confirmation_response(id, permission),
+                );
+            }
+            message
         } else {
             Self::convert_acp_prompt_to_message(&args.prompt)
         };
