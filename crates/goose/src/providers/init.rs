@@ -333,6 +333,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_aimlapi_provider_registry_wiring() {
+        let aimlapi = get_from_registry("aimlapi")
+            .await
+            .expect("aimlapi provider should be registered");
+        let meta = aimlapi.metadata();
+
+        assert_eq!(meta.name, "aimlapi");
+        assert_eq!(meta.display_name, "AI/ML API");
+        assert_eq!(meta.default_model, "openai/gpt-5-5");
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "AIMLAPI_API_KEY" && key.secret));
+
+        // The whole product claim, empirically: sorted with everything else
+        // registered, "AI/ML API" lands before "Amazon Bedrock" ("AI" < "Am")
+        // with no special-casing anywhere - same sort ProviderGrid.tsx uses.
+        let mut names: Vec<String> = providers()
+            .await
+            .into_iter()
+            .map(|(m, _)| m.display_name)
+            .collect();
+        names.sort();
+        let aimlapi_pos = names
+            .iter()
+            .position(|n| n == "AI/ML API")
+            .expect("AI/ML API should be in the full provider list");
+        let bedrock_pos = names.iter().position(|n| n == "Amazon Bedrock");
+        if let Some(bedrock_pos) = bedrock_pos {
+            assert!(
+                aimlapi_pos < bedrock_pos,
+                "AI/ML API should sort before Amazon Bedrock"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_gondola_provider_registry_wiring() {
         let gondola = get_from_registry("gondola")
             .await
