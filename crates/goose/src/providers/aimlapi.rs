@@ -50,6 +50,7 @@ impl ProviderDef for AimlapiProvider {
 
             let api_client =
                 ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?
+                    .with_header("X-AIMLAPI-Source", "agent/goose")?
                     .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(OpenAiCompatibleProvider::new(
