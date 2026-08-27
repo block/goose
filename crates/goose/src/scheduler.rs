@@ -1211,6 +1211,7 @@ async fn execute_job(
     #[cfg(feature = "telemetry")]
     {
         let duration_secs = start_time.elapsed().as_secs();
+        let status = if stream_error { "failed" } else { "completed" };
         tokio::spawn(async move {
             let mut props = HashMap::new();
             props.insert(
@@ -1219,7 +1220,7 @@ async fn execute_job(
             );
             props.insert(
                 "status".to_string(),
-                serde_json::Value::String("completed".to_string()),
+                serde_json::Value::String(status.to_string()),
             );
             props.insert(
                 "duration_seconds".to_string(),
@@ -1231,7 +1232,14 @@ async fn execute_job(
         });
     }
 
-    Ok(session.id)
+    if stream_error {
+        Err(anyhow!(
+            "Scheduled job '{}' failed due to an error during execution",
+            job.id
+        ))
+    } else {
+        Ok(session.id)
+    }
 }
 
 #[async_trait]
