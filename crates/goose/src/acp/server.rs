@@ -994,6 +994,7 @@ impl GooseAcpAgent {
         session_id: &str,
         captured_provider: &str,
         agent: &Arc<Agent>,
+        override_existing: bool,
     ) {
         // The user may have switched providers since this task was spawned.
         // Only apply a window for the provider the session actually used at
@@ -1017,7 +1018,7 @@ impl GooseAcpAgent {
         let Ok(current) = agent.model_config_for_session(session_id).await else {
             return;
         };
-        if current.context_limit.is_some() {
+        if current.context_limit.is_some() && !override_existing {
             return;
         }
         let Some(limit) = inventory_service
@@ -1026,6 +1027,11 @@ impl GooseAcpAgent {
         else {
             return;
         };
+        // Skip the rewrite when the new window matches what's already set;
+        // avoids unnecessary provider recreation churn on identical values.
+        if current.context_limit == Some(limit) {
+            return;
+        }
         if let Ok(rebuilt) =
             crate::model_config::model_config_from_user_config_with_session_settings(
                 captured_provider,
@@ -1057,6 +1063,7 @@ impl GooseAcpAgent {
                 &session_id,
                 &provider_name,
                 &agent,
+                false,
             )
             .await;
 
@@ -1085,13 +1092,15 @@ impl GooseAcpAgent {
                 .refresh_with_provider(&provider_name, &provider, &mut inventory, "session init")
                 .await;
 
-            // First-run case: the refresh above may have just persisted the
-            // window this session's config is missing.
+            // First-run case: the refresh above may have just persisted a
+            // fresh authoritative window that should override the catalog
+            // value the config started with.
             Self::apply_inventory_window_to_session(
                 &inventory_service,
                 &session_id,
                 &provider_name,
                 &agent,
+                true,
             )
             .await;
         });
