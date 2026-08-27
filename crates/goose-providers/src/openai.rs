@@ -533,6 +533,12 @@ impl OpenAiProvider {
         if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
             return false;
         }
+        // Copilot's host is versionless (`chat/completions` / `responses`),
+        // but unlike generic versionless gateways it does speak Responses for
+        // gpt-5 / o-series. Route by model family, not by path.
+        if self.name == "github_copilot" {
+            return Self::is_responses_model(model_name);
+        }
 
         Self::should_use_responses_api(model_name, &self.base_path)
     }
@@ -1334,6 +1340,28 @@ mod tests {
             "gpt-5-codex",
             "chat/completions"
         ));
+    }
+
+    #[test]
+    fn github_copilot_versionless_path_still_routes_gpt5_to_responses() {
+        let provider = OpenAiProviderBuilder::new(
+            ApiClient::new_with_tls("http://localhost".to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
+        )
+        .name("github_copilot")
+        .base_path(OPEN_AI_VERSIONLESS_BASE_PATH)
+        .build();
+
+        assert!(provider.should_use_responses_api_for_provider("gpt-5"));
+        assert!(!provider.should_use_responses_api_for_provider("gpt-4.1"));
+        assert_eq!(
+            OpenAiProvider::map_base_path(
+                OPEN_AI_VERSIONLESS_BASE_PATH,
+                "responses",
+                "v1/responses",
+            ),
+            "responses"
+        );
     }
 
     #[test]

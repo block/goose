@@ -48,7 +48,7 @@ pub const KIMI_CODE_KNOWN_MODELS: &[&str] = &[
 ];
 
 const KIMI_CODE_DOC_URL: &str = "https://www.kimi.com/code/docs/en/";
-const KIMI_CODE_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
+const KIMI_CODE_CLIENT_ID: &str = goose_providers::oauth::KIMI_CODE_CLIENT_ID;
 const KIMI_AUTH_HOST: &str = "https://auth.kimi.com";
 const KIMI_API_BASE: &str = "https://api.kimi.com/coding";
 const KIMI_MSH_PLATFORM: &str = "kimi_cli";
@@ -174,6 +174,7 @@ impl KimiCodeProvider {
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(StdDuration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
             .read_timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;

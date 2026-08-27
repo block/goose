@@ -21,7 +21,11 @@ use goose_providers::{
     databricks_v2::DatabricksV2Provider as GooseDatabricksV2Provider,
     declarative::{DeclarativeProviderConfig, EnvKeyResolver},
     model::ModelConfig,
-    openai::OpenAiProviderBuilder,
+    oauth::{
+        self, DevicePollStatus, OAuthGrant as GooseOAuthGrant,
+        OAuthProviderId as GooseOAuthProviderId,
+    },
+    openai::{OpenAiProviderBuilder, OPEN_AI_VERSIONLESS_BASE_PATH},
     utils::sanitize_unicode_tags,
 };
 use rmcp::model::{
@@ -736,13 +740,13 @@ impl Provider {
         let mut features = vec![Feature::Streaming, Feature::Tools, Feature::JsonSchema];
         if matches!(
             name.as_str(),
-            "openai" | "anthropic" | "databricks" | "databricks_v2" | "groq"
+            "openai" | "anthropic" | "databricks" | "databricks_v2" | "groq" | "github_copilot"
         ) {
             features.push(Feature::Images);
         }
         if matches!(
             name.as_str(),
-            "openai" | "anthropic" | "databricks" | "databricks_v2"
+            "openai" | "anthropic" | "databricks" | "databricks_v2" | "kimi_code"
         ) {
             features.push(Feature::Reasoning);
         }
@@ -861,6 +865,306 @@ pub fn default_compaction_templates() -> CompactionTemplates {
         compaction: templates.compaction,
         summary: templates.summary,
     }
+}
+
+/// OAuth grants gdk knows about. `PkceLoopback` is listed so hosts can branch;
+/// this crate only implements device-code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum OAuthGrant {
+    DeviceCode,
+    PkceLoopback,
+}
+
+impl From<GooseOAuthGrant> for OAuthGrant {
+    fn from(grant: GooseOAuthGrant) -> Self {
+        match grant {
+            GooseOAuthGrant::DeviceCode => Self::DeviceCode,
+            GooseOAuthGrant::PkceLoopback => Self::PkceLoopback,
+        }
+    }
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct OAuthProviderInfo {
+    pub id: String,
+    pub name: String,
+    pub grants: Vec<OAuthGrant>,
+    pub supports_refresh: bool,
+}
+
+/// Host-driven device-code session. `device_code` is not exported.
+#[derive(uniffi::Object)]
+pub struct DeviceAuthSession {
+    inner: oauth::DeviceAuthSession,
+}
+
+#[uniffi::export]
+impl DeviceAuthSession {
+    pub fn provider_id(&self) -> String {
+        self.inner.provider().as_str().to_string()
+    }
+
+    pub fn user_code(&self) -> String {
+        self.inner.user_code().to_string()
+    }
+
+    pub fn verification_uri(&self) -> String {
+        self.inner.verification_uri().to_string()
+    }
+
+    pub fn interval_secs(&self) -> u64 {
+        self.inner.interval_secs()
+    }
+
+    pub fn expires_at_epoch_secs(&self) -> i64 {
+        self.inner.expires_at().timestamp()
+    }
+}
+
+/// Opaque tokens so generated Kotlin/Python `toString` cannot dump secrets.
+#[derive(uniffi::Object)]
+pub struct OAuthTokens {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at_epoch_secs: Option<i64>,
+}
+
+#[uniffi::export]
+impl OAuthTokens {
+    pub fn access_token(&self) -> String {
+        self.access_token.clone()
+    }
+
+    pub fn refresh_token(&self) -> Option<String> {
+        self.refresh_token.clone()
+    }
+
+    pub fn expires_at_epoch_secs(&self) -> Option<i64> {
+        self.expires_at_epoch_secs
+    }
+}
+
+impl std::fmt::Debug for OAuthTokens {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthTokens")
+            .field("access_token", &"[redacted]")
+            .field(
+                "refresh_token",
+                &self.refresh_token.as_ref().map(|_| "[redacted]"),
+            )
+            .field("expires_at_epoch_secs", &self.expires_at_epoch_secs)
+            .finish()
+    }
+}
+
+fn oauth_tokens_from_flow(tokens: oauth::DeviceFlowTokens) -> Arc<OAuthTokens> {
+    Arc::new(OAuthTokens {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at_epoch_secs: tokens.expires_at.map(|t| t.timestamp()),
+    })
+}
+
+/// One poll of the token endpoint. Pending/SlowDown are states, not errors.
+#[derive(uniffi::Enum)]
+pub enum DevicePollResult {
+    Pending { interval_secs: u64 },
+    SlowDown { interval_secs: u64 },
+    Success { tokens: Arc<OAuthTokens> },
+    Denied,
+    Expired,
+}
+
+impl std::fmt::Debug for DevicePollResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending { interval_secs } => f
+                .debug_struct("Pending")
+                .field("interval_secs", interval_secs)
+                .finish(),
+            Self::SlowDown { interval_secs } => f
+                .debug_struct("SlowDown")
+                .field("interval_secs", interval_secs)
+                .finish(),
+            Self::Success { .. } => f
+                .debug_struct("Success")
+                .field("tokens", &"[redacted]")
+                .finish(),
+            Self::Denied => f.write_str("Denied"),
+            Self::Expired => f.write_str("Expired"),
+        }
+    }
+}
+
+fn parse_oauth_provider(id: &str) -> Result<GooseOAuthProviderId, GooseError> {
+    id.parse().map_err(GooseError::generic)
+}
+
+#[uniffi::export]
+pub fn list_oauth_providers() -> Vec<OAuthProviderInfo> {
+    oauth::list_oauth_providers()
+        .into_iter()
+        .map(|info| OAuthProviderInfo {
+            id: info.id.as_str().to_string(),
+            name: info.name,
+            grants: info.grants.into_iter().map(OAuthGrant::from).collect(),
+            supports_refresh: info.supports_refresh,
+        })
+        .collect()
+}
+
+/// Grants gdk knows about, including `PkceLoopback` which is not implemented here.
+#[uniffi::export]
+pub fn list_oauth_grants() -> Vec<OAuthGrant> {
+    vec![OAuthGrant::DeviceCode, OAuthGrant::PkceLoopback]
+}
+
+/// Start RFC 8628 device-code login. Does not open a browser. The host should
+/// show `verification_uri` + `user_code`, wait `interval_secs`, then poll.
+#[uniffi::export]
+pub async fn start_device_flow(provider_id: String) -> Result<Arc<DeviceAuthSession>, GooseError> {
+    let provider = parse_oauth_provider(&provider_id)?;
+    let session = run_on_runtime(async move { oauth::start_device_flow(provider).await }).await??;
+    Ok(Arc::new(DeviceAuthSession { inner: session }))
+}
+
+/// One token-endpoint round trip. Does not sleep. `Pending` / `SlowDown` are
+/// states, not errors; wait `interval_secs` before calling again.
+#[uniffi::export]
+pub async fn poll_device_flow(
+    session: Arc<DeviceAuthSession>,
+) -> Result<DevicePollResult, GooseError> {
+    let result = run_on_runtime(async move {
+        let status = oauth::poll_device_flow(&session.inner).await?;
+        Ok::<_, anyhow::Error>(match status {
+            DevicePollStatus::Pending => DevicePollResult::Pending {
+                interval_secs: session.inner.interval_secs(),
+            },
+            DevicePollStatus::SlowDown => DevicePollResult::SlowDown {
+                interval_secs: session.inner.interval_secs(),
+            },
+            DevicePollStatus::Success(tokens) => DevicePollResult::Success {
+                tokens: oauth_tokens_from_flow(tokens),
+            },
+            DevicePollStatus::Denied => DevicePollResult::Denied,
+            DevicePollStatus::Expired => DevicePollResult::Expired,
+        })
+    })
+    .await??;
+    Ok(result)
+}
+
+#[derive(uniffi::Object)]
+pub struct CopilotApiToken {
+    token: String,
+    api_endpoint: String,
+    expires_at_epoch_secs: i64,
+}
+
+#[uniffi::export]
+impl CopilotApiToken {
+    pub fn token(&self) -> String {
+        self.token.clone()
+    }
+
+    pub fn api_endpoint(&self) -> String {
+        self.api_endpoint.clone()
+    }
+
+    pub fn expires_at_epoch_secs(&self) -> i64 {
+        self.expires_at_epoch_secs
+    }
+}
+
+impl std::fmt::Debug for CopilotApiToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CopilotApiToken")
+            .field("token", &"[redacted]")
+            .field("api_endpoint", &self.api_endpoint)
+            .field("expires_at_epoch_secs", &self.expires_at_epoch_secs)
+            .finish()
+    }
+}
+
+/// GitHub device-code yields a GitHub OAuth token. Exchange it for the Copilot
+/// inference token before constructing an API client.
+#[uniffi::export]
+pub async fn exchange_github_copilot_token(
+    github_token: String,
+) -> Result<Arc<CopilotApiToken>, GooseError> {
+    let token =
+        run_on_runtime(async move { oauth::exchange_github_copilot_token(&github_token).await })
+            .await??;
+    Ok(Arc::new(CopilotApiToken {
+        token: token.token,
+        api_endpoint: token.api_endpoint,
+        expires_at_epoch_secs: token.expires_at.timestamp(),
+    }))
+}
+
+#[uniffi::export]
+pub async fn refresh_oauth_token(
+    provider_id: String,
+    refresh_token: String,
+) -> Result<Arc<OAuthTokens>, GooseError> {
+    let provider = parse_oauth_provider(&provider_id)?;
+    let tokens =
+        run_on_runtime(async move { oauth::refresh_oauth_token(provider, &refresh_token).await })
+            .await??;
+    Ok(oauth_tokens_from_flow(tokens))
+}
+
+/// Build a Copilot inference provider from the exchanged API token
+/// (`exchange_github_copilot_token`).
+#[uniffi::export]
+pub fn github_copilot_provider(
+    api_endpoint: String,
+    token: String,
+) -> Result<Arc<Provider>, GooseError> {
+    oauth::ensure_copilot_api_endpoint(&api_endpoint)?;
+    let mut api_client =
+        ApiClient::new_with_tls(api_endpoint.clone(), AuthMethod::BearerToken(token), None)?;
+    api_client = if api_endpoint.starts_with("https://") {
+        api_client.with_https_only()?
+    } else {
+        api_client.with_loopback_http_only()?
+    };
+    for (key, value) in oauth::github_copilot_headers().iter() {
+        if let Ok(value) = value.to_str() {
+            api_client = api_client.with_header(key.as_str(), value)?;
+        }
+    }
+    // Copilot's API host is versionless (`chat/completions`), unlike api.openai.com.
+    let provider = OpenAiProviderBuilder::new(api_client)
+        .name("github_copilot")
+        .base_path(OPEN_AI_VERSIONLESS_BASE_PATH)
+        .build();
+    Ok(Provider::new(Box::new(provider)))
+}
+
+/// Build a Kimi Code provider from a device-code access token.
+/// Anthropic-compatible inference with Kimi platform headers. Does not persist
+/// tokens or the CLI device-id file.
+#[uniffi::export]
+pub fn kimi_code_provider(access_token: String) -> Result<Arc<Provider>, GooseError> {
+    let mut api_client = ApiClient::new_with_tls(
+        "https://api.kimi.com/coding".to_string(),
+        AuthMethod::BearerToken(access_token),
+        None,
+    )?;
+    api_client = api_client.with_header(
+        "anthropic-version",
+        goose_providers::anthropic::ANTHROPIC_API_VERSION,
+    )?;
+    for (key, value) in oauth::kimi_headers().iter() {
+        if let Ok(value) = value.to_str() {
+            api_client = api_client.with_header(key.as_str(), value)?;
+        }
+    }
+    let provider = AnthropicProviderBuilder::new(api_client)
+        .name("kimi_code")
+        .build();
+    Ok(Provider::new(Box::new(provider)))
 }
 
 #[uniffi::export]
@@ -1236,5 +1540,73 @@ mod tests {
         let result = response.tool_result.unwrap();
         assert_eq!(result.is_error, Some(false));
         assert_eq!(result.content[0].as_text().unwrap().text, "done");
+    }
+
+    #[test]
+    fn github_copilot_provider_rejects_plaintext_remote_endpoint() {
+        let err = match github_copilot_provider(
+            "http://api.example.com".to_string(),
+            "token".to_string(),
+        ) {
+            Ok(_) => panic!("expected plaintext remote endpoint to fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().to_ascii_lowercase().contains("https"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn github_copilot_provider_constructs_for_https_endpoint() {
+        github_copilot_provider(
+            "https://api.githubcopilot.com".to_string(),
+            "token".to_string(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn kimi_code_provider_constructs() {
+        kimi_code_provider("token".to_string()).unwrap();
+    }
+
+    #[test]
+    fn list_oauth_providers_includes_device_code_facades() {
+        let listed = list_oauth_providers();
+        assert!(listed.iter().any(|p| p.id == "github_copilot"));
+        assert!(listed.iter().any(|p| p.id == "kimi_code"));
+        assert!(listed
+            .iter()
+            .all(|p| p.grants.contains(&OAuthGrant::DeviceCode)));
+        assert!(listed
+            .iter()
+            .all(|p| !p.grants.contains(&OAuthGrant::PkceLoopback)));
+        assert!(list_oauth_grants().contains(&OAuthGrant::PkceLoopback));
+    }
+
+    #[test]
+    fn copilot_api_token_debug_redacts_secret() {
+        let token = CopilotApiToken {
+            token: "secret-copilot".to_string(),
+            api_endpoint: "https://api.githubcopilot.com".to_string(),
+            expires_at_epoch_secs: 1,
+        };
+        let rendered = format!("{token:?}");
+        assert!(!rendered.contains("secret-copilot"), "{rendered}");
+    }
+
+    #[test]
+    fn oauth_poll_debug_redacts_tokens() {
+        let result = DevicePollResult::Success {
+            tokens: Arc::new(OAuthTokens {
+                access_token: "secret-access".to_string(),
+                refresh_token: Some("secret-refresh".to_string()),
+                expires_at_epoch_secs: Some(1),
+            }),
+        };
+        let rendered = format!("{result:?}");
+        assert!(!rendered.contains("secret-access"), "{rendered}");
+        assert!(!rendered.contains("secret-refresh"), "{rendered}");
     }
 }
