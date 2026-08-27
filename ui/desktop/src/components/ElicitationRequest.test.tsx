@@ -18,17 +18,36 @@ const actionRequiredContent = {
   },
 } as ActionRequired & { type: 'actionRequired' };
 
+const schemaActionRequiredContent = {
+  type: 'actionRequired',
+  data: {
+    actionType: 'elicitation',
+    id: 'elicitation-1',
+    message: 'Need more information',
+    requested_schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string' },
+      },
+      required: ['project'],
+    },
+  },
+} as ActionRequired & { type: 'actionRequired' };
+
 type SubmitElicitationResponse = (
   elicitationId: string,
   userData: Record<string, unknown>
 ) => Promise<boolean>;
 
-function renderElicitationRequest(onSubmit: SubmitElicitationResponse) {
+function renderElicitationRequest(
+  onSubmit: SubmitElicitationResponse,
+  content = actionRequiredContent
+) {
   return render(
     <ElicitationRequest
       isCancelledMessage={false}
       isClicked={false}
-      actionRequiredContent={actionRequiredContent}
+      actionRequiredContent={content}
       onSubmit={onSubmit}
     />,
     { wrapper: IntlTestWrapper }
@@ -47,7 +66,7 @@ describe('ElicitationRequest', () => {
     expect(await screen.findByText('Information submitted')).toBeInTheDocument();
   });
 
-  it('shows submitted state while the response is pending', async () => {
+  it('keeps the request visible and disabled while the response is pending', async () => {
     let resolveSubmission: (value: boolean) => void = () => {};
     const submission = new Promise<boolean>((resolve) => {
       resolveSubmission = resolve;
@@ -58,7 +77,8 @@ describe('ElicitationRequest', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
 
-    expect(screen.getByText('Information submitted')).toBeInTheDocument();
+    expect(screen.queryByText('Information submitted')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled();
 
     await act(async () => {
       resolveSubmission(true);
@@ -78,5 +98,19 @@ describe('ElicitationRequest', () => {
     );
     expect(screen.queryByText('Information submitted')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
+  });
+
+  it('preserves schema values when submission is rejected', async () => {
+    const onSubmit = vi.fn<SubmitElicitationResponse>().mockResolvedValue(false);
+
+    renderElicitationRequest(onSubmit, schemaActionRequiredContent);
+
+    const projectInput = screen.getByRole('textbox', { name: /project/ });
+    await userEvent.type(projectInput, 'goose');
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(projectInput).toHaveValue('goose');
+    expect(onSubmit).toHaveBeenCalledWith('elicitation-1', { project: 'goose' });
   });
 });

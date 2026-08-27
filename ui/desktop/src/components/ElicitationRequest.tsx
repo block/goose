@@ -101,18 +101,17 @@ export default function ElicitationRequest({
   const hasSchemaFields = Boolean(schema.properties && Object.keys(schema.properties).length > 0);
 
   const submitResponse = async (formData: Record<string, unknown>) => {
-    setSubmitted(true);
     setIsSubmitting(true);
     setSubmitError(undefined);
     try {
       const didSubmit = await onSubmit(elicitationId, formData);
-      if (!didSubmit) {
-        setSubmitted(false);
+      if (didSubmit) {
+        setSubmitted(true);
+      } else {
         setSubmitError(intl.formatMessage(i18n.submitError));
       }
     } catch (error) {
       console.error('Error submitting elicitation response:', error);
-      setSubmitted(false);
       setSubmitError(intl.formatMessage(i18n.submitError));
     } finally {
       setIsSubmitting(false);
