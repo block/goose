@@ -627,6 +627,27 @@
               "type": "Option<String>",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "anthropic_metadata",
+              "type": "Option<AnthropicResponseMetadata>",
+              "default": null,
+              "docs": ""
+            }
+          ],
+          "variants": [],
+          "methods": []
+        },
+        {
+          "name": "AnthropicResponseMetadata",
+          "kind": "record",
+          "docs": "",
+          "fields": [
+            {
+              "name": "service_tier",
+              "type": "Option<String>",
+              "default": null,
+              "docs": ""
             }
           ],
           "variants": [],

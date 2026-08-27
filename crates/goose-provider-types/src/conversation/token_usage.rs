@@ -16,6 +16,14 @@ pub struct ProviderUsage {
     pub finish_reasons: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anthropic: Option<AnthropicResponseMetadata>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnthropicResponseMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,6 +62,7 @@ impl ProviderUsage {
             cost_source: None,
             finish_reasons: None,
             response_id: None,
+            anthropic: None,
         }
     }
 

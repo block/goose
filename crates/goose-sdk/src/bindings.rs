@@ -14,7 +14,7 @@ use goose_providers::{
     base::{MessageStream, Provider as GooseProvider},
     conversation::{
         message::{Message, MessageContent as GooseMessageContent},
-        token_usage::ProviderUsage,
+        token_usage::{AnthropicResponseMetadata as GooseAnthropicResponseMetadata, ProviderUsage},
     },
     databricks::DatabricksProvider as GooseDatabricksProvider,
     databricks_auth::DatabricksAuth,
@@ -429,6 +429,20 @@ pub struct Usage {
     pub reasoning_tokens: Option<i32>,
     pub model: String,
     pub provider_metadata_json: Option<String>,
+    pub anthropic_metadata: Option<AnthropicResponseMetadata>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AnthropicResponseMetadata {
+    pub service_tier: Option<String>,
+}
+
+impl From<&GooseAnthropicResponseMetadata> for AnthropicResponseMetadata {
+    fn from(metadata: &GooseAnthropicResponseMetadata) -> Self {
+        Self {
+            service_tier: metadata.service_tier.clone(),
+        }
+    }
 }
 
 impl Usage {
@@ -442,6 +456,10 @@ impl Usage {
             reasoning_tokens: None,
             model: usage.model.clone(),
             provider_metadata_json: Some(serde_json::to_string(usage)?),
+            anthropic_metadata: usage
+                .anthropic
+                .as_ref()
+                .map(AnthropicResponseMetadata::from),
         })
     }
 }
@@ -1218,6 +1236,37 @@ mod tests {
 
         assert_eq!(tool.name.as_ref(), "lookup");
         assert_eq!(tool.input_schema["type"], "object");
+    }
+
+    #[test]
+    fn usage_exposes_anthropic_response_metadata() {
+        let mut provider_usage = ProviderUsage::new(
+            "claude-sonnet-4-5".to_string(),
+            goose_providers::conversation::token_usage::Usage::new(Some(10), Some(5), None),
+        );
+        provider_usage.anthropic = Some(GooseAnthropicResponseMetadata {
+            service_tier: Some("fast".to_string()),
+        });
+
+        let metadata = Usage::from_provider_usage(&provider_usage)
+            .unwrap()
+            .anthropic_metadata
+            .expect("metadata should be exposed");
+
+        assert_eq!(metadata.service_tier.as_deref(), Some("fast"));
+    }
+
+    #[test]
+    fn usage_omits_anthropic_response_metadata_when_absent() {
+        let provider_usage = ProviderUsage::new(
+            "claude-sonnet-4-5".to_string(),
+            goose_providers::conversation::token_usage::Usage::new(Some(10), Some(5), None),
+        );
+
+        assert!(Usage::from_provider_usage(&provider_usage)
+            .unwrap()
+            .anthropic_metadata
+            .is_none());
     }
 
     #[test]
