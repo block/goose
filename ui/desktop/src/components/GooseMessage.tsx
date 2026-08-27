@@ -35,7 +35,7 @@ interface GooseMessageProps {
   toolStates: readonly ToolRenderState[];
   toolNotifications: readonly (NotificationEvent[] | undefined)[];
   toolConfirmationShownInline: boolean;
-  append: (value: string) => void;
+  append: (value: string) => boolean | Promise<boolean>;
   isStreaming: boolean;
   submitElicitationResponse?: (
     elicitationId: string,

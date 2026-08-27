@@ -21,6 +21,7 @@ import { acpChatSessionController } from '../acp/chatSessionController';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
+  type AcpChatSessionSnapshot,
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
 import { acpSteerSession } from '../acp/prompt';
@@ -41,6 +42,24 @@ function isClearCommand(message: string): boolean {
 
 function isSlashCommand(message: string): boolean {
   return message.trim().startsWith('/');
+}
+
+export function isChatSubmissionAllowed(
+  recovering: boolean,
+  snapshot: AcpChatSessionSnapshot | undefined,
+  input: UserInput
+): boolean {
+  if (
+    recovering ||
+    !snapshot?.session ||
+    snapshot.chatState !== ChatState.Idle ||
+    snapshot.activePromptAttemptId !== null ||
+    snapshot.pendingCancelPromptAttemptId !== null
+  ) {
+    return false;
+  }
+
+  return input.msg.trim().length > 0 || input.images.length > 0 || snapshot.messages.length > 0;
 }
 
 const i18n = defineMessages({
@@ -158,32 +177,17 @@ export function useChatSession({
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
-      if (isAcpRecovering()) {
-        return;
-      }
-
       const { msg: userMessage, images } = input;
       const currentSnapshot = getCurrentSnapshot();
 
-      if (
-        !currentSnapshot?.session ||
-        currentSnapshot.chatState === ChatState.LoadingConversation ||
-        currentSnapshot.chatState === ChatState.Streaming ||
-        currentSnapshot.chatState === ChatState.Thinking ||
-        currentSnapshot.chatState === ChatState.Compacting ||
-        currentSnapshot.pendingCancelPromptAttemptId !== null
-      ) {
-        return;
+      if (!currentSnapshot || !isChatSubmissionAllowed(isAcpRecovering(), currentSnapshot, input)) {
+        return false;
       }
 
       const currentMessages = currentSnapshot.messages;
       const hasExistingMessages = currentMessages.length > 0;
       const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
       const clearsConversation = hasNewMessage && isClearCommand(userMessage);
-
-      if (!hasNewMessage && !hasExistingMessages) {
-        return;
-      }
 
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
@@ -204,6 +208,7 @@ export function useChatSession({
       }
 
       await submitToAcpSession(sessionId, newMessage);
+      return true;
     },
     [getCurrentSnapshot, sessionId, submitToAcpSession]
   );

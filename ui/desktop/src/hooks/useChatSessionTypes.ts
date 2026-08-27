@@ -15,7 +15,7 @@ export interface UseChatSessionResult {
   chatState: ChatState;
   progressMessage?: string;
   updateSession: (updater: (session: Session) => Session) => void;
-  handleSubmit: (input: UserInput) => Promise<void>;
+  handleSubmit: (input: UserInput) => Promise<boolean>;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   submitElicitationResponse: (
     elicitationId: string,

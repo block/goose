@@ -108,7 +108,7 @@ interface ToolCallWithResponseProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   isPendingApproval: boolean;
-  append?: (value: string) => void;
+  append?: (value: string) => boolean | Promise<boolean>;
   confirmationContent?: ToolConfirmationData;
   isApprovalClicked?: boolean;
   toolApprovalDisabled?: boolean;
@@ -156,7 +156,7 @@ interface McpAppWrapperProps {
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   sessionId: string;
-  append?: (value: string) => void;
+  append?: (value: string) => boolean | Promise<boolean>;
   toolCallDisabled: boolean;
 }
 
@@ -224,6 +224,7 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
         toolCallDisabled={toolCallDisabled}
+        messageDisabled={toolCallDisabled}
       />
     </div>
   );

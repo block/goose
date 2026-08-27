@@ -215,16 +215,42 @@ interface McpAppRendererProps {
   toolInputPartial?: McpAppToolInputPartial;
   toolResult?: CallToolResult;
   toolCancelled?: McpAppToolCancelled;
-  append?: (text: string) => void;
+  append?: (text: string) => boolean | Promise<boolean>;
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
   onDisplayModeChange?: OnDisplayModeChange;
   toolCallDisabled?: boolean;
+  messageDisabled?: boolean;
 }
 
 export function assertMcpAppToolCallAllowed(toolCallDisabled: boolean): void {
   if (toolCallDisabled) {
     throw new Error('MCP App tool calls are disabled until the recipe is trusted');
+  }
+}
+
+export function assertMcpAppMessageAllowed(messageDisabled: boolean): void {
+  if (messageDisabled) {
+    throw new Error('MCP App messages are disabled until the recipe is trusted');
+  }
+}
+
+export async function appendMcpAppMessage(
+  append: McpAppRendererProps['append'],
+  content: Array<{ type: string; text?: string }>
+): Promise<void> {
+  if (!append) {
+    throw new Error('Message handler not available in this context');
+  }
+  if (!Array.isArray(content)) {
+    throw new Error('Invalid message format: content must be an array of ContentBlock');
+  }
+  const textContent = content.find((block) => block.type === 'text');
+  if (!textContent?.text) {
+    throw new Error('Invalid message format: content must contain a text block');
+  }
+  if (!(await append(textContent.text))) {
+    throw new Error('MCP App message was not submitted');
   }
 }
 
@@ -273,6 +299,7 @@ interface GooseAppFrameProps {
   onInitialized?: (appInfo: AppInfo) => void;
   onError?: (error: Error) => void;
   toolCallDisabled: boolean;
+  messageDisabled: boolean;
 }
 
 const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
@@ -295,6 +322,7 @@ export function GooseAppFrame({
   onInitialized,
   onError,
   toolCallDisabled,
+  messageDisabled,
 }: GooseAppFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -312,6 +340,7 @@ export function GooseAppFrame({
   const onInitializedRef = useRef(onInitialized);
   const onErrorRef = useRef(onError);
   const toolCallDisabledRef = useRef(toolCallDisabled);
+  const messageDisabledRef = useRef(messageDisabled);
 
   useEffect(() => {
     hostContextRef.current = hostContext;
@@ -328,7 +357,8 @@ export function GooseAppFrame({
 
   useLayoutEffect(() => {
     toolCallDisabledRef.current = toolCallDisabled;
-  }, [toolCallDisabled]);
+    messageDisabledRef.current = messageDisabled;
+  }, [messageDisabled, toolCallDisabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -347,7 +377,10 @@ export function GooseAppFrame({
     const bridge = new AppBridge(null, { name: 'MCP-UI Host', version: '1.0.0' }, capabilities, {
       hostContext: hostContextRef.current,
     });
-    bridge.onmessage = (params) => onMessageRef.current(params);
+    bridge.onmessage = (params) => {
+      assertMcpAppMessageAllowed(messageDisabledRef.current);
+      return onMessageRef.current(params);
+    };
     bridge.onopenlink = (params) => onOpenLinkRef.current(params);
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
     bridge.oncalltool = (params) => {
@@ -585,6 +618,7 @@ export default function McpAppRenderer({
   cachedHtml,
   onDisplayModeChange,
   toolCallDisabled = false,
+  messageDisabled = false,
 }: McpAppRendererProps) {
   const intl = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -819,17 +853,7 @@ export default function McpAppRenderer({
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
-      if (!append) {
-        throw new Error('Message handler not available in this context');
-      }
-      if (!Array.isArray(content)) {
-        throw new Error('Invalid message format: content must be an array of ContentBlock');
-      }
-      const textContent = content.find((block) => block.type === 'text');
-      if (!textContent || !textContent.text) {
-        throw new Error('Invalid message format: content must contain a text block');
-      }
-      append(textContent.text);
+      await appendMcpAppMessage(append, content);
       window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
       return {};
     },
@@ -1050,6 +1074,7 @@ export default function McpAppRenderer({
         onSizeChanged={handleSizeChanged}
         onError={handleError}
         toolCallDisabled={toolCallDisabled}
+        messageDisabled={messageDisabled}
       />
     );
   };

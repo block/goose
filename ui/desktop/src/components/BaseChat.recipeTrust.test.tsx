@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   hasAcceptedRecipeBefore: vi.fn(),
   recordRecipeHash: vi.fn(),
   autoSubmit: undefined as undefined | ((input: UserInput) => void),
+  mcpAppendResult: undefined as boolean | Promise<boolean> | undefined,
 }));
 
 vi.mock('../hooks/useChatSession', () => ({
@@ -119,7 +120,7 @@ vi.mock('./ProgressiveMessageList', () => ({
     submitElicitationResponse,
     toolApprovalDisabled,
   }: {
-    append: (text: string) => void;
+    append: (text: string) => boolean | Promise<boolean>;
     onMessageUpdate?: (
       messageId: string,
       newContent: string,
@@ -137,7 +138,12 @@ vi.mock('./ProgressiveMessageList', () => ({
       <button type="button" onClick={() => append('progressive descendant')}>
         progressive descendant
       </button>
-      <button type="button" onClick={() => append('mcp ui message')}>
+      <button
+        type="button"
+        onClick={() => {
+          mocks.mcpAppendResult = append('mcp ui message');
+        }}
+      >
         mcp ui message
       </button>
       <button
@@ -231,17 +237,21 @@ function invokeAllSubmissionPaths() {
   fireEvent.click(screen.getByRole('button', { name: 'edit message' }));
   fireEvent.click(screen.getByRole('button', { name: 'submit elicitation' }));
   fireEvent.click(screen.getByRole('button', { name: 'steer queued message' }));
-  act(() => mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] }));
+  act(() => {
+    void mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] });
+  });
 }
 
 describe('BaseChat recipe trust gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.autoSubmit = undefined;
+    mocks.mcpAppendResult = undefined;
     mocks.session = makeSession();
     mocks.steerMessage.mockResolvedValue(true);
     mocks.updateMessage.mockResolvedValue(true);
     mocks.elicitationResponse.mockResolvedValue(true);
+    mocks.submitMessage.mockResolvedValue(true);
     Object.assign(window.electron, {
       hasAcceptedRecipeBefore: mocks.hasAcceptedRecipeBefore,
       recordRecipeHash: mocks.recordRecipeHash,
@@ -284,6 +294,7 @@ describe('BaseChat recipe trust gate', () => {
       'data-queue-processing-blocked',
       'true'
     );
+    await expect(mocks.mcpAppendResult).resolves.toBe(false);
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
@@ -311,6 +322,21 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
     expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
     expect(mocks.elicitationResponse).toHaveBeenCalledTimes(1);
+    await expect(mocks.mcpAppendResult).resolves.toBe(true);
+  });
+
+  it('reports when the chat session rejects an MCP App message', async () => {
+    mocks.hasAcceptedRecipeBefore.mockResolvedValue(true);
+    mocks.submitMessage.mockResolvedValue(false);
+    renderBaseChat();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'mcp ui message' }));
+
+    await expect(mocks.mcpAppendResult).resolves.toBe(false);
+    expect(mocks.submitMessage).toHaveBeenCalledWith({ msg: 'mcp ui message', images: [] });
   });
 
   it('returns to pending before a different recipe in the same session can submit', async () => {

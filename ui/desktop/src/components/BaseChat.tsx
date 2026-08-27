@@ -148,9 +148,8 @@ export default function BaseChat({
     session?.session_type === 'scheduled' || !recipe || acceptedCurrentRecipe === true;
   const handleSubmit = useCallback(
     (input: UserInput) => {
-      if (recipeAccepted) {
-        submitMessage(input);
-      }
+      if (!recipeAccepted) return Promise.resolve(false);
+      return submitMessage(input);
     },
     [recipeAccepted, submitMessage]
   );
@@ -258,7 +257,7 @@ export default function BaseChat({
     if (recipe && input.msg.trim()) {
       setHasStartedUsingRecipe(true);
     }
-    handleSubmit(input);
+    void handleSubmit(input);
   };
 
   const sessionModel = session?.model_config?.model_name ?? null;

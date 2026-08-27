@@ -37,7 +37,7 @@ const i18n = defineMessages({
 });
 
 const emptyToolCallNotifications = new Map<string, NotificationEvent[]>();
-const emptyAppend = () => {};
+const emptyAppend = () => false;
 
 function getResolvedModel(message: Message): string | null {
   if (message.role !== 'assistant' || !message.metadata.userVisible) return null;
@@ -60,7 +60,7 @@ function renderSystemNotification(notification: SystemNotificationContent) {
 }
 
 interface MessageRowProps {
-  append: (value: string) => void;
+  append: (value: string) => boolean | Promise<boolean>;
   index: number;
   isStreaming: boolean;
   isUser: boolean;
@@ -154,7 +154,7 @@ interface ProgressiveMessageListProps {
   messages: Message[];
   sessionId: string;
   toolCallNotifications?: Map<string, NotificationEvent[]>;
-  append?: (value: string) => void;
+  append?: (value: string) => boolean | Promise<boolean>;
   isUserMessage: (message: Message) => boolean;
   batchSize?: number;
   batchDelay?: number;
