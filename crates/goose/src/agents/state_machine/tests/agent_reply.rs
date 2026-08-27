@@ -11,11 +11,14 @@ use agent_client_protocol::schema::v1::{
 };
 use anyhow::Result;
 use futures::StreamExt;
+use rmcp::{model::Tool, object};
 use tokio_util::sync::CancellationToken;
 
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::acp::server::GooseAcpAgent;
-use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
+use crate::agents::{
+    Agent, AgentConfig, AgentEvent, ExtensionConfig, GoosePlatform, SessionConfig,
+};
 use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
@@ -309,4 +312,49 @@ async fn bang_shell_visibility_is_enforced_when_state_machine_is_disabled() -> R
 async fn bang_shell_visibility_is_enforced_when_state_machine_is_enabled() -> Result<()> {
     let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     assert_bang_shell_uses_only_user_visible_content().await
+}
+
+#[tokio::test]
+async fn frontend_tools_remain_unexposed_when_state_machine_is_enabled() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    api.on("frontend state machine").reply("done");
+    agent
+        .add_extension(
+            ExtensionConfig::Frontend {
+                name: "frontend-state-machine".to_string(),
+                description: "Frontend state machine test extension".to_string(),
+                tools: vec![
+                    Tool::new(
+                        "frontend__allowed",
+                        "Allowed frontend tool",
+                        object!({ "type": "object", "properties": {} }),
+                    ),
+                    Tool::new(
+                        "frontend__blocked",
+                        "Blocked frontend tool",
+                        object!({ "type": "object", "properties": {} }),
+                    ),
+                ],
+                instructions: None,
+                bundled: None,
+                available_tools: vec!["frontend__allowed".to_string()],
+            },
+            &session_id,
+        )
+        .await?;
+
+    reply_messages(
+        &agent,
+        session_id,
+        Message::user().with_text("frontend state machine"),
+    )
+    .await?;
+
+    let calls = api.calls();
+    assert_eq!(calls.len(), 1);
+    assert!(!calls[0].advertises_tool("frontend__allowed"));
+    assert!(!calls[0].advertises_tool("frontend__blocked"));
+
+    Ok(())
 }

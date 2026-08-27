@@ -2779,25 +2779,41 @@ mod tests {
         use rmcp::object;
         use tempfile::TempDir;
 
-        fn frontend_extension_with_tool(name: &str, tool_name: &str) -> ExtensionConfig {
+        fn frontend_extension_with_tools(
+            name: &str,
+            tool_names: &[&str],
+            available_tools: &[&str],
+        ) -> ExtensionConfig {
             ExtensionConfig::Frontend {
                 name: name.to_string(),
                 description: format!("Frontend test extension {name}"),
-                tools: vec![Tool::new(
-                    tool_name.to_string(),
-                    format!("Run {tool_name} from the frontend"),
-                    object!({
-                        "type": "object",
-                        "properties": {
-                            "message": { "type": "string" }
-                        },
-                        "required": ["message"]
-                    }),
-                )],
-                instructions: Some(format!("Use the {tool_name} tool.")),
+                tools: tool_names
+                    .iter()
+                    .map(|tool_name| {
+                        Tool::new(
+                            (*tool_name).to_string(),
+                            format!("Run {tool_name} from the frontend"),
+                            object!({
+                                "type": "object",
+                                "properties": {
+                                    "message": { "type": "string" }
+                                },
+                                "required": ["message"]
+                            }),
+                        )
+                    })
+                    .collect(),
+                instructions: Some(format!("Use the tools from {name}.")),
                 bundled: None,
-                available_tools: vec![],
+                available_tools: available_tools
+                    .iter()
+                    .map(|tool_name| (*tool_name).to_string())
+                    .collect(),
             }
+        }
+
+        fn frontend_extension_with_tool(name: &str, tool_name: &str) -> ExtensionConfig {
+            frontend_extension_with_tools(name, &[tool_name], &[])
         }
 
         fn frontend_extension() -> ExtensionConfig {
@@ -2881,6 +2897,245 @@ mod tests {
             assert!(persisted_extensions
                 .iter()
                 .all(|extension| extension.name() != "frontend-e2e"));
+        }
+
+        #[tokio::test]
+        async fn test_frontend_available_tools_filter_advertisement_dispatch_reload_and_removal() {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Arc::new(Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir.clone())),
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            )));
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir().unwrap(),
+                    "frontend-available-tools-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+
+            agent
+                .add_extension(
+                    frontend_extension_with_tools(
+                        "frontend-filtered",
+                        &["frontend__allowed", "frontend__blocked"],
+                        &["frontend__allowed"],
+                    ),
+                    &session.id,
+                )
+                .await
+                .unwrap();
+
+            let listed_tools = agent.list_tools(&session.id, None).await;
+            assert!(listed_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__allowed"));
+            assert!(!listed_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__blocked"));
+
+            let filtered_tools = agent
+                .list_tools(&session.id, Some("frontend-filtered".to_string()))
+                .await;
+            assert_eq!(
+                filtered_tools
+                    .iter()
+                    .map(|tool| tool.name.as_ref())
+                    .collect::<Vec<_>>(),
+                ["frontend__allowed"]
+            );
+            assert!(agent.is_frontend_tool("frontend__allowed").await);
+            assert!(agent.get_frontend_tool("frontend__allowed").await.is_some());
+            assert!(!agent.is_frontend_tool("frontend__blocked").await);
+            assert!(agent.get_frontend_tool("frontend__blocked").await.is_none());
+
+            agent
+                .add_extension(
+                    frontend_extension_with_tools(
+                        "frontend-filtered",
+                        &["frontend__allowed", "frontend__blocked"],
+                        &["frontend__blocked"],
+                    ),
+                    &session.id,
+                )
+                .await
+                .unwrap();
+            assert!(!agent.is_frontend_tool("frontend__allowed").await);
+            assert!(agent.is_frontend_tool("frontend__blocked").await);
+
+            let persisted_session = session_manager
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+            let reloaded_agent = Arc::new(Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            )));
+            let load_results = reloaded_agent
+                .load_extensions_from_session(&persisted_session)
+                .await;
+            assert!(load_results.iter().all(|result| result.success));
+
+            let reloaded_tools = reloaded_agent.list_tools(&session.id, None).await;
+            assert!(!reloaded_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__allowed"));
+            assert!(reloaded_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__blocked"));
+            assert!(!reloaded_agent.is_frontend_tool("frontend__allowed").await);
+            assert!(reloaded_agent.is_frontend_tool("frontend__blocked").await);
+
+            reloaded_agent
+                .remove_extension("frontend-filtered", &session.id)
+                .await
+                .unwrap();
+            assert!(!reloaded_agent.is_frontend_tool("frontend__allowed").await);
+            assert!(reloaded_agent
+                .get_frontend_tool("frontend__allowed")
+                .await
+                .is_none());
+            assert!(!reloaded_agent.is_frontend_tool("frontend__blocked").await);
+            assert!(reloaded_agent
+                .get_frontend_tool("frontend__blocked")
+                .await
+                .is_none());
+            assert!(reloaded_agent
+                .list_tools(&session.id, None)
+                .await
+                .iter()
+                .all(|tool| tool.name != "frontend__allowed" && tool.name != "frontend__blocked"));
+            let persisted_session = session_manager
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+            let persisted_extensions =
+                EnabledExtensionsState::from_extension_data(&persisted_session.extension_data)
+                    .unwrap()
+                    .extensions;
+            assert!(persisted_extensions
+                .iter()
+                .all(|extension| extension.name() != "frontend-filtered"));
+        }
+
+        #[tokio::test]
+        async fn test_frontend_shared_tool_requires_an_allowing_owner() {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            ));
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir().unwrap(),
+                    "frontend-shared-tool-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+
+            agent
+                .add_extension(
+                    frontend_extension_with_tools(
+                        "frontend-denying",
+                        &["frontend__shared", "frontend__owned"],
+                        &["frontend__owned"],
+                    ),
+                    &session.id,
+                )
+                .await
+                .unwrap();
+            agent
+                .add_extension(
+                    frontend_extension_with_tools(
+                        "frontend-allowing",
+                        &["frontend__shared"],
+                        &["frontend__shared"],
+                    ),
+                    &session.id,
+                )
+                .await
+                .unwrap();
+
+            assert!(agent.is_frontend_tool("frontend__shared").await);
+            assert!(agent.is_frontend_tool("frontend__owned").await);
+
+            agent
+                .remove_extension("frontend-allowing", &session.id)
+                .await
+                .unwrap();
+            assert!(!agent.is_frontend_tool("frontend__shared").await);
+            assert!(agent.is_frontend_tool("frontend__owned").await);
+            assert!(agent
+                .list_tools(&session.id, None)
+                .await
+                .iter()
+                .all(|tool| tool.name != "frontend__shared"));
+        }
+
+        #[tokio::test]
+        async fn test_empty_frontend_available_tools_exposes_all_tools() {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            ));
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir().unwrap(),
+                    "frontend-all-tools-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+
+            agent
+                .add_extension(
+                    frontend_extension_with_tools(
+                        "frontend-all",
+                        &["frontend__first", "frontend__second"],
+                        &[],
+                    ),
+                    &session.id,
+                )
+                .await
+                .unwrap();
+
+            let listed_tools = agent
+                .list_tools(&session.id, Some("frontend-all".to_string()))
+                .await;
+            assert_eq!(listed_tools.len(), 2);
+            for tool_name in ["frontend__first", "frontend__second"] {
+                assert!(listed_tools.iter().any(|tool| tool.name == tool_name));
+                assert!(agent.is_frontend_tool(tool_name).await);
+                assert!(agent.get_frontend_tool(tool_name).await.is_some());
+            }
         }
 
         #[tokio::test]

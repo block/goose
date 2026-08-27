@@ -1084,8 +1084,14 @@ impl Agent {
                     .as_ref()
                     .is_none_or(|name| *name == config.key());
 
-                match config {
-                    ExtensionConfig::Frontend { tools, .. } if include => Some(tools),
+                match &config {
+                    ExtensionConfig::Frontend { tools, .. } if include => Some(
+                        tools
+                            .iter()
+                            .filter(|tool| config.is_tool_available(&tool.name))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    ),
                     _ => None,
                 }
             })
@@ -1107,6 +1113,9 @@ impl Agent {
             } = config
             {
                 for tool in ext_tools {
+                    if !config.is_tool_available(&tool.name) {
+                        continue;
+                    }
                     let tool_name = tool.name.to_string();
                     tools.insert(
                         tool_name.clone(),
