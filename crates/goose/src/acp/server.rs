@@ -261,6 +261,7 @@ pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 struct PendingApprovalBatch {
     pending: HashSet<String>,
     responses: Vec<(String, Permission)>,
+    cancelled: bool,
 }
 
 /// Releases a registry entry if the owning `on_prompt` future is dropped
@@ -1658,7 +1659,17 @@ impl GooseAcpAgent {
                     let mut batches = server.pending_state_machine_approvals.lock().unwrap();
                     let batch = batches.entry(session_id.0.to_string()).or_default();
                     batch.pending.remove(&request_id);
-                    batch.responses.push((request_id, confirmation.permission));
+                    if confirmation.permission == Permission::Cancel {
+                        batch.cancelled = true;
+                    } else {
+                        batch.responses.push((request_id, confirmation.permission));
+                    }
+                    if batch.cancelled {
+                        if batch.pending.is_empty() {
+                            batches.remove(session_id.0.as_ref());
+                        }
+                        return Ok(());
+                    }
                     if !batch.pending.is_empty() {
                         return Ok(());
                     }
