@@ -801,6 +801,12 @@
               "docs": ""
             },
             {
+              "name": "content",
+              "type": "Vec<MessageContent>",
+              "default": null,
+              "docs": "The assistant turn as binding types, ready to append to history and replay on the next request without reparsing `message_json`."
+            },
+            {
               "name": "usage",
               "type": "Option<Usage>",
               "default": null,

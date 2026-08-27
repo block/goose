@@ -283,6 +283,45 @@ impl MessageContent {
             }
         }
     }
+
+    /// Maps provider output back onto the binding surface so callers can replay
+    /// an assistant turn without reparsing `message_json`. Thinking signatures
+    /// and redacted payloads are carried through verbatim: providers reject
+    /// replayed thinking blocks whose signature was dropped or altered.
+    fn from_goose_content(content: &GooseMessageContent) -> Option<Self> {
+        match content {
+            GooseMessageContent::Text(text) => Some(MessageContent::Text {
+                text: text.text.clone(),
+            }),
+            GooseMessageContent::Image(image) => Some(MessageContent::Image {
+                mime_type: image.mime_type.clone(),
+                data: base64::engine::general_purpose::STANDARD
+                    .decode(&image.data)
+                    .ok()?,
+            }),
+            GooseMessageContent::ToolRequest(request) => {
+                let tool_call = request.tool_call.as_ref().ok()?;
+                Some(MessageContent::ToolRequest {
+                    id: request.id.clone(),
+                    name: tool_call.name.to_string(),
+                    arguments_json: serde_json::to_string(
+                        &tool_call.arguments.clone().unwrap_or_default(),
+                    )
+                    .ok()?,
+                })
+            }
+            GooseMessageContent::Thinking(thinking) => Some(MessageContent::Thinking {
+                thinking: thinking.thinking.clone(),
+                signature: thinking.signature.clone(),
+            }),
+            GooseMessageContent::RedactedThinking(redacted) => {
+                Some(MessageContent::RedactedThinking {
+                    data: redacted.data.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 fn chrono_now() -> i64 {
@@ -537,6 +576,9 @@ impl From<GooseError> for GooseStreamError {
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderCompletion {
     pub message_json: String,
+    /// The assistant turn as binding types, ready to append to history and
+    /// replay on the next request without reparsing `message_json`.
+    pub content: Vec<MessageContent>,
     pub usage: Option<Usage>,
 }
 
@@ -675,6 +717,11 @@ impl ProviderHandle {
 
         Ok(ProviderCompletion {
             message_json: serde_json::to_string(&message)?,
+            content: message
+                .content
+                .iter()
+                .filter_map(MessageContent::from_goose_content)
+                .collect(),
             usage: Some(Usage::from_provider_usage(&usage)?),
         })
     }
@@ -1274,5 +1321,137 @@ mod tests {
         let absent = Usage::from_provider_usage(&provider_usage_with_cache(None, None)).unwrap();
         assert_eq!(absent.cache_read_input_tokens, None);
         assert_eq!(absent.cache_creation_input_tokens, None);
+    }
+
+    #[test]
+    fn thinking_content_round_trips_with_signature() {
+        let original = MessageContent::Thinking {
+            thinking: "step one, then step two".to_string(),
+            signature: "ErUBCkYIBRgCIkAe0pAQ==".to_string(),
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::Thinking(thinking) = &goose else {
+            panic!("expected thinking content");
+        };
+        assert_eq!(thinking.thinking, "step one, then step two");
+        assert_eq!(thinking.signature, "ErUBCkYIBRgCIkAe0pAQ==");
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::Thinking {
+            thinking,
+            signature,
+        } = round_tripped
+        else {
+            panic!("expected thinking content");
+        };
+        assert_eq!(thinking, "step one, then step two");
+        assert_eq!(signature, "ErUBCkYIBRgCIkAe0pAQ==");
+    }
+
+    #[test]
+    fn redacted_thinking_content_round_trips_opaque_data() {
+        let original = MessageContent::RedactedThinking {
+            data: "EroBCkYIBRgCKkBb0pAQopaque".to_string(),
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::RedactedThinking(redacted) = &goose else {
+            panic!("expected redacted thinking content");
+        };
+        assert_eq!(redacted.data, "EroBCkYIBRgCKkBb0pAQopaque");
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::RedactedThinking { data } = round_tripped else {
+            panic!("expected redacted thinking content");
+        };
+        assert_eq!(data, "EroBCkYIBRgCKkBb0pAQopaque");
+    }
+
+    #[test]
+    fn thinking_blocks_survive_multi_turn_replay() {
+        let assistant_turn = ProviderMessage {
+            role: MessageRole::Assistant,
+            content: vec![
+                MessageContent::Thinking {
+                    thinking: "the user wants the capital".to_string(),
+                    signature: "sig-abc123".to_string(),
+                },
+                MessageContent::RedactedThinking {
+                    data: "opaque-payload".to_string(),
+                },
+                MessageContent::Text {
+                    text: "Paris".to_string(),
+                },
+            ],
+        };
+
+        let history = vec![
+            ProviderMessage {
+                role: MessageRole::User,
+                content: vec![MessageContent::Text {
+                    text: "what is the capital of France?".to_string(),
+                }],
+            },
+            assistant_turn,
+            ProviderMessage {
+                role: MessageRole::User,
+                content: vec![MessageContent::Text {
+                    text: "and of Spain?".to_string(),
+                }],
+            },
+        ];
+
+        let messages = convert_messages(history).unwrap();
+        assert!(matches!(
+            messages[1].content[0],
+            GooseMessageContent::Thinking(_)
+        ));
+        assert!(matches!(
+            messages[1].content[1],
+            GooseMessageContent::RedactedThinking(_)
+        ));
+
+        let spec = goose_providers::formats::anthropic::format_messages(&messages);
+        let assistant = &spec[1]["content"];
+        assert_eq!(assistant[0]["type"], "thinking");
+        assert_eq!(assistant[0]["thinking"], "the user wants the capital");
+        assert_eq!(assistant[0]["signature"], "sig-abc123");
+        assert_eq!(assistant[1]["type"], "redacted_thinking");
+        assert_eq!(assistant[1]["data"], "opaque-payload");
+        assert!(assistant[1].get("thinking").is_none());
+        assert_eq!(assistant[2]["type"], "text");
+        assert_eq!(assistant[2]["text"], "Paris");
+    }
+
+    #[test]
+    fn completion_content_preserves_thinking_for_the_next_turn() {
+        let message = Message::assistant()
+            .with_thinking("reasoning to replay", "sig-xyz")
+            .with_redacted_thinking("opaque-payload")
+            .with_text("Madrid");
+
+        let content: Vec<MessageContent> = message
+            .content
+            .iter()
+            .filter_map(MessageContent::from_goose_content)
+            .collect();
+
+        assert!(matches!(
+            &content[0],
+            MessageContent::Thinking { thinking, signature }
+                if thinking == "reasoning to replay" && signature == "sig-xyz"
+        ));
+        assert!(matches!(
+            &content[1],
+            MessageContent::RedactedThinking { data } if data == "opaque-payload"
+        ));
+
+        let replayed = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content,
+        }])
+        .unwrap();
+        assert_eq!(replayed[0].content, message.content);
     }
 }
