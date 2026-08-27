@@ -3,17 +3,20 @@ import { useLayoutEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appendMcpAppMessage,
-  assertMcpAppMessageAllowed,
-  assertMcpAppToolCallAllowed,
+  assertMcpAppHostActionAllowed,
   GooseAppFrame,
 } from './McpAppRenderer';
 
 interface MockBridge {
   oncalltool?: (params: { name: string; arguments?: Record<string, unknown> }) => Promise<unknown>;
   onmessage?: (params: { content: Array<{ type: string; text?: string }> }) => Promise<unknown>;
+  onopenlink?: (params: { url: string }) => Promise<unknown>;
+  onreadresource?: (params: { uri: string }) => Promise<unknown>;
+  fallbackRequestHandler?: (request: { method: string }, extra: unknown) => Promise<unknown>;
 }
 
 const bridgeInstances = vi.hoisted(() => [] as MockBridge[]);
+const disabledError = new Error('MCP App host actions are disabled until the recipe is trusted');
 
 vi.mock('@mcp-ui/client', () => ({
   AppBridge: class {
@@ -26,34 +29,69 @@ vi.mock('@mcp-ui/client', () => ({
   PostMessageTransport: class {},
 }));
 
-describe('MCP App tool-call gating', () => {
+describe('MCP App host-action gating', () => {
   beforeEach(() => {
     bridgeInstances.length = 0;
   });
 
-  it('rejects tool calls while recipe trust is unresolved', () => {
-    expect(() => assertMcpAppToolCallAllowed(true)).toThrow(
-      'MCP App tool calls are disabled until the recipe is trusted'
-    );
+  it('rejects host actions while recipe trust is unresolved', () => {
+    expect(() => assertMcpAppHostActionAllowed(true)).toThrow(disabledError);
+    expect(() => assertMcpAppHostActionAllowed(false)).not.toThrow();
   });
 
-  it('allows tool calls after recipe trust resolves', () => {
-    expect(() => assertMcpAppToolCallAllowed(false)).not.toThrow();
-  });
-
-  it('blocks a bridge call in the same commit that trust is revoked', () => {
+  it('blocks every privileged bridge handler while recipe trust is unresolved', () => {
+    const onMessage = vi.fn().mockResolvedValue({});
+    const onOpenLink = vi.fn().mockResolvedValue({ status: 'success' });
     const onCallTool = vi.fn().mockResolvedValue({ content: [] });
+    const onReadResource = vi.fn().mockResolvedValue({ contents: [] });
+    const onFallbackRequest = vi.fn().mockResolvedValue({});
+
+    render(
+      <GooseAppFrame
+        html=""
+        sandbox={{ url: new URL('about:blank') }}
+        hostContext={{}}
+        onMessage={onMessage}
+        onOpenLink={onOpenLink}
+        onCallTool={onCallTool}
+        onReadResource={onReadResource}
+        onLoggingMessage={() => {}}
+        onFallbackRequest={onFallbackRequest}
+        hostActionsDisabled
+      />
+    );
+
+    const bridge = bridgeInstances[0];
+    expect(bridgeInstances).toHaveLength(1);
+    expect(() => bridge.onmessage?.({ content: [{ type: 'text', text: 'draft' }] })).toThrow(
+      disabledError
+    );
+    expect(() => bridge.onopenlink?.({ url: 'https://example.com' })).toThrow(disabledError);
+    expect(() => bridge.oncalltool?.({ name: 'delete_everything' })).toThrow(disabledError);
+    expect(() => bridge.onreadresource?.({ uri: 'file:///secret' })).toThrow(disabledError);
+    expect(() => bridge.fallbackRequestHandler?.({ method: 'custom/action' }, {})).toThrow(
+      disabledError
+    );
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(onOpenLink).not.toHaveBeenCalled();
+    expect(onCallTool).not.toHaveBeenCalled();
+    expect(onReadResource).not.toHaveBeenCalled();
+    expect(onFallbackRequest).not.toHaveBeenCalled();
+  });
+
+  it('blocks a bridge action in the same commit that trust is revoked', () => {
+    const onOpenLink = vi.fn().mockResolvedValue({ status: 'success' });
     let transitionError: unknown;
 
-    function Harness({ toolCallDisabled }: { toolCallDisabled: boolean }) {
+    function Harness({ hostActionsDisabled }: { hostActionsDisabled: boolean }) {
       useLayoutEffect(() => {
-        if (!toolCallDisabled) return;
+        if (!hostActionsDisabled) return;
         try {
-          void bridgeInstances[0]?.oncalltool?.({ name: 'delete_everything' });
+          void bridgeInstances[0]?.onopenlink?.({ url: 'https://example.com' });
         } catch (error) {
           transitionError = error;
         }
-      }, [toolCallDisabled]);
+      }, [hostActionsDisabled]);
 
       return (
         <GooseAppFrame
@@ -61,84 +99,25 @@ describe('MCP App tool-call gating', () => {
           sandbox={{ url: new URL('about:blank') }}
           hostContext={{}}
           onMessage={async () => ({})}
-          onOpenLink={async () => ({ status: 'success' })}
-          onCallTool={onCallTool}
+          onOpenLink={onOpenLink}
+          onCallTool={async () => ({ content: [] })}
           onReadResource={async () => ({ contents: [] })}
           onLoggingMessage={() => {}}
           onFallbackRequest={async () => ({})}
-          toolCallDisabled={toolCallDisabled}
-          messageDisabled={false}
+          hostActionsDisabled={hostActionsDisabled}
         />
       );
     }
 
-    const { rerender } = render(<Harness toolCallDisabled={false} />);
+    const { rerender } = render(<Harness hostActionsDisabled={false} />);
+    rerender(<Harness hostActionsDisabled />);
 
-    expect(bridgeInstances).toHaveLength(1);
-    rerender(<Harness toolCallDisabled />);
-
-    expect(transitionError).toEqual(
-      new Error('MCP App tool calls are disabled until the recipe is trusted')
-    );
-    expect(onCallTool).not.toHaveBeenCalled();
+    expect(transitionError).toEqual(disabledError);
+    expect(onOpenLink).not.toHaveBeenCalled();
   });
 });
 
-describe('MCP App message gating', () => {
-  beforeEach(() => {
-    bridgeInstances.length = 0;
-  });
-
-  it('blocks a bridge message in the same commit that trust is revoked', () => {
-    const onMessage = vi.fn().mockResolvedValue({});
-    let transitionError: unknown;
-
-    function Harness({ messageDisabled }: { messageDisabled: boolean }) {
-      useLayoutEffect(() => {
-        if (!messageDisabled) return;
-        try {
-          void bridgeInstances[0]?.onmessage?.({
-            content: [{ type: 'text', text: 'keep this draft' }],
-          });
-        } catch (error) {
-          transitionError = error;
-        }
-      }, [messageDisabled]);
-
-      return (
-        <GooseAppFrame
-          html=""
-          sandbox={{ url: new URL('about:blank') }}
-          hostContext={{}}
-          onMessage={onMessage}
-          onOpenLink={async () => ({ status: 'success' })}
-          onCallTool={vi.fn()}
-          onReadResource={async () => ({ contents: [] })}
-          onLoggingMessage={() => {}}
-          onFallbackRequest={async () => ({})}
-          toolCallDisabled={false}
-          messageDisabled={messageDisabled}
-        />
-      );
-    }
-
-    const { rerender } = render(<Harness messageDisabled={false} />);
-
-    expect(bridgeInstances).toHaveLength(1);
-    rerender(<Harness messageDisabled />);
-
-    expect(transitionError).toEqual(
-      new Error('MCP App messages are disabled until the recipe is trusted')
-    );
-    expect(onMessage).not.toHaveBeenCalled();
-  });
-
-  it('rejects messages while recipe trust is unresolved', () => {
-    expect(() => assertMcpAppMessageAllowed(true)).toThrow(
-      'MCP App messages are disabled until the recipe is trusted'
-    );
-  });
-
+describe('MCP App message delivery', () => {
   it('reports when the host rejects a message', async () => {
     const append = vi.fn().mockReturnValue(false);
 

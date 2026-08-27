@@ -219,19 +219,12 @@ interface McpAppRendererProps {
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
   onDisplayModeChange?: OnDisplayModeChange;
-  toolCallDisabled?: boolean;
-  messageDisabled?: boolean;
+  hostActionsDisabled?: boolean;
 }
 
-export function assertMcpAppToolCallAllowed(toolCallDisabled: boolean): void {
-  if (toolCallDisabled) {
-    throw new Error('MCP App tool calls are disabled until the recipe is trusted');
-  }
-}
-
-export function assertMcpAppMessageAllowed(messageDisabled: boolean): void {
-  if (messageDisabled) {
-    throw new Error('MCP App messages are disabled until the recipe is trusted');
+export function assertMcpAppHostActionAllowed(hostActionsDisabled: boolean): void {
+  if (hostActionsDisabled) {
+    throw new Error('MCP App host actions are disabled until the recipe is trusted');
   }
 }
 
@@ -298,8 +291,7 @@ interface GooseAppFrameProps {
   onSizeChanged?: (params: McpUiSizeChangedNotification['params']) => void;
   onInitialized?: (appInfo: AppInfo) => void;
   onError?: (error: Error) => void;
-  toolCallDisabled: boolean;
-  messageDisabled: boolean;
+  hostActionsDisabled: boolean;
 }
 
 const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
@@ -321,8 +313,7 @@ export function GooseAppFrame({
   onSizeChanged,
   onInitialized,
   onError,
-  toolCallDisabled,
-  messageDisabled,
+  hostActionsDisabled,
 }: GooseAppFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -339,8 +330,7 @@ export function GooseAppFrame({
   const onSizeChangedRef = useRef(onSizeChanged);
   const onInitializedRef = useRef(onInitialized);
   const onErrorRef = useRef(onError);
-  const toolCallDisabledRef = useRef(toolCallDisabled);
-  const messageDisabledRef = useRef(messageDisabled);
+  const hostActionsDisabledRef = useRef(hostActionsDisabled);
 
   useEffect(() => {
     hostContextRef.current = hostContext;
@@ -356,9 +346,8 @@ export function GooseAppFrame({
   });
 
   useLayoutEffect(() => {
-    toolCallDisabledRef.current = toolCallDisabled;
-    messageDisabledRef.current = messageDisabled;
-  }, [messageDisabled, toolCallDisabled]);
+    hostActionsDisabledRef.current = hostActionsDisabled;
+  }, [hostActionsDisabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -378,18 +367,26 @@ export function GooseAppFrame({
       hostContext: hostContextRef.current,
     });
     bridge.onmessage = (params) => {
-      assertMcpAppMessageAllowed(messageDisabledRef.current);
+      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
       return onMessageRef.current(params);
     };
-    bridge.onopenlink = (params) => onOpenLinkRef.current(params);
+    bridge.onopenlink = (params) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      return onOpenLinkRef.current(params);
+    };
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
     bridge.oncalltool = (params) => {
-      assertMcpAppToolCallAllowed(toolCallDisabledRef.current);
+      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
       return onCallToolRef.current(params);
     };
-    bridge.onreadresource = (params) => onReadResourceRef.current(params);
-    (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) =>
-      onFallbackRequestRef.current(request, extra);
+    bridge.onreadresource = (params) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      return onReadResourceRef.current(params);
+    };
+    (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      return onFallbackRequestRef.current(request, extra);
+    };
 
     const iframe = document.createElement('iframe');
     iframe.style.width = '100%';
@@ -617,8 +614,7 @@ export default function McpAppRenderer({
   displayMode = 'inline',
   cachedHtml,
   onDisplayModeChange,
-  toolCallDisabled = false,
-  messageDisabled = false,
+  hostActionsDisabled = false,
 }: McpAppRendererProps) {
   const intl = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -838,6 +834,7 @@ export default function McpAppRenderer({
 
   const handleOpenLink = useCallback(
     async ({ url }: { url: string }) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabled);
       const result = await window.electron.openExternal(url);
       if (result === 'opened') {
         return { status: 'success' as const };
@@ -848,16 +845,17 @@ export default function McpAppRenderer({
         message: result === 'cancelled' ? 'User cancelled' : intl.formatMessage(i18n.invalidUrl),
       };
     },
-    [intl]
+    [hostActionsDisabled, intl]
   );
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabled);
       await appendMcpAppMessage(append, content);
       window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
       return {};
     },
-    [append]
+    [append, hostActionsDisabled]
   );
 
   const handleCallTool = useCallback(
@@ -868,17 +866,18 @@ export default function McpAppRenderer({
       name: string;
       arguments?: Record<string, unknown>;
     }): Promise<CallToolResult> => {
-      assertMcpAppToolCallAllowed(toolCallDisabled);
+      assertMcpAppHostActionAllowed(hostActionsDisabled);
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
       return callMcpAppTool(sessionId, extensionName, name, args);
     },
-    [sessionId, extensionName, toolCallDisabled]
+    [sessionId, extensionName, hostActionsDisabled]
   );
 
   const handleReadResource = useCallback(
     async ({ uri }: { uri: string }) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabled);
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
@@ -890,7 +889,7 @@ export default function McpAppRenderer({
         contents: [{ uri: data.uri || uri, text: data.text, mimeType: data.mimeType || undefined }],
       };
     },
-    [sessionId, extensionName]
+    [sessionId, extensionName, hostActionsDisabled]
   );
 
   const handleLoggingMessage = useCallback(
@@ -944,12 +943,13 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
+      assertMcpAppHostActionAllowed(hostActionsDisabled);
       return {
         status: 'error' as const,
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    []
+    [hostActionsDisabled]
   );
 
   const handleError = useCallback((err: Error) => {
@@ -1073,8 +1073,7 @@ export default function McpAppRenderer({
         onFallbackRequest={handleFallbackRequest}
         onSizeChanged={handleSizeChanged}
         onError={handleError}
-        toolCallDisabled={toolCallDisabled}
-        messageDisabled={messageDisabled}
+        hostActionsDisabled={hostActionsDisabled}
       />
     );
   };

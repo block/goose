@@ -157,7 +157,7 @@ interface McpAppWrapperProps {
   toolResponse?: ToolResponseMessageContent;
   sessionId: string;
   append?: (value: string) => boolean | Promise<boolean>;
-  toolCallDisabled: boolean;
+  hostActionsDisabled: boolean;
 }
 
 export function resolveMcpAppMetadata(
@@ -186,7 +186,7 @@ function McpAppWrapper({
   toolResponse,
   sessionId,
   append,
-  toolCallDisabled,
+  hostActionsDisabled,
 }: McpAppWrapperProps): React.ReactNode {
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
@@ -223,8 +223,7 @@ function McpAppWrapper({
         toolName={toolName}
         sessionId={sessionId}
         append={append}
-        toolCallDisabled={toolCallDisabled}
-        messageDisabled={toolCallDisabled}
+        hostActionsDisabled={hostActionsDisabled}
       />
     </div>
   );
@@ -311,7 +310,7 @@ export default function ToolCallWithResponse({
           toolResponse={toolResponse}
           sessionId={sessionId}
           append={append}
-          toolCallDisabled={toolApprovalDisabled}
+          hostActionsDisabled={toolApprovalDisabled}
         />
       )}
     </>

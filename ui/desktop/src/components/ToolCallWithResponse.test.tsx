@@ -17,8 +17,8 @@ vi.mock('../acp/permissionRequests', () => ({
 }));
 
 vi.mock('./McpApps/McpAppRenderer', () => ({
-  default: ({ toolCallDisabled }: { toolCallDisabled?: boolean }) => (
-    <div data-testid="mcp-app" data-tool-call-disabled={String(toolCallDisabled)} />
+  default: ({ hostActionsDisabled }: { hostActionsDisabled?: boolean }) => (
+    <div data-testid="mcp-app" data-host-actions-disabled={String(hostActionsDisabled)} />
   ),
 }));
 
@@ -94,7 +94,7 @@ describe('ToolCallWithResponse live output', () => {
     vi.mocked(window.electron.getSetting).mockResolvedValue('detailed');
   });
 
-  it('disables MCP App tool calls while recipe trust is unresolved', () => {
+  it('disables MCP App host actions while recipe trust is unresolved', () => {
     const appResponse: ToolResponseMessageContent = {
       ...toolResponse,
       toolResult: {
@@ -124,7 +124,7 @@ describe('ToolCallWithResponse live output', () => {
       { wrapper: IntlTestWrapper }
     );
 
-    expect(screen.getByTestId('mcp-app')).toHaveAttribute('data-tool-call-disabled', 'true');
+    expect(screen.getByTestId('mcp-app')).toHaveAttribute('data-host-actions-disabled', 'true');
   });
 
   it('renders raw live output while running and replaces it with the final result', async () => {
