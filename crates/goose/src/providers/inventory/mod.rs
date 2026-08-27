@@ -904,6 +904,26 @@ pub fn default_inventory_configured(
     config_keys: &[ConfigKey],
     config: &Config,
 ) -> bool {
+    inventory_configured(provider_id, config_keys, config, false)
+}
+
+/// A custom provider declaration supplies its own base URL and models, so an
+/// authless declaration is itself the user-supplied configuration.
+pub fn declared_inventory_configured(
+    provider_id: &str,
+    config_keys: &[ConfigKey],
+    config: &Config,
+    requires_auth: bool,
+) -> bool {
+    inventory_configured(provider_id, config_keys, config, !requires_auth)
+}
+
+fn inventory_configured(
+    provider_id: &str,
+    config_keys: &[ConfigKey],
+    config: &Config,
+    declaration_is_configuration: bool,
+) -> bool {
     if crate::config::get_provider_entry(config, provider_id).is_some_and(|entry| entry.configured)
     {
         return true;
@@ -917,10 +937,11 @@ pub fn default_inventory_configured(
         }
     };
 
-    config_keys.iter().any(&has_value)
-        && config_keys
-            .iter()
-            .all(|key| !key.required || key.default.is_some() || has_value(key))
+    let required_keys_satisfied = config_keys
+        .iter()
+        .all(|key| !key.required || key.default.is_some() || has_value(key));
+
+    required_keys_satisfied && (declaration_is_configuration || config_keys.iter().any(&has_value))
 }
 
 pub fn declarative_inventory_identity(
@@ -1500,6 +1521,45 @@ mod tests {
             "defaulted",
             &defaulted_key,
             &config
+        ));
+    }
+
+    #[test]
+    fn declared_inventory_configured_treats_authless_declaration_as_configuration() {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+
+        assert!(declared_inventory_configured(
+            "authless",
+            &[],
+            &config,
+            false
+        ));
+        assert!(!declared_inventory_configured(
+            "authful",
+            &[],
+            &config,
+            true
+        ));
+
+        let secret_key = vec![ConfigKey::new("GOOSE_TEST_API_KEY", true, true, None, true)];
+        assert!(!declared_inventory_configured(
+            "needs_key",
+            &secret_key,
+            &config,
+            false
+        ));
+
+        config
+            .set_secret("GOOSE_TEST_API_KEY", &"sk-test".to_string())
+            .unwrap();
+        assert!(declared_inventory_configured(
+            "needs_key",
+            &secret_key,
+            &config,
+            false
         ));
     }
 }

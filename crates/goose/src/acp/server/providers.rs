@@ -1073,14 +1073,13 @@ impl GooseAcpAgent {
         config
             .delete_secret_values(&secret_keys)
             .internal_err_ctx("Failed to delete provider secret fields")?;
-        if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
-            if let Some(mut provider) = crate::config::get_provider_entry(config, &req.provider_id)
-            {
+        if let Some(mut provider) = crate::config::get_provider_entry(config, &req.provider_id) {
+            provider.configured = false;
+            if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
                 provider.enabled = false;
-                provider.configured = false;
-                crate::config::set_provider_entry(config, &req.provider_id, &provider)
-                    .internal_err_ctx("Failed to disable ACP provider")?;
             }
+            crate::config::set_provider_entry(config, &req.provider_id, &provider)
+                .internal_err_ctx("Failed to clear provider configured state")?;
         }
         crate::providers::cleanup_provider(&req.provider_id)
             .await
