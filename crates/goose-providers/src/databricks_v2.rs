@@ -347,7 +347,7 @@ impl DatabricksV2Provider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat(response, log, None)
     }
 
     async fn stream_anthropic_messages(

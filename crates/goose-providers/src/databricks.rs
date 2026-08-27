@@ -760,7 +760,7 @@ impl Provider for DatabricksProvider {
                 Ok(resp) => resp,
             };
 
-            stream_openai_compat(response, log)
+            stream_openai_compat(response, log, None)
         }
     }
 
