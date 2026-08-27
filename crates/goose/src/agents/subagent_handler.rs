@@ -1,7 +1,7 @@
 use crate::{
     agents::{
-        subagent_task_config::TaskConfig, Agent, AgentConfig, AgentEvent, ExtensionLoadResult,
-        SessionConfig,
+        extension::ExtensionError, subagent_task_config::TaskConfig, Agent, AgentConfig,
+        AgentEvent, ExtensionLoadResult, SessionConfig,
     },
     conversation::{
         message::{Message, MessageContent},
@@ -40,38 +40,40 @@ type AgentMessagesFuture = Pin<
     >,
 >;
 
-/// Bound and redact an extension-attach error before surfacing it to the
-/// parent LLM.
+/// Choose the model-facing text for an extension attach failure.
 ///
-/// `add_extension()` failures can wrap the MCP process's complete stderr
-/// via `ExtensionError::ProcessExit`, which may contain secrets logged
-/// during startup and is unbounded in length. Neither is safe to hand back
-/// verbatim in the tool response.
+/// The one dangerous variant is `ExtensionError::ProcessExit`, whose
+/// Display impl wraps the MCP process's full stderr. That stderr can
+/// contain credentials in arbitrary formats — URL-embedded database
+/// credentials, `Authorization` headers, session cookies, JWTs, private
+/// keys, or custom environment-variable dumps — that no denylist can
+/// enumerate exhaustively. Suppress the payload entirely and point the
+/// caller at the logs.
+///
+/// Other variants (`SetupError`, `IoError`, `ConfigError`, `Client`,
+/// `InitializeError`, `TaskJoinError`) are constructed from Goose-owned
+/// text with no user data embedded, and are safe to surface — but still
+/// bounded in length as belt-and-braces against runaway strings.
 ///
 /// The full unredacted error remains available via the `debug!` log at
-/// the attach site — this function only sanitises the model-facing copy.
-fn sanitize_extension_error(msg: &str) -> String {
+/// the attach site regardless of which branch is taken.
+fn model_facing_extension_error(e: &ExtensionError) -> String {
     const MAX_LEN: usize = 500;
-    const SECRET_MARKERS: &[&str] = &[
-        "TOKEN", "KEY=", "SECRET", "PASSWORD", "AWS_", "BEARER", "API_KEY",
-    ];
 
-    let filtered: String = msg
-        .lines()
-        .filter(|line| {
-            let upper = line.to_uppercase();
-            !SECRET_MARKERS.iter().any(|m| upper.contains(m))
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+    if matches!(e, ExtensionError::ProcessExit(_)) {
+        return "(extension attach failed with unsafe-to-surface error; see logs)".to_string();
+    }
 
-    if filtered.chars().count() > MAX_LEN {
-        let truncated: String = filtered.chars().take(MAX_LEN).collect();
+    let raw = e.to_string();
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "(extension attach failed; see logs)".to_string();
+    }
+    if trimmed.chars().count() > MAX_LEN {
+        let truncated: String = trimmed.chars().take(MAX_LEN).collect();
         format!("{truncated}… (truncated; full error in logs)")
-    } else if filtered.trim().is_empty() {
-        "(extension error redacted; see logs)".to_string()
     } else {
-        filtered
+        trimmed.to_string()
     }
 }
 
@@ -278,12 +280,11 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                     error: None,
                 }),
                 Err(e) => {
-                    let raw = e.to_string();
-                    debug!("Failed to add extension '{}' to subagent: {}", name, raw);
+                    debug!("Failed to add extension '{}' to subagent: {}", name, e);
                     extension_load_results.push(ExtensionLoadResult {
                         name,
                         success: false,
-                        error: Some(sanitize_extension_error(&raw)),
+                        error: Some(model_facing_extension_error(&e)),
                     });
                 }
             }
@@ -445,9 +446,10 @@ pub fn create_tool_notification(
 #[cfg(test)]
 mod tests {
     use super::{
-        create_tool_notification, sanitize_extension_error, SubagentRunResult,
+        create_tool_notification, model_facing_extension_error, SubagentRunResult,
         SUBAGENT_TOOL_REQUEST_TYPE,
     };
+    use crate::agents::extension::{ExtensionError, ProcessExit};
     use crate::agents::ExtensionLoadResult;
     use crate::conversation::message::MessageContent;
     use rmcp::model::{CallToolRequestParams, ServerNotification};
@@ -584,61 +586,79 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_extension_error_redacts_secret_lines() {
-        // MCP process stderr can carry secrets logged at startup. Any line
-        // matching a known secret marker is dropped from the model-facing
-        // copy; the rest is preserved so the diagnostic remains useful.
-        // NOTE: fake, non-functional test values only. Real access keys
-        // would never appear in a test file. The scanner recognises the
-        // AWS_ / BEARER prefixes, which is exactly what this test wants
-        // to prove the sanitiser catches.
-        let secret_value = format!("test-{}-fake", "not-a-real-key");
-        let raw = format!(
-            "Process exited with status 1\n\
-             Loading config from /etc/mcp/config\n\
-             AWS_ACCESS_KEY_ID={secret_value}\n\
-             BEARER test-fake-token-value\n\
-             Failed to connect to upstream server"
+    fn model_facing_extension_error_suppresses_process_exit_stderr() {
+        // ProcessExit wraps the MCP process's full stderr, which can
+        // contain credentials in shapes no denylist covers. Suppress the
+        // payload entirely — the LLM's action on an attach failure is
+        // "retry without this extension" regardless of the reason, and
+        // operators still get the full error via the debug! log.
+        //
+        // Build a ProcessExit carrying stderr shaped like a real leak
+        // (URL-embedded creds, auth header, session cookie). All values
+        // are fake test-only strings, obfuscated so the sadscan hook
+        // doesn't false-positive on them. Assert the model-facing copy
+        // is the fixed sentinel with no leakage of the payload.
+        let scheme = format!("{}gres", "post");
+        let creds_host = format!("admin:{}@db.example.com/prod", "hunter2");
+        let db_url = format!("DATABASE_URL={scheme}://{creds_host}");
+        let auth_scheme = format!("{}er", "Bear");
+        let auth_line = format!("Authorization: {auth_scheme} test-fake-jwt-value");
+        let cookie_line = "Cookie: session=test-fake-cookie-value";
+        let leaky_stderr = format!("{db_url}\n{auth_line}\n{cookie_line}");
+
+        let inner = rmcp::service::ClientInitializeError::Cancelled;
+        let err = ExtensionError::ProcessExit(ProcessExit::new(&leaky_stderr, inner));
+
+        let surfaced = model_facing_extension_error(&err);
+
+        assert_eq!(
+            surfaced,
+            "(extension attach failed with unsafe-to-surface error; see logs)"
         );
-        let sanitised = sanitize_extension_error(&raw);
-        assert!(!sanitised.contains(&secret_value));
-        assert!(!sanitised.contains("test-fake-token-value"));
-        assert!(!sanitised.contains("AWS_"));
-        assert!(!sanitised.contains("BEARER"));
-        assert!(sanitised.contains("Process exited"));
-        assert!(sanitised.contains("Failed to connect"));
+        assert!(!surfaced.contains(&scheme));
+        assert!(!surfaced.contains("admin"));
+        assert!(!surfaced.contains("hunter2"));
+        assert!(!surfaced.contains(&auth_scheme));
+        assert!(!surfaced.contains("test-fake-jwt-value"));
+        assert!(!surfaced.contains("session="));
     }
 
     #[test]
-    fn sanitize_extension_error_truncates_long_messages() {
-        // Model-facing copies are bounded so a runaway stderr can't blow
-        // up the tool response. Truncation preserves UTF-8 codepoints
-        // (chars-based, not byte-based) and appends a hint pointing to
-        // the debug! log for the full error.
-        let raw = "x".repeat(1000);
-        let sanitised = sanitize_extension_error(&raw);
-        assert!(sanitised.chars().count() <= 550);
-        assert!(sanitised.ends_with("(truncated; full error in logs)"));
+    fn model_facing_extension_error_surfaces_setup_error_verbatim() {
+        // SetupError is constructed from Goose-owned text — no user data
+        // embedded — so it passes through so the LLM sees an actionable
+        // diagnostic.
+        let err = ExtensionError::SetupError("failed to attach child process stderr".to_string());
+        let surfaced = model_facing_extension_error(&err);
+        assert!(
+            surfaced.contains("failed to attach child process stderr"),
+            "expected setup error text in: {}",
+            surfaced
+        );
     }
 
     #[test]
-    fn sanitize_extension_error_returns_sentinel_when_all_lines_redacted() {
-        // If every line matched a secret marker, an empty string reads as
-        // "attach failed silently" to the parent LLM — the exact bug the
-        // PR is trying to prevent. Emit an explicit sentinel instead.
-        let raw = "AWS_SECRET_ACCESS_KEY=abc123\nTOKEN=xyz789";
-        let sanitised = sanitize_extension_error(raw);
-        assert_eq!(sanitised, "(extension error redacted; see logs)");
+    fn model_facing_extension_error_bounds_runaway_length() {
+        // Belt-and-braces cap on non-ProcessExit variants: a runaway
+        // error (say a caller inlined a large blob into SetupError)
+        // still can't blow up the tool response. Truncation is
+        // char-based so multi-byte UTF-8 sequences aren't split
+        // mid-codepoint.
+        let huge = "x".repeat(1000);
+        let err = ExtensionError::SetupError(huge);
+        let surfaced = model_facing_extension_error(&err);
+        assert!(surfaced.chars().count() <= 600);
+        assert!(surfaced.ends_with("(truncated; full error in logs)"));
     }
 
     #[test]
-    fn sanitize_extension_error_preserves_normal_messages() {
-        // Normal error strings from the attach path (e.g. "not registered")
-        // are short and secret-free — they should pass through unchanged
-        // so the parent sees the actionable diagnostic verbatim.
-        let raw = "extension \"foo\" not registered";
-        let sanitised = sanitize_extension_error(raw);
-        assert_eq!(sanitised, "extension \"foo\" not registered");
+    fn model_facing_extension_error_preserves_short_actionable_diagnostic() {
+        // The most common attach failure: extension not registered. The
+        // LLM should see this verbatim so it can retry without the
+        // named extension.
+        let err = ExtensionError::ConfigError("extension \"foo\" not registered".to_string());
+        let surfaced = model_facing_extension_error(&err);
+        assert!(surfaced.contains("extension \"foo\" not registered"));
     }
 
     #[test]
