@@ -16,6 +16,12 @@ vi.mock('../acp/permissionRequests', () => ({
   resolveAcpPermissionRequest: vi.fn(),
 }));
 
+vi.mock('./McpApps/McpAppRenderer', () => ({
+  default: ({ toolCallDisabled }: { toolCallDisabled?: boolean }) => (
+    <div data-testid="mcp-app" data-tool-call-disabled={String(toolCallDisabled)} />
+  ),
+}));
+
 const toolRequest: ToolRequestMessageContent = {
   type: 'toolRequest',
   id: 'tool-1',
@@ -86,6 +92,39 @@ function renderToolCall(response?: ToolResponseMessageContent) {
 describe('ToolCallWithResponse live output', () => {
   beforeEach(() => {
     vi.mocked(window.electron.getSetting).mockResolvedValue('detailed');
+  });
+
+  it('disables MCP App tool calls while recipe trust is unresolved', () => {
+    const appResponse: ToolResponseMessageContent = {
+      ...toolResponse,
+      toolResult: {
+        status: 'success',
+        value: {
+          content: [],
+          isError: false,
+          _meta: {
+            ui: { resourceUri: 'ui://developer/render' },
+            extensionName: 'developer',
+            toolName: 'shell',
+            toolNameIsActual: true,
+          },
+        },
+      },
+    };
+
+    render(
+      <ToolCallWithResponse
+        sessionId="session-1"
+        isCancelledMessage={false}
+        toolRequest={toolRequest}
+        toolResponse={appResponse}
+        isPendingApproval={false}
+        toolApprovalDisabled
+      />,
+      { wrapper: IntlTestWrapper }
+    );
+
+    expect(screen.getByTestId('mcp-app')).toHaveAttribute('data-tool-call-disabled', 'true');
   });
 
   it('renders raw live output while running and replaces it with the final result', async () => {

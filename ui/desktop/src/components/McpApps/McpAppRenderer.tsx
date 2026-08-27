@@ -32,7 +32,15 @@ import type {
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
 import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
 import { getCachedTools } from './toolsCache';
@@ -211,6 +219,13 @@ interface McpAppRendererProps {
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
   onDisplayModeChange?: OnDisplayModeChange;
+  toolCallDisabled?: boolean;
+}
+
+export function assertMcpAppToolCallAllowed(toolCallDisabled: boolean): void {
+  if (toolCallDisabled) {
+    throw new Error('MCP App tool calls are disabled until the recipe is trusted');
+  }
 }
 
 interface ResourceMeta {
@@ -257,11 +272,12 @@ interface GooseAppFrameProps {
   onSizeChanged?: (params: McpUiSizeChangedNotification['params']) => void;
   onInitialized?: (appInfo: AppInfo) => void;
   onError?: (error: Error) => void;
+  toolCallDisabled: boolean;
 }
 
 const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
 
-function GooseAppFrame({
+export function GooseAppFrame({
   html,
   sandbox,
   hostContext,
@@ -278,6 +294,7 @@ function GooseAppFrame({
   onSizeChanged,
   onInitialized,
   onError,
+  toolCallDisabled,
 }: GooseAppFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -294,6 +311,7 @@ function GooseAppFrame({
   const onSizeChangedRef = useRef(onSizeChanged);
   const onInitializedRef = useRef(onInitialized);
   const onErrorRef = useRef(onError);
+  const toolCallDisabledRef = useRef(toolCallDisabled);
 
   useEffect(() => {
     hostContextRef.current = hostContext;
@@ -307,6 +325,10 @@ function GooseAppFrame({
     onInitializedRef.current = onInitialized;
     onErrorRef.current = onError;
   });
+
+  useLayoutEffect(() => {
+    toolCallDisabledRef.current = toolCallDisabled;
+  }, [toolCallDisabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -328,7 +350,10 @@ function GooseAppFrame({
     bridge.onmessage = (params) => onMessageRef.current(params);
     bridge.onopenlink = (params) => onOpenLinkRef.current(params);
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
-    bridge.oncalltool = (params) => onCallToolRef.current(params);
+    bridge.oncalltool = (params) => {
+      assertMcpAppToolCallAllowed(toolCallDisabledRef.current);
+      return onCallToolRef.current(params);
+    };
     bridge.onreadresource = (params) => onReadResourceRef.current(params);
     (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) =>
       onFallbackRequestRef.current(request, extra);
@@ -559,6 +584,7 @@ export default function McpAppRenderer({
   displayMode = 'inline',
   cachedHtml,
   onDisplayModeChange,
+  toolCallDisabled = false,
 }: McpAppRendererProps) {
   const intl = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -818,12 +844,13 @@ export default function McpAppRenderer({
       name: string;
       arguments?: Record<string, unknown>;
     }): Promise<CallToolResult> => {
+      assertMcpAppToolCallAllowed(toolCallDisabled);
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
       return callMcpAppTool(sessionId, extensionName, name, args);
     },
-    [sessionId, extensionName]
+    [sessionId, extensionName, toolCallDisabled]
   );
 
   const handleReadResource = useCallback(
@@ -1022,6 +1049,7 @@ export default function McpAppRenderer({
         onFallbackRequest={handleFallbackRequest}
         onSizeChanged={handleSizeChanged}
         onError={handleError}
+        toolCallDisabled={toolCallDisabled}
       />
     );
   };
