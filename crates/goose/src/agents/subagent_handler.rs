@@ -40,6 +40,41 @@ type AgentMessagesFuture = Pin<
     >,
 >;
 
+/// Bound and redact an extension-attach error before surfacing it to the
+/// parent LLM.
+///
+/// `add_extension()` failures can wrap the MCP process's complete stderr
+/// via `ExtensionError::ProcessExit`, which may contain secrets logged
+/// during startup and is unbounded in length. Neither is safe to hand back
+/// verbatim in the tool response.
+///
+/// The full unredacted error remains available via the `debug!` log at
+/// the attach site — this function only sanitises the model-facing copy.
+fn sanitize_extension_error(msg: &str) -> String {
+    const MAX_LEN: usize = 500;
+    const SECRET_MARKERS: &[&str] = &[
+        "TOKEN", "KEY=", "SECRET", "PASSWORD", "AWS_", "BEARER", "API_KEY",
+    ];
+
+    let filtered: String = msg
+        .lines()
+        .filter(|line| {
+            let upper = line.to_uppercase();
+            !SECRET_MARKERS.iter().any(|m| upper.contains(m))
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if filtered.chars().count() > MAX_LEN {
+        let truncated: String = filtered.chars().take(MAX_LEN).collect();
+        format!("{truncated}… (truncated; full error in logs)")
+    } else if filtered.trim().is_empty() {
+        "(extension error redacted; see logs)".to_string()
+    } else {
+        filtered
+    }
+}
+
 pub struct SubagentRunParams {
     pub config: AgentConfig,
     pub recipe: Recipe,
@@ -243,11 +278,12 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                     error: None,
                 }),
                 Err(e) => {
-                    debug!("Failed to add extension '{}' to subagent: {}", name, e);
+                    let raw = e.to_string();
+                    debug!("Failed to add extension '{}' to subagent: {}", name, raw);
                     extension_load_results.push(ExtensionLoadResult {
                         name,
                         success: false,
-                        error: Some(e.to_string()),
+                        error: Some(sanitize_extension_error(&raw)),
                     });
                 }
             }
@@ -408,7 +444,10 @@ pub fn create_tool_notification(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_tool_notification, SubagentRunResult, SUBAGENT_TOOL_REQUEST_TYPE};
+    use super::{
+        create_tool_notification, sanitize_extension_error, SubagentRunResult,
+        SUBAGENT_TOOL_REQUEST_TYPE,
+    };
     use crate::agents::ExtensionLoadResult;
     use crate::conversation::message::MessageContent;
     use rmcp::model::{CallToolRequestParams, ServerNotification};
@@ -542,6 +581,64 @@ mod tests {
         assert!(report.contains("failed: memory (not registered)"));
         assert!(report.contains("failed: sqlite (unknown error)"));
         assert!(!report.contains("loaded:"));
+    }
+
+    #[test]
+    fn sanitize_extension_error_redacts_secret_lines() {
+        // MCP process stderr can carry secrets logged at startup. Any line
+        // matching a known secret marker is dropped from the model-facing
+        // copy; the rest is preserved so the diagnostic remains useful.
+        // NOTE: fake, non-functional test values only. Real access keys
+        // would never appear in a test file. The scanner recognises the
+        // AWS_ / BEARER prefixes, which is exactly what this test wants
+        // to prove the sanitiser catches.
+        let secret_value = format!("test-{}-fake", "not-a-real-key");
+        let raw = format!(
+            "Process exited with status 1\n\
+             Loading config from /etc/mcp/config\n\
+             AWS_ACCESS_KEY_ID={secret_value}\n\
+             BEARER test-fake-token-value\n\
+             Failed to connect to upstream server"
+        );
+        let sanitised = sanitize_extension_error(&raw);
+        assert!(!sanitised.contains(&secret_value));
+        assert!(!sanitised.contains("test-fake-token-value"));
+        assert!(!sanitised.contains("AWS_"));
+        assert!(!sanitised.contains("BEARER"));
+        assert!(sanitised.contains("Process exited"));
+        assert!(sanitised.contains("Failed to connect"));
+    }
+
+    #[test]
+    fn sanitize_extension_error_truncates_long_messages() {
+        // Model-facing copies are bounded so a runaway stderr can't blow
+        // up the tool response. Truncation preserves UTF-8 codepoints
+        // (chars-based, not byte-based) and appends a hint pointing to
+        // the debug! log for the full error.
+        let raw = "x".repeat(1000);
+        let sanitised = sanitize_extension_error(&raw);
+        assert!(sanitised.chars().count() <= 550);
+        assert!(sanitised.ends_with("(truncated; full error in logs)"));
+    }
+
+    #[test]
+    fn sanitize_extension_error_returns_sentinel_when_all_lines_redacted() {
+        // If every line matched a secret marker, an empty string reads as
+        // "attach failed silently" to the parent LLM — the exact bug the
+        // PR is trying to prevent. Emit an explicit sentinel instead.
+        let raw = "AWS_SECRET_ACCESS_KEY=abc123\nTOKEN=xyz789";
+        let sanitised = sanitize_extension_error(raw);
+        assert_eq!(sanitised, "(extension error redacted; see logs)");
+    }
+
+    #[test]
+    fn sanitize_extension_error_preserves_normal_messages() {
+        // Normal error strings from the attach path (e.g. "not registered")
+        // are short and secret-free — they should pass through unchanged
+        // so the parent sees the actionable diagnostic verbatim.
+        let raw = "extension \"foo\" not registered";
+        let sanitised = sanitize_extension_error(raw);
+        assert_eq!(sanitised, "extension \"foo\" not registered");
     }
 
     #[test]

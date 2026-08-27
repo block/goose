@@ -73,10 +73,7 @@ impl TaskConfig {
     /// Used by callers (e.g. `build_task_config`) to record extensions that
     /// were requested but unavailable before the attach step ran, so the
     /// parent LLM can see the drop in the subagent's tool response.
-    pub fn with_pre_attach_load_results(
-        mut self,
-        results: Vec<ExtensionLoadResult>,
-    ) -> Self {
+    pub fn with_pre_attach_load_results(mut self, results: Vec<ExtensionLoadResult>) -> Self {
         self.pre_attach_load_results = results;
         self
     }

@@ -1033,8 +1033,14 @@ impl SummonClient {
             )
         });
 
-        if let Some((result, description, duration, turns_taken, response_expected, notification_sink)) =
-            completed_entry
+        if let Some((
+            result,
+            description,
+            duration,
+            turns_taken,
+            response_expected,
+            notification_sink,
+        )) = completed_entry
         {
             if !peek {
                 Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
@@ -3037,10 +3043,7 @@ You review code."#;
             ..Default::default()
         };
         let params = DelegateParams {
-            extensions: Some(vec![
-                "developer".to_string(),
-                "nonexistent".to_string(),
-            ]),
+            extensions: Some(vec!["developer".to_string(), "nonexistent".to_string()]),
             provider: Some(parent_provider.get_name().to_string()),
             model: Some("test-model".to_string()),
             ..Default::default()
@@ -3567,7 +3570,10 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3617,7 +3623,10 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3690,7 +3699,10 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() }),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
@@ -3937,7 +3949,10 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     task_token.cancelled().await;
-                    Ok(SubagentRunResult { text: "cancelled gracefully".to_string(), extension_load_results: Vec::new() })
+                    Ok(SubagentRunResult {
+                        text: "cancelled gracefully".to_string(),
+                        extension_load_results: Vec::new(),
+                    })
                 }),
                 cancellation_token: token.clone(),
                 response_expected: false,
@@ -3998,7 +4013,10 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     finish_rx.await.unwrap();
-                    Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() })
+                    Ok(SubagentRunResult {
+                        text: "done".to_string(),
+                        extension_load_results: Vec::new(),
+                    })
                 }),
                 cancellation_token: CancellationToken::new(),
                 response_expected: false,
