@@ -49,18 +49,21 @@ type AgentMessagesFuture = Pin<
 /// the subagent now?". Two edge cases motivate this helper:
 ///
 /// - `Ok(())` from a declining platform-extension factory doesn't
-///   register a client (see `extension_manager.rs:1548` — platform
-///   extensions whose factory returns `None` yield `Ok(())` without
-///   inserting into the extensions map, e.g. `scheduler` in subagent
-///   context with no scheduler service).
+///   register a client (platform extensions whose factory returns
+///   `None` yield `Ok(())` without inserting into the extensions map,
+///   e.g. `scheduler` in subagent context with no scheduler service).
 /// - `Err(persist_failure)` returns from a failed session state write
-///   that happens AFTER a successful client registration (see
-///   `agent.rs:1486`). The client is registered and its tools are
-///   available to the subagent even though the return says Err.
+///   that happens AFTER a successful client registration. The client
+///   is registered and its tools are available to the subagent even
+///   though the return says Err.
 ///
 /// Trust the registration state (`registered`) as the source of truth
 /// for what the subagent can actually use. Use the attach result only
 /// to supply an error message when registration failed.
+///
+/// Callers must derive `registered` from the union of the extension
+/// manager AND the agent's frontend-extension registry, since
+/// `ExtensionConfig::Frontend` variants register into a separate map.
 fn resolve_extension_load_result(
     name: String,
     attach_result: &Result<(), ExtensionError>,
@@ -349,7 +352,15 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
         for extension in &task_config.extensions {
             let name = extension.name();
             let attach_result = agent.add_extension(extension.clone(), &session_id).await;
-            let registered = agent.extension_manager.is_extension_enabled(&name).await;
+            // "Registered" for report purposes means "tools are callable by
+            // the subagent". Frontend extensions register into a separate
+            // `frontend_extensions` map (see `Agent::insert_frontend_extension`)
+            // and never touch `ExtensionManager::extensions`, so
+            // `is_extension_enabled` alone would incorrectly report a
+            // successfully-loaded frontend extension as failed. Check both.
+            let key = crate::config::extensions::name_to_key(&name);
+            let registered = agent.extension_manager.is_extension_enabled(&name).await
+                || agent.frontend_extensions.lock().await.contains_key(&key);
             // Log the disambiguation cases so operators can trace them,
             // then defer the report-entry decision to a pure helper.
             match (&attach_result, registered) {
