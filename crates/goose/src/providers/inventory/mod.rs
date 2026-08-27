@@ -899,20 +899,28 @@ pub fn default_inventory_identity(
     identity
 }
 
-pub fn default_inventory_configured(config_keys: &[ConfigKey], config: &Config) -> bool {
-    config_keys.iter().all(|key| {
-        if !key.required {
-            return true;
-        }
-        if key.default.is_some() {
-            return true;
-        }
+pub fn default_inventory_configured(
+    provider_id: &str,
+    config_keys: &[ConfigKey],
+    config: &Config,
+) -> bool {
+    if crate::config::get_provider_entry(config, provider_id).is_some_and(|entry| entry.configured)
+    {
+        return true;
+    }
+
+    let has_value = |key: &ConfigKey| {
         if key.secret {
             config.get_secret::<serde_json::Value>(&key.name).is_ok()
         } else {
             config.get_param::<serde_json::Value>(&key.name).is_ok()
         }
-    })
+    };
+
+    config_keys.iter().any(&has_value)
+        && config_keys
+            .iter()
+            .all(|key| !key.required || key.default.is_some() || has_value(key))
 }
 
 pub fn declarative_inventory_identity(
@@ -1443,5 +1451,55 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "gpt-5.6");
+    }
+
+    #[test]
+    fn default_inventory_configured_requires_user_supplied_configuration() {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+
+        let defaulted_key = vec![ConfigKey::new(
+            "GOOSE_TEST_COMMAND",
+            true,
+            false,
+            Some("some-binary"),
+            true,
+        )];
+        assert!(!default_inventory_configured(
+            "defaulted",
+            &defaulted_key,
+            &config
+        ));
+
+        assert!(!default_inventory_configured("no_keys", &[], &config));
+
+        let secret_key = vec![ConfigKey::new("GOOSE_TEST_API_KEY", true, true, None, true)];
+        assert!(!default_inventory_configured(
+            "secret",
+            &secret_key,
+            &config
+        ));
+        config
+            .set_secret("GOOSE_TEST_API_KEY", &"sk-test".to_string())
+            .unwrap();
+        assert!(default_inventory_configured("secret", &secret_key, &config));
+
+        crate::config::set_provider_entry(
+            &config,
+            "defaulted",
+            &crate::config::ProviderEntry {
+                enabled: true,
+                model: "some-model".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+        assert!(default_inventory_configured(
+            "defaulted",
+            &defaulted_key,
+            &config
+        ));
     }
 }

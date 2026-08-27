@@ -286,8 +286,10 @@ impl ProviderRegistry {
             deprecated: None,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
+        let inventory_provider_id = custom_metadata.name.clone();
         let default_inventory_configured = Arc::new(move || {
             super::inventory::default_inventory_configured(
+                &inventory_provider_id,
                 &inventory_config_keys,
                 crate::config::Config::global(),
             )
