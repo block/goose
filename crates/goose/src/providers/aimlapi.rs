@@ -61,3 +61,21 @@ impl ProviderDef for AimlapiProvider {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
+
+    #[test]
+    fn test_metadata() {
+        let metadata = AimlapiProvider::metadata();
+        assert_eq!(metadata.name, "aimlapi");
+        assert_eq!(metadata.default_model, AIMLAPI_DEFAULT_MODEL);
+        assert_eq!(metadata.config_keys[0].name, "AIMLAPI_API_KEY");
+        assert!(metadata.config_keys[0].required);
+        assert!(metadata.config_keys[0].secret);
+        assert_eq!(metadata.config_keys[1].name, "AIMLAPI_HOST");
+        assert!(!metadata.config_keys[1].required);
+    }
+}
