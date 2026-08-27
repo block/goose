@@ -29,6 +29,8 @@ use rmcp::model::{
 };
 use serde_json::Value;
 
+use crate::observability::{RequestDescriptor, RequestObserver, RequestOperation};
+
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum GooseError {
     #[error("Rate limit exceeded{retry_after_suffix}")]
@@ -489,8 +491,8 @@ pub enum GooseStreamErrorKind {
     Generic,
 }
 
-impl From<GooseError> for GooseStreamError {
-    fn from(error: GooseError) -> Self {
+impl From<&GooseError> for GooseStreamError {
+    fn from(error: &GooseError) -> Self {
         match error {
             GooseError::RateLimited {
                 retry_after_ms,
@@ -498,36 +500,36 @@ impl From<GooseError> for GooseStreamError {
             } => Self {
                 kind: GooseStreamErrorKind::RateLimited,
                 message: format!("Rate limit exceeded{retry_after_suffix}"),
-                retry_after_ms,
+                retry_after_ms: *retry_after_ms,
             },
             GooseError::OutputTokenLimitExceeded { details } => Self {
                 kind: GooseStreamErrorKind::OutputTokenLimitExceeded,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
             GooseError::ContextLengthExceeded { details } => Self {
                 kind: GooseStreamErrorKind::ContextLengthExceeded,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
             GooseError::Authentication { details } => Self {
                 kind: GooseStreamErrorKind::Authentication,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
             GooseError::Timeout { details } => Self {
                 kind: GooseStreamErrorKind::Timeout,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
             GooseError::ProviderUnavailable { details } => Self {
                 kind: GooseStreamErrorKind::ProviderUnavailable,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
             GooseError::Generic { details } => Self {
                 kind: GooseStreamErrorKind::Generic,
-                message: details,
+                message: details.clone(),
                 retry_after_ms: None,
             },
         }
@@ -639,11 +641,25 @@ impl ProviderHandle {
         let model = model.to_goose_model_config()?;
         let messages = convert_messages(messages)?;
         let tools = convert_tools(tools)?;
+        let observer = Arc::new(RequestObserver::start(RequestDescriptor {
+            provider: self.provider.get_name(),
+            model: &model.model_name,
+            operation: RequestOperation::Stream,
+            system: &system,
+            messages: &messages,
+            tools: &tools,
+        }));
         let provider = Arc::clone(&self.provider);
-        let stream = run_provider_future(timeout_ms, async move {
+        let stream = match run_provider_future(timeout_ms, async move {
             provider.stream(&model, &system, &messages, &tools).await
         })
-        .await??;
+        .await
+        {
+            Ok(Ok(stream)) => stream,
+            Ok(Err(error)) => return Err(observer.fail(GooseError::from(error))),
+            Err(error) => return Err(observer.fail(error)),
+        };
+        observer.response_started();
 
         Ok(Arc::new(ProviderStream {
             state: Arc::new(tokio::sync::Mutex::new(ProviderStreamState {
@@ -653,6 +669,7 @@ impl ProviderHandle {
                 ended: false,
             })),
             timeout_ms,
+            observer,
         }))
     }
 
@@ -667,16 +684,37 @@ impl ProviderHandle {
         let model = model.to_goose_model_config()?;
         let messages = convert_messages(messages)?;
         let tools = convert_tools(tools)?;
+        let observer = RequestObserver::start(RequestDescriptor {
+            provider: self.provider.get_name(),
+            model: &model.model_name,
+            operation: RequestOperation::Complete,
+            system: &system,
+            messages: &messages,
+            tools: &tools,
+        });
         let provider = Arc::clone(&self.provider);
-        let (message, usage) = run_provider_future(timeout_ms, async move {
+        let (message, usage) = match run_provider_future(timeout_ms, async move {
             provider.complete(&model, &system, &messages, &tools).await
         })
-        .await??;
+        .await
+        {
+            Ok(Ok(completion)) => completion,
+            Ok(Err(error)) => return Err(observer.fail(GooseError::from(error))),
+            Err(error) => return Err(observer.fail(error)),
+        };
+        observer.response_started();
 
-        Ok(ProviderCompletion {
+        let completion = ProviderCompletion {
             message_json: serde_json::to_string(&message)?,
             usage: Some(Usage::from_provider_usage(&usage)?),
-        })
+        };
+        observer.succeeded(
+            completion.usage.clone(),
+            observer
+                .captures_payloads()
+                .then(|| completion.message_json.clone()),
+        );
+        Ok(completion)
     }
 }
 
@@ -1016,6 +1054,7 @@ pub fn databricks_v2_provider(host: String, token: String) -> Result<Arc<Provide
 pub struct ProviderStream {
     state: Arc<tokio::sync::Mutex<ProviderStreamState>>,
     timeout_ms: Option<u64>,
+    observer: Arc<RequestObserver>,
 }
 
 struct ProviderStreamState {
@@ -1030,6 +1069,7 @@ impl ProviderStream {
     pub async fn next_chunk(&self) -> Result<Option<StreamChunk>, GooseError> {
         let state = Arc::clone(&self.state);
         let timeout_ms = self.timeout_ms;
+        let observer = Arc::clone(&self.observer);
         run_on_runtime(async move {
             let mut state = state.lock().await;
             loop {
@@ -1070,15 +1110,15 @@ impl ProviderStream {
                     }
                     Some(Err(error)) => {
                         state.ended = true;
-                        return Ok(Some(StreamChunk::ErrorChunk {
-                            error: GooseStreamError::from(GooseError::from(error)),
-                        }));
+                        let error = GooseStreamError::from(&GooseError::from(error));
+                        observer.fail_stream(error.clone());
+                        return Ok(Some(StreamChunk::ErrorChunk { error }));
                     }
                     None => {
                         state.ended = true;
-                        return Ok(Some(StreamChunk::EndChunk {
-                            usage: state.final_usage.clone(),
-                        }));
+                        let usage = state.final_usage.clone();
+                        observer.succeeded(usage.clone(), None);
+                        return Ok(Some(StreamChunk::EndChunk { usage }));
                     }
                 }
             }
