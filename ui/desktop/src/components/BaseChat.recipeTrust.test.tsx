@@ -107,8 +107,14 @@ vi.mock('./ChatInput', () => ({
   ),
 }));
 vi.mock('./recipes/RecipeActivities', () => ({
-  default: ({ append }: { append: (text: string) => void }) => (
-    <button type="button" onClick={() => append('recipe activity')}>
+  default: ({
+    append,
+    disabled,
+  }: {
+    append: (text: string) => boolean | Promise<boolean>;
+    disabled?: boolean;
+  }) => (
+    <button type="button" disabled={disabled} onClick={() => void append('recipe activity')}>
       recipe activity
     </button>
   ),
@@ -276,6 +282,7 @@ describe('BaseChat recipe trust gate', () => {
     );
     expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'false');
     expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'recipe activity' })).toBeDisabled();
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
@@ -290,6 +297,7 @@ describe('BaseChat recipe trust gate', () => {
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
     expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'recipe activity' })).toBeDisabled();
     expect(screen.getByTestId('chat-input')).toHaveAttribute(
       'data-queue-processing-blocked',
       'true'
@@ -315,6 +323,7 @@ describe('BaseChat recipe trust gate', () => {
       'false'
     );
     expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
+    expect(screen.getByRole('button', { name: 'recipe activity' })).toBeEnabled();
 
     invokeAllSubmissionPaths();
 

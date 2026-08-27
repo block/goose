@@ -1,19 +1,20 @@
-import { Card } from '../ui/card';
 import GooseLogo from '../GooseLogo';
 import MarkdownContent from '../MarkdownContent';
 import { substituteParameters } from '../../utils/parameterSubstitution';
 
 interface RecipeActivitiesProps {
-  append: (text: string) => void;
+  append: (text: string) => boolean | Promise<boolean>;
   activities: string[] | null;
   title?: string;
   parameterValues?: Record<string, string>;
+  disabled?: boolean;
 }
 
 export default function RecipeActivities({
   append,
   activities,
   parameterValues = {},
+  disabled = false,
 }: RecipeActivitiesProps) {
   const pills = activities || [];
 
@@ -52,16 +53,18 @@ export default function RecipeActivities({
           {remainingPills.map((content, index) => {
             const substitutedContent = substituteParameters(content, parameterValues);
             return (
-              <Card
+              <button
                 key={index}
-                onClick={() => append(substitutedContent)}
+                type="button"
+                disabled={disabled}
+                onClick={() => void append(substitutedContent)}
                 title={substitutedContent.length > 60 ? substitutedContent : undefined}
-                className="cursor-pointer px-3 py-1.5 text-sm hover:bg-background-secondary transition-colors"
+                className="bg-background-primary text-text-primary rounded-xl border shadow-sm cursor-pointer px-3 py-1.5 text-sm text-left hover:bg-background-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-background-primary"
               >
                 {substitutedContent.length > 60
                   ? substitutedContent.slice(0, 60) + '...'
                   : substitutedContent}
-              </Card>
+              </button>
             );
           })}
         </div>

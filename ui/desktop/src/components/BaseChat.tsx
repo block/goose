@@ -531,6 +531,7 @@ export default function BaseChat({
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
                   parameterValues={session?.user_recipe_values || {}}
+                  disabled={!recipeAccepted}
                 />
               </div>
             )}
