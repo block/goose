@@ -40,6 +40,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type RefObject,
 } from 'react';
 import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
 import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
@@ -120,6 +121,15 @@ const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
 const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
 
+interface CancellationSignal {
+  readonly aborted: boolean;
+}
+
+interface CancellationController {
+  readonly signal: CancellationSignal;
+  abort(): void;
+}
+
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
   fullscreen: { width: 'fixed', height: 'fixed' },
@@ -167,10 +177,15 @@ function getContainerDimensions(
   return { ...widthDimension, ...heightDimension };
 }
 
-async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
+async function fetchMcpAppProxyUrl(
+  csp: McpUiResourceCsp | null,
+  signal?: CancellationSignal
+): Promise<string | null> {
   try {
     const acpUrl = await window.electron.getAcpUrl();
+    if (signal?.aborted) return null;
     const secretKey = await window.electron.getSecretKey();
+    if (signal?.aborted) return null;
 
     if (!acpUrl || !secretKey) {
       console.error('[McpAppRenderer] Failed to get ACP URL or secret key');
@@ -292,6 +307,7 @@ interface GooseAppFrameProps {
   onInitialized?: (appInfo: AppInfo) => void;
   onError?: (error: Error) => void;
   hostActionsDisabled: boolean;
+  hostActionsDisabledRef?: RefObject<boolean>;
 }
 
 const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
@@ -314,6 +330,7 @@ export function GooseAppFrame({
   onInitialized,
   onError,
   hostActionsDisabled,
+  hostActionsDisabledRef,
 }: GooseAppFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -330,7 +347,8 @@ export function GooseAppFrame({
   const onSizeChangedRef = useRef(onSizeChanged);
   const onInitializedRef = useRef(onInitialized);
   const onErrorRef = useRef(onError);
-  const hostActionsDisabledRef = useRef(hostActionsDisabled);
+  const localHostActionsDisabledRef = useRef(hostActionsDisabled);
+  const activeHostActionsDisabledRef = hostActionsDisabledRef ?? localHostActionsDisabledRef;
 
   useEffect(() => {
     hostContextRef.current = hostContext;
@@ -346,7 +364,7 @@ export function GooseAppFrame({
   });
 
   useLayoutEffect(() => {
-    hostActionsDisabledRef.current = hostActionsDisabled;
+    localHostActionsDisabledRef.current = hostActionsDisabled;
   }, [hostActionsDisabled]);
 
   useEffect(() => {
@@ -367,24 +385,24 @@ export function GooseAppFrame({
       hostContext: hostContextRef.current,
     });
     bridge.onmessage = (params) => {
-      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      assertMcpAppHostActionAllowed(activeHostActionsDisabledRef.current);
       return onMessageRef.current(params);
     };
     bridge.onopenlink = (params) => {
-      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      assertMcpAppHostActionAllowed(activeHostActionsDisabledRef.current);
       return onOpenLinkRef.current(params);
     };
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
     bridge.oncalltool = (params) => {
-      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      assertMcpAppHostActionAllowed(activeHostActionsDisabledRef.current);
       return onCallToolRef.current(params);
     };
     bridge.onreadresource = (params) => {
-      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      assertMcpAppHostActionAllowed(activeHostActionsDisabledRef.current);
       return onReadResourceRef.current(params);
     };
     (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) => {
-      assertMcpAppHostActionAllowed(hostActionsDisabledRef.current);
+      assertMcpAppHostActionAllowed(activeHostActionsDisabledRef.current);
       return onFallbackRequestRef.current(request, extra);
     };
 
@@ -476,7 +494,7 @@ export function GooseAppFrame({
       bridge.close();
       iframe.remove();
     };
-  }, [sandbox.permissions, sandbox.url.href]);
+  }, [sandbox.permissions, sandbox.url.href, activeHostActionsDisabledRef]);
 
   useEffect(() => {
     const bridge = bridgeRef.current;
@@ -619,6 +637,16 @@ export default function McpAppRenderer({
   const intl = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const hostActionsDisabledRef = useRef(hostActionsDisabled);
+  const proxyAbortControllerRef = useRef<CancellationController | null>(null);
+
+  useLayoutEffect(() => {
+    hostActionsDisabledRef.current = hostActionsDisabled;
+    if (hostActionsDisabled) {
+      proxyAbortControllerRef.current?.abort();
+      proxyAbortControllerRef.current = null;
+    }
+  }, [hostActionsDisabled]);
 
   const dm = useDisplayMode({ displayMode, onDisplayModeChange, containerRef });
   const {
@@ -649,7 +677,7 @@ export default function McpAppRenderer({
   const [mcpTool, setMcpTool] = useState<Tool | null>(null);
   const toolDefRef = useRef<Tool | null>(null);
   useEffect(() => {
-    if (!sessionId || !toolName || toolDefRef.current) {
+    if (hostActionsDisabled || !sessionId || !toolName || toolDefRef.current) {
       if (toolDefRef.current) setMcpTool(toolDefRef.current);
       return;
     }
@@ -657,7 +685,7 @@ export default function McpAppRenderer({
     let cancelled = false;
     (async () => {
       const tools = await getCachedTools(sessionId, extensionName || undefined);
-      if (cancelled || !tools) return;
+      if (cancelled || hostActionsDisabledRef.current || !tools) return;
 
       const prefixedName = extensionName ? `${extensionName}__${toolName}` : toolName;
       const match = tools.find((t) => t.name === prefixedName);
@@ -675,7 +703,7 @@ export default function McpAppRenderer({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, toolName, extensionName]);
+  }, [sessionId, toolName, extensionName, hostActionsDisabled]);
 
   // Survive StrictMode remounts — replay cached results instead of re-fetching,
   // which prevents the iframe from being torn down and recreated (visible flicker).
@@ -724,7 +752,7 @@ export default function McpAppRenderer({
   // finished loading yet, causing a transient 500). Cached HTML skips retries since
   // the app can render immediately with the cached version.
   useEffect(() => {
-    if (!sessionId) return;
+    if (hostActionsDisabled || !sessionId) return;
 
     // On StrictMode remount, replay the cached result instead of re-fetching.
     if (fetchedDataRef.current) {
@@ -741,12 +769,12 @@ export default function McpAppRenderer({
       dispatch({ type: 'FETCH_RESOURCE' });
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        if (cancelled) return;
+        if (cancelled || hostActionsDisabledRef.current) return;
 
         try {
           const content = await readMcpAppResource(sessionId, extensionName, resourceUri);
 
-          if (cancelled) return;
+          if (cancelled || hostActionsDisabledRef.current) return;
 
           if (content) {
             const rawMeta = content._meta as
@@ -775,7 +803,7 @@ export default function McpAppRenderer({
             return;
           }
         } catch (err) {
-          if (cancelled) return;
+          if (cancelled || hostActionsDisabledRef.current) return;
 
           const isLastAttempt = attempt === MAX_RETRIES;
 
@@ -807,14 +835,14 @@ export default function McpAppRenderer({
     return () => {
       cancelled = true;
     };
-  }, [resourceUri, extensionName, sessionId, cachedHtml, intl]);
+  }, [resourceUri, extensionName, sessionId, cachedHtml, intl, hostActionsDisabled]);
 
   // Create the sandbox proxy URL once we have HTML and metadata.
   // On StrictMode remount, reuse the cached URL to avoid recreating the proxy
   // (which would destroy iframe state and cause a visible flicker).
   const pendingCsp = state.status === 'loading_sandbox' ? state.meta.csp : null;
   useEffect(() => {
-    if (state.status !== 'loading_sandbox') return;
+    if (hostActionsDisabled || state.status !== 'loading_sandbox') return;
 
     if (sandboxUrlRef.current) {
       const { url, csp } = sandboxUrlRef.current;
@@ -822,7 +850,11 @@ export default function McpAppRenderer({
       return;
     }
 
-    fetchMcpAppProxyUrl(pendingCsp).then((url) => {
+    const controller = new AbortController();
+    proxyAbortControllerRef.current = controller;
+
+    fetchMcpAppProxyUrl(pendingCsp, controller.signal).then((url) => {
+      if (controller.signal.aborted) return;
       if (url) {
         sandboxUrlRef.current = { url, csp: pendingCsp };
         dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: pendingCsp });
@@ -830,7 +862,14 @@ export default function McpAppRenderer({
         dispatch({ type: 'SANDBOX_FAILED', message: intl.formatMessage(i18n.failedToInitSandbox) });
       }
     });
-  }, [state.status, pendingCsp, intl]);
+
+    return () => {
+      controller.abort();
+      if (proxyAbortControllerRef.current === controller) {
+        proxyAbortControllerRef.current = null;
+      }
+    };
+  }, [state.status, pendingCsp, intl, hostActionsDisabled]);
 
   const handleOpenLink = useCallback(
     async ({ url }: { url: string }) => {
@@ -1074,6 +1113,7 @@ export default function McpAppRenderer({
         onSizeChanged={handleSizeChanged}
         onError={handleError}
         hostActionsDisabled={hostActionsDisabled}
+        hostActionsDisabledRef={hostActionsDisabledRef}
       />
     );
   };
@@ -1178,8 +1218,19 @@ export default function McpAppRenderer({
     );
   };
 
-  // Single stable container — CSS switches between inline/fullscreen/pip positioning.
-  // The iframe is never unmounted, preserving app state across mode changes.
+  if (hostActionsDisabled) {
+    return (
+      <div
+        data-testid="mcp-app-trust-placeholder"
+        className="relative mt-6 mb-2 flex w-full items-center justify-center overflow-hidden rounded bg-black/[0.03] dark:bg-white/[0.03]"
+        style={{ height: `${DEFAULT_IFRAME_HEIGHT}px` }}
+      >
+        <FlyingBird className="scale-200 opacity-30" cycleInterval={120} />
+      </div>
+    );
+  }
+
+  // While trusted, CSS switches the stable iframe between inline/fullscreen/pip positioning.
   const containerClasses = cn(
     'mcp-app-container bg-background-primary [&_iframe]:!w-full',
     isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',

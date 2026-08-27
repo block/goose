@@ -1,7 +1,8 @@
-import { render } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { useLayoutEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
+import { IntlTestWrapper } from '../../i18n/test-utils';
+import McpAppRenderer, {
   appendMcpAppMessage,
   assertMcpAppHostActionAllowed,
   GooseAppFrame,
@@ -16,6 +17,12 @@ interface MockBridge {
 }
 
 const bridgeInstances = vi.hoisted(() => [] as MockBridge[]);
+const rendererMocks = vi.hoisted(() => ({
+  readMcpAppResource: vi.fn(),
+  getCachedTools: vi.fn(),
+  getAcpUrl: vi.fn(),
+  getSecretKey: vi.fn(),
+}));
 const disabledError = new Error('MCP App host actions are disabled until the recipe is trusted');
 
 vi.mock('@mcp-ui/client', () => ({
@@ -29,9 +36,72 @@ vi.mock('@mcp-ui/client', () => ({
   PostMessageTransport: class {},
 }));
 
+vi.mock('../../acp/mcp-apps', () => ({
+  callMcpAppTool: vi.fn(),
+  readMcpAppResource: rendererMocks.readMcpAppResource,
+}));
+
+vi.mock('./toolsCache', () => ({
+  getCachedTools: rendererMocks.getCachedTools,
+}));
+
+vi.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ resolvedTheme: 'light', mcpHostStyles: {} }),
+}));
+
+vi.mock('./useDisplayMode', () => ({
+  AVAILABLE_DISPLAY_MODES: ['inline'],
+  PIP_WIDTH: 400,
+  PIP_HEIGHT: 600,
+  PIP_MARGIN_RIGHT: 24,
+  PIP_MARGIN_BOTTOM: 24,
+  useDisplayMode: () => ({
+    activeDisplayMode: 'inline',
+    effectiveDisplayModes: ['inline'],
+    isStandalone: false,
+    isFullscreen: false,
+    isPip: false,
+    isFillsViewport: false,
+    isInline: true,
+    appSupportsFullscreen: false,
+    appSupportsPip: false,
+    appTitle: undefined,
+    changeDisplayMode: vi.fn(),
+    inlineHeight: 200,
+    pipPosition: { x: 0, y: 0 },
+    pipHandlers: {},
+    fullscreenCloseRef: { current: null },
+  }),
+}));
+
+vi.mock('../FlyingBird', () => ({ default: () => null }));
+
+vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    disconnect() {}
+  }
+);
+
 describe('MCP App host-action gating', () => {
   beforeEach(() => {
     bridgeInstances.length = 0;
+    vi.clearAllMocks();
+    rendererMocks.getCachedTools.mockResolvedValue(null);
+    rendererMocks.getAcpUrl.mockResolvedValue('ws://127.0.0.1:3000');
+    rendererMocks.getSecretKey.mockResolvedValue('secret');
+    rendererMocks.readMcpAppResource.mockResolvedValue({
+      uri: 'ui://recipe/app',
+      text: '<html><body>app</body></html>',
+      mimeType: 'text/html',
+      _meta: {},
+    });
+    Object.assign(window.electron, {
+      getAcpUrl: rendererMocks.getAcpUrl,
+      getSecretKey: rendererMocks.getSecretKey,
+    });
   });
 
   it('rejects host actions while recipe trust is unresolved', () => {
@@ -114,6 +184,134 @@ describe('MCP App host-action gating', () => {
 
     expect(transitionError).toEqual(disabledError);
     expect(onOpenLink).not.toHaveBeenCalled();
+  });
+
+  it('defers app loading and removes the iframe whenever recipe trust is blocked', async () => {
+    const props = {
+      resourceUri: 'ui://recipe/app',
+      extensionName: 'recipe-extension',
+      toolName: 'render-app',
+      sessionId: 'session-1',
+      cachedHtml: '<html><body>cached app</body></html>',
+    };
+    const { rerender } = render(<McpAppRenderer {...props} hostActionsDisabled />, {
+      wrapper: IntlTestWrapper,
+    });
+
+    expect(screen.getByTestId('mcp-app-trust-placeholder')).toBeInTheDocument();
+    expect(rendererMocks.readMcpAppResource).not.toHaveBeenCalled();
+    expect(rendererMocks.getCachedTools).not.toHaveBeenCalled();
+    expect(rendererMocks.getAcpUrl).not.toHaveBeenCalled();
+    expect(bridgeInstances).toHaveLength(0);
+    expect(document.querySelector('iframe')).not.toBeInTheDocument();
+
+    rerender(<McpAppRenderer {...props} hostActionsDisabled={false} />);
+
+    await waitFor(() => expect(rendererMocks.readMcpAppResource).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(rendererMocks.getCachedTools).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(rendererMocks.getAcpUrl).toHaveBeenCalled());
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1));
+    expect(document.querySelector('iframe')).toBeInTheDocument();
+    const trustedBridge = bridgeInstances[0];
+
+    rerender(<McpAppRenderer {...props} hostActionsDisabled />);
+
+    expect(screen.getByTestId('mcp-app-trust-placeholder')).toBeInTheDocument();
+    expect(document.querySelector('iframe')).not.toBeInTheDocument();
+    expect(() => trustedBridge.onopenlink?.({ url: 'https://example.com' })).toThrow(disabledError);
+  });
+
+  it('abandons an in-flight sandbox lookup when recipe trust is revoked', async () => {
+    let resolveAcpUrl: ((url: string) => void) | undefined;
+    rendererMocks.getAcpUrl.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveAcpUrl = resolve;
+      })
+    );
+    const props = {
+      resourceUri: 'ui://recipe/app',
+      extensionName: 'recipe-extension',
+      cachedHtml: '<html><body>cached app</body></html>',
+    };
+    function Harness({ hostActionsDisabled }: { hostActionsDisabled: boolean }) {
+      useLayoutEffect(() => {
+        if (hostActionsDisabled) {
+          resolveAcpUrl?.('ws://127.0.0.1:3000');
+        }
+      }, [hostActionsDisabled]);
+
+      return <McpAppRenderer {...props} hostActionsDisabled={hostActionsDisabled} />;
+    }
+    const { rerender } = render(<Harness hostActionsDisabled={false} />, {
+      wrapper: IntlTestWrapper,
+    });
+
+    await waitFor(() => expect(rendererMocks.getAcpUrl).toHaveBeenCalledTimes(1));
+    rerender(<Harness hostActionsDisabled />);
+
+    await waitFor(() => expect(rendererMocks.getSecretKey).not.toHaveBeenCalled());
+    expect(bridgeInstances).toHaveLength(0);
+    expect(screen.getByTestId('mcp-app-trust-placeholder')).toBeInTheDocument();
+  });
+
+  it('does not cache tool or resource results that settle during trust revocation', async () => {
+    let resolveTools: ((tools: Array<{ name: string; inputSchema: { type: string } }>) => void) |
+      undefined;
+    let resolveResource:
+      | ((resource: { uri: string; text: string; mimeType: string; _meta: object }) => void)
+      | undefined;
+    rendererMocks.getCachedTools
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveTools = resolve;
+        })
+      )
+      .mockReturnValueOnce(new Promise(() => undefined));
+    rendererMocks.readMcpAppResource
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveResource = resolve;
+        })
+      )
+      .mockReturnValueOnce(new Promise(() => undefined));
+    const props = {
+      resourceUri: 'ui://recipe/app',
+      extensionName: 'recipe-extension',
+      toolName: 'render-app',
+      sessionId: 'session-1',
+    };
+    function Harness({ hostActionsDisabled }: { hostActionsDisabled: boolean }) {
+      useLayoutEffect(() => {
+        if (!hostActionsDisabled) return;
+        resolveTools?.([
+          {
+            name: 'recipe-extension__render-app',
+            inputSchema: { type: 'object' },
+          },
+        ]);
+        resolveResource?.({
+          uri: 'ui://recipe/app',
+          text: '<html><body>app</body></html>',
+          mimeType: 'text/html',
+          _meta: {},
+        });
+      }, [hostActionsDisabled]);
+
+      return <McpAppRenderer {...props} hostActionsDisabled={hostActionsDisabled} />;
+    }
+    const { rerender } = render(<Harness hostActionsDisabled={false} />, {
+      wrapper: IntlTestWrapper,
+    });
+
+    await waitFor(() => expect(rendererMocks.getCachedTools).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(rendererMocks.readMcpAppResource).toHaveBeenCalledTimes(1));
+    rerender(<Harness hostActionsDisabled />);
+    await act(async () => undefined);
+    rerender(<Harness hostActionsDisabled={false} />);
+
+    await waitFor(() => expect(rendererMocks.getCachedTools).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(rendererMocks.readMcpAppResource).toHaveBeenCalledTimes(2));
+    expect(bridgeInstances).toHaveLength(0);
   });
 });
 
