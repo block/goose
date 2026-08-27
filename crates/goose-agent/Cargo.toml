@@ -17,9 +17,13 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "ti
 tokio-util = { workspace = true, features = ["compat"] }
 async-trait = { workspace = true }
 goose-provider-types = { version = "0.1.0-alpha.6", path = "../goose-provider-types", default-features = false }
-rmcp = { workspace = true }
+rmcp = { workspace = true, features = ["server"] }
 uuid = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
+
+[dev-dependencies]
+schemars.workspace = true
+serde = { workspace = true, features = ["derive"] }

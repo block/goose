@@ -5337,6 +5337,8 @@ dependencies = [
  "futures",
  "goose-provider-types",
  "rmcp 3.1.4",
+ "schemars 1.2.2",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-util",
