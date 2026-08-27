@@ -682,8 +682,9 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !totalTokens || isLoading,
+        compactButtonDisabled: !totalTokens || isLoading || queueProcessingBlocked,
         onCompact: () => {
+          if (queueProcessingBlockedRef.current) return;
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
           handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
         },
@@ -692,7 +693,15 @@ export default function ChatInput({
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
+  }, [
+    totalTokens,
+    tokenLimit,
+    isTokenLimitLoaded,
+    isLoading,
+    queueProcessingBlocked,
+    addAlert,
+    clearAlerts,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {

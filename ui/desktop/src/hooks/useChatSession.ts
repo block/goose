@@ -207,7 +207,7 @@ export function useChatSession({
         acpChatSessionActions.setMessages(sessionId, messagesForStore);
       }
 
-      await submitToAcpSession(sessionId, newMessage);
+      void submitToAcpSession(sessionId, newMessage);
       return true;
     },
     [getCurrentSnapshot, sessionId, submitToAcpSession]

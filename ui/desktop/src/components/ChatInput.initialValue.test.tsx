@@ -7,6 +7,7 @@ import ChatInput from './ChatInput';
 
 const mocks = vi.hoisted(() => ({
   onTranscription: undefined as undefined | ((text: string) => void),
+  compactAction: undefined as undefined | (() => void),
 }));
 
 vi.stubGlobal(
@@ -45,7 +46,20 @@ vi.mock('./bottom_menu/DirSwitcher', () => ({ DirSwitcher: () => null }));
 vi.mock('./GitBranchIndicator', () => ({ GitBranchIndicator: () => null }));
 vi.mock('./settings/models/bottom_bar/ModelsBottomBar', () => ({ default: () => null }));
 vi.mock('./bottom_menu/CostTracker', () => ({ CostTracker: () => null }));
-vi.mock('./bottom_menu/ContextWindowIndicator', () => ({ ContextWindowIndicator: () => null }));
+vi.mock('./bottom_menu/ContextWindowIndicator', () => ({
+  ContextWindowIndicator: ({
+    alerts,
+  }: {
+    alerts: Array<{ compactButtonDisabled?: boolean; onCompact?: () => void }>;
+  }) => {
+    mocks.compactAction = alerts[0]?.onCompact;
+    return alerts[0] ? (
+      <button type="button" disabled={alerts[0].compactButtonDisabled}>
+        compact
+      </button>
+    ) : null;
+  },
+}));
 vi.mock('../utils/conversionUtils', () => ({
   compressImageDataUrl: (dataUrl: string) => Promise.resolve(dataUrl),
 }));
@@ -148,5 +162,47 @@ describe('ChatInput initial value updates', () => {
     expect(screen.getByTestId('chat-input')).toHaveValue('Keep this message');
     expect(handleSubmit).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it('disables manual compaction while queue processing is blocked', async () => {
+    const handleSubmit = vi.fn();
+    const { rerender } = render(
+      <MemoryRouter>
+        <IntlTestWrapper>
+          <ChatInput
+            sessionId="sess-1"
+            handleSubmit={handleSubmit}
+            chatState={ChatState.Idle}
+            setView={vi.fn()}
+            totalTokens={100}
+            contextLimit={1000}
+          />
+        </IntlTestWrapper>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('button', { name: 'compact' })).toBeEnabled();
+    const previouslyEnabledCompactAction = mocks.compactAction;
+
+    rerender(
+      <MemoryRouter>
+        <IntlTestWrapper>
+          <ChatInput
+            sessionId="sess-1"
+            handleSubmit={handleSubmit}
+            chatState={ChatState.Idle}
+            setView={vi.fn()}
+            totalTokens={100}
+            contextLimit={1000}
+            queueProcessingBlocked
+          />
+        </IntlTestWrapper>
+      </MemoryRouter>
+    );
+
+    act(() => previouslyEnabledCompactAction?.());
+
+    expect(await screen.findByRole('button', { name: 'compact' })).toBeDisabled();
+    expect(handleSubmit).not.toHaveBeenCalled();
   });
 });
