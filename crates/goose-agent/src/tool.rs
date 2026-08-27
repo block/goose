@@ -1,4 +1,4 @@
-use std::{collections::HashSet, future::Future, marker::PhantomData, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,7 +12,9 @@ use rmcp::{
 };
 use serde_json::{json, Value};
 
-use crate::operation::{applied, not_applicable, Emitter, Operation, OperationResult};
+use crate::operation::{
+    applied, not_applicable, Emitter, Operation, OperationFuture, OperationResult,
+};
 
 fn empty_input_schema() -> Arc<JsonObject> {
     Arc::new(
@@ -49,7 +51,7 @@ fn definition<T: ToolBase>() -> Tool {
     tool
 }
 
-fn pending_requests(conversation: &Conversation, tool_name: &str) -> Vec<ToolRequest> {
+fn pending_requests(conversation: &Conversation, tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
     let answered: HashSet<&str> = conversation
         .messages()
         .iter()
@@ -66,7 +68,7 @@ fn pending_requests(conversation: &Conversation, tool_name: &str) -> Vec<ToolReq
                     && request
                         .tool_call
                         .as_ref()
-                        .is_ok_and(|call| call.name == tool_name) =>
+                        .is_ok_and(|call| tool_names.contains(call.name.as_ref())) =>
             {
                 Some(request.clone())
             }
@@ -75,19 +77,12 @@ fn pending_requests(conversation: &Conversation, tool_name: &str) -> Vec<ToolReq
         .collect()
 }
 
-fn parameters<T: ToolBase>(request: &ToolRequest) -> Result<T::Parameter, ErrorData> {
+fn parameters<T: ToolBase>(arguments: Option<JsonObject>) -> Result<T::Parameter, ErrorData> {
     if T::input_schema().is_none() {
         return Ok(T::Parameter::default());
     }
 
-    let arguments = request
-        .tool_call
-        .as_ref()
-        .expect("matched requests have parsed tool calls")
-        .arguments
-        .clone()
-        .unwrap_or_default();
-    serde_json::from_value(Value::Object(arguments)).map_err(|error| {
+    serde_json::from_value(Value::Object(arguments.unwrap_or_default())).map_err(|error| {
         ErrorData::invalid_params(format!("failed to deserialize parameters: {error}"), None)
     })
 }
@@ -100,64 +95,102 @@ fn result<T: ToolBase>(output: Result<T::Output, T::Error>) -> Result<CallToolRe
     Ok(CallToolResult::structured(value))
 }
 
-async fn response<E, F, Fut>(
-    requests: Vec<ToolRequest>,
-    emit: &Emitter,
-    mut execute: F,
-) -> Result<OperationResult<E>>
-where
-    E: From<Message>,
-    F: FnMut(ToolRequest) -> Fut,
-    Fut: Future<Output = Result<CallToolResult, ErrorData>>,
-{
-    if requests.is_empty() {
-        return not_applicable();
-    }
+type ToolHandler<S> = dyn for<'a> Fn(&'a S, Option<JsonObject>) -> OperationFuture<'a, Result<CallToolResult, ErrorData>>
+    + Send
+    + Sync;
 
-    let mut message = Message::user();
-    for request in requests {
-        let metadata = request.metadata.clone();
-        let id = request.id.clone();
-        let tool_result = execute(request).await;
-        message.add_tool_response_with_metadata(id, tool_result, metadata.as_ref());
-    }
-    let message = emit.message(message).await;
-    applied([E::from(message)])
-}
-
-pub struct SyncToolOperation<T> {
+struct RegisteredTool<S> {
     definition: Tool,
-    tool: PhantomData<fn() -> T>,
+    handler: Arc<ToolHandler<S>>,
 }
 
-impl<T: ToolBase> SyncToolOperation<T> {
+/// An agent operation containing tools defined with rmcp's tool traits.
+///
+/// Callers register any number of their own [`SyncTool`] and [`AsyncTool`]
+/// implementations with the builder methods. The operation advertises every
+/// registered definition during inference and dispatches matching tool calls.
+pub struct ToolOperation<S> {
+    tools: Vec<RegisteredTool<S>>,
+}
+
+impl<S> ToolOperation<S>
+where
+    S: Send + Sync + 'static,
+{
     pub fn new() -> Self {
-        Self {
-            definition: definition::<T>(),
-            tool: PhantomData,
+        Self { tools: Vec::new() }
+    }
+
+    fn register(&mut self, tool: RegisteredTool<S>) {
+        if let Some(existing) = self
+            .tools
+            .iter_mut()
+            .find(|existing| existing.definition.name == tool.definition.name)
+        {
+            *existing = tool;
+        } else {
+            self.tools.push(tool);
         }
     }
+
+    pub fn with_sync_tool<T>(mut self) -> Self
+    where
+        T: SyncTool<S> + Send + Sync + 'static,
+    {
+        self.register(RegisteredTool {
+            definition: definition::<T>(),
+            handler: Arc::new(|session, arguments| {
+                Box::pin(async move {
+                    let parameters = parameters::<T>(arguments)?;
+                    result::<T>(T::invoke(session, parameters))
+                })
+            }),
+        });
+        self
+    }
+
+    pub fn with_async_tool<T>(mut self) -> Self
+    where
+        T: AsyncTool<S> + Send + Sync + 'static,
+    {
+        self.register(RegisteredTool {
+            definition: definition::<T>(),
+            handler: Arc::new(|session, arguments| {
+                Box::pin(async move {
+                    let parameters = parameters::<T>(arguments)?;
+                    result::<T>(T::invoke(session, parameters).await)
+                })
+            }),
+        });
+        self
+    }
 }
 
-impl<T: ToolBase> Default for SyncToolOperation<T> {
+impl<S> Default for ToolOperation<S>
+where
+    S: Send + Sync + 'static,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl<S, T, E> Operation<S, E> for SyncToolOperation<T>
+impl<S, E> Operation<S, E> for ToolOperation<S>
 where
     S: Send + Sync + 'static,
-    T: SyncTool<S> + Send + Sync + 'static,
     E: From<Message> + Send + 'static,
 {
     fn name(&self) -> &'static str {
-        "sync_tool"
+        "tools"
     }
 
     async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
-        Ok(vec![self.definition.clone()])
+        Ok(self
+            .tools
+            .iter()
+            .map(|tool| tool.definition.clone())
+            .collect())
     }
 
     async fn run(
@@ -166,61 +199,35 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let requests = pending_requests(conversation, &self.definition.name);
-        response(requests, emit, |request| async move {
-            let parameters = parameters::<T>(&request)?;
-            result::<T>(T::invoke(session, parameters))
-        })
-        .await
-    }
-}
-
-pub struct AsyncToolOperation<T> {
-    definition: Tool,
-    tool: PhantomData<fn() -> T>,
-}
-
-impl<T: ToolBase> AsyncToolOperation<T> {
-    pub fn new() -> Self {
-        Self {
-            definition: definition::<T>(),
-            tool: PhantomData,
+        let tool_names = self
+            .tools
+            .iter()
+            .map(|tool| tool.definition.name.as_ref())
+            .collect();
+        let requests = pending_requests(conversation, &tool_names);
+        if requests.is_empty() {
+            return not_applicable();
         }
-    }
-}
 
-impl<T: ToolBase> Default for AsyncToolOperation<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl<S, T, E> Operation<S, E> for AsyncToolOperation<T>
-where
-    S: Send + Sync + 'static,
-    T: AsyncTool<S> + Send + Sync + 'static,
-    E: From<Message> + Send + 'static,
-{
-    fn name(&self) -> &'static str {
-        "async_tool"
-    }
-
-    async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
-        Ok(vec![self.definition.clone()])
-    }
-
-    async fn run(
-        &self,
-        session: &S,
-        conversation: &Conversation,
-        emit: &Emitter,
-    ) -> Result<OperationResult<E>> {
-        let requests = pending_requests(conversation, &self.definition.name);
-        response(requests, emit, |request| async move {
-            let parameters = parameters::<T>(&request)?;
-            result::<T>(T::invoke(session, parameters).await)
-        })
-        .await
+        let mut message = Message::user();
+        for request in requests {
+            let call = request
+                .tool_call
+                .as_ref()
+                .expect("matched requests have parsed tool calls");
+            let tool = self
+                .tools
+                .iter()
+                .find(|tool| tool.definition.name == call.name)
+                .expect("matched requests reference registered tools");
+            let tool_result = (tool.handler)(session, call.arguments.clone()).await;
+            message.add_tool_response_with_metadata(
+                request.id,
+                tool_result,
+                request.metadata.as_ref(),
+            );
+        }
+        let message = emit.message(message).await;
+        applied([E::from(message)])
     }
 }
