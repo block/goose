@@ -1457,23 +1457,26 @@ where
                         };
 
                         let content = if output_token_limit_reached {
-                            MessageContentBlock::tool_request_with_metadata(
+                            MessageContentBlock::tool_request_with_provider_index(
                                 id.clone(),
                                 Err(output_token_limit_tool_error(function_name, id)),
                                 metadata.as_ref(),
+                                index,
                             )
                         } else if arguments.is_empty() {
-                            MessageContentBlock::tool_request_with_metadata(
+                            MessageContentBlock::tool_request_with_provider_index(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
                                 metadata.as_ref(),
+                                index,
                             )
                         } else {
                             match parse_tool_arguments(arguments) {
-                                Some(params) if params.is_object() => MessageContentBlock::tool_request_with_metadata(
+                                Some(params) if params.is_object() => MessageContentBlock::tool_request_with_provider_index(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
+                                    index,
                                 ),
                                 // Valid JSON but NOT an object (a bare array/string/number).
                                 // Surface a tool error so the model retries instead of
@@ -1488,7 +1491,7 @@ where
                                         )),
                                         data: None,
                                     };
-                                    MessageContentBlock::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                    MessageContentBlock::tool_request_with_provider_index(id.clone(), Err(error), metadata.as_ref(), index)
                                 }
                                 None => {
                                     let message_text = truncation_error_message(arguments)
@@ -1500,7 +1503,7 @@ where
                                         message: Cow::from(message_text),
                                         data: None,
                                     };
-                                    MessageContentBlock::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                    MessageContentBlock::tool_request_with_provider_index(id.clone(), Err(error), metadata.as_ref(), index)
                                 }
                             }
                         };
@@ -3313,6 +3316,66 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    async fn collect_streamed_tool_requests(
+        response_lines: &str,
+    ) -> Vec<crate::conversation::message::ToolRequest> {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut requests = Vec::new();
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContentBlock::ToolRequest(req) = content {
+                        requests.push(req.clone());
+                    }
+                }
+            }
+        }
+        requests
+    }
+
+    #[tokio::test]
+    async fn test_streaming_reassembles_interleaved_parallel_tool_calls() {
+        let response_lines = concat!(
+            r#"data: {"id":"chatcmpl-par","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"search","arguments":""}},{"index":1,"id":"call_b","type":"function","function":{"name":"write","arguments":""}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"chatcmpl-par","model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"path\":"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"chatcmpl-par","model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"query\":"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"chatcmpl-par","model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"\"/tmp/a.md\"}"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"chatcmpl-par","model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"rust\"}"}}]},"finish_reason":"tool_calls"}]}"#,
+            "\n",
+            "data: [DONE]",
+        );
+
+        let requests = collect_streamed_tool_requests(response_lines).await;
+
+        assert_eq!(requests.len(), 2);
+        assert_eq!(
+            requests
+                .iter()
+                .map(|r| r.provider_index())
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1)]
+        );
+
+        let search = requests[0].tool_call.as_ref().expect("search args parsed");
+        assert_eq!(search.name, "search");
+        assert_eq!(search.arguments.as_ref().unwrap()["query"], json!("rust"));
+
+        let write = requests[1].tool_call.as_ref().expect("write args parsed");
+        assert_eq!(write.name, "write");
+        assert_eq!(
+            write.arguments.as_ref().unwrap()["path"],
+            json!("/tmp/a.md")
+        );
     }
 
     #[tokio::test]

@@ -161,6 +161,12 @@ pub const TOOL_META_EXTERNAL_DISPATCH_KEY: &str = "goose.external_dispatch";
 /// for this tool call. Used to make the title survive session reload.
 pub const TOOL_META_TITLE_KEY: &str = "goose.toolSummary.title";
 
+/// Key under `ToolRequest.tool_meta` storing the provider-reported index of the
+/// tool call within the streamed response. Streaming clients need this to
+/// correlate incremental argument fragments with the right call when a model
+/// emits several tool calls in parallel.
+pub const TOOL_META_PROVIDER_INDEX_KEY: &str = "goose.toolCall.providerIndex";
+
 /// Key under `ToolRequest.tool_meta` storing the LLM-generated chain summary
 /// for the chain that starts at this tool request. Shape: `{ "summary": String,
 /// "count": u64 }`. Only attached to the FIRST tool request in a chain.
@@ -457,6 +463,22 @@ impl MessageContentBlock {
             tool_call,
             metadata: metadata.cloned(),
             tool_meta: None,
+        })
+    }
+
+    pub fn tool_request_with_provider_index<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParams>,
+        metadata: Option<&ProviderMetadata>,
+        provider_index: i32,
+    ) -> Self {
+        MessageContentBlock::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            metadata: metadata.cloned(),
+            tool_meta: Some(serde_json::json!({
+                TOOL_META_PROVIDER_INDEX_KEY: provider_index,
+            })),
         })
     }
 

@@ -223,7 +223,7 @@ resolved when the provider is constructed.
 | Chunk | Meaning |
 | --- | --- |
 | `TextChunk` | Assistant text |
-| `ToolChunk` | A tool call request with JSON arguments |
+| `ToolChunk` | A tool call request with JSON arguments and the provider's tool-call `index` |
 | `ThinkingChunk` / `RedactedThinkingChunk` | Reasoning output |
 | `EndChunk` | Stream finished, carries final token `Usage` |
 | `ErrorChunk` | Mid-stream failure, carries a `GooseStreamError` |

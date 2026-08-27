@@ -455,6 +455,7 @@ pub enum StreamChunk {
         id: String,
         name: String,
         arguments_json: String,
+        index: Option<i32>,
     },
     ThinkingChunk {
         thinking: String,
@@ -1097,21 +1098,27 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                     text: text.text.clone(),
                 })
             }
-            GooseMessageContent::ToolRequest(request) => match request.tool_call {
-                Ok(tool_call) => Some(StreamChunk::ToolChunk {
-                    id: request.id,
-                    name: tool_call.name.to_string(),
-                    arguments_json: serde_json::to_string(&tool_call.arguments.unwrap_or_default())
+            GooseMessageContent::ToolRequest(request) => {
+                let index = request.provider_index();
+                match request.tool_call {
+                    Ok(tool_call) => Some(StreamChunk::ToolChunk {
+                        index,
+                        id: request.id,
+                        name: tool_call.name.to_string(),
+                        arguments_json: serde_json::to_string(
+                            &tool_call.arguments.unwrap_or_default(),
+                        )
                         .unwrap_or_else(|_| "{}".to_string()),
-                }),
-                Err(error) => Some(StreamChunk::ErrorChunk {
-                    error: GooseStreamError {
-                        kind: GooseStreamErrorKind::Generic,
-                        message: error.to_string(),
-                        retry_after_ms: None,
-                    },
-                }),
-            },
+                    }),
+                    Err(error) => Some(StreamChunk::ErrorChunk {
+                        error: GooseStreamError {
+                            kind: GooseStreamErrorKind::Generic,
+                            message: error.to_string(),
+                            retry_after_ms: None,
+                        },
+                    }),
+                }
+            }
             GooseMessageContent::Thinking(thinking) => Some(StreamChunk::ThinkingChunk {
                 thinking: thinking.thinking,
                 signature: thinking.signature,

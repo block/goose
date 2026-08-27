@@ -669,6 +669,12 @@
                   "type": "String",
                   "default": null,
                   "docs": ""
+                },
+                {
+                  "name": "index",
+                  "type": "Option<i32>",
+                  "default": null,
+                  "docs": ""
                 }
               ]
             },
