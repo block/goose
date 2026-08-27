@@ -1032,19 +1032,35 @@ impl GooseAcpAgent {
         if current.context_limit == Some(limit) {
             return;
         }
-        if let Ok(rebuilt) =
-            crate::model_config::model_config_from_user_config_with_session_settings(
-                captured_provider,
-                &current.model_name,
-                Some(&current),
-                None,
-                Some(limit),
-            )
-        {
-            let _ = agent
-                .recreate_provider_for_session(session_id, captured_provider, rebuilt)
-                .await;
+        let Ok(rebuilt) = crate::model_config::model_config_from_user_config_with_session_settings(
+            captured_provider,
+            &current.model_name,
+            Some(&current),
+            None,
+            Some(limit),
+        ) else {
+            return;
+        };
+        // Compare-and-swap: only commit if the session's provider + model
+        // still match what we built against. A user reselection between the
+        // snapshot and the recreation would otherwise be silently undone.
+        let after = match agent.model_config_for_session(session_id).await {
+            Ok(cfg) => cfg,
+            Err(_) => return,
+        };
+        if after.model_name != current.model_name {
+            return;
         }
+        let still_same_provider = match agent.provider().await {
+            Ok(provider) => provider.get_name() == captured_provider,
+            Err(_) => false,
+        };
+        if !still_same_provider {
+            return;
+        }
+        let _ = agent
+            .recreate_provider_for_session(session_id, captured_provider, rebuilt)
+            .await;
     }
 
     fn spawn_provider_inventory_refresh(&self, goose_session: &Session, agent: &Arc<Agent>) {
