@@ -40,6 +40,59 @@ type AgentMessagesFuture = Pin<
     >,
 >;
 
+/// Resolve the load report entry for a single extension based on the
+/// combined outcome of `Agent::add_extension` and the extension's actual
+/// registration state.
+///
+/// `add_extension` bundles two operations (attach + persist) and its
+/// return value doesn't map cleanly onto "is this extension usable by
+/// the subagent now?". Two edge cases motivate this helper:
+///
+/// - `Ok(())` from a declining platform-extension factory doesn't
+///   register a client (see `extension_manager.rs:1548` — platform
+///   extensions whose factory returns `None` yield `Ok(())` without
+///   inserting into the extensions map, e.g. `scheduler` in subagent
+///   context with no scheduler service).
+/// - `Err(persist_failure)` returns from a failed session state write
+///   that happens AFTER a successful client registration (see
+///   `agent.rs:1486`). The client is registered and its tools are
+///   available to the subagent even though the return says Err.
+///
+/// Trust the registration state (`registered`) as the source of truth
+/// for what the subagent can actually use. Use the attach result only
+/// to supply an error message when registration failed.
+fn resolve_extension_load_result(
+    name: String,
+    attach_result: &Result<(), ExtensionError>,
+    registered: bool,
+) -> ExtensionLoadResult {
+    match (attach_result, registered) {
+        (Ok(_), true) => ExtensionLoadResult {
+            name,
+            success: true,
+            error: None,
+        },
+        (Ok(_), false) => ExtensionLoadResult {
+            name,
+            success: false,
+            error: Some(
+                "extension attach reported success but no client was registered (see logs)"
+                    .to_string(),
+            ),
+        },
+        (Err(_), true) => ExtensionLoadResult {
+            name,
+            success: true,
+            error: None,
+        },
+        (Err(e), false) => ExtensionLoadResult {
+            name,
+            success: false,
+            error: Some(model_facing_extension_error(e)),
+        },
+    }
+}
+
 /// Choose the model-facing text for an extension attach failure.
 ///
 /// `ExtensionError` has seven variants. Four wrap remote-server, process,
@@ -295,21 +348,31 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
         extension_load_results.reserve(task_config.extensions.len());
         for extension in &task_config.extensions {
             let name = extension.name();
-            match agent.add_extension(extension.clone(), &session_id).await {
-                Ok(_) => extension_load_results.push(ExtensionLoadResult {
-                    name,
-                    success: true,
-                    error: None,
-                }),
-                Err(e) => {
-                    debug!("Failed to add extension '{}' to subagent: {}", name, e);
-                    extension_load_results.push(ExtensionLoadResult {
-                        name,
-                        success: false,
-                        error: Some(model_facing_extension_error(&e)),
-                    });
+            let attach_result = agent.add_extension(extension.clone(), &session_id).await;
+            let registered = agent.extension_manager.is_extension_enabled(&name).await;
+            // Log the disambiguation cases so operators can trace them,
+            // then defer the report-entry decision to a pure helper.
+            match (&attach_result, registered) {
+                (Ok(_), false) => debug!(
+                    "extension '{}' attach returned Ok but no client was registered \
+                     (likely platform-factory decline)",
+                    name
+                ),
+                (Err(e), true) => debug!(
+                    "extension '{}' registered but add_extension returned Err \
+                     (likely session-persist failure): {}",
+                    name, e
+                ),
+                (Err(e), false) => {
+                    debug!("Failed to add extension '{}' to subagent: {}", name, e)
                 }
+                (Ok(_), true) => {}
             }
+            extension_load_results.push(resolve_extension_load_result(
+                name,
+                &attach_result,
+                registered,
+            ));
         }
 
         let has_response_schema = recipe.response.is_some();
@@ -707,6 +770,69 @@ mod tests {
             "(extension attach failed with unsafe-to-surface error; see logs)"
         );
         assert!(!surfaced.contains("sensitive-thing"));
+    }
+
+    #[test]
+    fn resolve_extension_load_result_ok_and_registered_reports_loaded() {
+        // The happy path: `Agent::add_extension` returned Ok and the
+        // client actually registered. Report as loaded.
+        let result = super::resolve_extension_load_result("developer".to_string(), &Ok(()), true);
+        assert!(result.success);
+        assert_eq!(result.name, "developer");
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn resolve_extension_load_result_ok_but_not_registered_reports_failed() {
+        // Fixes the silent-Ok bug on platform-factory decline: when
+        // `add_extension` returns Ok(()) without inserting a client
+        // (extension_manager.rs:1548), the delegate report used to
+        // claim `loaded: X` even though tools were absent. Now correctly
+        // reports failed with a sentinel pointing at the logs.
+        let result = super::resolve_extension_load_result("scheduler".to_string(), &Ok(()), false);
+        assert!(!result.success);
+        assert_eq!(result.name, "scheduler");
+        let err = result.error.as_deref().unwrap_or("");
+        assert!(
+            err.contains("no client was registered"),
+            "expected platform-decline sentinel in: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn resolve_extension_load_result_err_but_registered_reports_loaded() {
+        // Fixes the persist-failure-after-attach bug: when the client
+        // is registered but the session-state persist fails,
+        // `Agent::add_extension` returns Err (agent.rs:1486) even
+        // though the tools are usable by the subagent. Trust the
+        // registration state — report as loaded because the tools work.
+        let attach_err = Err(ExtensionError::SetupError(
+            "Failed to persist extension state: session backend unavailable".to_string(),
+        ));
+        let result =
+            super::resolve_extension_load_result("developer".to_string(), &attach_err, true);
+        assert!(result.success);
+        assert_eq!(result.name, "developer");
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn resolve_extension_load_result_err_and_not_registered_reports_failed_with_sanitised_error() {
+        // The straightforward failure path: attach failed and nothing
+        // is registered. Report as failed and surface the sanitised
+        // error text so the parent LLM can reason about it.
+        let attach_err = Err(ExtensionError::ConfigError(
+            "extension \"foo\" not registered".to_string(),
+        ));
+        let result = super::resolve_extension_load_result("foo".to_string(), &attach_err, false);
+        assert!(!result.success);
+        assert_eq!(result.name, "foo");
+        assert!(result
+            .error
+            .as_deref()
+            .unwrap_or("")
+            .contains("extension \"foo\" not registered"));
     }
 
     #[test]
