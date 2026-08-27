@@ -106,4 +106,36 @@ describe('useChatSession submission acceptance', () => {
     expect(accepted).toBe(true);
     expect(mocks.submitMessage).toHaveBeenCalledTimes(1);
   });
+
+  it('rejects a rapid second message when the live store shows the first prompt', async () => {
+    mocks.submitMessage.mockImplementationOnce(() => {
+      mocks.snapshot = {
+        ...mocks.snapshot!,
+        activePromptAttemptId: 'prompt-1',
+        chatState: ChatState.Streaming,
+      };
+      return new Promise<void>(() => undefined);
+    });
+    const { result } = renderHook(
+      () =>
+        useChatSession({
+          sessionId: 'session-1',
+          onStreamFinish: vi.fn(),
+          onSessionLoaded: vi.fn(),
+        }),
+      { wrapper: Wrapper }
+    );
+
+    let firstAccepted = false;
+    let secondAccepted = true;
+    await act(async () => {
+      firstAccepted = await result.current.handleSubmit({ msg: 'first', images: [] });
+      secondAccepted = await result.current.handleSubmit({ msg: 'second', images: [] });
+    });
+
+    expect(firstAccepted).toBe(true);
+    expect(secondAccepted).toBe(false);
+    expect(mocks.submitMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.setMessages).toHaveBeenCalledTimes(1);
+  });
 });

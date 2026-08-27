@@ -178,7 +178,7 @@ export function useChatSession({
   const handleSubmit = useCallback(
     async (input: UserInput) => {
       const { msg: userMessage, images } = input;
-      const currentSnapshot = getCurrentSnapshot();
+      const currentSnapshot = acpChatSessionStore.getSnapshot(sessionId) ?? getCurrentSnapshot();
 
       if (!currentSnapshot || !isChatSubmissionAllowed(isAcpRecovering(), currentSnapshot, input)) {
         return false;
