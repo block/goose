@@ -129,11 +129,6 @@ export default function BaseChat({
     sessionId,
     onStreamFinish,
   });
-  const appendToChat = useCallback(
-    (text: string) => handleSubmit({ msg: text, images: [] }),
-    [handleSubmit]
-  );
-
   const handleWorkingDirChange = useCallback(
     async (newDir: string) => {
       if (!session) {
@@ -158,6 +153,10 @@ export default function BaseChat({
       }
     },
     [recipeAccepted, submitMessage]
+  );
+  const appendToChat = useCallback(
+    (text: string) => handleSubmit({ msg: text, images: [] }),
+    [handleSubmit]
   );
   const handleSteerQueuedMessage = useCallback(
     (input: UserInput) => {
