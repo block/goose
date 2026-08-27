@@ -279,7 +279,6 @@ export default function BaseChat({
   }, [messages]);
 
   useEffect(() => {
-    if (!isActiveSession) return;
     if (
       recipeTrustRef.current?.accepted === true &&
       recipeTrustRef.current.identity === recipeIdentity
@@ -312,7 +311,7 @@ export default function BaseChat({
     return () => {
       cancelled = true;
     };
-  }, [recipe, recipeIdentity, isActiveSession, session?.session_type]);
+  }, [recipe, recipeIdentity, session?.session_type]);
 
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {

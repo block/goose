@@ -388,6 +388,38 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.hasAcceptedRecipeBefore).toHaveBeenCalledTimes(1);
   });
 
+  it('finishes an in-flight trust lookup after the same recipe session becomes inactive', async () => {
+    let resolveAcceptance: ((accepted: boolean) => void) | undefined;
+    mocks.hasAcceptedRecipeBefore.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveAcceptance = resolve;
+      })
+    );
+    const { rerender } = renderBaseChat();
+
+    expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    rerender(
+      <BaseChat
+        setChat={vi.fn()}
+        sessionId="sess-1"
+        suppressEmptyState={false}
+        isActiveSession={false}
+      />
+    );
+
+    await act(async () => resolveAcceptance?.(true));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true')
+    );
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'false'
+    );
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
+    expect(mocks.hasAcceptedRecipeBefore).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed on lookup failure and accepts only the current recipe when persistence fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.hasAcceptedRecipeBefore.mockRejectedValue(new Error('trust lookup failed'));
