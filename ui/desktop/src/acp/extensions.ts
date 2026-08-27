@@ -144,10 +144,6 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         bundled: config.bundled,
         available_tools: availableToolsOrUndefined(config.available_tools),
       };
-    case 'sse':
-    case 'frontend':
-    case 'inline_python':
-      return null;
   }
 }
 

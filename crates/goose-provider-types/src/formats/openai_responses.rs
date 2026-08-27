@@ -568,43 +568,6 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                         }
                     }
                 }
-                MessageContentBlock::FrontendToolRequest(request) => {
-                    if !text_items.is_empty() {
-                        input_items.push(json!({
-                            "type": "message",
-                            "role": role,
-                            "content": text_items
-                        }));
-                        text_items = Vec::new();
-                    }
-
-                    match &request.tool_call {
-                        Ok(tool_call) => {
-                            let sanitized_name = sanitize_function_name(&tool_call.name);
-                            let arguments_str = tool_call
-                                .arguments
-                                .as_ref()
-                                .map(|args| {
-                                    serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
-                                })
-                                .unwrap_or_else(|| "{}".to_string());
-
-                            input_items.push(json!({
-                                "type": "function_call",
-                                "call_id": request.id,
-                                "name": sanitized_name,
-                                "arguments": arguments_str
-                            }));
-                        }
-                        Err(e) => {
-                            input_items.push(json!({
-                                "type": "function_call_output",
-                                "call_id": request.id,
-                                "output": format!("Error: {}", e.message)
-                            }));
-                        }
-                    }
-                }
                 _ => {}
             }
         }
@@ -2957,48 +2920,6 @@ mod tests {
     }
 
     #[test]
-    fn test_frontend_tool_request_serialized_in_responses_request() {
-        use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, ContentBlock};
-
-        let messages = vec![
-            Message::assistant().with_frontend_tool_request(
-                "call_ft1",
-                Ok(CallToolRequestParams::new("browser_click")
-                    .with_arguments(object!({"selector": "#btn"}))),
-            ),
-            Message::user().with_content(MessageContentBlock::tool_response(
-                "call_ft1",
-                Ok(CallToolResult::success(vec![ContentBlock::text("clicked")])),
-            )),
-        ];
-
-        let model_config = ModelConfig {
-            model_name: "gpt-5.5".to_string(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            request_params: None,
-            reasoning: None,
-            supports_vision: None,
-            request_headers: None,
-        };
-
-        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
-        let input = result["input"].as_array().unwrap();
-
-        assert_eq!(input[0]["type"], "function_call");
-        assert_eq!(input[0]["call_id"], "call_ft1");
-        assert_eq!(input[0]["name"], "browser_click");
-
-        assert_eq!(input[1]["type"], "function_call_output");
-        assert_eq!(input[1]["call_id"], "call_ft1");
-        assert_eq!(input[1]["output"], "clicked");
-    }
-
-    #[test]
     fn test_responses_request_sanitizes_replayed_function_call_names() {
         use crate::conversation::message::Message;
 
@@ -3008,8 +2929,8 @@ mod tests {
                 Ok(CallToolRequestParams::new("Crack Catcher")
                     .with_arguments(object!({"prompt": "verify the work"}))),
             ),
-            Message::assistant().with_frontend_tool_request(
-                "call_frontend_agent",
+            Message::assistant().with_tool_request(
+                "call_review_agent",
                 Ok(CallToolRequestParams::new("@Review Agent")
                     .with_arguments(object!({"prompt": "check it"}))),
             ),
@@ -3036,7 +2957,7 @@ mod tests {
         assert_eq!(input[0]["name"], "Crack_Catcher");
 
         assert_eq!(input[1]["type"], "function_call");
-        assert_eq!(input[1]["call_id"], "call_frontend_agent");
+        assert_eq!(input[1]["call_id"], "call_review_agent");
         assert_eq!(input[1]["name"], "_Review_Agent");
     }
 
@@ -3104,44 +3025,5 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("invalid arguments"));
-    }
-
-    #[test]
-    fn test_frontend_tool_request_error_emits_function_call_output() {
-        use crate::conversation::message::Message;
-        use rmcp::model::{ErrorCode, ErrorData};
-
-        let messages = vec![Message::assistant().with_frontend_tool_request(
-            "call_ft_err",
-            Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: "malformed arguments".into(),
-                data: None,
-            }),
-        )];
-
-        let model_config = ModelConfig {
-            model_name: "gpt-5.5".to_string(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            request_params: None,
-            reasoning: None,
-            supports_vision: None,
-            request_headers: None,
-        };
-
-        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
-        let input = result["input"].as_array().unwrap();
-
-        assert_eq!(input.len(), 1);
-        assert_eq!(input[0]["type"], "function_call_output");
-        assert_eq!(input[0]["call_id"], "call_ft_err");
-        assert!(input[0]["output"]
-            .as_str()
-            .unwrap()
-            .contains("malformed arguments"));
     }
 }

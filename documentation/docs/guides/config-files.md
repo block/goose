@@ -144,7 +144,7 @@ extensions:
     available_tools: []       # Filter to specific tools (empty = all)
 ```
 
-Supported extension types are `builtin`, `platform`, `stdio`, `streamable_http`, `frontend`, and `inline_python`. `sse` may appear in older configs, but is kept only for compatibility.
+Supported extension types are `builtin`, `platform`, `stdio`, and `streamable_http`. SSE is not supported; migrate old SSE configurations to `streamable_http`.
 
 Common extension shapes:
 

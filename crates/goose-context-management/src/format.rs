@@ -57,13 +57,6 @@ pub fn format_message_for_compacting(msg: &Message) -> String {
                     id
                 )),
             },
-            MessageContent::FrontendToolRequest(req) => {
-                if let Ok(call) = &req.tool_call {
-                    Some(format!("frontend_tool_request: {}", call.name))
-                } else {
-                    Some("frontend_tool_request: [error]".to_string())
-                }
-            }
             MessageContent::Thinking(_) => None,
             MessageContent::RedactedThinking(_) => None,
             MessageContent::SystemNotification(notification) => {

@@ -1355,13 +1355,7 @@ mod tests {
             available_tools: vec![],
         };
         extension_manager
-            .add_client(
-                "dynamic".to_string(),
-                config,
-                tools_client.clone(),
-                None,
-                None,
-            )
+            .add_client("dynamic".to_string(), config, tools_client.clone(), None)
             .await;
 
         let goose_client = GooseClient::new(

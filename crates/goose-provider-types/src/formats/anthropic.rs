@@ -408,16 +408,6 @@ fn format_messages_with_options(
                 MessageContentBlock::Image(image) => {
                     content.push(convert_image(image, &ImageFormat::Anthropic));
                 }
-                MessageContentBlock::FrontendToolRequest(tool_request) => {
-                    if let Ok(tool_call) = &tool_request.tool_call {
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_USE_TYPE,
-                            ID_FIELD: tool_request.id,
-                            NAME_FIELD: tool_call.name,
-                            INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
-                        }));
-                    }
-                }
             }
         }
 
@@ -2093,23 +2083,6 @@ mod tests {
             Message::user()
                 .with_tool_response("tool_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ];
-
-        let spec = format_messages(&messages);
-
-        let input = &spec[0]["content"][0]["input"];
-        assert!(input.is_object(), "expected object, got {input:?}");
-        assert!(!input.is_null());
-        assert_eq!(input, &json!({}));
-    }
-
-    #[test]
-    fn test_parameterless_frontend_tool_request_serializes_input_as_empty_object() {
-        // Same regression as above, but exercises the FrontendToolRequest
-        // branch which is reached for UI-originated tool calls.
-        let messages = vec![Message::assistant().with_frontend_tool_request(
-            "frontend_tool_1",
-            Ok(CallToolRequestParams::new("list_things")),
-        )];
 
         let spec = format_messages(&messages);
 

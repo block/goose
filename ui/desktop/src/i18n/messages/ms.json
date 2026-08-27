@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Jenis"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (tidak disokong)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standard IO (STDIO)"
   },

@@ -235,14 +235,6 @@ pub struct RedactedThinkingContentBlock {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FrontendToolRequest {
-    pub id: String,
-    #[serde(with = "tool_result_serde")]
-    pub tool_call: ToolResult<CallToolRequestParams>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum SystemNotificationType {
     ThinkingMessage,
     ProgressMessage,
@@ -300,7 +292,6 @@ pub enum MessageContentBlock {
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
     ActionRequired(ActionRequired),
-    FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContentBlock),
     RedactedThinking(RedactedThinkingContentBlock),
     SystemNotification(SystemNotificationContent),
@@ -339,10 +330,6 @@ impl fmt::Display for MessageContentBlock {
                 ActionRequiredData::ToolConfirmationResponse { id, .. } => {
                     write!(f, "[ActionRequired: ToolConfirmationResponse for {}]", id)
                 }
-            },
-            MessageContentBlock::FrontendToolRequest(r) => match &r.tool_call {
-                Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
-                Err(e) => write!(f, "[FrontendToolRequest: Error: {}]", e),
             },
             MessageContentBlock::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
             MessageContentBlock::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
@@ -558,16 +545,6 @@ impl MessageContentBlock {
 
     pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
         MessageContentBlock::RedactedThinking(RedactedThinkingContentBlock { data: data.into() })
-    }
-
-    pub fn frontend_tool_request<S: Into<String>>(
-        id: S,
-        tool_call: ToolResult<CallToolRequestParams>,
-    ) -> Self {
-        MessageContentBlock::FrontendToolRequest(FrontendToolRequest {
-            id: id.into(),
-            tool_call,
-        })
     }
 
     pub fn system_notification<S: Into<String>>(
@@ -1100,14 +1077,6 @@ impl Message {
         self.with_content(MessageContentBlock::action_required(
             id, tool_name, arguments, prompt,
         ))
-    }
-
-    pub fn with_frontend_tool_request<S: Into<String>>(
-        self,
-        id: S,
-        tool_call: ToolResult<CallToolRequestParams>,
-    ) -> Self {
-        self.with_content(MessageContentBlock::frontend_tool_request(id, tool_call))
     }
 
     /// Add thinking content to the message

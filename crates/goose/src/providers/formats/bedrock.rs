@@ -250,27 +250,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
         }
-        MessageContent::FrontendToolRequest(tool_req) => {
-            let tool_use_id = tool_req.id.to_string();
-            let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
-                bedrock::ToolUseBlock::builder()
-                    .tool_use_id(tool_use_id)
-                    .name(call.name.to_string())
-                    .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
-                    .build()
-            } else {
-                // Unparseable tool call: emit a placeholder tool_use so the paired
-                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
-                // and a tool_result with no matching tool_use. Mirrors the
-                // OpenAI/Databricks/Anthropic formatters.
-                bedrock::ToolUseBlock::builder()
-                    .tool_use_id(tool_use_id)
-                    .name("unparseable_tool_call")
-                    .input(to_bedrock_json(&args_to_value(None)))
-                    .build()
-            }?;
-            bedrock::ContentBlock::ToolUse(tool_use)
-        }
         MessageContent::ToolResponse(tool_res) => {
             let content = match &tool_res.tool_result {
                 Ok(result) => Some(

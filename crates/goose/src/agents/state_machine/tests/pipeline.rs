@@ -94,7 +94,6 @@ pub(super) struct TestPipeline {
     prompt_manager: TokioMutex<PromptManager>,
     tool_inspection_manager: ToolInspectionManager,
     permission_manager: Arc<PermissionManager>,
-    frontend_instructions: TokioMutex<Option<String>>,
     hook_manager: HookManager,
     stop_hook_block_cap: u32,
     goal: TokioMutex<Option<String>>,
@@ -177,7 +176,6 @@ impl TestPipeline {
             goose_mode: &self.goose_mode,
             prompt_manager: &self.prompt_manager,
             tool_inspection_manager: &self.tool_inspection_manager,
-            frontend_instructions: &self.frontend_instructions,
             context_limit: self.model_config.context_limit(),
         };
         let status_operation = Arc::new(StatusOperation::new(
@@ -810,7 +808,6 @@ async fn build_test_pipeline(
         prompt_manager: TokioMutex::new(PromptManager::new()),
         tool_inspection_manager,
         permission_manager,
-        frontend_instructions: TokioMutex::new(None),
         hook_manager: HookManager::default(),
         stop_hook_block_cap: 3,
         goal: TokioMutex::new(None),
@@ -856,7 +853,6 @@ async fn build_test_pipeline(
                     extension,
                     calculator.clone(),
                     calculator.get_info().cloned(),
-                    None,
                 )
                 .await;
         } else {
