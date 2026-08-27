@@ -992,9 +992,20 @@ impl GooseAcpAgent {
     async fn apply_inventory_window_to_session(
         inventory_service: &ProviderInventoryService,
         session_id: &str,
-        provider_name: &str,
+        captured_provider: &str,
         agent: &Arc<Agent>,
     ) {
+        // The user may have switched providers since this task was spawned.
+        // Only apply a window for the provider the session actually used at
+        // capture time; otherwise we could recreate a stale provider and
+        // undo the user's switch.
+        let current_provider = match agent.provider().await {
+            Ok(provider) => provider,
+            Err(_) => return,
+        };
+        if current_provider.get_name() != captured_provider {
+            return;
+        }
         if crate::config::Config::global()
             .get_goose_context_limit()
             .ok()
@@ -1010,14 +1021,14 @@ impl GooseAcpAgent {
             return;
         }
         let Some(limit) = inventory_service
-            .known_context_limit(provider_name, &current.model_name)
+            .known_context_limit(captured_provider, &current.model_name)
             .await
         else {
             return;
         };
         if let Ok(rebuilt) =
             crate::model_config::model_config_from_user_config_with_session_settings(
-                provider_name,
+                captured_provider,
                 &current.model_name,
                 Some(&current),
                 None,
@@ -1025,7 +1036,7 @@ impl GooseAcpAgent {
             )
         {
             let _ = agent
-                .recreate_provider_for_session(session_id, provider_name, rebuilt)
+                .recreate_provider_for_session(session_id, captured_provider, rebuilt)
                 .await;
         }
     }
