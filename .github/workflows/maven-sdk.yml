@@ -28,6 +28,10 @@ jobs:
             os: ubuntu-latest
             container: quay.io/pypa/manylinux_2_28_x86_64@sha256:441c35fdc6ee809ff9260894f8468ab4fea8c15dc880f8700a3f81b7922c1cda
             resource-prefix: linux-x86-64
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+            container: quay.io/pypa/manylinux_2_28_aarch64@sha256:8b5f2b4e8c072ae5aefeb659f22c03e1ff46e6a82f154b6c904b106c87e65ff7
+            resource-prefix: linux-aarch64
           - name: win32-x86-64
             os: windows-latest
             resource-prefix: win32-x86-64
