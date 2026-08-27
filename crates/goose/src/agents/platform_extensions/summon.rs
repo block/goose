@@ -75,6 +75,10 @@ pub struct BackgroundTask {
     pub last_activity: Arc<AtomicU64>,
     pub handle: JoinHandle<Result<SubagentRunResult>>,
     pub cancellation_token: CancellationToken,
+    /// True when the delegated recipe declared a `response:` schema.
+    /// Consumers of the run result must preserve the raw JSON output and
+    /// not append a prose extension-load report to it.
+    pub response_expected: bool,
     notification_sink: SharedNotificationSink,
 }
 
@@ -85,6 +89,9 @@ pub struct CompletedTask {
     pub turns_taken: u32,
     pub duration: Duration,
     pub completed_at: Instant,
+    /// True when the delegated recipe declared a `response:` schema.
+    /// See `BackgroundTask::response_expected` for details.
+    pub response_expected: bool,
     notification_sink: SharedNotificationSink,
 }
 
@@ -1021,11 +1028,12 @@ impl SummonClient {
                 task.description.clone(),
                 task.duration,
                 task.turns_taken,
+                task.response_expected,
                 Arc::clone(&task.notification_sink),
             )
         });
 
-        if let Some((result, description, duration, turns_taken, notification_sink)) =
+        if let Some((result, description, duration, turns_taken, response_expected, notification_sink)) =
             completed_entry
         {
             if !peek {
@@ -1043,7 +1051,7 @@ impl SummonClient {
                 _ => "✗ Failed",
             };
             let output = match result {
-                Ok(run_result) => run_result.text_with_report(),
+                Ok(run_result) => Self::subagent_output_text(run_result, response_expected),
                 Err(error) => format!("Error: {}", error),
             };
             return Ok(TaskLoadResult {
@@ -1114,12 +1122,13 @@ impl SummonClient {
 
                 let duration = task.started_at.elapsed();
                 let turns_taken = task.turns.load(Ordering::Relaxed);
+                let response_expected = task.response_expected;
 
                 let mut handle = task.handle;
                 let output = tokio::select! {
                     result = &mut handle => {
                         match result {
-                            Ok(Ok(run_result)) => run_result.text_with_report(),
+                            Ok(Ok(run_result)) => Self::subagent_output_text(run_result, response_expected),
                             Ok(Err(e)) => format!("Error: {}", e),
                             Err(e) => format!("Task panicked: {}", e),
                         }
@@ -1155,11 +1164,12 @@ impl SummonClient {
             Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
             let mut task = running.remove(task_id).unwrap();
             drop(running);
+            let response_expected = task.response_expected;
 
             tokio::select! {
                 result = &mut task.handle => {
                     let (output, status_key) = match result {
-                        Ok(Ok(run_result)) => (run_result.text_with_report(), "completed"),
+                        Ok(Ok(run_result)) => (Self::subagent_output_text(run_result, response_expected), "completed"),
                         Ok(Err(e)) => (format!("Error: {}", e), "failed"),
                         Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
@@ -1391,6 +1401,7 @@ impl SummonClient {
             .await?;
 
         let subagent_session_id = subagent_session.id.clone();
+        let response_expected = recipe.response.is_some();
 
         let params = SubagentRunParams {
             config: agent_config,
@@ -1420,7 +1431,7 @@ impl SummonClient {
 
         match result {
             Ok(run_result) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                run_result.text_with_report(),
+                Self::subagent_output_text(run_result, response_expected),
             )])
             .with_meta(Some(meta))),
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
@@ -1939,6 +1950,7 @@ impl SummonClient {
                     turns_taken,
                     duration,
                     completed_at: Instant::now(),
+                    response_expected: task.response_expected,
                     notification_sink: task.notification_sink,
                 },
             );
@@ -1954,6 +1966,32 @@ impl SummonClient {
             (Some(source), None) => source.clone(),
             (None, Some(instructions)) => instructions.clone(),
             (None, None) => "Unknown task".to_string(),
+        }
+    }
+
+    /// Choose the caller-facing text for a completed subagent run.
+    ///
+    /// Recipes with a `response:` schema serialise their final output as
+    /// JSON; appending a prose report to that string produces invalid
+    /// JSON. In that case surface the raw text and log any drops via
+    /// `warn!` so operators still have visibility. Prose recipes keep
+    /// the inlined report as before (unchanged for the common case).
+    fn subagent_output_text(run_result: SubagentRunResult, response_expected: bool) -> String {
+        if response_expected {
+            let (text, load_results) = run_result.into_parts();
+            let failures: Vec<&ExtensionLoadResult> =
+                load_results.iter().filter(|r| !r.success).collect();
+            if !failures.is_empty() {
+                warn!(
+                    "Subagent completed with {} extension load failure(s); \
+                     report suppressed to preserve response schema. Failures: {:?}",
+                    failures.len(),
+                    failures
+                );
+            }
+            text
+        } else {
+            run_result.text_with_report()
         }
     }
 
@@ -2026,6 +2064,7 @@ impl SummonClient {
 
         let notification_sink = Self::notification_sink(None);
         let task_notification_sink = Arc::clone(&notification_sink);
+        let response_expected = recipe.response.is_some();
 
         let handle = tokio::spawn(async move {
             let params = SubagentRunParams {
@@ -2054,6 +2093,7 @@ impl SummonClient {
             last_activity,
             handle,
             cancellation_token: task_token,
+            response_expected,
             notification_sink,
         };
 
@@ -3531,6 +3571,7 @@ You review code."#;
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(buffered),
             },
         );
@@ -3580,6 +3621,7 @@ You review code."#;
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -3652,6 +3694,7 @@ You review code."#;
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(
                     (0..64)
                         .map(|index| test_tool_notification(&format!("inner-{index}"), task_id))
@@ -3704,6 +3747,7 @@ You review code."#;
                         })
                     }),
                     cancellation_token: CancellationToken::new(),
+                    response_expected: false,
                     notification_sink,
                 },
             );
@@ -3745,6 +3789,7 @@ You review code."#;
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3757,6 +3802,7 @@ You review code."#;
                     turns_taken: 3,
                     duration: Duration::from_secs(30),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3847,6 +3893,7 @@ You review code."#;
                         })
                     }),
                     cancellation_token: token.clone(),
+                    response_expected: false,
                     notification_sink,
                 },
             );
@@ -3893,6 +3940,7 @@ You review code."#;
                     Ok(SubagentRunResult { text: "cancelled gracefully".to_string(), extension_load_results: Vec::new() })
                 }),
                 cancellation_token: token.clone(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -3953,6 +4001,7 @@ You review code."#;
                     Ok(SubagentRunResult { text: "done".to_string(), extension_load_results: Vec::new() })
                 }),
                 cancellation_token: CancellationToken::new(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -4015,6 +4064,7 @@ You review code."#;
                         })
                     }),
                     cancellation_token: CancellationToken::new(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -4067,6 +4117,7 @@ You review code."#;
                     turns_taken: 4,
                     duration: Duration::from_secs(30),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );

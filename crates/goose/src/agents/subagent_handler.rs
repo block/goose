@@ -91,11 +91,28 @@ impl SubagentRunResult {
     /// Return the tool-response text a caller should surface to the parent,
     /// appending the extension-load report only when at least one extension
     /// failed to attach.
+    ///
+    /// This variant is not safe to use when the delegated recipe declared
+    /// a `response:` schema, because the appended prose invalidates the
+    /// serialised JSON output. In that case call `into_parts()` instead
+    /// and let the caller decide how to surface the load results.
     pub fn text_with_report(&self) -> String {
         match self.format_extension_load_report() {
             Some(report) => format!("{}\n\n{}", self.text, report),
             None => self.text.clone(),
         }
+    }
+
+    /// Structured accessor. Prefer this at consume sites that must
+    /// preserve the raw text output — e.g. recipes with a `response:`
+    /// schema whose final output is serialised JSON that must remain
+    /// parseable by the caller.
+    ///
+    /// The returned `Vec<ExtensionLoadResult>` still carries the drop
+    /// information the caller can surface separately (via structured
+    /// metadata or a log record) without mutating the text.
+    pub fn into_parts(self) -> (String, Vec<ExtensionLoadResult>) {
+        (self.text, self.extension_load_results)
     }
 }
 
@@ -525,5 +542,32 @@ mod tests {
         assert!(report.contains("failed: memory (not registered)"));
         assert!(report.contains("failed: sqlite (unknown error)"));
         assert!(!report.contains("loaded:"));
+    }
+
+    #[test]
+    fn subagent_run_result_into_parts_returns_text_and_results_separately() {
+        // Recipes with a `response:` schema serialise their final output
+        // as JSON. Callers on that path must be able to reach the raw
+        // text without any appended report, and still surface the drop
+        // information out-of-band. `into_parts()` is that boundary.
+        let result = SubagentRunResult {
+            text: r#"{"answer": 42}"#.to_string(),
+            extension_load_results: vec![ExtensionLoadResult {
+                name: "memory".to_string(),
+                success: false,
+                error: Some("not registered".to_string()),
+            }],
+        };
+
+        let (text, results) = result.into_parts();
+
+        // Text is untouched — caller can parse it as JSON.
+        assert_eq!(text, r#"{"answer": 42}"#);
+        assert!(serde_json::from_str::<serde_json::Value>(&text).is_ok());
+
+        // Load results are still available for structured surfacing.
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].success);
+        assert_eq!(results[0].name, "memory");
     }
 }
