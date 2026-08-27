@@ -39,6 +39,7 @@ pub fn is_goose_internal_request_param(key: &str) -> bool {
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
+    #[serde(skip)]
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
@@ -49,6 +50,8 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_vision: Option<bool>,
     /// Per-request HTTP headers attached to outgoing provider calls.
     /// Never serialized into request bodies.
     #[serde(skip)]
@@ -63,7 +66,8 @@ impl<'de> Deserialize<'de> for ModelConfig {
         #[derive(Deserialize)]
         struct RawModelConfig {
             model_name: String,
-            context_limit: Option<usize>,
+            #[serde(rename = "context_limit")]
+            _context_limit: Option<usize>,
             temperature: Option<f32>,
             max_tokens: Option<i32>,
             toolshim: bool,
@@ -72,18 +76,21 @@ impl<'de> Deserialize<'de> for ModelConfig {
             request_params: Option<HashMap<String, Value>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             reasoning: Option<bool>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            supports_vision: Option<bool>,
         }
 
         let raw = RawModelConfig::deserialize(deserializer)?;
         let mut config = Self {
             model_name: raw.model_name,
-            context_limit: raw.context_limit,
+            context_limit: None,
             temperature: raw.temperature,
             max_tokens: raw.max_tokens,
             toolshim: raw.toolshim,
             toolshim_model: raw.toolshim_model,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
+            supports_vision: raw.supports_vision,
             request_headers: None,
         };
         config.normalize_effort_suffix();
@@ -102,6 +109,7 @@ impl ModelConfig {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            supports_vision: None,
             request_headers: None,
         };
         config.normalize_effort_suffix();
@@ -125,9 +133,6 @@ impl ModelConfig {
             );
 
         if let Some(canonical) = canonical {
-            if self.context_limit.is_none() {
-                self.context_limit = Some(canonical.limit.context);
-            }
             if self.max_tokens.is_none() {
                 self.max_tokens = canonical
                     .limit
@@ -137,6 +142,14 @@ impl ModelConfig {
             }
             if self.reasoning.is_none() {
                 self.reasoning = canonical.reasoning;
+            }
+            if self.supports_vision.is_none() {
+                self.supports_vision = Some(
+                    canonical
+                        .modalities
+                        .input
+                        .contains(&crate::canonical::Modality::Image),
+                )
             }
         }
 
@@ -221,6 +234,11 @@ impl ModelConfig {
                 self = self.with_thinking_effort(effort);
             }
         }
+        self
+    }
+
+    pub fn with_vision_support(mut self, supports_vision: bool) -> Self {
+        self.supports_vision = Some(supports_vision);
         self
     }
 
@@ -627,6 +645,46 @@ mod tests {
         }
     }
 
+    mod supports_vision {
+        use super::*;
+
+        #[test]
+        fn reads_supports_vision_from_config() {
+            let config: ModelConfig = serde_json::from_str(
+                r#"{"model_name":"gpt-4o","toolshim":false,"supports_vision":true}"#,
+            )
+            .unwrap();
+            assert_eq!(config.supports_vision, Some(true));
+
+            let config: ModelConfig = serde_json::from_str(
+                r#"{"model_name":"gpt-4o","toolshim":false,"supports_vision":false}"#,
+            )
+            .unwrap();
+            assert_eq!(config.supports_vision, Some(false));
+        }
+
+        #[test]
+        fn defaults_supports_vision_to_none_when_absent() {
+            let config: ModelConfig =
+                serde_json::from_str(r#"{"model_name":"deepseek-v4","toolshim":false}"#).unwrap();
+            assert_eq!(config.supports_vision, None);
+        }
+
+        #[test]
+        fn serializes_supports_vision_only_when_some() {
+            let config = ModelConfig::new("gpt-4o").with_vision_support(true);
+            let serialized = serde_json::to_value(&config).unwrap();
+            assert_eq!(
+                serialized.get("supports_vision"),
+                Some(&serde_json::Value::Bool(true))
+            );
+
+            let config = ModelConfig::new("deepseek-v4");
+            let serialized = serde_json::to_value(&config).unwrap();
+            assert!(serialized.get("supports_vision").is_none());
+        }
+    }
+
     mod with_canonical_limits {
         use super::*;
 
@@ -637,23 +695,8 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
             let config = ModelConfig::new("gpt-4o").with_canonical_limits("openai");
-
-            assert_eq!(config.context_limit, Some(128_000));
             assert_eq!(config.max_tokens, Some(16_384));
             assert_eq!(config.reasoning, Some(false));
-        }
-
-        #[test]
-        fn does_not_override_existing_context_limit() {
-            let _guard = env_lock::lock_env([
-                ("GOOSE_MAX_TOKENS", None::<&str>),
-                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
-            ]);
-            let mut config = ModelConfig::new("gpt-4o");
-            config.context_limit = Some(64_000);
-            let config = config.with_canonical_limits("openai");
-
-            assert_eq!(config.context_limit, Some(64_000));
         }
 
         #[test]
@@ -676,8 +719,6 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
             let config = ModelConfig::new("moonshotai/kimi-k2.6").with_canonical_limits("nvidia");
-
-            assert_eq!(config.context_limit, Some(262_144));
             assert_eq!(config.max_tokens, None);
             assert_eq!(config.max_output_tokens(), 4_096);
         }
@@ -690,8 +731,6 @@ mod tests {
             ]);
             let config = ModelConfig::new("global.anthropic.claude-sonnet-5")
                 .with_canonical_limits("aws_bedrock");
-
-            assert_eq!(config.context_limit, Some(1_000_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
         }
@@ -716,18 +755,8 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
-            // "databricks-gpt-5.4-high" should resolve via "databricks-gpt-5.4"
-            let config =
-                ModelConfig::new("databricks-gpt-5.4-high").with_canonical_limits("databricks");
-            assert_eq!(config.context_limit, Some(1_050_000));
-
-            // "gpt-5.4-xhigh" should resolve via "gpt-5.4"
-            let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(1_050_000));
-
             // "gpt-5.6-sol-xhigh" should resolve via "gpt-5.6-sol"
             let config = ModelConfig::new("gpt-5.6-sol-xhigh").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(1_050_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
             let canonical = crate::canonical::maybe_get_canonical_model("openai", "gpt-5.6-sol")
@@ -735,13 +764,31 @@ mod tests {
             assert_eq!(canonical.temperature, Some(false));
 
             let config = ModelConfig::new("gpt-5.6-sol").with_canonical_limits("chatgpt_codex");
-            assert_eq!(config.context_limit, Some(1_050_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
+        }
 
-            // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
-            let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(400_000));
+        #[test]
+        fn fills_supports_vision_from_canonical_model() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+            // gpt-4o is a vision model in the canonical catalog (image input modality).
+            let config = ModelConfig::new("gpt-4o").with_canonical_limits("openai");
+            assert_eq!(config.supports_vision, Some(true));
+        }
+
+        #[test]
+        fn does_not_override_existing_supports_vision() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+            let config = ModelConfig::new("gpt-4o")
+                .with_vision_support(false)
+                .with_canonical_limits("openai");
+            assert_eq!(config.supports_vision, Some(false));
         }
     }
 

@@ -118,7 +118,7 @@ export const zEmptyResponse = z.record(z.string(), z.unknown());
  */
 export const zRemoveSessionExtensionRequest_unstable = z.object({
     sessionId: z.string(),
-    name: z.string()
+    extensionKey: z.string()
 });
 
 /**
@@ -529,8 +529,13 @@ export const zGetSessionExtensionsRequest_unstable = z.object({
     sessionId: z.string()
 });
 
+export const zSessionExtensionEntry = z.object({
+    extension: zGooseExtension,
+    extensionKey: z.string()
+});
+
 export const zGetSessionExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtension)
+    extensions: z.array(zSessionExtensionEntry)
 });
 
 /**

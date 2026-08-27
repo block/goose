@@ -917,6 +917,16 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Aktuelles Verzeichnis"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Pfad eingeben"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Absoluten Pfad eingeben (z. B. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Arbeitsverzeichnis muss ein absoluter Pfad sein"
+  },
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Aktualisieren des Arbeitsverzeichnisses fehlgeschlagen"
   },
@@ -4520,9 +4530,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Automatischer Download ist deaktiviert. Klicken Sie auf \"Jetzt herunterladen\", um manuell herunterzuladen."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Keine manuelle Installation erforderlich."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Nach Updates suchen"
   },
@@ -4553,26 +4560,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Installieren & Neustarten"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Klicken Sie auf \"Installieren & Neustarten\", um jetzt zu aktualisieren."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Sie verwenden die neueste Version!"
   },
   "updateSection.loading": {
     "defaultMessage": "Wird geladen..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Nach dem Download müssen Sie das Update manuell installieren."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Für diese Update-Methode ist eine manuelle Installation erforderlich."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update ist bereit. Starten Sie Goose neu, um die Installation abzuschließen, oder beenden Sie es, wenn Sie fertig sind."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Update ist bereit! Klicken Sie auf \"Installieren & Neustarten\", um die Installationsanweisungen zu erhalten."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(aktuell)"

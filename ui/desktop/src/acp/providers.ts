@@ -71,7 +71,7 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
       })),
       known_models: entry.models.map((model) => ({
         name: model.id,
-        context_limit: model.contextLimit ?? 0,
+        context_limit: model.contextLimit ?? undefined,
         reasoning: model.reasoning ?? undefined,
       })),
       setup_steps: entry.setupSteps,

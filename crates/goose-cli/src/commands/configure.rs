@@ -2215,10 +2215,11 @@ fn add_provider() -> anyhow::Result<()> {
         })
         .interact()?;
 
-    let models: Vec<String> = models_input
+    let models: Vec<goose_providers::base::ModelInfo> = models_input
         .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(goose_providers::base::ModelInfo::new)
         .collect();
 
     let supports_streaming = cliclack::confirm("Does this provider support streaming responses?")

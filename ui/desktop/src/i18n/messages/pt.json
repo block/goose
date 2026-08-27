@@ -917,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Diretório atual"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Falha ao atualizar o diretório de trabalho"
   },
@@ -4520,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "A transferência automática está desativada. Clique em \"Transferir Agora\" para transferir manualmente."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Não é necessária instalação manual."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Verificar Atualizações"
   },
@@ -4553,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Instalar e Reiniciar"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Clique em \"Instalar e Reiniciar\" para atualizar agora."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Está a executar a versão mais recente!"
   },
   "updateSection.loading": {
     "defaultMessage": "A carregar..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Após a transferência, terá de instalar a atualização manualmente."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Instalação manual necessária para este método de atualização."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ A atualização está pronta. Reinicie o Goose para concluir a instalação, ou saia quando terminar."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ A atualização está pronta! Clique em \"Instalar e Reiniciar\" para ver as instruções de instalação."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(atualizado)"

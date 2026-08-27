@@ -917,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Текущий каталог"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Не удалось обновить рабочий каталог"
   },
@@ -4520,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Автоматическая загрузка отключена. Нажмите «Скачать сейчас», чтобы загрузить вручную."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Обновление будет установлено автоматически при выходе из приложения."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Проверить обновления"
   },
@@ -4553,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Установить и перезапустить"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Или нажмите «Установить и перезапустить», чтобы обновиться сейчас."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "У вас установлена последняя версия!"
   },
   "updateSection.loading": {
     "defaultMessage": "Загрузка..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "После скачивания нужно будет установить обновление вручную."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Для этого способа обновления требуется ручная установка."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Обновление готово! Оно будет установлено при выходе из Goose."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Обновление готово! Нажмите «Установить и перезапустить», чтобы получить инструкции по установке."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(актуально)"

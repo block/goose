@@ -55,26 +55,8 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    /// Apply provider-specific normalization to a model config: materialize
-    /// global defaults and backfill `context_limit` from the provider's known
-    /// models when the canonical registry didn't already resolve one. Used by
-    /// the agent/session layer to resolve effective limits (e.g. for custom
-    /// providers that declare explicit context limits in their config).
-    pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
-
-        if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
-            {
-                model.context_limit = Some(info.context_limit);
-            }
-        }
-
-        Ok(model)
+    pub fn normalize_model_config(&self, model: ModelConfig) -> Result<ModelConfig> {
+        crate::model_config::materialize_model_config(&self.metadata.name, model)
     }
 
     pub async fn create_with_default_model(
@@ -386,7 +368,7 @@ mod tests {
             description: None,
             api_key_env: String::new(),
             base_url: "https://router.huggingface.co/v1".to_string(),
-            models: vec![ModelInfo::new("test-model", 128_000)],
+            models: vec![ModelInfo::new("test-model").with_context_limit(128_000)],
             headers: None,
             timeout_seconds: None,
             supports_streaming: Some(true),

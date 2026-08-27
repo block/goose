@@ -917,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Geçerli dizin"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Çalışma dizini güncellenemedi"
   },
@@ -4520,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Güncellemeleri Kontrol Et"
   },
@@ -4553,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Yükle ve Yeniden Başlat"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Veya şimdi güncellemek için \"Yükle ve Yeniden Başlat\"ı tıklayın."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "En son sürümü çalıştırıyorsunuz!"
   },
   "updateSection.loading": {
     "defaultMessage": "Yükleniyor..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "İndirdikten sonra güncellemeyi manuel olarak yüklemeniz gerekecektir."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Bu güncelleme yöntemi için manuel kurulum gereklidir."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Güncelleme hazır! Goose'den çıktığınızda yüklenecektir."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Güncelleme hazır! Kurulum talimatları için \"Yükle ve Yeniden Başlat\"a tıklayın."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(güncel)"

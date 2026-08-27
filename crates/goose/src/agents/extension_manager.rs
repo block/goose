@@ -310,10 +310,12 @@ pub(crate) fn recover_mangled_tool_name<'a>(
         // the owner is only in metadata — so the model's "developer.shell"
         // has to be checked against "{owner}.{name}" instead (see #9486).
         let owner_mangled = owner.map(|o| format!("{o}.{name}"));
+        let owner_prefixed = owner.map(|o| format!("{o}__{name}"));
 
         let matches = stripped == name
             || separator_mangled.as_deref() == Some(stripped)
-            || owner_mangled.as_deref() == Some(stripped);
+            || owner_mangled.as_deref() == Some(stripped)
+            || owner_prefixed.as_deref() == Some(stripped);
         if name == emitted || !matches {
             continue;
         }
@@ -1761,9 +1763,16 @@ impl ExtensionManager {
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = name_to_key(name);
-        self.extensions.lock().await.remove(&sanitized_name);
-        self.invalidate_tools_cache_and_bump_version().await;
+        self.remove_extension_by_key(&sanitized_name).await?;
         Ok(())
+    }
+
+    pub async fn remove_extension_by_key(&self, key: &str) -> ExtensionResult<bool> {
+        let removed = self.extensions.lock().await.remove(key).is_some();
+        if removed {
+            self.invalidate_tools_cache_and_bump_version().await;
+        }
+        Ok(removed)
     }
 
     pub async fn update_working_dir(&self, new_dir: &std::path::Path) {
@@ -3823,10 +3832,15 @@ mod tests {
         // Platform extensions with unprefixed_tools=true (e.g. "developer")
         // advertise tools with no "__" prefix at all; the owner lives only in
         // metadata. GLM's documented "developer.shell" reproduction (#9486)
-        // must recover via the owner, not the tool's own (absent) prefix.
+        // and emulated "developer__shell" calls must recover via the owner,
+        // not the tool's own (absent) prefix.
         let tools = [("shell", Some("developer")), ("write", Some("developer"))];
         assert_eq!(
             recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
+            Some("shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("developer__shell", tools.iter().copied()).as_deref(),
             Some("shell")
         );
         assert_eq!(

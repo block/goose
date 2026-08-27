@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::agents::state_machine::ops_toolcalling::request_was_advertised;
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, ConversationEffect, Emitter, GooseEffect,
     Operation, OperationResult,
@@ -181,7 +182,9 @@ impl ApprovalState {
                     MessageContent::ToolResponse(response) => {
                         answered.insert(response.id.clone());
                     }
-                    MessageContent::ToolRequest(request) => {
+                    MessageContent::ToolRequest(request)
+                        if request_was_advertised(messages, request) =>
+                    {
                         tool_requests.push(request.clone());
                     }
                     MessageContent::ActionRequired(action) => match &action.data {
@@ -236,6 +239,7 @@ impl ApprovalState {
                 if self.answered.contains(&request.id)
                     || self.approval_requests.contains(&request.id)
                     || self.approval_responses.contains_key(&request.id)
+                    || request.was_executed_externally()
                     || request_executable(request) == Some(false)
                     || request.tool_call.is_err()
                 {

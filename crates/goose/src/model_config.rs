@@ -23,12 +23,11 @@ pub fn model_config_from_user_config_with_session_settings(
     model_name: impl AsRef<str>,
     previous: Option<&ModelConfig>,
     request_params: Option<HashMap<String, Value>>,
-    context_limit: Option<usize>,
+    _context_limit: Option<usize>,
 ) -> Result<ModelConfig> {
     let config = Config::global();
     let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     let model = materialize_model_config_inner(model, provider_name, false)?
-        .with_context_limit(context_limit)
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
@@ -63,9 +62,7 @@ fn materialize_model_config_inner(
         model = model.with_toolshim_model(get_goose_toolshim_model(config)?);
     }
 
-    model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?);
+    model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
@@ -221,6 +218,7 @@ fn base_model_config_from_user_config(
         toolshim_model: get_goose_toolshim_model(config)?,
         request_params: None,
         reasoning: None,
+        supports_vision: None,
         request_headers: None,
     };
     if provider_name != goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {

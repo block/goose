@@ -463,18 +463,18 @@ pub(super) fn send_session_setup_notifications(
     cx: &ConnectionTo<Client>,
     session: &Session,
     totals: &SessionUsageTotals,
+    context_limit: usize,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
-    if let Some(updates) = build_usage_updates(session, totals) {
-        if supports_goose_custom_notifications {
-            cx.send_notification(updates.custom)?;
-        }
-        cx.send_notification(SessionNotification::new(
-            session_id.clone(),
-            SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+    let updates = build_usage_updates(session, totals, context_limit);
+    if supports_goose_custom_notifications {
+        cx.send_notification(updates.custom)?;
     }
+    cx.send_notification(SessionNotification::new(
+        session_id.clone(),
+        SessionUpdate::UsageUpdate(updates.standard),
+    ))?;
     cx.send_notification(SessionNotification::new(
         session_id,
         SessionUpdate::AvailableCommandsUpdate(available_commands_update(&session.working_dir)),

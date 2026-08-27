@@ -5,6 +5,14 @@ pub mod info;
 pub mod plugin;
 pub mod recipe;
 pub mod review;
+#[cfg(feature = "roaming")]
+pub mod roam;
+#[cfg(feature = "roaming")]
+pub mod roam_client;
+#[cfg(feature = "roaming")]
+pub mod roam_full_bridge;
+#[cfg(feature = "roaming")]
+pub mod roam_proxy;
 pub mod schedule;
 pub mod session;
 pub mod skills;

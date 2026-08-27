@@ -2,6 +2,7 @@ use super::*;
 use crate::agents::extension::Envs;
 use crate::config::extensions::ExtensionEntry;
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
+use std::collections::HashSet;
 
 impl GooseAcpAgent {
     pub(super) async fn on_add_session_extension(
@@ -24,10 +25,14 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
         let agent = self.get_session_agent(&req.session_id).await?;
-        agent
-            .remove_extension(&req.name, session_id)
+        let removed = agent
+            .remove_extension_by_key(&req.extension_key, session_id)
             .await
             .internal_err()?;
+        if !removed {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data(format!("Extension '{}' not found", req.extension_key)));
+        }
         Ok(EmptyResponse {})
     }
 
@@ -123,16 +128,31 @@ impl GooseAcpAgent {
             crate::config::Config::global(),
         );
 
-        let extensions = extensions
-            .into_iter()
-            .map(|config| config_to_goose_extension(&config))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
-        Ok(GetSessionExtensionsResponse { extensions })
+        Ok(GetSessionExtensionsResponse {
+            extensions: session_configs_to_entries(extensions)?,
+        })
     }
+}
+
+fn session_configs_to_entries(
+    configs: Vec<ExtensionConfig>,
+) -> Result<Vec<SessionExtensionEntry>, agent_client_protocol::Error> {
+    let mut extension_keys = HashSet::with_capacity(configs.len());
+    let mut entries = Vec::with_capacity(configs.len());
+    for config in configs {
+        let extension_key = config.key();
+        if !extension_keys.insert(extension_key.clone()) {
+            return Err(agent_client_protocol::Error::internal_error()
+                .data(format!("Duplicate session extension key '{extension_key}'")));
+        }
+        if let Some(extension) = config_to_goose_extension(&config)? {
+            entries.push(SessionExtensionEntry {
+                extension,
+                extension_key,
+            });
+        }
+    }
+    Ok(entries)
 }
 
 fn config_to_goose_extension(
@@ -405,6 +425,34 @@ mod tests {
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{McpServer, McpServerSse};
     use std::collections::HashMap;
+
+    fn builtin_config(name: &str) -> ExtensionConfig {
+        ExtensionConfig::Builtin {
+            name: name.to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn session_entries_preserve_backend_distinct_unicode_keys() {
+        let entries =
+            session_configs_to_entries(vec![builtin_config("\u{130}"), builtin_config("i\u{307}")])
+                .expect("backend-distinct keys should be listed");
+
+        assert_eq!(entries[0].extension_key, "_");
+        assert_eq!(entries[1].extension_key, "i_");
+    }
+
+    #[test]
+    fn session_entries_reject_duplicate_authoritative_keys() {
+        let result = session_configs_to_entries(vec![builtin_config("a.b"), builtin_config("a/b")]);
+
+        assert!(result.is_err());
+    }
 
     #[test]
     fn builtin_config_converts_to_goose_builtin_extension() {

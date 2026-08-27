@@ -938,6 +938,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Current directory"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Failed to update working directory"
   },
@@ -4568,9 +4577,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Automatic download is disabled. Click \"Download Now\" to download manually."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "No manual install is needed."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Check for Updates"
   },
@@ -4601,26 +4607,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Install & Restart"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Click \"Install & Restart\" to update now."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "You are running the latest version!"
   },
   "updateSection.loading": {
     "defaultMessage": "Loading..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "After download, you'll need to manually install the update."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Manual installation required for this update method."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(up to date)"

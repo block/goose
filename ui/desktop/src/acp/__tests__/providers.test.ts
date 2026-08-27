@@ -219,7 +219,7 @@ describe('ACP providers', () => {
 
     expect(result.connectionChecked).toBe(true);
     expect(result.provider.metadata.known_models).toEqual([
-      { name: 'claude-sonnet', context_limit: 0, reasoning: undefined },
+      { name: 'claude-sonnet', context_limit: undefined, reasoning: undefined },
     ]);
   });
 
@@ -268,7 +268,7 @@ describe('ACP providers', () => {
     });
     expect(enabled.is_configured).toBe(true);
     expect(enabled.metadata.known_models).toEqual([
-      { name: 'claude-sonnet', context_limit: 0, reasoning: undefined },
+      { name: 'claude-sonnet', context_limit: undefined, reasoning: undefined },
     ]);
   });
 

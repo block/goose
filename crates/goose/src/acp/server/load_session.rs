@@ -94,12 +94,35 @@ fn build_replayed_tool_call(
     tool_call
 }
 
+/// Where to start replaying so that at most roughly `tail` trailing messages
+/// are sent without splitting a turn: walk backwards from `len - tail` to the
+/// nearest turn boundary (a visible user message that is not a tool response),
+/// so tool request/response pairs are never separated. Returns 0 (full
+/// replay) when the history is short enough or no boundary exists.
+fn replay_start_index(messages: &[Message], tail: usize) -> usize {
+    if tail == 0 || messages.len() <= tail {
+        return 0;
+    }
+    let candidate = messages.len() - tail;
+    messages[..=candidate]
+        .iter()
+        .rposition(|message| message.role == Role::User && !message.is_tool_response())
+        .unwrap_or(0)
+}
+
+fn replay_tail_from_meta(meta: Option<&Meta>) -> Option<usize> {
+    meta.and_then(|m| m.get("replayTail"))
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+}
+
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
     supports_goose_custom_notifications: bool,
     client_requests_tool_call_label_enrichment: bool,
-) -> Result<(), agent_client_protocol::Error> {
+    replay_tail: Option<usize>,
+) -> Result<usize, agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
     let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
 
@@ -108,10 +131,14 @@ fn replay_conversation_to_client(
         .as_ref()
         .map(messages_for_acp_replay)
         .unwrap_or_default();
+    let skipped = replay_tail
+        .map(|tail| replay_start_index(&messages, tail))
+        .unwrap_or(0);
+    let messages = &messages[skipped..];
 
     let mut replay_tool_requests = HashMap::new();
 
-    for message in &messages {
+    for message in messages {
         for content_item in &message.content {
             match content_item {
                 MessageContent::Text(text) => {
@@ -198,7 +225,7 @@ fn replay_conversation_to_client(
         }
     }
 
-    Ok(())
+    Ok(skipped)
 }
 
 impl GooseAcpAgent {
@@ -271,7 +298,6 @@ impl GooseAcpAgent {
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
-        validate_absolute_cwd(&args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
 
@@ -284,15 +310,19 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
+        let cwd = effective_session_cwd(self.session_cwd.as_deref(), &args.cwd);
+        validate_absolute_cwd(&cwd)?;
+
         session = self
-            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
+            .prepare_session_for_activation(session, cwd, args.mcp_servers, true)
             .await?;
 
-        replay_conversation_to_client(
+        let replayed_from = replay_conversation_to_client(
             cx,
             &session,
             self.supports_goose_custom_notifications(),
             self.requests_tool_call_label_enrichment(),
+            replay_tail_from_meta(args.meta.as_ref()),
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
@@ -323,14 +353,19 @@ impl GooseAcpAgent {
         )
         .await?;
 
-        self.notify_session_setup(cx, &session).await?;
-
         let mut response = LoadSessionResponse::new().modes(mode_state);
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
 
-        response = response.meta(session_response_meta(&session, &extension_results));
+        let mut meta = session_response_meta(&session, &extension_results);
+        if replayed_from > 0 {
+            meta.insert(
+                "replaySkipped".to_string(),
+                serde_json::Value::Number(replayed_from.into()),
+            );
+        }
+        response = response.meta(meta);
 
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
@@ -412,6 +447,68 @@ mod tests {
             panic!("expected resumed effort capability");
         };
         assert_eq!(capability.current.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn replay_start_index_short_history_replays_everything() {
+        let messages = vec![
+            Message::user().with_text("q1"),
+            Message::assistant().with_text("a1"),
+        ];
+        assert_eq!(replay_start_index(&messages, 10), 0);
+        assert_eq!(replay_start_index(&messages, 2), 0);
+    }
+
+    #[test]
+    fn replay_start_index_zero_tail_replays_everything() {
+        let messages = vec![
+            Message::user().with_text("q1"),
+            Message::assistant().with_text("a1"),
+        ];
+        assert_eq!(replay_start_index(&messages, 0), 0);
+    }
+
+    #[test]
+    fn replay_start_index_starts_at_turn_boundary() {
+        let messages = vec![
+            Message::user().with_text("q1"),
+            Message::assistant().with_text("a1"),
+            Message::user().with_text("q2"),
+            Message::assistant().with_text("a2"),
+            Message::user().with_text("q3"),
+            Message::assistant().with_text("a3"),
+        ];
+        // tail=3 → candidate index 3 (a2); nearest user boundary at or before is q2 (index 2)
+        assert_eq!(replay_start_index(&messages, 3), 2);
+        // tail=1 → candidate index 5 (a3); boundary is q3 (index 4)
+        assert_eq!(replay_start_index(&messages, 1), 4);
+    }
+
+    #[test]
+    fn replay_start_index_never_splits_tool_call_pairs() {
+        let tool_request = Message::assistant()
+            .with_tool_request("tool_1", Ok(CallToolRequestParams::new("developer__shell")));
+        let tool_response = Message::user()
+            .with_tool_response("tool_1", Ok(rmcp::model::CallToolResult::success(vec![])));
+        let messages = vec![
+            Message::user().with_text("q1"),
+            tool_request,
+            tool_response,
+            Message::assistant().with_text("a1"),
+        ];
+        // tail=2 → candidate is the tool response; it is not a turn boundary,
+        // so we walk back to q1 (index 0) rather than splitting the pair.
+        assert_eq!(replay_start_index(&messages, 2), 0);
+    }
+
+    #[test]
+    fn replay_start_index_no_boundary_replays_everything() {
+        let messages = vec![
+            Message::assistant().with_text("a1"),
+            Message::assistant().with_text("a2"),
+            Message::assistant().with_text("a3"),
+        ];
+        assert_eq!(replay_start_index(&messages, 1), 0);
     }
 
     #[test]

@@ -2860,6 +2860,7 @@ You review code."#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_resolve_provider_reuses_unregistered_parent_provider() {
         let temp_dir = TempDir::new().unwrap();
         let parent_provider: Arc<dyn crate::providers::base::Provider> = Arc::new(
@@ -2979,13 +2980,11 @@ You review code."#;
         let parent = parent_config();
         let overridden = goose_providers::model::ModelConfig::new(OVERRIDE_MODEL)
             .with_canonical_limits(PROVIDER);
-        assert_ne!(parent.context_limit, overridden.context_limit);
         assert_ne!(parent.reasoning, overridden.reasoning);
 
         let resolved = resolve_with_override(Some(OVERRIDE_MODEL), parent);
 
         assert_eq!(resolved.model_name, OVERRIDE_MODEL);
-        assert_eq!(resolved.context_limit, overridden.context_limit);
         assert_eq!(resolved.max_tokens, overridden.max_tokens);
         assert_eq!(resolved.reasoning, overridden.reasoning);
     }

@@ -917,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "현재 디렉터리"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "작업 디렉터리를 업데이트하지 못했습니다."
   },
@@ -4520,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "자동 다운로드가 비활성화되어 있습니다. 수동으로 다운로드하려면 \"지금 다운로드\"를 클릭하세요."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "수동 설치가 필요하지 않습니다."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "업데이트 확인"
   },
@@ -4553,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "설치 및 다시 시작"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "지금 업데이트하려면 \"설치 및 다시 시작\"을 클릭하세요."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "최신 버전을 사용 중입니다!"
   },
   "updateSection.loading": {
     "defaultMessage": "로드 중..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "다운로드한 후에는 업데이트를 수동으로 설치해야 합니다."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "이 업데이트 방법에는 수동 설치가 필요합니다."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ 업데이트가 준비되었습니다. 설치를 완료하려면 goose를 다시 시작하거나, 작업이 끝나면 종료하세요."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ 업데이트가 준비되었습니다! 설치 지침을 보려면 \"설치 및 다시 시작\"을 클릭하세요."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(최신 상태)"

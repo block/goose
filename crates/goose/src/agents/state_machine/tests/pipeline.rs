@@ -16,9 +16,10 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation, Operation,
-    ProjectOperation, RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation,
-    StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ExitOnErrorOperation, GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer,
+    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, StatusOperation,
+    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
@@ -59,11 +60,8 @@ impl Provider for FeatureProvider {
             .await
     }
 
-    async fn get_context_limit(
-        &self,
-        model_config: &ModelConfig,
-    ) -> Result<usize, goose_providers::errors::ProviderError> {
-        self.inner.get_context_limit(model_config).await
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        self.inner.get_context_limit(model, override_limit).await
     }
 
     fn manages_own_context(&self) -> bool {
@@ -173,17 +171,26 @@ impl TestPipeline {
             Arc::new(ExitOnErrorOperation),
         ];
         operations.extend(remaining_operations);
-        let inference = Arc::new(InferenceRunner::new(
-            provider,
+        let request_preparer = GooseInferenceRequestPreparer {
+            #[cfg(feature = "code-mode")]
+            extension_manager: self.extension_manager.clone(),
+            goose_mode: &self.goose_mode,
+            prompt_manager: &self.prompt_manager,
+            tool_inspection_manager: &self.tool_inspection_manager,
+            frontend_instructions: &self.frontend_instructions,
+            context_limit: self.model_config.context_limit(),
+        };
+        let status_operation = Arc::new(StatusOperation::new(
+            provider.clone(),
             self.model_config.clone(),
-            self.extension_manager.clone(),
-            &self.goose_mode,
-            &self.prompt_manager,
-            &self.tool_inspection_manager,
-            &self.frontend_instructions,
         ));
+        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
+        let inference = Arc::new(
+            InferenceRunner::new(inference_provider, self.model_config.clone())
+                .with_request_preparer(Arc::new(request_preparer)),
+        );
         let mut command_handlers = operations.clone();
-        command_handlers.push(inference.clone());
+        command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let steps = std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))

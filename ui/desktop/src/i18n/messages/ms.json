@@ -917,6 +917,17 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Direktori semasa"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
+
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Gagal mengemas kini direktori kerja"
   },
@@ -4520,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Muat turun automatik dilumpuhkan. Klik \"Muat Turun Sekarang\" untuk memuat turun secara manual."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Tiada pemasangan manual diperlukan."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Semak Kemas Kini"
   },
@@ -4553,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Pasang & Mula Semula"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Klik \"Pasang & Mula Semula\" untuk mengemas kini sekarang."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Anda sedang menjalankan versi terkini!"
   },
   "updateSection.loading": {
     "defaultMessage": "Memuatkan..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Selepas muat turun, anda perlu memasang kemas kini secara manual."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Pemasangan manual diperlukan untuk kaedah kemas kini ini."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Kemas kini sudah sedia. Mula semula Goose untuk menyelesaikan pemasangannya, atau keluar apabila anda selesai."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Kemas kini sudah sedia! Klik \"Pasang & Mula Semula\" untuk arahan pemasangan."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(terkini)"

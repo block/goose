@@ -13,14 +13,14 @@ use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
 use goose::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
-use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use builder::{build_session, SessionBuilderConfig};
+pub use builder::{build_session, ExtensionFailure, SessionBuilderConfig};
 use console::Color;
+
 use goose::agents::platform_extensions::developer::shell::{
     parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
 };
@@ -65,7 +65,6 @@ use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
 const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
 const SHELL_STATUS_MAX_LINES: usize = 3;
 const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
@@ -253,7 +252,7 @@ impl HistoryManager {
 }
 
 pub struct CliSession {
-    agent: Agent,
+    agent: Arc<Agent>,
     messages: Conversation,
     session_id: String,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
@@ -265,6 +264,11 @@ pub struct CliSession {
     retry_config: Option<RetryConfig>,
     output_format: String,
     stats: bool,
+    /// Background extension loader; drained exclusively by
+    /// [`CliSession::ensure_extensions_loaded`], the session's single loading
+    /// gate.
+    extension_loading: Option<AbortOnDropHandle<Result<Vec<ExtensionFailure>>>>,
+    loading_announced: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -351,7 +355,7 @@ fn planner_classification_text(response: &Message) -> Result<String> {
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        agent: Agent,
+        agent: Arc<Agent>,
         session_id: String,
         debug: bool,
         scheduled_job_id: Option<String>,
@@ -360,6 +364,8 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
         stats: bool,
+        refresh_completions: bool,
+        extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
     ) -> Self {
         let messages = agent
             .config
@@ -368,12 +374,27 @@ impl CliSession {
             .await
             .map(|session| session.conversation.unwrap_or_default())
             .unwrap();
+        let completion_cache = Arc::new(std::sync::RwLock::new(CompletionCache::new()));
+        let extension_loading = extension_loading.map(|handle| {
+            let agent = agent.clone();
+            let session_id = session_id.clone();
+            let completion_cache = completion_cache.clone();
+            AbortOnDropHandle::new(tokio::spawn(async move {
+                let failures = handle
+                    .await
+                    .map_err(|error| anyhow::anyhow!("Extension loading task failed: {}", error))?;
+                if refresh_completions {
+                    Self::refresh_completion_cache(&agent, &session_id, &completion_cache).await?;
+                }
+                Ok(failures)
+            }))
+        });
 
         CliSession {
             agent,
             messages,
             session_id,
-            completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
+            completion_cache,
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
@@ -382,6 +403,8 @@ impl CliSession {
             retry_config,
             output_format,
             stats,
+            extension_loading,
+            loading_announced: false,
         }
     }
 
@@ -504,6 +527,8 @@ impl CliSession {
     }
 
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
+        // Extension-set mutations must not race the background loader.
+        self.ensure_extensions_loaded(true).await?;
         for config in configs {
             self.agent
                 .add_extension(config, &self.session_id)
@@ -538,6 +563,7 @@ impl CliSession {
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
+        self.ensure_extensions_loaded(true).await?;
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Early validation if filtering by extension
@@ -559,6 +585,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
+        self.ensure_extensions_loaded(true).await?;
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Find which extension has this prompt
@@ -577,6 +604,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
+        self.ensure_extensions_loaded(true).await?;
         Ok(self
             .agent
             .get_prompt(&self.session_id, name, arguments)
@@ -591,6 +619,7 @@ impl CliSession {
         cancel_token: CancellationToken,
         interactive: bool,
     ) -> Result<()> {
+        self.ensure_extensions_loaded(interactive).await?;
         let cancel_token = cancel_token.clone();
         self.push_message(message);
         self.process_agent_response(interactive, cancel_token)
@@ -630,15 +659,32 @@ impl CliSession {
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default(), true)
                 .await?;
+        } else if self
+            .extension_loading
+            .as_ref()
+            .is_some_and(|h| !h.is_finished())
+        {
+            self.loading_announced = true;
+            output::show_loading_extensions_background();
         }
 
-        self.update_completion_cache().await?;
-
+        // The completion cache starts empty: populating it here would issue
+        // prompts/list to every connected extension, so a slow responder could
+        // block the prompt right after we announced loading continues in the
+        // background. The loader refreshes the shared cache when it finishes.
         let mut editor = self.create_editor()?;
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
         loop {
+            if self
+                .extension_loading
+                .as_ref()
+                .is_some_and(|h| h.is_finished())
+            {
+                self.ensure_extensions_loaded(true).await?;
+            }
+
             self.display_context_usage().await?;
 
             let conversation_strings: Vec<String> = self
@@ -692,6 +738,9 @@ impl CliSession {
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
         conversation_messages: &[String],
     ) -> Result<()> {
+        // The REPL's loading gate: every command, including future ones, waits
+        // here until background extension loading has finished.
+        self.ensure_extensions_loaded(true).await?;
         match input {
             InputResult::Message(content) => {
                 self.handle_message_input(&content, history, editor).await?;
@@ -1029,26 +1078,11 @@ impl CliSession {
             return Ok(());
         }
 
-        if let Some(model_info) = target_entry
-            .metadata()
-            .known_models
-            .iter()
-            .find(|m| m.name == target_model_name)
-        {
-            if model_info.context_limit < current_model_config.context_limit.unwrap_or(0) {
-                eprintln!(
-                    "{}",
-                    console::style(format!(
-                        "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). \
-                        You may need to use /compact.",
-                        target_model_name,
-                        model_info.context_limit,
-                        current_model_config.context_limit.unwrap_or(0)
-                    ))
-                    .yellow()
-                );
-            }
-        }
+        let current_context_limit = goose::context_limit::get_context_limit(
+            provider.as_ref(),
+            &current_model_config.model_name,
+        )
+        .await?;
 
         let extensions = self.agent.get_extension_configs().await;
         let new_provider = match goose::providers::create(target_provider_name, extensions).await {
@@ -1070,6 +1104,22 @@ impl CliSession {
                 target_provider_name
             ));
             return Ok(());
+        }
+
+        let new_context_limit = goose::context_limit::get_context_limit(
+            new_provider.as_ref(),
+            &new_model_config.model_name,
+        )
+        .await?;
+        if new_context_limit < current_context_limit {
+            eprintln!(
+                "{}",
+                console::style(format!(
+                    "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). You may need to use /compact.",
+                    target_model_name, new_context_limit, current_context_limit
+                ))
+                .yellow()
+            );
         }
 
         self.agent
@@ -1167,6 +1217,11 @@ impl CliSession {
             ));
             return Ok(());
         }
+
+        // The background loader pins the session id it was spawned with, and the
+        // handle_input gate has already drained it, so extensions can be torn
+        // down and re-added under a new session id without racing an in-flight
+        // load.
 
         let new_session_id = match self.prepare_successor_session().await {
             Ok(id) => id,
@@ -1864,10 +1919,45 @@ impl CliSession {
         Ok(())
     }
 
+    /// The session's single extension-loading gate: wait for the background
+    /// loader and surface any failures.
+    ///
+    /// Entry points that can touch the agent or the extension set call this
+    /// rather than gating handlers individually, so new commands inherit the
+    /// gate automatically. `interactive` controls the waiting/ready
+    /// indicators. The loader refreshes the shared completion cache when it
+    /// finishes so completions become available while readline is active.
+    async fn ensure_extensions_loaded(&mut self, interactive: bool) -> Result<()> {
+        if let Some(handle) = self.extension_loading.take() {
+            let was_in_progress = !handle.is_finished();
+            if interactive && was_in_progress {
+                output::show_waiting_for_extensions();
+            }
+            let failures = handle
+                .await
+                .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))??;
+            output::show_extension_failures(&failures);
+
+            if interactive && (was_in_progress || self.loading_announced) {
+                output::show_extensions_ready();
+            }
+            self.loading_announced = false;
+        }
+        Ok(())
+    }
+
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        Self::refresh_completion_cache(&self.agent, &self.session_id, &self.completion_cache).await
+    }
+
+    async fn refresh_completion_cache(
+        agent: &Agent,
+        session_id: &str,
+        completion_cache: &Arc<std::sync::RwLock<CompletionCache>>,
+    ) -> Result<()> {
+        let prompts = agent.list_extension_prompts(session_id).await;
         let all_providers = goose::providers::providers().await;
-        let session_provider = self.agent.provider().await?.get_name().to_string();
+        let session_provider = agent.provider().await?.get_name().to_string();
 
         let provider_ids: Vec<String> = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         let inventory_models: HashMap<String, Vec<String>> = {
@@ -1896,7 +1986,7 @@ impl CliSession {
             })
             .collect();
 
-        let mut cache = self.completion_cache.write().unwrap();
+        let mut cache = completion_cache.write().unwrap();
         cache.prompts.clear();
         cache.prompt_info.clear();
 
@@ -2002,10 +2092,9 @@ impl CliSession {
             .agent
             .model_config_for_session(&self.session_id)
             .await?;
-        let context_limit = provider
-            .get_context_limit(&model_config)
-            .await
-            .unwrap_or_else(|_| model_config.context_limit());
+        let context_limit =
+            goose::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
+                .await?;
 
         let config = Config::global();
         let show_cost = config
@@ -2769,19 +2858,8 @@ async fn get_reasoner(
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let planner_context_limit = match env::var(GOOSE_PLANNER_CONTEXT_LIMIT)
-        .ok()
-        .map(|v| v.parse::<usize>())
-    {
-        Some(Ok(n)) if n >= 4096 => Some(n),
-        Some(Ok(_)) => anyhow::bail!("{} must be at least 4096", GOOSE_PLANNER_CONTEXT_LIMIT),
-        Some(Err(e)) => anyhow::bail!("{}: {}", GOOSE_PLANNER_CONTEXT_LIMIT, e),
-        None => None,
-    };
-
     let model_config =
-        goose::model_config::model_config_from_user_config(&provider, model.as_str())?
-            .with_context_limit(planner_context_limit);
+        goose::model_config::model_config_from_user_config(&provider, model.as_str())?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, extensions).await?;
 
@@ -3108,6 +3186,7 @@ mod tests {
                 serde_json::json!(["output-128k-2025-02-19"]),
             )])),
             reasoning: Some(false),
+            supports_vision: Some(true),
             request_headers: None,
         };
 
@@ -3306,5 +3385,188 @@ mod tests {
                 .get_extension_state("test", "v0"),
             Some(&serde_json::json!("marker"))
         );
+    }
+
+    struct StubProvider;
+
+    #[async_trait::async_trait]
+    impl Provider for StubProvider {
+        fn get_name(&self) -> &str {
+            "stub"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> std::result::Result<
+            goose::providers::base::MessageStream,
+            goose_providers::errors::ProviderError,
+        > {
+            Ok(goose::providers::base::stream_from_single_message(
+                Message::assistant().with_text("stub reply"),
+                ProviderUsage::new(
+                    "stub".to_string(),
+                    goose_providers::conversation::token_usage::Usage::default(),
+                ),
+            ))
+        }
+    }
+
+    async fn session_with_loader(
+        extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
+        refresh_completions: bool,
+    ) -> CliSession {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Loading gate test".to_string(),
+                goose::session::SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let agent = goose::agents::Agent::with_config(goose::agents::AgentConfig::new(
+            Arc::new(session_manager),
+            Arc::new(goose::config::PermissionManager::new(
+                temp_dir.path().to_path_buf(),
+            )),
+            None,
+            GooseMode::default(),
+            // Disable background session naming so the test agent starts no
+            // provider-dependent tasks.
+            true,
+            goose::agents::GoosePlatform::GooseCli,
+        ));
+        agent
+            .update_provider(
+                Arc::new(StubProvider),
+                goose_providers::model::ModelConfig::new("stub-model"),
+                &session.id,
+            )
+            .await
+            .unwrap();
+
+        CliSession::new(
+            Arc::new(agent),
+            session.id,
+            false,
+            None,
+            None,
+            None,
+            None,
+            "text".to_string(),
+            false,
+            refresh_completions,
+            extension_loading,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn commands_wait_for_background_extension_loading() {
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let loader = AbortOnDropHandle::new(tokio::spawn(async move {
+            let _ = released.await;
+            Vec::<ExtensionFailure>::new()
+        }));
+
+        let mut session = session_with_loader(Some(loader), false).await;
+        let mut editor = session.create_editor().unwrap();
+
+        let handled = tokio::spawn(async move {
+            let history = HistoryManager::new();
+            session
+                .handle_input(
+                    InputResult::Plan(input::PlanCommandOptions {
+                        message_text: String::new(),
+                    }),
+                    &history,
+                    &mut editor,
+                    &[],
+                )
+                .await
+                .expect("handle_input failed");
+            session.run_mode
+        });
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(
+            !handled.is_finished(),
+            "a command was handled before background extension loading finished"
+        );
+
+        release.send(()).unwrap();
+        let run_mode = handled.await.unwrap();
+        assert!(matches!(run_mode, RunMode::Plan));
+    }
+
+    #[tokio::test]
+    async fn ensure_extensions_loaded_drains_the_loader_once() {
+        let loader = AbortOnDropHandle::new(tokio::spawn(async { Vec::<ExtensionFailure>::new() }));
+        let mut session = session_with_loader(Some(loader), false).await;
+
+        session.ensure_extensions_loaded(false).await.unwrap();
+        assert!(session.extension_loading.is_none());
+
+        // A second pass is a no-op, not an error.
+        session.ensure_extensions_loaded(false).await.unwrap();
+        assert!(session.extension_loading.is_none());
+    }
+
+    #[tokio::test]
+    async fn background_loader_refreshes_completions_before_the_gate_runs() {
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let loader = AbortOnDropHandle::new(tokio::spawn(async move {
+            let _ = released.await;
+            Vec::<ExtensionFailure>::new()
+        }));
+        let session = session_with_loader(Some(loader), true).await;
+
+        assert!(session
+            .completion_cache
+            .read()
+            .unwrap()
+            .current_session_provider
+            .is_empty());
+        release.send(()).unwrap();
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if session
+                    .completion_cache
+                    .read()
+                    .unwrap()
+                    .current_session_provider
+                    == "stub"
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("completion cache was not refreshed in the background");
+        assert!(session.extension_loading.is_some());
+    }
+
+    #[tokio::test]
+    async fn headless_loader_skips_completion_refresh() {
+        let loader = AbortOnDropHandle::new(tokio::spawn(async { Vec::<ExtensionFailure>::new() }));
+        let mut session = session_with_loader(Some(loader), false).await;
+
+        session.ensure_extensions_loaded(false).await.unwrap();
+
+        assert!(session
+            .completion_cache
+            .read()
+            .unwrap()
+            .current_session_provider
+            .is_empty());
     }
 }

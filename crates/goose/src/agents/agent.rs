@@ -31,11 +31,11 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation,
-    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
-    SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation,
-    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation, MAX_TURNS_MESSAGE,
+    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
+    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
+    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
+    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -391,6 +391,19 @@ impl Default for Agent {
     }
 }
 
+fn has_unique_persisted_extension(configs: &[ExtensionConfig], key: &str) -> Result<bool> {
+    match configs
+        .iter()
+        .filter(|config| config.key() == key)
+        .take(2)
+        .count()
+    {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(anyhow!("Duplicate session extension key '{key}'")),
+    }
+}
+
 impl Agent {
     pub fn new() -> Self {
         let config = Config::global();
@@ -691,9 +704,7 @@ impl Agent {
                 .with_tool_call_id(tool_call_id)
                 .with_working_dir(session.working_dir.to_string_lossy().to_string())
                 .with_pre_tool_use_outcome(outcome);
-        self.hook_manager
-            .emit(crate::hooks::HookEvent::PreToolUseResult, ctx)
-            .await;
+        self.hook_manager.emit_pre_tool_use_result(ctx).await;
     }
 
     fn with_post_tool_hook(
@@ -882,10 +893,12 @@ impl Agent {
             Ok(v) => v,
             Err(_) => {
                 let context_limit = match self.provider().await {
-                    Ok(provider) => provider
-                        .get_context_limit(&model_config)
-                        .await
-                        .unwrap_or_else(|_| model_config.context_limit()),
+                    Ok(provider) => crate::context_limit::get_context_limit(
+                        provider.as_ref(),
+                        &model_config.model_name,
+                    )
+                    .await
+                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT),
                     Err(_) => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
                 };
                 let compaction_threshold = Config::global()
@@ -910,11 +923,12 @@ impl Agent {
         &self,
         response: &Message,
         tools: &[rmcp::model::Tool],
+        toolshim_tools: &[rmcp::model::Tool],
         suppress_replayed_thinking: bool,
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) = self
-            .categorize_tool_requests(response, tools, suppress_replayed_thinking)
+            .categorize_tool_requests(response, tools, toolshim_tools, suppress_replayed_thinking)
             .await;
 
         ToolCategorizeResult {
@@ -1128,10 +1142,13 @@ impl Agent {
         self.rebuild_frontend_derived_state(&extensions).await;
     }
 
-    async fn remove_frontend_extension(&self, name: &str) {
+    async fn remove_frontend_extension_by_key(&self, key: &str) -> bool {
         let mut extensions = self.frontend_extensions.lock().await;
-        extensions.remove(&name_to_key(name));
-        self.rebuild_frontend_derived_state(&extensions).await;
+        let removed = extensions.remove(key).is_some();
+        if removed {
+            self.rebuild_frontend_derived_state(&extensions).await;
+        }
+        removed
     }
 
     async fn extension_configs_for_persistence(&self) -> Vec<ExtensionConfig> {
@@ -1177,6 +1194,7 @@ impl Agent {
             gen_ai.tool.call.id = %request_id,
             gen_ai.tool.call.arguments = tracing::field::Empty,
             gen_ai.tool.call.result = tracing::field::Empty,
+            error.type = tracing::field::Empty,
         )
     )]
     pub async fn dispatch_tool_call(
@@ -1231,15 +1249,13 @@ impl Agent {
         )
         .await;
 
-        if let crate::hooks::HookDecision::Deny { reason, plugin } = pre_tool_outcome.decision {
+        if let Some(denial) = pre_tool_outcome.denial() {
+            tracing::Span::current().record("error.type", denial.error_type);
             return (
                 request_id,
                 Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "Tool call denied by policy hook `{plugin}`: {reason}. \
-                         Do not retry; this is a policy denial, not a transient failure."
-                    ),
+                    denial.message,
                     None,
                 )),
             );
@@ -1337,8 +1353,17 @@ impl Agent {
 
     /// Save current extension state to session by session_id
     pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
-        let extensions_state =
-            EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
+        self.persist_extension_configs(session_id, self.extension_configs_for_persistence().await)
+            .await
+    }
+
+    /// Save the provided extension configuration to session metadata.
+    pub async fn persist_extension_configs(
+        &self,
+        session_id: &str,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Result<()> {
+        let extensions_state = EnabledExtensionsState::new(extensions);
 
         let session_manager = self.config.session_manager.clone();
         let session = session_manager.get_session(session_id, false).await?;
@@ -1475,6 +1500,11 @@ impl Agent {
     ///
     /// Unlike `add_extension`, this avoids per-extension persistence and acquires
     /// the container lock once upfront to prevent serialisation of the parallel futures.
+    ///
+    /// State is persisted once every extension has settled, even when all of them
+    /// fail: the session's enabled list records what actually loaded, so failed
+    /// extensions are dropped instead of staying marked as enabled and being
+    /// retried on every subsequent resume.
     pub async fn add_extensions_bulk(
         self: &Arc<Self>,
         extensions: Vec<ExtensionConfig>,
@@ -1498,30 +1528,41 @@ impl Agent {
             .into_iter()
             .map(|config| {
                 let ext_manager = Arc::clone(&self.extension_manager);
+                let agent = Arc::clone(self);
                 let working_dir = working_dir.clone();
                 let container = container.clone();
                 let sid = session_id.to_string();
 
                 async move {
                     let name = config.name().to_string();
-                    match ext_manager
-                        .add_extension(config, working_dir, container.as_ref(), Some(&sid))
-                        .await
-                    {
-                        Ok(_) => ExtensionLoadResult {
-                            name,
-                            success: true,
-                            error: None,
-                        },
-                        Err(e) => {
-                            let error_msg = e.to_string();
-                            warn!("Failed to load extension {}: {}", name, error_msg);
+                    match &config {
+                        ExtensionConfig::Frontend { .. } => {
+                            agent.insert_frontend_extension(config.clone()).await;
                             ExtensionLoadResult {
                                 name,
-                                success: false,
-                                error: Some(error_msg),
+                                success: true,
+                                error: None,
                             }
                         }
+                        _ => match ext_manager
+                            .add_extension(config, working_dir, container.as_ref(), Some(&sid))
+                            .await
+                        {
+                            Ok(_) => ExtensionLoadResult {
+                                name,
+                                success: true,
+                                error: None,
+                            },
+                            Err(e) => {
+                                let error = e.to_string();
+                                warn!("Failed to load extension {}: {}", name, error);
+                                ExtensionLoadResult {
+                                    name,
+                                    success: false,
+                                    error: Some(error),
+                                }
+                            }
+                        },
                     }
                 }
             })
@@ -1529,9 +1570,7 @@ impl Agent {
 
         let results = futures::future::join_all(extension_futures).await;
 
-        if results.iter().any(|r| r.success) {
-            self.persist_extension_state(session_id).await?;
-        }
+        self.persist_extension_state(session_id).await?;
 
         Ok(results)
     }
@@ -1596,8 +1635,27 @@ impl Agent {
     }
 
     pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
-        self.extension_manager.remove_extension(name).await?;
-        self.remove_frontend_extension(name).await;
+        self.remove_extension_by_key(&name_to_key(name), session_id)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn remove_extension_by_key(&self, key: &str, session_id: &str) -> Result<bool> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let persisted_extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        );
+        if !has_unique_persisted_extension(&persisted_extensions, key)? {
+            return Ok(false);
+        }
+
+        self.extension_manager.remove_extension_by_key(key).await?;
+        self.remove_frontend_extension_by_key(key).await;
 
         // Persist extension state after successful removal
         self.persist_extension_state(session_id)
@@ -1607,7 +1665,7 @@ impl Agent {
                 anyhow!("Failed to persist extension state: {}", e)
             })?;
 
-        Ok(())
+        Ok(true)
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
@@ -1753,17 +1811,24 @@ impl Agent {
             Arc::new(ExitOnErrorOperation),
         ];
         operations.extend(remaining_operations);
-        let inference = Arc::new(InferenceRunner::new(
-            provider,
-            model_config,
-            self.extension_manager.clone(),
-            &self.current_goose_mode,
-            &self.prompt_manager,
-            &self.tool_inspection_manager,
-            &self.frontend_instructions,
-        ));
+        let request_preparer = GooseInferenceRequestPreparer {
+            #[cfg(feature = "code-mode")]
+            extension_manager: self.extension_manager.clone(),
+            goose_mode: &self.current_goose_mode,
+            prompt_manager: &self.prompt_manager,
+            tool_inspection_manager: &self.tool_inspection_manager,
+            frontend_instructions: &self.frontend_instructions,
+            context_limit,
+        };
+        let status_operation =
+            Arc::new(StatusOperation::new(provider.clone(), model_config.clone()));
+        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
+        let inference = Arc::new(
+            InferenceRunner::new(inference_provider, model_config)
+                .with_request_preparer(Arc::new(request_preparer)),
+        );
         let mut command_handlers = operations.clone();
-        command_handlers.push(inference.clone());
+        command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let operations: Vec<_> =
@@ -1845,10 +1910,9 @@ impl Agent {
             }
         };
 
-        let context_limit = provider
-            .get_context_limit(&model_config)
-            .await
-            .unwrap_or_else(|_| model_config.context_limit());
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
+                .await?;
         let steer_queue = self.steer_queue(&session_id).await;
         let machine = self.create_state_machine(
             provider,
@@ -1865,7 +1929,10 @@ impl Agent {
                 let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
                 let emit = Emitter::new(tx, cancel.clone());
                 let result = {
-                    let run = run_goose(&machine, session_manager.as_ref(), &session_id, &emit);
+                    let run = crate::session_context::with_session_id(
+                        Some(session_id.clone()),
+                        run_goose(&machine, session_manager.as_ref(), &session_id, &emit),
+                    );
                     tokio::pin!(run);
                     loop {
                         tokio::select! {
@@ -2648,6 +2715,7 @@ impl Agent {
                                     .categorize_tools(
                                         &response,
                                         &tools,
+                                        &toolshim_tools,
                                         surfaced_thinking_in_turn,
                                     )
                                     .await;
@@ -3556,10 +3624,6 @@ impl Agent {
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
 
-        // Normalize against the provider entry so custom/declarative providers
-        // backfill `context_limit` from their known models before the config is
-        // persisted as the session source of truth; otherwise auto-compaction
-        // would fall back to DEFAULT_CONTEXT_LIMIT.
         let model_config = match crate::providers::get_from_registry(&provider_name).await {
             Ok(entry) => entry
                 .normalize_model_config(model_config.clone())
@@ -4148,6 +4212,33 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    fn persisted_builtin(name: &str) -> ExtensionConfig {
+        ExtensionConfig::Builtin {
+            name: name.to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn persisted_extension_identity_must_be_unique_before_removal() {
+        let session_extension = persisted_builtin("session-only");
+        assert!(has_unique_persisted_extension(&[session_extension], "session-only").unwrap());
+        assert!(!has_unique_persisted_extension(&[], "missing").unwrap());
+
+        let duplicate_result = has_unique_persisted_extension(
+            &[persisted_builtin("a.b"), persisted_builtin("a/b")],
+            "a_b",
+        );
+        assert_eq!(
+            duplicate_result.unwrap_err().to_string(),
+            "Duplicate session extension key 'a_b'"
+        );
+    }
 
     #[test]
     fn provider_creation_context_preserves_acp_error_code() {
@@ -5728,6 +5819,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     impl RecordingHookEnv {
         fn new(specs: &[HookSpec<'_>]) -> Self {
+            Self::with_on_failure(specs, "")
+        }
+
+        fn blocking_on_failure(specs: &[HookSpec<'_>]) -> Self {
+            Self::with_on_failure(specs, r#", "on_failure": "block""#)
+        }
+
+        fn with_on_failure(specs: &[HookSpec<'_>], on_failure: &str) -> Self {
             let temp_dir = tempfile::tempdir().unwrap();
             let plugin_dir = temp_dir.path().join("test-plugin");
             std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
@@ -5740,7 +5839,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                         format!(r#""matcher": "{matcher}", "#)
                     };
                     format!(
-                        r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"}}]}}]"#
+                        r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"{on_failure}}}]}}]"#
                     )
                 })
                 .collect();
@@ -5790,6 +5889,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     /// non-zero. That is a hook that ran but never returned a decision.
     const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
         "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
+    const HOOK_FAILURE_REFUSAL: &str =
+        "Tool call blocked because policy hook `test-plugin` could not complete: \
+         the hook exited with status 3 and no usable decision. \
+         That hook is configured to block on failure.";
 
     async fn agent_with_hooks(
         hook_manager: crate::hooks::HookManager,
@@ -6048,5 +6151,57 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             env.payloads("post.log").is_empty(),
             "PostToolUse must not fire for a tool that never ran",
         );
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_hook_failure_allows_by_default() {
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-open-1".to_string(), None, &session)
+            .await;
+        assert!(result.is_ok(), "a broken hook must not block the call");
+
+        assert_eq!(env.payloads("pre.log").len(), 1);
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "allow");
+        assert_eq!(results[0]["cause"], "hook_failure");
+        assert_eq!(results[0]["policy_evaluated"], false);
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_hook_failure_blocks_when_configured() {
+        let env = RecordingHookEnv::blocking_on_failure(&[
+            ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+            ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-closed-1".to_string(), None, &session)
+            .await;
+
+        let Err(error) = result else {
+            panic!("a fail-closed hook failure must not dispatch");
+        };
+        assert_eq!(error.message, HOOK_FAILURE_REFUSAL);
+        assert!(
+            env.payloads("post.log").is_empty(),
+            "PostToolUse must not fire for a blocked call"
+        );
+
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "deny");
+        assert_eq!(results[0]["cause"], "hook_failure");
+        assert_eq!(results[0]["policy_evaluated"], false);
+        assert_eq!(results[0]["blocked_by"], "test-plugin");
+        assert_eq!(results[0]["tool_call_id"], "call-closed-1");
     }
 }

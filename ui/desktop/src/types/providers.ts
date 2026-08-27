@@ -13,7 +13,7 @@ export type ConfigKey = {
 };
 
 export type ModelInfo = {
-  context_limit: number;
+  context_limit?: number | null;
   currency?: string | null;
   input_token_cost?: number | null;
   name: string;

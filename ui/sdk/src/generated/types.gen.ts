@@ -216,7 +216,7 @@ export type EmptyResponse = {
  */
 export type RemoveSessionExtensionRequest_unstable = {
     sessionId: string;
-    name: string;
+    extensionKey: string;
 };
 
 /**
@@ -791,7 +791,12 @@ export type GetSessionExtensionsRequest_unstable = {
 };
 
 export type GetSessionExtensionsResponse_unstable = {
-    extensions: Array<GooseExtension>;
+    extensions: Array<SessionExtensionEntry>;
+};
+
+export type SessionExtensionEntry = {
+    extension: GooseExtension;
+    extensionKey: string;
 };
 
 /**
