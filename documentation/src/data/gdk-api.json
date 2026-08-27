@@ -1042,6 +1042,18 @@
               "type": "Option<i32>",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "cache_read_input_tokens",
+              "type": "Option<i32>",
+              "default": null,
+              "docs": ""
+            },
+            {
+              "name": "cache_creation_input_tokens",
+              "type": "Option<i32>",
+              "default": null,
+              "docs": ""
             }
           ],
           "variants": [],

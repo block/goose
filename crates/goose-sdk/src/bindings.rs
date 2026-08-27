@@ -802,6 +802,8 @@ impl Provider {
             input_tokens: summary.usage.usage.input_tokens,
             output_tokens: summary.usage.usage.output_tokens,
             total_tokens: summary.usage.usage.total_tokens,
+            cache_read_input_tokens: summary.usage.usage.cache_read_input_tokens,
+            cache_creation_input_tokens: summary.usage.usage.cache_write_input_tokens,
         })
     }
 }
@@ -852,6 +854,8 @@ pub struct CompactionSummary {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
+    pub cache_read_input_tokens: Option<i32>,
+    pub cache_creation_input_tokens: Option<i32>,
 }
 
 #[uniffi::export]
@@ -1236,5 +1240,39 @@ mod tests {
         let result = response.tool_result.unwrap();
         assert_eq!(result.is_error, Some(false));
         assert_eq!(result.content[0].as_text().unwrap().text, "done");
+    }
+
+    fn provider_usage_with_cache(
+        cache_read: Option<i32>,
+        cache_write: Option<i32>,
+    ) -> ProviderUsage {
+        use goose_providers::conversation::token_usage::Usage as GooseUsage;
+
+        ProviderUsage::new(
+            "test-model".to_string(),
+            GooseUsage::new(Some(100), Some(20), Some(120))
+                .with_cache_tokens(cache_read, cache_write),
+        )
+    }
+
+    #[test]
+    fn usage_exposes_reported_cache_tokens() {
+        let usage = Usage::from_provider_usage(&provider_usage_with_cache(Some(80), Some(5)))
+            .expect("conversion");
+
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_creation_input_tokens, Some(5));
+    }
+
+    #[test]
+    fn usage_distinguishes_reported_zero_cache_tokens_from_absence() {
+        let zero =
+            Usage::from_provider_usage(&provider_usage_with_cache(Some(0), Some(0))).unwrap();
+        assert_eq!(zero.cache_read_input_tokens, Some(0));
+        assert_eq!(zero.cache_creation_input_tokens, Some(0));
+
+        let absent = Usage::from_provider_usage(&provider_usage_with_cache(None, None)).unwrap();
+        assert_eq!(absent.cache_read_input_tokens, None);
+        assert_eq!(absent.cache_creation_input_tokens, None);
     }
 }
