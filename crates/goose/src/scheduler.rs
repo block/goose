@@ -1171,7 +1171,11 @@ async fn execute_job(
 
     {
         let session_duration = start_time.elapsed();
-        let exit_type = if stream_error.is_some() { "error" } else { "normal" };
+        let exit_type = if stream_error.is_some() {
+            "error"
+        } else {
+            "normal"
+        };
         let (total_tokens, message_count) = agent
             .config
             .session_manager
@@ -1211,7 +1215,11 @@ async fn execute_job(
     #[cfg(feature = "telemetry")]
     {
         let duration_secs = start_time.elapsed().as_secs();
-        let status = if stream_error.is_some() { "failed" } else { "completed" };
+        let status = if stream_error.is_some() {
+            "failed"
+        } else {
+            "completed"
+        };
         tokio::spawn(async move {
             let mut props = HashMap::new();
             props.insert(
