@@ -204,6 +204,7 @@ pub enum MessageContent {
         id: String,
         name: String,
         arguments_json: String,
+        #[uniffi(default = None)]
         provider_metadata_json: Option<String>,
     },
     ToolResult {
@@ -505,6 +506,7 @@ pub enum StreamChunk {
         id: String,
         name: String,
         arguments_json: String,
+        #[uniffi(default = None)]
         provider_metadata_json: Option<String>,
     },
     ThinkingChunk {
