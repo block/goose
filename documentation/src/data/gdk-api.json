@@ -92,6 +92,12 @@
               "type": "String",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "gateway_path",
+              "type": "Option<String>",
+              "default": null,
+              "docs": ""
             }
           ],
           "returns": "Provider",
