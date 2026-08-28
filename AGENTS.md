@@ -81,14 +81,12 @@ crates/
 ├── goose-provider-types       # provider interfaces
 ├── goose-providers            # provider implementations
 ├── goose-roaming              # roaming state
-├── goose-sdk                  # SDK for agents
-├── goose-sdk-types            # SDK type definitions
+├── goose-sdk                  # goose development kit api
+├── goose-sdk-types            # GDK type definitions
 ├── goose-test                 # test utilities
 └── goose-test-support         # test helpers
 
-ui/
-├── desktop/                   # Electron app
-└── text/                      # Ink TUI
+ui/desktop/                   # Electron app
 ```
 
 ## Development Loop
