@@ -96,7 +96,7 @@
             {
               "name": "gateway_path",
               "type": "Option<String>",
-              "default": null,
+              "default": "None",
               "docs": ""
             }
           ],
