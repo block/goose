@@ -333,15 +333,33 @@ pub struct GooseAcpAgentOptions {
     pub active_prompt_runs: ActiveRunRegistry,
 }
 
+/// This agent's own prompt runs (session id → run id) plus the connection's
+/// revocation fence, deliberately under one lock.
+///
+/// Registration (`start_active_run`) performs the fence check, the
+/// shared-registry insert, and the per-agent insert inside a single critical
+/// section of this lock, while revocation (`revoke_and_cancel_own_runs`) sets
+/// the fence and snapshots the runs under the same lock before cancelling. A
+/// registration therefore either completes before the fence is set — and is
+/// in the revocation sweep's snapshot — or observes the fence and is refused;
+/// there is no interleaving where a run registers after the sweep, and no
+/// window where the shared registry holds a run this map does not.
+#[derive(Default)]
+struct OwnPromptRuns {
+    revoked: bool,
+    runs: HashMap<String, String>,
+}
+
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
-    /// Runs this agent started (session id → run id), a per-connection subset
-    /// of the shared `active_prompt_runs`. Lets a transport-level authority
-    /// decision (roaming peer revocation) cancel exactly the revoked
-    /// connection's detached runs via [`Self::cancel_own_active_runs`] without
-    /// touching runs owned by other connections.
-    own_prompt_runs: Mutex<HashMap<String, String>>,
+    /// Runs this agent started, a per-connection subset of the shared
+    /// `active_prompt_runs`, plus the revocation fence. Lets a
+    /// transport-level authority decision (roaming peer revocation) stop
+    /// exactly the revoked connection's detached runs — current and future —
+    /// via [`Self::revoke_and_cancel_own_runs`] without touching runs owned
+    /// by other connections.
+    own_prompt_runs: Mutex<OwnPromptRuns>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -974,7 +992,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: options.active_prompt_runs,
-            own_prompt_runs: Mutex::new(HashMap::new()),
+            own_prompt_runs: Mutex::new(OwnPromptRuns::default()),
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -1927,6 +1945,19 @@ impl GooseAcpAgent {
             .data(format!("Session not found: {}", session_id)));
         }
 
+        // Fence check, shared-registry insert, and per-agent insert form one
+        // critical section under the own-runs lock (see `OwnPromptRuns`), so a
+        // revocation can never interleave between them: the shared insert only
+        // happens after the fence check passed, under the same lock hold, so a
+        // refused prompt leaves nothing in the shared registry to unwind.
+        // Nested lock order is own_prompt_runs → active_prompt_runs; no other
+        // path nests them the other way around.
+        let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+        if own_prompt_runs.revoked {
+            return Err(agent_client_protocol::Error::auth_required()
+                .data("connection revoked; prompt refused"));
+        }
+
         let mut active_prompt_runs = self.active_prompt_runs.lock().await;
         if let Some(active_run) = active_prompt_runs.get(session_id) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
@@ -1945,10 +1976,7 @@ impl GooseAcpAgent {
         );
         drop(active_prompt_runs);
 
-        self.own_prompt_runs
-            .lock()
-            .await
-            .insert(session_id.to_string(), run_id);
+        own_prompt_runs.runs.insert(session_id.to_string(), run_id);
         Ok(())
     }
 
@@ -1956,10 +1984,11 @@ impl GooseAcpAgent {
         {
             let mut own_prompt_runs = self.own_prompt_runs.lock().await;
             if own_prompt_runs
+                .runs
                 .get(session_id)
                 .is_some_and(|own_run_id| own_run_id == run_id)
             {
-                own_prompt_runs.remove(session_id);
+                own_prompt_runs.runs.remove(session_id);
             }
         }
 
@@ -2000,24 +2029,35 @@ impl GooseAcpAgent {
         }
     }
 
-    /// Cancel every active run this agent started, leaving runs owned by other
-    /// agents on the shared registry untouched. Returns how many were
-    /// cancelled.
+    /// Permanently fence this agent against starting new prompt runs and
+    /// cancel every run it already started, leaving runs owned by other agents
+    /// on the shared registry untouched. Returns how many were cancelled.
     ///
     /// Detached prompt runs deliberately survive ordinary transport loss; this
     /// is the escape hatch for when the connection's *authority* is withdrawn
     /// (a roaming peer is revoked): the revoked peer's in-flight turns must
-    /// stop consuming the provider and executing tools. Cancellation goes
-    /// through the registry's tokens — the detached task observes it and
-    /// clears its own registry entry, exactly as with `session/cancel`.
-    pub async fn cancel_own_active_runs(&self) -> usize {
-        let own_runs: Vec<(String, String)> = self
-            .own_prompt_runs
-            .lock()
-            .await
-            .iter()
-            .map(|(session_id, run_id)| (session_id.clone(), run_id.clone()))
-            .collect();
+    /// stop consuming the provider and executing tools, and a prompt task that
+    /// was dispatched but has not registered yet must not slip in afterwards —
+    /// the fence refuses it (see `OwnPromptRuns` for the atomicity argument).
+    /// The fence is permanent, which is safe because an agent is
+    /// per-connection: a peer that merely lost its network gets a fresh,
+    /// unfenced agent on reconnect, while a revoked agent instance never
+    /// serves another connection. Cancellation goes through the registry's
+    /// tokens — the detached task observes it and clears its own registry
+    /// entry, exactly as with `session/cancel`.
+    pub async fn revoke_and_cancel_own_runs(&self) -> usize {
+        // Set the fence and snapshot under one lock: every run registered
+        // before this point is in the snapshot, and every registration after
+        // it observes the fence and is refused.
+        let own_runs: Vec<(String, String)> = {
+            let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+            own_prompt_runs.revoked = true;
+            own_prompt_runs
+                .runs
+                .iter()
+                .map(|(session_id, run_id)| (session_id.clone(), run_id.clone()))
+                .collect()
+        };
 
         let active_prompt_runs = self.active_prompt_runs.lock().await;
         let mut cancelled = 0;

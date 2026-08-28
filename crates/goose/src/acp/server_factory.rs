@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancel_own_active_runs_only_cancels_this_agents_runs() {
+    async fn revocation_only_cancels_this_agents_runs() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), false);
 
@@ -281,7 +281,7 @@ mod tests {
         // The roaming bridge calls this when a peer is revoked: only the
         // revoked connection's runs stop; runs owned by other connections on
         // the same shared registry keep executing.
-        let cancelled = revoked.cancel_own_active_runs().await;
+        let cancelled = revoked.revoke_and_cancel_own_runs().await;
 
         assert_eq!(cancelled, 1);
         assert!(
@@ -296,6 +296,49 @@ mod tests {
         // clear, exactly like session/cancel.
         assert!(revoked
             .test_require_active_run("session-revoked", "run-1")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn revocation_fences_later_run_registration() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let revoked = server.create_agent().await.unwrap();
+        revoked.revoke_and_cancel_own_runs().await;
+
+        // A prompt task that lost the race with revocation — dispatched
+        // before the sweep but registering after it — must be refused rather
+        // than left running detached under a revoked peer's authority. The
+        // fence check, the shared-registry insert, and the per-agent insert
+        // share one critical section (`OwnPromptRuns`), so the finer
+        // interleaving — revoke landing between the shared insert and the
+        // per-agent insert — is impossible by construction and has no seam to
+        // simulate here.
+        let owner = Arc::new(crate::agents::Agent::new());
+        assert!(
+            revoked
+                .test_start_active_run("session-1", "run-1".to_string(), owner)
+                .await
+                .is_err(),
+            "a revoked connection's agent must refuse to start new runs"
+        );
+
+        // The refused registration must leave nothing behind in the shared
+        // registry...
+        let second = server.create_agent().await.unwrap();
+        assert!(second
+            .test_require_active_run("session-1", "run-1")
+            .await
+            .is_err());
+        // ...and the session stays claimable by a non-revoked connection.
+        assert!(second
+            .test_start_active_run(
+                "session-1",
+                "run-2".to_string(),
+                Arc::new(crate::agents::Agent::new())
+            )
             .await
             .is_ok());
     }

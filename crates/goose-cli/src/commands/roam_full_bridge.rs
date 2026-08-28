@@ -69,9 +69,14 @@ impl AcpStreamServer for FullAcpBridge {
             // work. Revocation is different: the node force-closed this
             // connection because the peer's authority was withdrawn, so its
             // in-flight turns must stop rather than keep executing tools and
-            // consuming the provider.
+            // consuming the provider — and any prompt still racing through
+            // dispatch must be fenced out, not just the runs already
+            // registered. Fencing this agent permanently is safe because it
+            // is per-connection and this future owns it: an ordinary
+            // disconnect never sets the fence, and a peer that merely lost
+            // its network gets a fresh, unfenced agent on reconnect.
             if revocation.is_revoked() {
-                let cancelled = agent.cancel_own_active_runs().await;
+                let cancelled = agent.revoke_and_cancel_own_runs().await;
                 if cancelled > 0 {
                     tracing::info!(
                         %client,
