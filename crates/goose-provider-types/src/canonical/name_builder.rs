@@ -524,8 +524,8 @@ mod tests {
             Some("mistralai/codestral".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "deepseek-deepseek-chat", r),
-            Some("deepseek/deepseek-chat".to_string())
+            map_to_canonical_model("databricks", "deepseek-deepseek-v4-flash", r),
+            Some("deepseek/deepseek-v4-flash".to_string())
         );
         assert_eq!(
             map_to_canonical_model("databricks", "x-ai-grok-4.3", r),
