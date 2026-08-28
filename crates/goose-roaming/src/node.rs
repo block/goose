@@ -33,22 +33,74 @@ const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10
 /// connections for revoked keys. Armed automatically by [`RoamingNode::share`].
 const DEFAULT_REVOCATION_POLL: std::time::Duration = std::time::Duration::from_secs(2);
 
-/// Set by the node when it force-closes a connection because its peer key was
-/// revoked. Lets a stream server distinguish deliberate revocation from
-/// ordinary transport loss after `serve_stream` returns: work that should
-/// survive a network drop must still be stopped when the peer's authority to
-/// run it is withdrawn.
+/// Work a served connection may leave running after it ends (e.g. goose's
+/// detached prompt runs) that must remain revocable by peer key: revoking a
+/// peer must stop its in-flight work even when no connection is live to
+/// force-close. Implemented by the integration layer and registered via
+/// [`RevocationSignal::register_revocable_work`]; this crate never learns the
+/// concrete worker type.
+pub trait RevocableWork: Send + Sync {
+    /// Whether the worker can still own work. Dead handles are pruned lazily
+    /// (on later registrations for the same peer and on trust enforcement).
+    fn is_alive(&self) -> bool;
+
+    /// Stop the worker: fence it against starting new work and cancel what it
+    /// is running. Must be idempotent and a no-op once the worker is gone.
+    fn revoke(&self) -> futures::future::BoxFuture<'static, ()>;
+}
+
+/// Per-connection revocation handle, created by the node for each authorized
+/// inbound connection.
+///
+/// Two jobs:
+/// - The *signal*: set by the node when it force-closes this connection
+///   because its peer key was revoked, letting a stream server distinguish
+///   deliberate revocation from ordinary transport loss after `serve_stream`
+///   returns.
+/// - The *registrar*: [`Self::register_revocable_work`] parks a handle to
+///   work that may outlive this connection in the node's peer-keyed registry,
+///   so a revocation arriving after an ordinary disconnect still reaches it.
 #[derive(Clone, Debug, Default)]
-pub struct RevocationSignal(Arc<std::sync::atomic::AtomicBool>);
+pub struct RevocationSignal {
+    revoked: Arc<std::sync::atomic::AtomicBool>,
+    /// Registrar back-reference; empty on default-constructed signals, which
+    /// makes registration a no-op (only the node mints connected signals).
+    node: std::sync::Weak<RoamingNode>,
+    peer: Option<EndpointId>,
+}
 
 impl RevocationSignal {
+    fn for_connection(node: &Arc<RoamingNode>, peer: EndpointId) -> Self {
+        Self {
+            revoked: Arc::default(),
+            node: Arc::downgrade(node),
+            peer: Some(peer),
+        }
+    }
+
     /// Whether the node closed this connection to enforce a revocation.
     pub fn is_revoked(&self) -> bool {
-        self.0.load(std::sync::atomic::Ordering::Acquire)
+        self.revoked.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn set(&self) {
-        self.0.store(true, std::sync::atomic::Ordering::Release);
+        self.revoked
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Keep `work` revocable by this connection's peer key even after the
+    /// connection ends: a later `peers revoke` / trust refresh invokes
+    /// [`RevocableWork::revoke`] although there is no live connection left to
+    /// force-close. If this connection was already closed for a revocation,
+    /// the work is revoked immediately instead of parked.
+    pub async fn register_revocable_work(&self, work: Arc<dyn RevocableWork>) {
+        if self.is_revoked() {
+            work.revoke().await;
+            return;
+        }
+        if let (Some(node), Some(peer)) = (self.node.upgrade(), self.peer) {
+            node.register_revocable_work(peer, work).await;
+        }
     }
 }
 
@@ -160,6 +212,11 @@ pub struct RoamingNode {
     /// into the open data plane: a key that leaves the allowlist gets its
     /// connections force-closed, not just refused on the next dial.
     live: Mutex<std::collections::HashMap<EndpointId, Vec<LiveConnection>>>,
+    /// Work left behind by served connections that must remain revocable by
+    /// peer key after the connection ends (see [`RevocableWork`]). Entries are
+    /// drained when their key is revoked and pruned lazily once dead, so a
+    /// peer that is revoked and later re-accepted starts from a clean slate.
+    revocable_work: Mutex<std::collections::HashMap<EndpointId, Vec<Arc<dyn RevocableWork>>>>,
     revocation_watcher: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
@@ -197,6 +254,7 @@ impl RoamingNode {
             directory: config.directory,
             relay,
             live: Mutex::new(std::collections::HashMap::new()),
+            revocable_work: Mutex::new(std::collections::HashMap::new()),
             revocation_watcher: Mutex::new(None),
         }))
     }
@@ -314,6 +372,17 @@ impl RoamingNode {
             });
     }
 
+    /// Park `work` under `peer` so a later revocation of that key can stop it
+    /// even after every connection is gone. Dead handles for the same peer are
+    /// pruned here, which bounds the registry for peers that reconnect often:
+    /// a handle only stays alive while its worker still has work in flight.
+    pub async fn register_revocable_work(&self, peer: EndpointId, work: Arc<dyn RevocableWork>) {
+        let mut revocable_work = self.revocable_work.lock().await;
+        let entries = revocable_work.entry(peer).or_default();
+        entries.retain(|entry| entry.is_alive());
+        entries.push(work);
+    }
+
     async fn unregister_live(&self, client: EndpointId, connection: &Connection) {
         let mut live = self.live.lock().await;
         if let Some(conns) = live.get_mut(&client) {
@@ -325,9 +394,12 @@ impl RoamingNode {
     }
 
     /// Force-close any live connections whose peer key is no longer allowed by
-    /// `trust`. Revocation reaches into the open data plane: the allowlist is
-    /// not just a gate on new dials, it is authority over connections that
-    /// already exist. Returns the number of connections closed.
+    /// `trust`, and revoke any parked [`RevocableWork`] those keys left behind
+    /// (work that outlived its connection, e.g. detached prompt runs after an
+    /// ordinary disconnect). Revocation reaches into the open data plane: the
+    /// allowlist is not just a gate on new dials, it is authority over
+    /// connections — and work — that already exist. Returns the number of
+    /// connections closed.
     pub async fn enforce_trust(&self, trust: &TrustBook) -> usize {
         let to_close: Vec<(EndpointId, Vec<LiveConnection>)> = {
             let mut live = self.live.lock().await;
@@ -356,6 +428,39 @@ impl RoamingNode {
             }
             tracing::info!(%client, "roaming: force-closed live connection(s) for revoked key");
         }
+
+        // Detached work outlives its connection, so it is revoked by peer key
+        // rather than through a live connection's signal. Entries for revoked
+        // keys are drained — if the peer is later re-accepted, its new
+        // connections register fresh workers — and dead entries for keys that
+        // remain allowed are pruned opportunistically.
+        let revoked_work: Vec<(EndpointId, Vec<Arc<dyn RevocableWork>>)> = {
+            let mut revocable_work = self.revocable_work.lock().await;
+            revocable_work.retain(|key, entries| {
+                if trust.is_allowed(key) {
+                    entries.retain(|entry| entry.is_alive());
+                    !entries.is_empty()
+                } else {
+                    true
+                }
+            });
+            let revoked: Vec<EndpointId> = revocable_work
+                .keys()
+                .filter(|key| !trust.is_allowed(key))
+                .copied()
+                .collect();
+            revoked
+                .into_iter()
+                .filter_map(|key| revocable_work.remove(&key).map(|entries| (key, entries)))
+                .collect()
+        };
+        for (client, entries) in revoked_work {
+            for entry in entries {
+                entry.revoke().await;
+            }
+            tracing::info!(%client, "roaming: revoked detached work for revoked key");
+        }
+
         closed
     }
 
@@ -558,7 +663,7 @@ impl ProtocolHandler for RoamingAcpHandler {
                     tracing::warn!("roaming: failed to send accept ack: {e}");
                     return Ok(());
                 }
-                let revocation = RevocationSignal::default();
+                let revocation = RevocationSignal::for_connection(&self.node, client);
                 self.node
                     .register_live(client, connection.clone(), revocation.clone())
                     .await;

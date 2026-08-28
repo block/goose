@@ -47,8 +47,8 @@ pub fn parse_endpoint_id(s: &str) -> Result<EndpointId, RoamingError> {
 pub use error::RoamingError;
 pub use identity::{default_key_path, RoamingIdentity};
 pub use node::{
-    AcpStreamServer, RevocationSignal, RoamingClientStream, RoamingConfig, RoamingNode,
-    ROAMING_ACP_ALPN,
+    AcpStreamServer, RevocableWork, RevocationSignal, RoamingClientStream, RoamingConfig,
+    RoamingNode, ROAMING_ACP_ALPN,
 };
 pub use peerbook::{PeerBook, PeerRecord};
 pub use relay::{RelayEntry, RelaySettings};

@@ -8,12 +8,46 @@
 
 use std::sync::Arc;
 
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, Directory, RelaySettings, RevocationSignal, RoamingConfig, RoamingIdentity,
-    RoamingNode, TrustBook,
+    AcpStreamServer, Directory, RelaySettings, RevocableWork, RevocationSignal, RoamingConfig,
+    RoamingIdentity, RoamingNode, TrustBook,
 };
 use iroh::EndpointId;
+
+/// A stand-in for goose's detached prompt runs: records revocations so tests
+/// can assert that revoking a peer reaches work that outlived its connection.
+#[derive(Debug)]
+struct FakeDetachedWork {
+    alive: AtomicBool,
+    revocations: AtomicUsize,
+}
+
+impl FakeDetachedWork {
+    fn new(alive: bool) -> Arc<Self> {
+        Arc::new(Self {
+            alive: AtomicBool::new(alive),
+            revocations: AtomicUsize::new(0),
+        })
+    }
+
+    fn revocations(&self) -> usize {
+        self.revocations.load(Ordering::Acquire)
+    }
+}
+
+impl RevocableWork for FakeDetachedWork {
+    fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Acquire)
+    }
+
+    fn revoke(&self) -> futures::future::BoxFuture<'static, ()> {
+        self.revocations.fetch_add(1, Ordering::AcqRel);
+        Box::pin(async {})
+    }
+}
 
 /// A stand-in ACP server that echoes one line back, upper-cased.
 #[derive(Debug, Default)]
@@ -22,6 +56,10 @@ struct EchoServer {
     /// whether the node marked a connection as force-closed-by-revocation
     /// (versus an ordinary transport close).
     revocations: Arc<std::sync::Mutex<Vec<RevocationSignal>>>,
+    /// When set, registered with the connection's revocation handle at serve
+    /// start — as the real bridge parks its detached-run handle — so tests can
+    /// assert peer-keyed revocation of work that outlives the connection.
+    work_to_register: std::sync::Mutex<Option<Arc<FakeDetachedWork>>>,
 }
 
 impl AcpStreamServer for EchoServer {
@@ -32,8 +70,12 @@ impl AcpStreamServer for EchoServer {
         mut send: Box<dyn AsyncWrite + Send + Unpin>,
         revocation: RevocationSignal,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-        self.revocations.lock().unwrap().push(revocation);
+        self.revocations.lock().unwrap().push(revocation.clone());
+        let work = self.work_to_register.lock().unwrap().take();
         Box::pin(async move {
+            if let Some(work) = work {
+                revocation.register_revocable_work(work).await;
+            }
             let mut buf = [0u8; 5];
             recv.read_exact(&mut buf).await?;
             let upper: Vec<u8> = buf.iter().map(|b| b.to_ascii_uppercase()).collect();
@@ -325,6 +367,111 @@ async fn revocation_watcher_closes_live_connection_from_file() {
             "the watcher's force-close must set the revocation signal"
         );
     }
+
+    host.shutdown().await.unwrap();
+}
+
+/// Detached work must stay revocable after its connection ends: an authorized
+/// peer that disconnects NORMALLY mid-run leaves no live connection to
+/// force-close, yet a later `peers revoke` must still stop the work it left
+/// behind.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revoking_a_disconnected_peer_stops_its_detached_work() {
+    let host = bind_node().await;
+    let echo = Arc::new(EchoServer::default());
+    let work = FakeDetachedWork::new(true);
+    *echo.work_to_register.lock().unwrap() = Some(work.clone());
+    host.share(echo.clone()).await.expect("share");
+
+    let client = bind_node().await;
+    host_accepts(&host, &client).await;
+
+    let mut stream = connect_direct(&client, &host)
+        .await
+        .expect("client connects while accepted");
+    stream.send.write_all(b"hello").await.unwrap();
+    let mut out = [0u8; 5];
+    stream.recv.read_exact(&mut out).await.unwrap();
+    assert_eq!(&out, b"HELLO");
+
+    // Disconnect normally: close the client's send half and read to EOF so
+    // the host's serve future finishes and the live connection unregisters.
+    stream.send.finish().unwrap();
+    let mut more = [0u8; 1];
+    let _ = stream.recv.read_exact(&mut more).await;
+    drop(stream);
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    assert_eq!(
+        work.revocations(),
+        0,
+        "an ordinary disconnect must not revoke the peer's detached work"
+    );
+
+    // Revoke the peer AFTER it disconnected.
+    let trust = host.trust();
+    let book = {
+        let mut trust = trust.lock().await;
+        trust.revoke_key(&client.endpoint_id());
+        trust.clone()
+    };
+    let closed = host.enforce_trust(&book).await;
+
+    assert_eq!(closed, 0, "no live connection should remain to force-close");
+    assert_eq!(
+        work.revocations(),
+        1,
+        "revocation must reach detached work by peer key when no connection is live"
+    );
+
+    host.shutdown().await.unwrap();
+}
+
+/// Registry mechanics for detached work: revocation is peer-keyed, finished
+/// work is pruned before it can see a revocation, and entries drain on
+/// revocation so a later re-accepted peer starts from a clean slate.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revocation_registry_is_peer_keyed_and_prunes_dead_work() {
+    let host = bind_node().await;
+    let peer_a = bind_node().await.endpoint_id();
+    let peer_b = bind_node().await.endpoint_id();
+
+    // A handle whose work already finished is pruned when the same peer
+    // registers again, so it never sees a later revocation.
+    let finished = FakeDetachedWork::new(false);
+    host.register_revocable_work(peer_a, finished.clone()).await;
+    let running_a = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer_a, running_a.clone())
+        .await;
+    let running_b = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer_b, running_b.clone())
+        .await;
+
+    // Revoke A only (B stays accepted).
+    let mut book = TrustBook::new();
+    book.accept(&peer_b);
+    host.enforce_trust(&book).await;
+
+    assert_eq!(
+        running_a.revocations(),
+        1,
+        "the revoked peer's running work must be stopped"
+    );
+    assert_eq!(
+        finished.revocations(),
+        0,
+        "finished work was pruned before the revocation"
+    );
+    assert_eq!(
+        running_b.revocations(),
+        0,
+        "another peer's work must be untouched"
+    );
+
+    // Entries drain on revocation: enforcing again revokes nothing new, so a
+    // peer that is later re-accepted starts from a clean slate.
+    host.enforce_trust(&book).await;
+    assert_eq!(running_a.revocations(), 1);
 
     host.shutdown().await.unwrap();
 }
