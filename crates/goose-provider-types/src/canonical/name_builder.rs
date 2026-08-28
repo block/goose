@@ -473,12 +473,12 @@ mod tests {
 
         // === DeepSeek ===
         assert_eq!(
-            map_to_canonical_model("databricks", "databricks-deepseek-chat", r),
-            Some("deepseek/deepseek-chat".to_string())
+            map_to_canonical_model("databricks", "databricks-deepseek-v4-flash", r),
+            Some("deepseek/deepseek-v4-flash".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "deepseek-reasoner", r),
-            Some("deepseek/deepseek-reasoner".to_string())
+            map_to_canonical_model("databricks", "deepseek-v4-pro", r),
+            Some("deepseek/deepseek-v4-pro".to_string())
         );
 
         // === Grok (X.AI) ===
