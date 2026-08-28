@@ -772,6 +772,17 @@
     "environmentVariables": []
   },
   {
+    "id": "vestige",
+    "name": "Vestige",
+    "description": "Local-first Rust MCP memory with causal Backfill (recall, smart_ingest, backfill). Proven on local and synthetic traces.",
+    "command": "npx -y vestige-mcp-server",
+    "link": "https://github.com/samvallad33/vestige",
+    "installation_notes": "Install using npx package manager. Requires Node.js. Not a production claim; proven on local and synthetic traces. Custom store: --data-dir (no --project flag). GUI clients should use an absolute path to vestige-mcp. On Ubuntu 22.04 and Debian 12, wait for v2.4.0.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
