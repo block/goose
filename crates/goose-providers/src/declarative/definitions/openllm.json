@@ -1,0 +1,18 @@
+{
+  "name": "openllm",
+  "engine": "openai",
+  "display_name": "OpenLLM",
+  "description": "OpenLLM — one endpoint across every provider. Requires its service running; install: curl -fsSL https://www.openllm.sh/install | bash",
+  "api_key_env": "",
+  "base_url": "http://127.0.0.1:8787/v1",
+  "models": [
+    { "name": "ultra", "context_limit": 1000000 },
+    { "name": "plus", "context_limit": 1000000 },
+    { "name": "lite", "context_limit": 1000000 }
+  ],
+  "dynamic_models": true,
+  "supports_streaming": true,
+  "preserves_thinking": true,
+  "requires_auth": false,
+  "skip_canonical_filtering": true
+}
