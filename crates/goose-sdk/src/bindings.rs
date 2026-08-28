@@ -206,9 +206,6 @@ pub enum MessageContent {
         arguments_json: String,
         #[uniffi(default = None)]
         provider_metadata_json: Option<String>,
-        /// Set when the provider emitted a tool call the decoder could not
-        /// parse. Replaying it keeps the failed request paired with its tool
-        /// result instead of silently dropping the turn.
         #[uniffi(default = None)]
         tool_error_json: Option<String>,
     },

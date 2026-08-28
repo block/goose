@@ -418,7 +418,7 @@
                   "docs": ""
                 },
                 {
-                  "name": "/// Set when the provider emitted a tool call the decoder could not\n        /// parse. Replaying it keeps the failed request paired with its tool\n        /// result instead of silently dropping the turn.\n        \n        tool_error_json",
+                  "name": "tool_error_json",
                   "type": "Option<String>",
                   "default": null,
                   "docs": ""
