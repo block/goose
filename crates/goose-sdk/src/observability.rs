@@ -11,7 +11,7 @@
 use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, RwLock,
     },
     time::Instant,
@@ -93,23 +93,41 @@ pub fn set_observability_hook(hook: Box<dyn ObservabilityHook>, capture_payloads
     let registered = Arc::new(RegisteredHook {
         hook,
         capture_payloads,
+        revoked: AtomicBool::new(false),
     });
-    *HOOK.write().expect("observability hook lock") = Some(registered);
+    let previous = HOOK
+        .write()
+        .expect("observability hook lock")
+        .replace(registered);
+    if let Some(previous) = previous {
+        previous.revoke();
+    }
 }
 
-/// Removes the observability hook, after which no further events are emitted.
+/// Removes the observability hook, after which no further events are emitted,
+/// including for requests that are still in flight.
 #[uniffi::export]
 pub fn clear_observability_hook() {
-    HOOK.write().expect("observability hook lock").take();
+    if let Some(previous) = HOOK.write().expect("observability hook lock").take() {
+        previous.revoke();
+    }
 }
 
 struct RegisteredHook {
     hook: Box<dyn ObservabilityHook>,
     capture_payloads: bool,
+    revoked: AtomicBool,
 }
 
 impl RegisteredHook {
+    fn revoke(&self) {
+        self.revoked.store(true, Ordering::Release);
+    }
+
     fn emit(&self, deliver: impl FnOnce(&dyn ObservabilityHook)) {
+        if self.revoked.load(Ordering::Acquire) {
+            return;
+        }
         let _ = catch_unwind(AssertUnwindSafe(|| deliver(self.hook.as_ref())));
     }
 }
@@ -136,6 +154,7 @@ struct ActiveRequest {
     model: String,
     operation: RequestOperation,
     started: Instant,
+    ended: AtomicBool,
 }
 
 impl RequestObserver {
@@ -170,6 +189,7 @@ impl RequestObserver {
                 model: descriptor.model.to_string(),
                 operation: descriptor.operation,
                 started: Instant::now(),
+                ended: AtomicBool::new(false),
             }),
         }
     }
@@ -218,6 +238,10 @@ impl RequestObserver {
         let Some(active) = self.active.as_ref() else {
             return;
         };
+
+        if active.ended.swap(true, Ordering::AcqRel) {
+            return;
+        }
 
         let event = RequestEndEvent {
             request_id: active.request_id.clone(),
@@ -423,6 +447,61 @@ mod tests {
         assert_eq!(events.len(), 2);
         assert!(matches!(events[0], Event::ResponseStart(_)));
         assert!(matches!(events[1], Event::End(_)));
+    }
+
+    #[test]
+    fn end_is_emitted_at_most_once() {
+        let registered = RegisteredRecorder::new(Recorder::default(), false);
+        let observer = RequestObserver::start(descriptor());
+        observer.fail(GooseError::Timeout {
+            details: "request timed out after 5ms".to_string(),
+        });
+        observer.succeeded(Some(usage()), None);
+        observer.fail_stream(GooseStreamError {
+            kind: crate::bindings::GooseStreamErrorKind::Generic,
+            message: "later read".to_string(),
+            retry_after_ms: None,
+        });
+
+        let events = registered.events();
+        assert_eq!(events.len(), 2);
+        let Event::End(end) = &events[1] else {
+            panic!("expected end, got {:?}", events[1]);
+        };
+        let RequestOutcome::Failure { error } = &end.outcome else {
+            panic!("expected failure outcome");
+        };
+        assert!(matches!(
+            error.kind,
+            crate::bindings::GooseStreamErrorKind::Timeout
+        ));
+    }
+
+    #[test]
+    fn clearing_hook_mid_request_stops_in_flight_events() {
+        let registered = RegisteredRecorder::new(Recorder::default(), true);
+        let observer = RequestObserver::start(descriptor());
+        clear_observability_hook();
+
+        observer.response_started();
+        observer.succeeded(Some(usage()), Some("{\"role\":\"assistant\"}".to_string()));
+
+        let events = registered.events();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::Start(_)));
+    }
+
+    #[test]
+    fn replacing_hook_stops_in_flight_events_to_the_old_hook() {
+        let registered = RegisteredRecorder::new(Recorder::default(), false);
+        let observer = RequestObserver::start(descriptor());
+        set_observability_hook(Box::new(Arc::new(Recorder::default())), false);
+
+        observer.succeeded(None, None);
+
+        let events = registered.events();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::Start(_)));
     }
 
     #[test]

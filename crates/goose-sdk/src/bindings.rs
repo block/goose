@@ -1082,11 +1082,19 @@ impl ProviderStream {
                 }
 
                 let next = if let Some(timeout_ms) = timeout_ms {
-                    tokio::time::timeout(Duration::from_millis(timeout_ms), state.stream.next())
-                        .await
-                        .map_err(|_| GooseError::Timeout {
-                            details: format!("request timed out after {timeout_ms}ms"),
-                        })?
+                    match tokio::time::timeout(
+                        Duration::from_millis(timeout_ms),
+                        state.stream.next(),
+                    )
+                    .await
+                    {
+                        Ok(next) => next,
+                        Err(_) => {
+                            return Err(observer.fail(GooseError::Timeout {
+                                details: format!("request timed out after {timeout_ms}ms"),
+                            }))
+                        }
+                    }
                 } else {
                     state.stream.next().await
                 };
@@ -1094,7 +1102,13 @@ impl ProviderStream {
                 match next {
                     Some(Ok((message, usage))) => {
                         if let Some(usage) = usage {
-                            state.final_usage = Some(Usage::from_provider_usage(&usage)?);
+                            match Usage::from_provider_usage(&usage) {
+                                Ok(usage) => state.final_usage = Some(usage),
+                                Err(error) => {
+                                    state.ended = true;
+                                    return Err(observer.fail(error));
+                                }
+                            }
                         }
                         let Some(message) = message else {
                             continue;

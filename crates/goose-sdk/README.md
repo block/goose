@@ -24,7 +24,12 @@ Each request emits `onRequestStart`, then `onResponseStart` once the provider
 response is available (the stream opens for streaming requests), then exactly
 one `onRequestEnd` carrying the outcome (`Success`, or `Failure` with a typed
 `GooseStreamError`), `durationMs`, and token `usage`. All three events share a
-`requestId` so they can be correlated with application telemetry.
+`requestId` so they can be correlated with application telemetry. A streaming
+read that times out ends the trace, so continuing to read the stream afterwards
+never produces a second `onRequestEnd`.
+
+`clearObservabilityHook` also stops delivery for requests that are still in
+flight, so no events reach a hook after it is cleared.
 
 ```kotlin
 class TracingHook : ObservabilityHook {
