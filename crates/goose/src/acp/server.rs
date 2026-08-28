@@ -251,11 +251,13 @@ pub struct ActivePromptRun {
 /// one session.
 pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
-/// Releases a registry entry if the owning `on_prompt` future is dropped
-/// without reaching its explicit `clear_active_run` — e.g. a roaming
-/// connection is revoked or lost mid-prompt and the transport drops the
-/// request future. Without this, the shared registry retains the run forever
-/// and every later connection gets "session already has active run".
+/// Releases a registry entry if the prompt task dies without reaching its
+/// explicit `clear_active_run` — e.g. a panic mid-turn. Prompt turns run on
+/// detached runtime tasks (see the `PromptRequest` handler in `dispatch.rs`),
+/// so losing the transport no longer drops the future; the guard is the
+/// backstop for the task itself dying. Without it, the shared registry would
+/// retain the run forever and every later connection would get "session
+/// already has active run".
 ///
 /// The explicit clear still runs on normal paths; this drop is then a no-op
 /// because the entry (matched by run id) is already gone.
@@ -817,9 +819,20 @@ impl GooseAcpAgent {
         session_id: &str,
         run_id: String,
         agent: Arc<Agent>,
-    ) -> Result<(), agent_client_protocol::Error> {
-        self.start_active_run(session_id, run_id, CancellationToken::new(), agent)
-            .await
+    ) -> Result<CancellationToken, agent_client_protocol::Error> {
+        let cancel_token = CancellationToken::new();
+        self.start_active_run(session_id, run_id, cancel_token.clone(), agent)
+            .await?;
+        Ok(cancel_token)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_cancel(&self, session_id: &str) {
+        self.on_cancel(CancelNotification::new(SessionId::new(
+            session_id.to_string(),
+        )))
+        .await
+        .unwrap();
     }
 
     #[cfg(test)]
@@ -1402,7 +1415,8 @@ impl GooseAcpAgent {
                         tool_name.clone(),
                         arguments.clone(),
                         prompt.clone(),
-                    )?;
+                    )
+                    .await?;
                 }
                 ActionRequiredData::Elicitation {
                     id,
@@ -1544,7 +1558,7 @@ impl GooseAcpAgent {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn handle_tool_permission_request(
+    async fn handle_tool_permission_request(
         &self,
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
@@ -1557,6 +1571,8 @@ impl GooseAcpAgent {
         let cx = cx.clone();
         let agent = agent.clone();
         let session_id = session_id.clone();
+        let fallback_agent = agent.clone();
+        let fallback_request_id = request_id.clone();
 
         let tool_call_update =
             build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
@@ -1579,33 +1595,51 @@ impl GooseAcpAgent {
         let permission_request =
             RequestPermissionRequest::new(session_id, tool_call_update, options);
 
-        cx.send_request(permission_request)
-            .on_receiving_result(move |result| async move {
-                match result {
-                    Ok(response) => {
-                        agent
-                            .handle_confirmation(
-                                request_id,
-                                outcome_to_confirmation(&response.outcome),
-                            )
-                            .await;
-                        Ok(())
+        let sent =
+            cx.send_request(permission_request)
+                .on_receiving_result(move |result| async move {
+                    match result {
+                        Ok(response) => {
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    outcome_to_confirmation(&response.outcome),
+                                )
+                                .await;
+                            Ok(())
+                        }
+                        Err(e) => {
+                            error!(error = ?e, "permission request failed");
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::Cancel,
+                                    },
+                                )
+                                .await;
+                            Ok(())
+                        }
                     }
-                    Err(e) => {
-                        error!(error = ?e, "permission request failed");
-                        agent
-                            .handle_confirmation(
-                                request_id,
-                                PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission: Permission::Cancel,
-                                },
-                            )
-                            .await;
-                        Ok(())
-                    }
-                }
-            })?;
+                });
+
+        if let Err(e) = sent {
+            // The connection is gone (e.g. the client dropped mid-turn), so no
+            // answer can ever arrive. Resolve like the failed-request branch
+            // above: deny the tool so a detached turn keeps moving instead of
+            // waiting on a confirmation forever.
+            error!(error = ?e, "could not send permission request");
+            fallback_agent
+                .handle_confirmation(
+                    fallback_request_id,
+                    PermissionConfirmation {
+                        principal_type: PrincipalType::Tool,
+                        permission: Permission::Cancel,
+                    },
+                )
+                .await;
+        }
 
         Ok(())
     }
@@ -2091,9 +2125,11 @@ impl GooseAcpAgent {
         )
         .await?;
 
-        // Frees the run if this future is dropped mid-prompt (e.g. the roaming
-        // connection carrying it is revoked or lost); a normal completion's
-        // explicit clear wins and makes the guard's cleanup a no-op.
+        // Frees the run if this task dies mid-prompt (e.g. a panic); a normal
+        // completion's explicit clear wins and makes the guard's cleanup a
+        // no-op. Losing the transport no longer drops this future: the turn
+        // runs on a detached task (see the `PromptRequest` handler in
+        // `dispatch.rs`) so it finishes and persists for a later session/load.
         let _run_guard = ActiveRunDropGuard {
             registry: self.active_prompt_runs.clone(),
             session_id: session_id.clone(),
@@ -2190,8 +2226,18 @@ impl GooseAcpAgent {
                             )
                             .await
                         {
-                            stream_error = Some(error);
-                            break;
+                            // A failed client send must not end the turn: the
+                            // transport may be gone (network drop, sleep)
+                            // while the detached turn keeps executing and
+                            // persisting for a later session/load. Interactive
+                            // content resolves inside the handler (permission
+                            // and elicitation send failures fall back to
+                            // deny/cancel), so skipping the update is safe.
+                            warn!(
+                                session_id = %session_id,
+                                %error,
+                                "failed to send session update; continuing without the client"
+                            );
                         }
 
                         let ready_chain = match content_item {
@@ -2222,17 +2268,29 @@ impl GooseAcpAgent {
                         tool_notifications::tool_notification_update(request_id, notification)
                     {
                         let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
-                        tool_call_notifier.send_update(update)?;
+                        if let Err(error) = tool_call_notifier.send_update(update) {
+                            warn!(
+                                session_id = %session_id,
+                                %error,
+                                "failed to send tool notification update; continuing without the client"
+                            );
+                        }
                     }
                 }
                 Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
                     if self.supports_goose_custom_notifications() {
-                        cx.send_notification(GooseSessionNotification {
+                        if let Err(error) = cx.send_notification(GooseSessionNotification {
                             session_id: session_id.clone(),
                             update: GooseSessionUpdate::MessageUsage(message_usage_update(
                                 message_id, &usage,
                             )),
-                        })?;
+                        }) {
+                            warn!(
+                                session_id = %session_id,
+                                %error,
+                                "failed to send message usage update; continuing without the client"
+                            );
+                        }
                     }
                 }
                 Ok(_) => {}
@@ -2252,7 +2310,11 @@ impl GooseAcpAgent {
             }
         }
         self.clear_active_run(&session_id, &run_id).await;
-        Self::send_active_run_update(cx, &args.session_id, None)?;
+        // From here on the turn's work is complete and persisted; failures to
+        // reach a (possibly disconnected) client must not turn it into an error.
+        if let Err(error) = Self::send_active_run_update(cx, &args.session_id, None) {
+            warn!(session_id = %session_id, %error, "failed to send active-run clear update");
+        }
         if let Some(error) = stream_error {
             return Err(error);
         }
@@ -2280,12 +2342,16 @@ impl GooseAcpAgent {
                 .internal_err_ctx("Failed to resolve context limit")?;
         let updates = build_usage_updates(&session, &totals, context_limit);
         if self.supports_goose_custom_notifications() {
-            cx.send_notification(updates.custom)?;
+            if let Err(error) = cx.send_notification(updates.custom) {
+                warn!(session_id = %session_id, %error, "failed to send usage update");
+            }
         }
-        cx.send_notification(SessionNotification::new(
+        if let Err(error) = cx.send_notification(SessionNotification::new(
             args.session_id.clone(),
             SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+        )) {
+            warn!(session_id = %session_id, %error, "failed to send usage update");
+        }
 
         let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 

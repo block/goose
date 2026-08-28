@@ -208,7 +208,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dropping_a_prompt_future_releases_the_shared_run() {
+    async fn a_dying_prompt_task_releases_the_shared_run() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), false);
 
@@ -219,6 +219,9 @@ mod tests {
             .await
             .unwrap();
 
+        // Prompt turns run on detached tasks, so a lost transport no longer
+        // drops their future; the drop guard now only fires when the task
+        // itself dies (e.g. a panic) before its explicit clear.
         running.test_drop_active_run_guard("session-1", "run-1");
         tokio::task::yield_now().await;
 
@@ -228,8 +231,33 @@ mod tests {
                 .test_require_active_run("session-1", "run-1")
                 .await
                 .is_err(),
-            "a dropped prompt future must release its run so later \
+            "a prompt task that dies mid-run must release its run so later \
              connections are not permanently locked out of the session"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_from_another_connection_cancels_a_detached_run() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let running = server.create_agent().await.unwrap();
+        let owner = Arc::new(crate::agents::Agent::new());
+        let cancel_token = running
+            .test_start_active_run("session-1", "run-1".to_string(), owner)
+            .await
+            .unwrap();
+
+        // A detached run outlives the connection that started it, so the
+        // reconnecting client's cancel arrives on a different agent; the
+        // shared registry must still route it to the run's cancel token.
+        let canceling = server.create_agent().await.unwrap();
+        canceling.test_cancel("session-1").await;
+
+        assert!(
+            cancel_token.is_cancelled(),
+            "session/cancel from a later connection must cancel a run that \
+             kept executing after its own connection dropped"
         );
     }
 
