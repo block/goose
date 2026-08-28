@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+
 This tutorial covers how to add the [Vestige MCP Server](https://github.com/samvallad33/vestige) as a goose extension for local-first memory. Vestige answers **"what caused this?"** via backward-only causal Backfill (shared entities as the join key; similarity is excluded from ranking).
 
 goose already includes a built-in [Memory](/docs/mcp/memory-mcp) extension for storing preferences and project facts. Vestige is an optional local-first alternative focused on causal Backfill. You can use either, or both; this page does not replace the built-in Memory extension.
