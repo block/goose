@@ -6,6 +6,10 @@ use crate::formats::anthropic::{
 };
 use crate::model::{is_goose_internal_request_param, ModelConfig};
 
+use crate::documents::{
+    convert_document, document_media_type_is_supported, unsupported_document_text, DocumentFormat,
+    UNSUPPORTED_MEDIA_TYPE_REASON,
+};
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
     openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
@@ -241,6 +245,16 @@ fn format_messages(
                         content_array.push(json!({
                             "type": "text",
                             "text": "[image omitted: model does not support vision]"
+                        }));
+                    }
+                }
+                MessageContentBlock::Document(document) => {
+                    if document_media_type_is_supported(&document.mime_type) {
+                        content_array.push(convert_document(document, &DocumentFormat::OpenAi));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": unsupported_document_text(document, UNSUPPORTED_MEDIA_TYPE_REASON)
                         }));
                     }
                 }

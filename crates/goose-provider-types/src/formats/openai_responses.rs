@@ -1,5 +1,9 @@
 use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::documents::{
+    convert_document, document_media_type_is_supported, unsupported_document_text, DocumentFormat,
+    UNSUPPORTED_MEDIA_TYPE_REASON,
+};
 use crate::errors::ProviderError;
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
@@ -477,6 +481,19 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                         text_items.push(json!({
                             "type": "input_text",
                             "text": "[image omitted: model does not support vision]"
+                        }));
+                    }
+                }
+                MessageContentBlock::Document(document) => {
+                    if document_media_type_is_supported(&document.mime_type) {
+                        let mut converted = convert_document(document, &DocumentFormat::OpenAi);
+                        let mut file = converted["file"].take();
+                        file["type"] = json!("input_file");
+                        text_items.push(file);
+                    } else {
+                        text_items.push(json!({
+                            "type": "input_text",
+                            "text": unsupported_document_text(document, UNSUPPORTED_MEDIA_TYPE_REASON)
                         }));
                     }
                 }
