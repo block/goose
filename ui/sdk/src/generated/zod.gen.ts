@@ -494,15 +494,6 @@ export const zGetConfigExtensionsResponse_unstable = z.object({
 });
 
 /**
- * List Goose-owned extension definitions available to configure or enable.
- */
-export const zGetAvailableExtensionsRequest_unstable = z.record(z.string(), z.unknown());
-
-export const zGetAvailableExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtension)
-});
-
-/**
  * Persist a new extension to the user's global goose config.
  */
 export const zAddConfigExtensionRequest_unstable = z.object({
@@ -1013,13 +1004,6 @@ export const zPreferencesReadResponse_unstable = z.object({
  */
 export const zPreferencesSaveRequest_unstable = z.object({
     values: z.array(zPreferenceValue).optional().default([])
-});
-
-/**
- * Remove allowlisted user preferences.
- */
-export const zPreferencesRemoveRequest_unstable = z.object({
-    keys: z.array(zPreferenceKey).optional().default([])
 });
 
 export const zConfigReadRequest_unstable = z.object({
@@ -2194,7 +2178,6 @@ export const zExtRequest = z.object({
             zSavePromptRequest_unstable,
             zResetPromptRequest_unstable,
             zGetConfigExtensionsRequest_unstable,
-            zGetAvailableExtensionsRequest_unstable,
             zAddConfigExtensionRequest_unstable,
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
@@ -2220,7 +2203,6 @@ export const zExtRequest = z.object({
             zCanonicalModelInfoRequest_unstable,
             zPreferencesReadRequest_unstable,
             zPreferencesSaveRequest_unstable,
-            zPreferencesRemoveRequest_unstable,
             zConfigReadRequest_unstable,
             zConfigUpsertRequest_unstable,
             zConfigRemoveRequest_unstable,
@@ -2310,7 +2292,6 @@ export const zExtResponse = z.union([
                 zGetPromptResponse_unstable,
                 zPromptOperationResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
-                zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
                 zListProvidersResponse_unstable,
                 zProviderSupportedModelsListResponse_unstable,

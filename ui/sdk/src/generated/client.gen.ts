@@ -61,8 +61,6 @@ import type {
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
-  GetAvailableExtensionsRequest_unstable,
-  GetAvailableExtensionsResponse_unstable,
   GetConfigExtensionsRequest_unstable,
   GetConfigExtensionsResponse_unstable,
   GetPromptRequest_unstable,
@@ -127,7 +125,6 @@ import type {
   PauseScheduleRequest_unstable,
   PreferencesReadRequest_unstable,
   PreferencesReadResponse_unstable,
-  PreferencesRemoveRequest_unstable,
   PreferencesSaveRequest_unstable,
   PromptOperationResponse_unstable,
   ProviderCatalogListRequest_unstable,
@@ -212,7 +209,6 @@ import {
   zEncodeRecipeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
-  zGetAvailableExtensionsResponse_unstable,
   zGetConfigExtensionsResponse_unstable,
   zGetPromptResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
@@ -456,18 +452,6 @@ export class GooseExtClient {
     return zGetConfigExtensionsResponse_unstable.parse(
       raw,
     ) as GetConfigExtensionsResponse_unstable;
-  }
-
-  async extensionsAvailable_unstable(
-    params: GetAvailableExtensionsRequest_unstable,
-  ): Promise<GetAvailableExtensionsResponse_unstable> {
-    const raw = await this.conn.request(
-      "_goose/unstable/extensions/available",
-      params,
-    );
-    return zGetAvailableExtensionsResponse_unstable.parse(
-      raw,
-    ) as GetAvailableExtensionsResponse_unstable;
   }
 
   async configExtensionsAdd_unstable(
@@ -741,12 +725,6 @@ export class GooseExtClient {
     params: PreferencesSaveRequest_unstable,
   ): Promise<void> {
     await this.conn.request("_goose/unstable/preferences/save", params);
-  }
-
-  async preferencesRemove_unstable(
-    params: PreferencesRemoveRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/preferences/remove", params);
   }
 
   async configRead_unstable(

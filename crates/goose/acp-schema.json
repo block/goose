@@ -1512,28 +1512,6 @@
         "enabled"
       ]
     },
-    "GetAvailableExtensionsRequest_unstable": {
-      "type": "object",
-      "description": "List Goose-owned extension definitions available to configure or enable.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/extensions/available"
-    },
-    "GetAvailableExtensionsResponse_unstable": {
-      "type": "object",
-      "properties": {
-        "extensions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/GooseExtension"
-          }
-        }
-      },
-      "required": [
-        "extensions"
-      ],
-      "x-side": "agent",
-      "x-method": "_goose/unstable/extensions/available"
-    },
     "AddConfigExtensionRequest_unstable": {
       "type": "object",
       "properties": {
@@ -3161,21 +3139,6 @@
       "description": "Save allowlisted user preferences.",
       "x-side": "agent",
       "x-method": "_goose/unstable/preferences/save"
-    },
-    "PreferencesRemoveRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "keys": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PreferenceKey"
-          },
-          "default": []
-        }
-      },
-      "description": "Remove allowlisted user preferences.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/preferences/remove"
     },
     "ConfigReadRequest_unstable": {
       "type": "object",
@@ -7145,15 +7108,6 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetAvailableExtensionsRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/extensions/available",
-                  "title": "GetAvailableExtensionsRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
                       "$ref": "#/$defs/AddConfigExtensionRequest_unstable"
                     }
                   ],
@@ -7375,15 +7329,6 @@
                   ],
                   "description": "Params for _goose/unstable/preferences/save",
                   "title": "PreferencesSaveRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/PreferencesRemoveRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/preferences/remove",
-                  "title": "PreferencesRemoveRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -8110,14 +8055,6 @@
                         }
                       ],
                       "title": "GetConfigExtensionsResponse_unstable"
-                    },
-                    {
-                      "allOf": [
-                        {
-                          "$ref": "#/$defs/GetAvailableExtensionsResponse_unstable"
-                        }
-                      ],
-                      "title": "GetAvailableExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [

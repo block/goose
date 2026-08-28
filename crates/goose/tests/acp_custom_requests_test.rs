@@ -420,50 +420,6 @@ fn test_custom_session_extensions_add_list_remove() {
 
 #[test]
 #[serial]
-fn test_custom_get_available_extensions() {
-    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
-    run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
-
-        let result = send_custom(
-            conn.cx(),
-            "_goose/unstable/extensions/available",
-            serde_json::json!({}),
-        )
-        .await;
-        assert!(result.is_ok(), "expected ok, got: {:?}", result);
-
-        let response = result.unwrap();
-        let extensions = response
-            .get("extensions")
-            .and_then(|extensions| extensions.as_array())
-            .expect("extensions should be an array");
-        assert!(!extensions.is_empty(), "extensions should not be empty");
-        assert!(
-            extensions.iter().all(|extension| matches!(
-                extension["type"].as_str(),
-                Some("builtin" | "platform")
-            )),
-            "available extensions should only include builtin and platform entries"
-        );
-        assert!(
-            extensions.iter().any(|extension| {
-                extension["type"] == "platform" && extension["name"] == "developer"
-            }),
-            "developer platform extension should be available"
-        );
-        assert!(
-            !extensions.iter().any(|extension| {
-                extension["type"] == "platform" && extension["name"] == "orchestrator"
-            }),
-            "hidden orchestrator platform extension should not be available"
-        );
-    });
-}
-
-#[test]
-#[serial]
 fn test_custom_prompt_methods() {
     let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
@@ -742,7 +698,7 @@ fn test_custom_provider_inventory_includes_metadata() {
 
 #[test]
 #[serial]
-fn test_custom_preferences_read_save_remove() {
+fn test_custom_preferences_read_save() {
     let config_dir = write_acp_global_config(
         "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
     );
@@ -793,16 +749,6 @@ fn test_custom_preferences_read_save_remove() {
         .await
         .expect("preferences save should succeed");
 
-        send_custom(
-            conn.cx(),
-            "_goose/unstable/preferences/remove",
-            serde_json::json!({
-                "keys": ["voiceDictationProvider"],
-            }),
-        )
-        .await
-        .expect("preferences remove should succeed");
-
         let response = send_custom(
             conn.cx(),
             "_goose/unstable/preferences/read",
@@ -811,12 +757,12 @@ fn test_custom_preferences_read_save_remove() {
             }),
         )
         .await
-        .expect("preferences read after remove should succeed");
+        .expect("preferences read after save should succeed");
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "gooseThinkingEffort", "value": "off" },
-                { "key": "voiceDictationProvider", "value": null },
+                { "key": "voiceDictationProvider", "value": "__disabled__" },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
         );

@@ -412,20 +412,6 @@ pub struct SessionExtensionEntry {
     pub extension_key: String,
 }
 
-/// List Goose-owned extension definitions available to configure or enable.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(
-    method = "_goose/unstable/extensions/available",
-    response = GetAvailableExtensionsResponse
-)]
-pub struct GetAvailableExtensionsRequest {}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct GetAvailableExtensionsResponse {
-    pub extensions: Vec<GooseExtension>,
-}
-
 /// List configured extensions and any warnings.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -503,15 +489,6 @@ pub struct PreferencesReadRequest {
 pub struct PreferencesSaveRequest {
     #[serde(default)]
     pub values: Vec<PreferenceValue>,
-}
-
-/// Remove allowlisted user preferences.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/preferences/remove", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct PreferencesRemoveRequest {
-    #[serde(default)]
-    pub keys: Vec<PreferenceKey>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
