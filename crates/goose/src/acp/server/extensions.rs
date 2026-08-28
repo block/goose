@@ -59,20 +59,6 @@ impl GooseAcpAgent {
         })
     }
 
-    pub(super) async fn on_get_available_extensions(
-        &self,
-    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
-        let extensions = crate::config::get_available_extensions()
-            .into_iter()
-            .map(|config| config_to_goose_extension(&config))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
-        Ok(GetAvailableExtensionsResponse { extensions })
-    }
-
     pub(super) async fn on_add_config_extension(
         &self,
         req: AddConfigExtensionRequest,

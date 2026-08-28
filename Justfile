@@ -16,6 +16,10 @@ check-everything:
     @echo ""
     @echo "✅ All style checks passed!"
 
+test-buzz:
+    node --test buzz/*.test.mjs
+    for file in buzz/create_github_manager buzz/create_issue_channel buzz/list_issue_work buzz/syncissues buzz/github_manager.mjs; do node --check "$file"; done
+
 # Default release command
 release-binary:
     @echo "Building release version..."

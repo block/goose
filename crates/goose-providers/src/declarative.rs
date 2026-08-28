@@ -40,6 +40,7 @@ pub(crate) mod declarative_providers {
         omlx,
         opencode_go,
         opencode_zen,
+        opper,
         orcarouter,
         ovhcloud,
         perplexity,

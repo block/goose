@@ -15,7 +15,6 @@ pub(crate) mod multimodal;
 #[cfg(feature = "mlx")]
 mod native_tool_parsing;
 pub(crate) mod thinking_output;
-#[cfg(feature = "mlx")]
 mod tool_emulation;
 mod tool_parsing;
 

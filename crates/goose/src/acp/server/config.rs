@@ -62,18 +62,6 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    pub(super) async fn on_preferences_remove(
-        &self,
-        req: PreferencesRemoveRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let config = self.config()?;
-        for key in req.keys {
-            let def = preference_def(key)?;
-            config.delete(def.config_key).internal_err()?;
-        }
-        Ok(EmptyResponse {})
-    }
-
     pub(super) async fn on_config_read(
         &self,
         req: ConfigReadRequest,

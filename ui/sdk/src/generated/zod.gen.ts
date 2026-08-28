@@ -494,15 +494,6 @@ export const zGetConfigExtensionsResponse_unstable = z.object({
 });
 
 /**
- * List Goose-owned extension definitions available to configure or enable.
- */
-export const zGetAvailableExtensionsRequest_unstable = z.record(z.string(), z.unknown());
-
-export const zGetAvailableExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtension)
-});
-
-/**
  * Persist a new extension to the user's global goose config.
  */
 export const zAddConfigExtensionRequest_unstable = z.object({
@@ -1013,13 +1004,6 @@ export const zPreferencesReadResponse_unstable = z.object({
  */
 export const zPreferencesSaveRequest_unstable = z.object({
     values: z.array(zPreferenceValue).optional().default([])
-});
-
-/**
- * Remove allowlisted user preferences.
- */
-export const zPreferencesRemoveRequest_unstable = z.object({
-    keys: z.array(zPreferenceKey).optional().default([])
 });
 
 export const zConfigReadRequest_unstable = z.object({
@@ -1778,21 +1762,6 @@ export const zDictationConfigResponse_unstable = z.object({
 });
 
 /**
- * Set a dictation provider secret value.
- */
-export const zDictationSecretSaveRequest_unstable = z.object({
-    provider: z.string(),
-    value: z.string()
-});
-
-/**
- * Remove a dictation provider secret value.
- */
-export const zDictationSecretDeleteRequest_unstable = z.object({
-    provider: z.string()
-});
-
-/**
  * List available local Whisper models with their download status.
  */
 export const zDictationModelsListRequest_unstable = z.record(z.string(), z.unknown());
@@ -1848,14 +1817,6 @@ export const zDictationModelCancelRequest_unstable = z.object({
  * Delete a downloaded local Whisper model from disk.
  */
 export const zDictationModelDeleteRequest_unstable = z.object({
-    modelId: z.string()
-});
-
-/**
- * Persist the user's model selection for a given provider.
- */
-export const zDictationModelSelectRequest_unstable = z.object({
-    provider: z.string(),
     modelId: z.string()
 });
 
@@ -2217,7 +2178,6 @@ export const zExtRequest = z.object({
             zSavePromptRequest_unstable,
             zResetPromptRequest_unstable,
             zGetConfigExtensionsRequest_unstable,
-            zGetAvailableExtensionsRequest_unstable,
             zAddConfigExtensionRequest_unstable,
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
@@ -2243,7 +2203,6 @@ export const zExtRequest = z.object({
             zCanonicalModelInfoRequest_unstable,
             zPreferencesReadRequest_unstable,
             zPreferencesSaveRequest_unstable,
-            zPreferencesRemoveRequest_unstable,
             zConfigReadRequest_unstable,
             zConfigUpsertRequest_unstable,
             zConfigRemoveRequest_unstable,
@@ -2292,14 +2251,11 @@ export const zExtRequest = z.object({
             zImportSourcesRequest_unstable,
             zDictationTranscribeRequest_unstable,
             zDictationConfigRequest_unstable,
-            zDictationSecretSaveRequest_unstable,
-            zDictationSecretDeleteRequest_unstable,
             zDictationModelsListRequest_unstable,
             zDictationModelDownloadRequest_unstable,
             zDictationModelDownloadProgressRequest_unstable,
             zDictationModelCancelRequest_unstable,
             zDictationModelDeleteRequest_unstable,
-            zDictationModelSelectRequest_unstable,
             zLocalInferenceModelsListRequest_unstable,
             zLocalInferenceModelDownloadRequest_unstable,
             zLocalInferenceModelDownloadProgressRequest_unstable,
@@ -2336,7 +2292,6 @@ export const zExtResponse = z.union([
                 zGetPromptResponse_unstable,
                 zPromptOperationResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
-                zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
                 zListProvidersResponse_unstable,
                 zProviderSupportedModelsListResponse_unstable,

@@ -3784,6 +3784,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "스트리밍"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "세션 삭제"
   },
@@ -3861,6 +3864,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "가져오는 중..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "ACP 세션 포함"
   },
   "sessions.loadingMore": {
     "defaultMessage": "추가 세션 로드 중..."
