@@ -28,6 +28,7 @@ pub mod claude_code;
 pub(crate) mod cli_common;
 pub mod codex;
 pub mod codex_acp;
+pub mod command_auth;
 pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod custom_provider_config;

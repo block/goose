@@ -651,6 +651,7 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                auth: None,
             },
         )
         .internal_err_ctx("Failed to create custom provider")?;
@@ -724,6 +725,10 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                // The desktop/ACP form doesn't yet support editing command-based
+                // auth, so carry the existing setting forward unchanged rather
+                // than silently clearing it.
+                auth: loaded.config.auth.clone(),
             },
         )
         .internal_err_ctx("Failed to update custom provider")?;

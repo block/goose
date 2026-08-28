@@ -552,6 +552,7 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             model_doc_link: None,

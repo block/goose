@@ -145,6 +145,8 @@ pub struct CreateCustomProviderParams {
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
     pub preserves_thinking: Option<bool>,
+    /// Alternative to `api_key`; mutually exclusive with it.
+    pub auth: Option<AuthConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +163,8 @@ pub struct UpdateCustomProviderParams {
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
     pub preserves_thinking: Option<bool>,
+    /// Alternative to `api_key`; mutually exclusive with it.
+    pub auth: Option<AuthConfig>,
 }
 
 pub fn create_custom_provider(
@@ -169,7 +173,18 @@ pub fn create_custom_provider(
     let id = generate_id(&params.display_name);
     validate_provider_id(&id)?;
 
-    let api_key_env = if params.requires_auth {
+    if params.auth.is_some()
+        && params
+            .api_key
+            .as_deref()
+            .is_some_and(|key| !key.trim().is_empty())
+    {
+        anyhow::bail!("cannot set both apiKey and auth.command");
+    }
+
+    let api_key_env = if params.auth.is_some() {
+        String::new()
+    } else if params.requires_auth {
         let api_key = params
             .api_key
             .as_deref()
@@ -205,6 +220,7 @@ pub fn create_custom_provider(
         catalog_provider_id: params.catalog_provider_id,
         base_path: params.base_path,
         env_vars: None,
+        auth: params.auth,
         dynamic_models: None,
         skip_canonical_filtering: false,
         model_doc_link: None,
@@ -230,8 +246,22 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     let existing_config = loaded_provider.config;
     let editable = loaded_provider.is_editable;
 
+    if params.auth.is_some()
+        && params
+            .api_key
+            .as_deref()
+            .is_some_and(|key| !key.trim().is_empty())
+    {
+        anyhow::bail!("cannot set both apiKey and auth.command");
+    }
+
     let config = Config::global();
-    let api_key_env = if params.requires_auth {
+    let api_key_env = if params.auth.is_some() {
+        if existing_config.api_key_env == generate_api_key_name(&params.id) {
+            config.delete_secret(&existing_config.api_key_env)?;
+        }
+        String::new()
+    } else if params.requires_auth {
         let api_key_name = if existing_config.api_key_env.is_empty() {
             generate_api_key_name(&params.id)
         } else {
@@ -309,6 +339,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             catalog_provider_id: params.catalog_provider_id,
             base_path: params.base_path,
             env_vars: existing_config.env_vars,
+            auth: params.auth,
             dynamic_models: existing_config.dynamic_models,
             skip_canonical_filtering: existing_config.skip_canonical_filtering,
             model_doc_link: existing_config.model_doc_link,
@@ -581,6 +612,7 @@ mod tests {
             catalog_provider_id: Some("huggingface".to_string()),
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: Some(false),
             skip_canonical_filtering: false,
             model_doc_link: None,
@@ -720,6 +752,7 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             preserves_thinking: None,
+            auth: None,
         })
         .unwrap();
 
@@ -736,6 +769,7 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             preserves_thinking: None,
+            auth: None,
         })
         .unwrap();
 
@@ -852,6 +886,7 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             preserves_thinking: None,
+            auth: None,
         })
         .unwrap();
 
