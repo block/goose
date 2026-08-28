@@ -675,6 +675,12 @@
                   "type": "String",
                   "default": null,
                   "docs": ""
+                },
+                {
+                  "name": "provider_metadata_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
                 }
               ]
             },

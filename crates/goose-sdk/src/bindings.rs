@@ -505,6 +505,7 @@ pub enum StreamChunk {
         id: String,
         name: String,
         arguments_json: String,
+        provider_metadata_json: Option<String>,
     },
     ThinkingChunk {
         thinking: String,
@@ -1161,6 +1162,10 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                     name: tool_call.name.to_string(),
                     arguments_json: serde_json::to_string(&tool_call.arguments.unwrap_or_default())
                         .unwrap_or_else(|_| "{}".to_string()),
+                    provider_metadata_json: request
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| serde_json::to_string(metadata).ok()),
                 }),
                 Err(error) => Some(StreamChunk::ErrorChunk {
                     error: GooseStreamError {
@@ -1425,6 +1430,39 @@ mod tests {
         assert_eq!(
             spec[0]["tool_calls"][0]["extra_content"]["google"]["thought_signature"],
             "nested_sig_xyz789"
+        );
+    }
+
+    #[test]
+    fn streaming_tool_chunks_carry_provider_metadata() {
+        let mut metadata = goose_providers::conversation::message::ProviderMetadata::new();
+        metadata.insert(
+            "extra_content".to_string(),
+            serde_json::json!({"google": {"thought_signature": "stream_sig_abc123"}}),
+        );
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "call_stream_1",
+            Ok(CallToolRequestParams::new("test_tool")),
+            Some(&metadata),
+            None,
+        );
+
+        let chunks = message_to_chunks(message);
+        let StreamChunk::ToolChunk {
+            provider_metadata_json,
+            ..
+        } = chunks
+            .iter()
+            .find(|chunk| matches!(chunk, StreamChunk::ToolChunk { .. }))
+            .expect("expected a tool chunk")
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(
+            serde_json::from_str::<Value>(provider_metadata_json.as_ref().unwrap()).unwrap(),
+            serde_json::json!({"extra_content":{"google":{"thought_signature":"stream_sig_abc123"}}})
         );
     }
 
