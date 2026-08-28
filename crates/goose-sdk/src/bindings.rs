@@ -204,6 +204,7 @@ pub enum MessageContent {
         id: String,
         name: String,
         arguments_json: String,
+        provider_metadata_json: Option<String>,
     },
     ToolResult {
         id: String,
@@ -247,11 +248,17 @@ impl MessageContent {
                 id,
                 name,
                 arguments_json,
+                provider_metadata_json,
             } => {
                 let arguments = parse_json_object(arguments_json)?;
-                Ok(GooseMessageContent::tool_request(
+                let metadata = provider_metadata_json
+                    .as_deref()
+                    .map(parse_json_object)
+                    .transpose()?;
+                Ok(GooseMessageContent::tool_request_with_metadata(
                     id.clone(),
                     Ok(CallToolRequestParams::new(name.clone()).with_arguments(arguments)),
+                    metadata.as_ref(),
                 ))
             }
             MessageContent::ToolResult {
@@ -308,6 +315,10 @@ impl MessageContent {
                         &tool_call.arguments.clone().unwrap_or_default(),
                     )
                     .ok()?,
+                    provider_metadata_json: request
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| serde_json::to_string(metadata).ok()),
                 })
             }
             GooseMessageContent::Thinking(thinking) => Some(MessageContent::Thinking {
@@ -1366,6 +1377,55 @@ mod tests {
             panic!("expected redacted thinking content");
         };
         assert_eq!(data, "EroBCkYIBRgCKkBb0pAQopaque");
+    }
+
+    #[test]
+    fn tool_request_round_trips_provider_metadata() {
+        let original = MessageContent::ToolRequest {
+            id: "call_456".to_string(),
+            name: "test_tool".to_string(),
+            arguments_json: "{}".to_string(),
+            provider_metadata_json: Some(
+                r#"{"extra_content":{"google":{"thought_signature":"nested_sig_xyz789"}}}"#
+                    .to_string(),
+            ),
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::ToolRequest(request) = &goose else {
+            panic!("expected tool request");
+        };
+        assert_eq!(
+            request.metadata.as_ref().unwrap()["extra_content"]["google"]["thought_signature"],
+            "nested_sig_xyz789"
+        );
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::ToolRequest {
+            provider_metadata_json,
+            ..
+        } = &round_tripped
+        else {
+            panic!("expected tool request");
+        };
+        assert_eq!(
+            serde_json::from_str::<Value>(provider_metadata_json.as_ref().unwrap()).unwrap(),
+            serde_json::json!({"extra_content":{"google":{"thought_signature":"nested_sig_xyz789"}}})
+        );
+
+        let messages = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content: vec![round_tripped],
+        }])
+        .unwrap();
+        let spec = goose_providers::formats::openai::format_messages(
+            &messages,
+            &goose_providers::images::ImageFormat::OpenAi,
+        );
+        assert_eq!(
+            spec[0]["tool_calls"][0]["extra_content"]["google"]["thought_signature"],
+            "nested_sig_xyz789"
+        );
     }
 
     #[test]
