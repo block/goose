@@ -206,6 +206,11 @@ pub enum MessageContent {
         arguments_json: String,
         #[uniffi(default = None)]
         provider_metadata_json: Option<String>,
+        /// Set when the provider emitted a tool call the decoder could not
+        /// parse. Replaying it keeps the failed request paired with its tool
+        /// result instead of silently dropping the turn.
+        #[uniffi(default = None)]
+        tool_error_json: Option<String>,
     },
     ToolResult {
         id: String,
@@ -250,15 +255,22 @@ impl MessageContent {
                 name,
                 arguments_json,
                 provider_metadata_json,
+                tool_error_json,
             } => {
-                let arguments = parse_json_object(arguments_json)?;
                 let metadata = provider_metadata_json
                     .as_deref()
                     .map(parse_json_object)
                     .transpose()?;
+                let tool_call = match tool_error_json {
+                    Some(error_json) => Err(serde_json::from_str(error_json)?),
+                    None => {
+                        let arguments = parse_json_object(arguments_json)?;
+                        Ok(CallToolRequestParams::new(name.clone()).with_arguments(arguments))
+                    }
+                };
                 Ok(GooseMessageContent::tool_request_with_metadata(
                     id.clone(),
-                    Ok(CallToolRequestParams::new(name.clone()).with_arguments(arguments)),
+                    tool_call,
                     metadata.as_ref(),
                 ))
             }
@@ -308,19 +320,29 @@ impl MessageContent {
                     .ok()?,
             }),
             GooseMessageContent::ToolRequest(request) => {
-                let tool_call = request.tool_call.as_ref().ok()?;
-                Some(MessageContent::ToolRequest {
-                    id: request.id.clone(),
-                    name: tool_call.name.to_string(),
-                    arguments_json: serde_json::to_string(
-                        &tool_call.arguments.clone().unwrap_or_default(),
-                    )
-                    .ok()?,
-                    provider_metadata_json: request
-                        .metadata
-                        .as_ref()
-                        .and_then(|metadata| serde_json::to_string(metadata).ok()),
-                })
+                let provider_metadata_json = request
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| serde_json::to_string(metadata).ok());
+                match &request.tool_call {
+                    Ok(tool_call) => Some(MessageContent::ToolRequest {
+                        id: request.id.clone(),
+                        name: tool_call.name.to_string(),
+                        arguments_json: serde_json::to_string(
+                            &tool_call.arguments.clone().unwrap_or_default(),
+                        )
+                        .ok()?,
+                        provider_metadata_json,
+                        tool_error_json: None,
+                    }),
+                    Err(error) => Some(MessageContent::ToolRequest {
+                        id: request.id.clone(),
+                        name: String::new(),
+                        arguments_json: "{}".to_string(),
+                        provider_metadata_json,
+                        tool_error_json: Some(serde_json::to_string(error).ok()?),
+                    }),
+                }
             }
             GooseMessageContent::Thinking(thinking) => Some(MessageContent::Thinking {
                 thinking: thinking.thinking.clone(),
@@ -1396,6 +1418,7 @@ mod tests {
                 r#"{"extra_content":{"google":{"thought_signature":"nested_sig_xyz789"}}}"#
                     .to_string(),
             ),
+            tool_error_json: None,
         };
 
         let goose = original.to_goose_content().unwrap();
@@ -1433,6 +1456,57 @@ mod tests {
             spec[0]["tool_calls"][0]["extra_content"]["google"]["thought_signature"],
             "nested_sig_xyz789"
         );
+    }
+
+    #[test]
+    fn completion_content_preserves_malformed_tool_requests() {
+        let error = rmcp::model::ErrorData {
+            code: rmcp::model::ErrorCode::INVALID_REQUEST,
+            message: std::borrow::Cow::from(
+                "The provided function name was empty; a tool call must name a tool".to_string(),
+            ),
+            data: None,
+        };
+        let message = Message::assistant()
+            .with_tool_request("call_bad_1", Err(error))
+            .with_text("done");
+
+        let content: Vec<MessageContent> = message
+            .content
+            .iter()
+            .filter_map(MessageContent::from_goose_content)
+            .collect();
+
+        assert_eq!(
+            content.len(),
+            2,
+            "the failed tool request must not be dropped"
+        );
+        let MessageContent::ToolRequest {
+            id,
+            tool_error_json,
+            ..
+        } = &content[0]
+        else {
+            panic!("expected tool request");
+        };
+        assert_eq!(id, "call_bad_1");
+        assert!(tool_error_json.is_some());
+
+        let replayed = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content,
+        }])
+        .unwrap();
+        let GooseMessageContent::ToolRequest(request) = &replayed[0].content[0] else {
+            panic!("expected tool request");
+        };
+        let replayed_error = request
+            .tool_call
+            .as_ref()
+            .expect_err("replayed request must stay a failed tool call");
+        assert_eq!(replayed_error.code, rmcp::model::ErrorCode::INVALID_REQUEST);
+        assert!(replayed_error.message.contains("must name a tool"));
     }
 
     #[test]
