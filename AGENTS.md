@@ -70,14 +70,25 @@ cd ui/desktop && pnpm test   # test UI
 ## Structure
 ```
 crates/
-├── goose              # core logic
-├── goose-acp-macros   # ACP proc macros
-├── goose-cli          # CLI entry
-├── goose-mcp          # MCP extensions
-├── goose-test         # test utilities
-└── goose-test-support # test helpers
+├── goose                      # core logic
+├── goose-acp-macros           # ACP proc macros
+├── goose-agent                # agent implementation
+├── goose-cli                  # CLI entry
+├── goose-context-management   # context handling
+├── goose-download-manager     # download utilities
+├── goose-local-inference      # local LLM support
+├── goose-mcp                  # MCP extensions
+├── goose-provider-types       # provider interfaces
+├── goose-providers            # provider implementations
+├── goose-roaming              # roaming state
+├── goose-sdk                  # SDK for agents
+├── goose-sdk-types            # SDK type definitions
+├── goose-test                 # test utilities
+└── goose-test-support         # test helpers
 
-ui/desktop/            # Electron app
+ui/
+├── desktop/                   # Electron app
+└── text/                      # Ink TUI
 ```
 
 ## Development Loop
