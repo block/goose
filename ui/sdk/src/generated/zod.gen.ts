@@ -1778,21 +1778,6 @@ export const zDictationConfigResponse_unstable = z.object({
 });
 
 /**
- * Set a dictation provider secret value.
- */
-export const zDictationSecretSaveRequest_unstable = z.object({
-    provider: z.string(),
-    value: z.string()
-});
-
-/**
- * Remove a dictation provider secret value.
- */
-export const zDictationSecretDeleteRequest_unstable = z.object({
-    provider: z.string()
-});
-
-/**
  * List available local Whisper models with their download status.
  */
 export const zDictationModelsListRequest_unstable = z.record(z.string(), z.unknown());
@@ -1848,14 +1833,6 @@ export const zDictationModelCancelRequest_unstable = z.object({
  * Delete a downloaded local Whisper model from disk.
  */
 export const zDictationModelDeleteRequest_unstable = z.object({
-    modelId: z.string()
-});
-
-/**
- * Persist the user's model selection for a given provider.
- */
-export const zDictationModelSelectRequest_unstable = z.object({
-    provider: z.string(),
     modelId: z.string()
 });
 
@@ -2292,14 +2269,11 @@ export const zExtRequest = z.object({
             zImportSourcesRequest_unstable,
             zDictationTranscribeRequest_unstable,
             zDictationConfigRequest_unstable,
-            zDictationSecretSaveRequest_unstable,
-            zDictationSecretDeleteRequest_unstable,
             zDictationModelsListRequest_unstable,
             zDictationModelDownloadRequest_unstable,
             zDictationModelDownloadProgressRequest_unstable,
             zDictationModelCancelRequest_unstable,
             zDictationModelDeleteRequest_unstable,
-            zDictationModelSelectRequest_unstable,
             zLocalInferenceModelsListRequest_unstable,
             zLocalInferenceModelDownloadRequest_unstable,
             zLocalInferenceModelDownloadProgressRequest_unstable,

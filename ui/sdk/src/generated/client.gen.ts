@@ -51,11 +51,8 @@ import type {
   DictationModelDownloadProgressRequest_unstable,
   DictationModelDownloadProgressResponse_unstable,
   DictationModelDownloadRequest_unstable,
-  DictationModelSelectRequest_unstable,
   DictationModelsListRequest_unstable,
   DictationModelsListResponse_unstable,
-  DictationSecretDeleteRequest_unstable,
-  DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
   EncodeRecipeRequest_unstable,
@@ -1229,18 +1226,6 @@ export class GooseExtClient {
     ) as DictationConfigResponse_unstable;
   }
 
-  async dictationSecretSave_unstable(
-    params: DictationSecretSaveRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/secret/save", params);
-  }
-
-  async dictationSecretDelete_unstable(
-    params: DictationSecretDeleteRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/secret/delete", params);
-  }
-
   async dictationModelsList_unstable(
     params: DictationModelsListRequest_unstable,
   ): Promise<DictationModelsListResponse_unstable> {
@@ -1284,12 +1269,6 @@ export class GooseExtClient {
     params: DictationModelDeleteRequest_unstable,
   ): Promise<void> {
     await this.conn.request("_goose/unstable/dictation/models/delete", params);
-  }
-
-  async dictationModelsSelect_unstable(
-    params: DictationModelSelectRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/models/select", params);
   }
 
   async localInferenceModelsList_unstable(

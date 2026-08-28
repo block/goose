@@ -690,23 +690,6 @@ pub struct OnboardingImportApplyResponse {
     pub provider_defaults: Option<DefaultsReadResponse>,
 }
 
-/// Set a dictation provider secret value.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/secret/save", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationSecretSaveRequest {
-    pub provider: String,
-    pub value: String,
-}
-
-/// Remove a dictation provider secret value.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/secret/delete", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationSecretDeleteRequest {
-    pub provider: String,
-}
-
 /// Return list-style metadata for a single session without loading the conversation.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -2280,15 +2263,6 @@ pub struct DictationModelCancelRequest {
 #[request(method = "_goose/unstable/dictation/models/delete", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct DictationModelDeleteRequest {
-    pub model_id: String,
-}
-
-/// Persist the user's model selection for a given provider.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/models/select", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationModelSelectRequest {
-    pub provider: String,
     pub model_id: String,
 }
 
