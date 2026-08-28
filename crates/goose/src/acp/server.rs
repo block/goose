@@ -1826,6 +1826,52 @@ fn message_usage_update(
     }
 }
 
+/// Latches the first failed client-bound notification of a prompt run so a
+/// turn that keeps executing after its client disconnected does not hammer
+/// the dead channel — and the log — once per stream event: the first failure
+/// warns, every later send for the run is skipped.
+///
+/// Only plain notification sends go through this latch. Interactive requests
+/// (permission, elicitation) keep their own resolve-as-deny/cancel handling —
+/// they must run even on a dead sink so the agent is never left waiting — and
+/// provider-fatal errors still abort the turn.
+#[derive(Default)]
+struct ClientNotificationSink {
+    failed_sends: std::sync::atomic::AtomicUsize,
+}
+
+impl ClientNotificationSink {
+    fn is_dead(&self) -> bool {
+        self.failed_sends.load(std::sync::atomic::Ordering::Acquire) > 0
+    }
+
+    fn record_failure(&self, session_id: &str, error: &agent_client_protocol::Error) {
+        if self
+            .failed_sends
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+            == 0
+        {
+            warn!(
+                session_id = %session_id,
+                %error,
+                "failed to send a session update; the client appears disconnected — \
+                 skipping further notifications for this run"
+            );
+        } else {
+            debug!(
+                session_id = %session_id,
+                %error,
+                "skipping further client notifications for this run"
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn failed_send_count(&self) -> usize {
+        self.failed_sends.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
 impl GooseAcpAgent {
     async fn on_initialize(
         &self,
@@ -2204,6 +2250,16 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: PromptRequest,
     ) -> Result<PromptResponse, agent_client_protocol::Error> {
+        let client_sink = ClientNotificationSink::default();
+        self.on_prompt_with_sink(cx, args, &client_sink).await
+    }
+
+    async fn on_prompt_with_sink(
+        &self,
+        cx: &ConnectionTo<Client>,
+        args: PromptRequest,
+        client_sink: &ClientNotificationSink,
+    ) -> Result<PromptResponse, agent_client_protocol::Error> {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
 
@@ -2245,22 +2301,16 @@ impl GooseAcpAgent {
         // discarded — the turn still runs and persists for a later
         // session/load.
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
-            warn!(
-                session_id = %session_id,
-                %error,
-                "failed to send active-run update; continuing without the client"
-            );
+            client_sink.record_failure(&session_id, &error);
         }
 
-        if let Err(error) = self
-            .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
-            .await
-        {
-            warn!(
-                session_id = %session_id,
-                %error,
-                "failed to send local model progress update; continuing without the client"
-            );
+        if !client_sink.is_dead() {
+            if let Err(error) = self
+                .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+                .await
+            {
+                client_sink.record_failure(&session_id, &error);
+            }
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
@@ -2321,29 +2371,42 @@ impl GooseAcpAgent {
                             tool_requests.insert(tool_request.id.clone(), tool_request.clone());
                         }
 
-                        if let Err(error) = self
-                            .handle_message_content(
-                                content_item,
-                                &message,
-                                &args.session_id,
-                                &agent,
-                                &tool_requests,
-                                cx,
-                            )
-                            .await
-                        {
-                            // A failed client send must not end the turn: the
-                            // transport may be gone (network drop, sleep)
-                            // while the detached turn keeps executing and
-                            // persisting for a later session/load. Interactive
-                            // content resolves inside the handler (permission
-                            // and elicitation send failures fall back to
-                            // deny/cancel), so skipping the update is safe.
-                            warn!(
-                                session_id = %session_id,
-                                %error,
-                                "failed to send session update; continuing without the client"
-                            );
+                        // Interactive content must run even on a dead sink:
+                        // its send failures resolve inside the handler as
+                        // deny/cancel, so the agent is never left waiting for
+                        // an answer. Plain updates are skipped once the sink
+                        // is known dead.
+                        let interactive = matches!(content_item, MessageContent::ActionRequired(_));
+                        if interactive || !client_sink.is_dead() {
+                            if let Err(error) = self
+                                .handle_message_content(
+                                    content_item,
+                                    &message,
+                                    &args.session_id,
+                                    &agent,
+                                    &tool_requests,
+                                    cx,
+                                )
+                                .await
+                            {
+                                // A failed client send must not end the turn:
+                                // the transport may be gone (network drop,
+                                // sleep) while the detached turn keeps
+                                // executing and persisting for a later
+                                // session/load.
+                                if interactive {
+                                    // Resolved inside the handler; may be a
+                                    // schema error rather than a dead
+                                    // transport, so it does not latch.
+                                    warn!(
+                                        session_id = %session_id,
+                                        %error,
+                                        "failed to handle interactive content; continuing"
+                                    );
+                                } else {
+                                    client_sink.record_failure(&session_id, &error);
+                                }
+                            }
                         }
 
                         let ready_chain = match content_item {
@@ -2361,7 +2424,11 @@ impl GooseAcpAgent {
                         };
 
                         if let Some(chain) = ready_chain {
-                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+                            // Label enrichment exists only for client display;
+                            // skip its LLM work when no client is listening.
+                            if !client_sink.is_dead() {
+                                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+                            }
                         }
                     }
 
@@ -2373,29 +2440,23 @@ impl GooseAcpAgent {
                     if let Some(update) =
                         tool_notifications::tool_notification_update(request_id, notification)
                     {
-                        let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
-                        if let Err(error) = tool_call_notifier.send_update(update) {
-                            warn!(
-                                session_id = %session_id,
-                                %error,
-                                "failed to send tool notification update; continuing without the client"
-                            );
+                        if !client_sink.is_dead() {
+                            let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
+                            if let Err(error) = tool_call_notifier.send_update(update) {
+                                client_sink.record_failure(&session_id, &error);
+                            }
                         }
                     }
                 }
                 Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
-                    if self.supports_goose_custom_notifications() {
+                    if self.supports_goose_custom_notifications() && !client_sink.is_dead() {
                         if let Err(error) = cx.send_notification(GooseSessionNotification {
                             session_id: session_id.clone(),
                             update: GooseSessionUpdate::MessageUsage(message_usage_update(
                                 message_id, &usage,
                             )),
                         }) {
-                            warn!(
-                                session_id = %session_id,
-                                %error,
-                                "failed to send message usage update; continuing without the client"
-                            );
+                            client_sink.record_failure(&session_id, &error);
                         }
                     }
                 }
@@ -2410,7 +2471,7 @@ impl GooseAcpAgent {
             }
         }
 
-        if !was_cancelled && stream_error.is_none() {
+        if !was_cancelled && stream_error.is_none() && !client_sink.is_dead() {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
             }
@@ -2418,8 +2479,10 @@ impl GooseAcpAgent {
         self.clear_active_run(&session_id, &run_id).await;
         // From here on the turn's work is complete and persisted; failures to
         // reach a (possibly disconnected) client must not turn it into an error.
-        if let Err(error) = Self::send_active_run_update(cx, &args.session_id, None) {
-            warn!(session_id = %session_id, %error, "failed to send active-run clear update");
+        if !client_sink.is_dead() {
+            if let Err(error) = Self::send_active_run_update(cx, &args.session_id, None) {
+                client_sink.record_failure(&session_id, &error);
+            }
         }
         if let Some(error) = stream_error {
             return Err(error);
@@ -2447,16 +2510,18 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to resolve context limit")?;
         let updates = build_usage_updates(&session, &totals, context_limit);
-        if self.supports_goose_custom_notifications() {
+        if self.supports_goose_custom_notifications() && !client_sink.is_dead() {
             if let Err(error) = cx.send_notification(updates.custom) {
-                warn!(session_id = %session_id, %error, "failed to send usage update");
+                client_sink.record_failure(&session_id, &error);
             }
         }
-        if let Err(error) = cx.send_notification(SessionNotification::new(
-            args.session_id.clone(),
-            SessionUpdate::UsageUpdate(updates.standard),
-        )) {
-            warn!(session_id = %session_id, %error, "failed to send usage update");
+        if !client_sink.is_dead() {
+            if let Err(error) = cx.send_notification(SessionNotification::new(
+                args.session_id.clone(),
+                SessionUpdate::UsageUpdate(updates.standard),
+            )) {
+                client_sink.record_failure(&session_id, &error);
+            }
         }
 
         let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
@@ -3692,13 +3757,42 @@ print(\"hello, world\")
         assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
     }
 
+    /// Streams a few assistant text chunks so a turn produces several client
+    /// notification opportunities, unlike the empty-stream effort provider.
+    #[derive(Debug)]
+    struct MultiChunkProvider;
+
+    #[async_trait::async_trait]
+    impl Provider for MultiChunkProvider {
+        fn get_name(&self) -> &str {
+            "openai"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::iter([
+                Ok((Some(Message::assistant().with_text("chunk-one ")), None)),
+                Ok((Some(Message::assistant().with_text("chunk-two ")), None)),
+                Ok((Some(Message::assistant().with_text("chunk-three")), None)),
+            ])))
+        }
+    }
+
     /// The startup notifications a prompt sends before the agent turn (the
     /// active-run update and local-model progress) must be fail-soft: a client
     /// that disconnects right after dispatch loses its notifications, not its
     /// prompt. Uses a deterministically dead connection — the transport is
     /// fully shut down before `on_prompt` runs, so those sends are guaranteed
     /// to fail — and asserts the turn still completes, clears its run, and
-    /// persists the prompt for a later `session/load`.
+    /// persists the conversation for a later `session/load`. Also pins the
+    /// dead-sink latch: the multi-chunk turn attempts exactly one send — the
+    /// first failure latches, everything after is skipped instead of hammering
+    /// the dead channel once per stream event.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn prompt_on_dead_connection_still_runs_and_persists() {
         let root = tempfile::tempdir().unwrap();
@@ -3741,8 +3835,9 @@ print(\"hello, world\")
             true,
             GoosePlatform::GooseCli,
         )));
-        // Streams no events: the turn completes with just the user message.
-        let provider = Arc::new(AsyncEffortProvider::new());
+        // Streams several chunks: each is a client notification the dead-sink
+        // latch must skip after the first failure.
+        let provider = Arc::new(MultiChunkProvider);
         session_agent
             .update_provider(
                 provider,
@@ -3799,11 +3894,21 @@ print(\"hello, world\")
             session_id,
             vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
         );
+        let client_sink = ClientNotificationSink::default();
         let response = server
-            .on_prompt(&cx, request)
+            .on_prompt_with_sink(&cx, request, &client_sink)
             .await
             .expect("a dead client must not discard the prompt");
         assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        // The latch: the first failed send marks the sink dead and every later
+        // client-bound send of the run — one per streamed chunk, plus the
+        // post-turn updates — is skipped rather than attempted and logged.
+        assert_eq!(
+            client_sink.failed_send_count(),
+            1,
+            "a dead client sink must be latched after the first send failure"
+        );
 
         // The run was cleared on completion...
         assert!(server
@@ -3830,6 +3935,10 @@ print(\"hello, world\")
         assert!(
             texts.iter().any(|text| text.contains("what is 1+1")),
             "prompt must be persisted despite the dead connection; got {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|text| text.contains("chunk-three")),
+            "assistant reply must be persisted despite the dead connection; got {texts:?}"
         );
     }
 
