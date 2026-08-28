@@ -36,6 +36,7 @@ impl AcpStreamServer for StreamingEchoServer {
         _client: EndpointId,
         mut recv: Box<dyn AsyncRead + Send + Unpin>,
         mut send: Box<dyn AsyncWrite + Send + Unpin>,
+        _revocation: goose_roaming::RevocationSignal,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
         Box::pin(async move {
             let mut buf = [0u8; 4096];

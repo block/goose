@@ -10,14 +10,19 @@ use std::sync::Arc;
 
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode,
-    TrustBook,
+    AcpStreamServer, Directory, RelaySettings, RevocationSignal, RoamingConfig, RoamingIdentity,
+    RoamingNode, TrustBook,
 };
 use iroh::EndpointId;
 
 /// A stand-in ACP server that echoes one line back, upper-cased.
-#[derive(Debug)]
-struct EchoServer;
+#[derive(Debug, Default)]
+struct EchoServer {
+    /// Revocation signals handed to `serve_stream`, so tests can assert
+    /// whether the node marked a connection as force-closed-by-revocation
+    /// (versus an ordinary transport close).
+    revocations: Arc<std::sync::Mutex<Vec<RevocationSignal>>>,
+}
 
 impl AcpStreamServer for EchoServer {
     fn serve_stream(
@@ -25,7 +30,9 @@ impl AcpStreamServer for EchoServer {
         _client: EndpointId,
         mut recv: Box<dyn AsyncRead + Send + Unpin>,
         mut send: Box<dyn AsyncWrite + Send + Unpin>,
+        revocation: RevocationSignal,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
+        self.revocations.lock().unwrap().push(revocation);
         Box::pin(async move {
             let mut buf = [0u8; 5];
             recv.read_exact(&mut buf).await?;
@@ -94,7 +101,9 @@ async fn trust_file_refresh_takes_effect_on_running_share() {
     })
     .await
     .expect("bind host");
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    host.share(Arc::new(EchoServer::default()))
+        .await
+        .expect("share");
 
     let client = bind_node().await;
 
@@ -118,7 +127,8 @@ async fn trust_file_refresh_takes_effect_on_running_share() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn accepted_key_connects_and_streams() {
     let host = bind_node().await;
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    let echo = Arc::new(EchoServer::default());
+    host.share(echo.clone()).await.expect("share");
 
     let client = bind_node().await;
     // Host accepts the client's key (mutual, key-based trust).
@@ -139,13 +149,26 @@ async fn accepted_key_connects_and_streams() {
         stream.send.finish().unwrap();
     }
 
+    // An ordinary close is not a revocation: work that survives transport
+    // loss keys off this signal.
+    {
+        let signals = echo.revocations.lock().unwrap();
+        assert_eq!(signals.len(), 1);
+        assert!(
+            !signals[0].is_revoked(),
+            "a clean client close must not be marked as a revocation"
+        );
+    }
+
     host.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unaccepted_key_is_rejected() {
     let host = bind_node().await;
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    host.share(Arc::new(EchoServer::default()))
+        .await
+        .expect("share");
 
     // Client's key was never accepted: connection must be refused.
     let client = bind_node().await;
@@ -158,7 +181,9 @@ async fn unaccepted_key_is_rejected() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn revoked_key_is_rejected() {
     let host = bind_node().await;
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    host.share(Arc::new(EchoServer::default()))
+        .await
+        .expect("share");
 
     let client = bind_node().await;
     host_accepts(&host, &client).await;
@@ -178,7 +203,8 @@ async fn revoked_key_is_rejected() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn revocation_closes_live_connection() {
     let host = bind_node().await;
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    let echo = Arc::new(EchoServer::default());
+    host.share(echo.clone()).await.expect("share");
 
     let client = bind_node().await;
     host_accepts(&host, &client).await;
@@ -215,6 +241,17 @@ async fn revocation_closes_live_connection() {
         "read after revocation should fail, got {read:?}"
     );
 
+    // The stream server can tell this close was a revocation, so it can stop
+    // work that would otherwise survive an ordinary transport loss.
+    {
+        let signals = echo.revocations.lock().unwrap();
+        assert_eq!(signals.len(), 1);
+        assert!(
+            signals[0].is_revoked(),
+            "a force-close for a revoked key must set the revocation signal"
+        );
+    }
+
     // And the next dial is refused.
     assert!(
         connect_direct(&client, &host).await.is_err(),
@@ -249,7 +286,8 @@ async fn revocation_watcher_closes_live_connection_from_file() {
     })
     .await
     .expect("bind host");
-    host.share(Arc::new(EchoServer)).await.expect("share");
+    let echo = Arc::new(EchoServer::default());
+    host.share(echo.clone()).await.expect("share");
     host.watch_revocations(std::time::Duration::from_millis(100))
         .await;
 
@@ -276,6 +314,17 @@ async fn revocation_watcher_closes_live_connection_from_file() {
         matches!(read, Ok(Err(_))),
         "watcher should force-close the live connection, got {read:?}"
     );
+
+    // The watcher's force-close is a revocation, and the stream server must
+    // be able to see that.
+    {
+        let signals = echo.revocations.lock().unwrap();
+        assert_eq!(signals.len(), 1);
+        assert!(
+            signals[0].is_revoked(),
+            "the watcher's force-close must set the revocation signal"
+        );
+    }
 
     host.shutdown().await.unwrap();
 }

@@ -336,6 +336,12 @@ pub struct GooseAcpAgentOptions {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    /// Runs this agent started (session id → run id), a per-connection subset
+    /// of the shared `active_prompt_runs`. Lets a transport-level authority
+    /// decision (roaming peer revocation) cancel exactly the revoked
+    /// connection's detached runs via [`Self::cancel_own_active_runs`] without
+    /// touching runs owned by other connections.
+    own_prompt_runs: Mutex<HashMap<String, String>>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -968,6 +974,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: options.active_prompt_runs,
+            own_prompt_runs: Mutex::new(HashMap::new()),
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -1931,15 +1938,31 @@ impl GooseAcpAgent {
         active_prompt_runs.insert(
             session_id.to_string(),
             ActivePromptRun {
-                run_id,
+                run_id: run_id.clone(),
                 cancel_token,
                 agent,
             },
         );
+        drop(active_prompt_runs);
+
+        self.own_prompt_runs
+            .lock()
+            .await
+            .insert(session_id.to_string(), run_id);
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
+        {
+            let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+            if own_prompt_runs
+                .get(session_id)
+                .is_some_and(|own_run_id| own_run_id == run_id)
+            {
+                own_prompt_runs.remove(session_id);
+            }
+        }
+
         let agent = {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
@@ -1975,6 +1998,40 @@ impl GooseAcpAgent {
                 );
             }
         }
+    }
+
+    /// Cancel every active run this agent started, leaving runs owned by other
+    /// agents on the shared registry untouched. Returns how many were
+    /// cancelled.
+    ///
+    /// Detached prompt runs deliberately survive ordinary transport loss; this
+    /// is the escape hatch for when the connection's *authority* is withdrawn
+    /// (a roaming peer is revoked): the revoked peer's in-flight turns must
+    /// stop consuming the provider and executing tools. Cancellation goes
+    /// through the registry's tokens — the detached task observes it and
+    /// clears its own registry entry, exactly as with `session/cancel`.
+    pub async fn cancel_own_active_runs(&self) -> usize {
+        let own_runs: Vec<(String, String)> = self
+            .own_prompt_runs
+            .lock()
+            .await
+            .iter()
+            .map(|(session_id, run_id)| (session_id.clone(), run_id.clone()))
+            .collect();
+
+        let active_prompt_runs = self.active_prompt_runs.lock().await;
+        let mut cancelled = 0;
+        for (session_id, run_id) in own_runs {
+            // Only cancel a run that is still the one this agent started; the
+            // session may have finished and been re-claimed by another agent.
+            if let Some(active_run) = active_prompt_runs.get(&session_id) {
+                if active_run.run_id == run_id {
+                    active_run.cancel_token.cancel();
+                    cancelled += 1;
+                }
+            }
+        }
+        cancelled
     }
 
     async fn require_active_run(
@@ -2139,22 +2196,31 @@ impl GooseAcpAgent {
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
-            Self::send_active_run_update(cx, &args.session_id, None)?;
+            let _ = Self::send_active_run_update(cx, &args.session_id, None);
             return Ok(PromptResponse::new(StopReason::Cancelled));
         }
 
+        // Startup sends are fail-soft like the mid-stream ones: a client that
+        // disconnects right after dispatch must not have its prompt silently
+        // discarded — the turn still runs and persists for a later
+        // session/load.
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
-            self.clear_active_run(&session_id, &run_id).await;
-            return Err(error);
+            warn!(
+                session_id = %session_id,
+                %error,
+                "failed to send active-run update; continuing without the client"
+            );
         }
 
         if let Err(error) = self
             .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
             .await
         {
-            self.clear_active_run(&session_id, &run_id).await;
-            let _ = Self::send_active_run_update(cx, &args.session_id, None);
-            return Err(error);
+            warn!(
+                session_id = %session_id,
+                %error,
+                "failed to send local model progress update; continuing without the client"
+            );
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
@@ -3584,6 +3650,147 @@ print(\"hello, world\")
         let error = thinking_effort_error(anyhow::anyhow!("Failed to persist thinking effort"));
 
         assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    /// The startup notifications a prompt sends before the agent turn (the
+    /// active-run update and local-model progress) must be fail-soft: a client
+    /// that disconnects right after dispatch loses its notifications, not its
+    /// prompt. Uses a deterministically dead connection — the transport is
+    /// fully shut down before `on_prompt` runs, so those sends are guaranteed
+    /// to fail — and asserts the turn still completes, clears its run, and
+    /// persists the prompt for a later `session/load`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn prompt_on_dead_connection_still_runs_and_persists() {
+        let root = tempfile::tempdir().unwrap();
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |_provider_name, _extensions, _working_dir, _use_default_model| {
+                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+            },
+        );
+        let server = Arc::new(
+            GooseAcpAgent::new(GooseAcpAgentOptions {
+                provider_factory,
+                builtin_selection: AcpBuiltinSelection::default(),
+                data_dir: root.path().to_path_buf(),
+                config_dir: root.path().to_path_buf(),
+                disable_session_naming: true,
+                goose_platform: GoosePlatform::GooseCli,
+                additional_source_roots: Vec::new(),
+                scheduler: None,
+                session_cwd: None,
+                active_prompt_runs: Default::default(),
+            })
+            .await
+            .unwrap(),
+        );
+        let session = server
+            .session_manager
+            .create_session(
+                root.path().to_path_buf(),
+                "Dead connection test".to_string(),
+                SessionType::Acp,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+            server.session_manager.clone(),
+            server.permission_manager.clone(),
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        )));
+        // Streams no events: the turn completes with just the user message.
+        let provider = Arc::new(AsyncEffortProvider::new());
+        session_agent
+            .update_provider(
+                provider,
+                goose_providers::model::ModelConfig::new("gpt-4o"),
+                &session.id,
+            )
+            .await
+            .unwrap();
+        server
+            .register_acp_session(session.id.clone(), session_agent)
+            .await;
+
+        // Open a real connection only to mint a `ConnectionTo<Client>`, then
+        // let both ends shut down completely so every send on it fails.
+        let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+        let (server_read, client_write) = tokio::io::duplex(64 * 1024);
+        let client = tokio::spawn(async move {
+            Client
+                .builder()
+                .connect_to(ByteStreams::new(
+                    client_write.compat_write(),
+                    client_read.compat(),
+                ))
+                .await
+        });
+        let cx_holder: Arc<Mutex<Option<ConnectionTo<Client>>>> = Arc::new(Mutex::new(None));
+        SacpAgent
+            .builder()
+            .name("dead-connection-test")
+            .connect_with(
+                ByteStreams::new(server_write.compat_write(), server_read.compat()),
+                {
+                    let cx_holder = cx_holder.clone();
+                    async move |cx: ConnectionTo<Client>| {
+                        *cx_holder.lock().await = Some(cx);
+                        Ok(())
+                    }
+                },
+            )
+            .await
+            .unwrap();
+        let _ = client.await;
+        let cx = cx_holder.lock().await.take().unwrap();
+
+        // Prove the connection is dead: the exact kind of send `on_prompt`
+        // opens with fails.
+        let session_id = SessionId::new(session.id.clone());
+        assert!(
+            GooseAcpAgent::send_active_run_update(&cx, &session_id, None).is_err(),
+            "the minted connection must be fully shut down"
+        );
+
+        let request = PromptRequest::new(
+            session_id,
+            vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+        );
+        let response = server
+            .on_prompt(&cx, request)
+            .await
+            .expect("a dead client must not discard the prompt");
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        // The run was cleared on completion...
+        assert!(server
+            .test_require_active_run(&session.id, "run-x")
+            .await
+            .is_err());
+        // ...and the prompt is persisted for a later session/load.
+        let persisted = server
+            .session_manager
+            .get_session(&session.id, true)
+            .await
+            .unwrap();
+        let texts: Vec<String> = persisted
+            .conversation
+            .expect("conversation persisted")
+            .messages()
+            .iter()
+            .flat_map(|message| message.content.iter())
+            .filter_map(|content| match content {
+                MessageContent::Text(text) => Some(text.text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            texts.iter().any(|text| text.contains("what is 1+1")),
+            "prompt must be persisted despite the dead connection; got {texts:?}"
+        );
     }
 
     #[tokio::test]

@@ -33,17 +33,40 @@ const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10
 /// connections for revoked keys. Armed automatically by [`RoamingNode::share`].
 const DEFAULT_REVOCATION_POLL: std::time::Duration = std::time::Duration::from_secs(2);
 
+/// Set by the node when it force-closes a connection because its peer key was
+/// revoked. Lets a stream server distinguish deliberate revocation from
+/// ordinary transport loss after `serve_stream` returns: work that should
+/// survive a network drop must still be stopped when the peer's authority to
+/// run it is withdrawn.
+#[derive(Clone, Debug, Default)]
+pub struct RevocationSignal(Arc<std::sync::atomic::AtomicBool>);
+
+impl RevocationSignal {
+    /// Whether the node closed this connection to enforce a revocation.
+    pub fn is_revoked(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    fn set(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::Release);
+    }
+}
+
 /// Serves an accepted, authorized ACP byte stream. Implemented by the
 /// integration layer (e.g. `goose-cli`) so this crate does not depend on the
 /// concrete agent/session machinery.
 pub trait AcpStreamServer: Send + Sync + 'static {
     /// Drive the ACP protocol to completion over the given stream for the
-    /// accepted peer identified by `client`.
+    /// accepted peer identified by `client`. `revocation` is set by the node
+    /// if it force-closes this connection because the peer's key was revoked;
+    /// check it after the stream ends to stop any work that would otherwise
+    /// outlive the peer's authority.
     fn serve_stream(
         &self,
         client: EndpointId,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
+        revocation: RevocationSignal,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>>;
 
     /// A stable, human-facing id for the agent being shared, surfaced to
@@ -118,6 +141,13 @@ impl RoamingConfig {
     }
 }
 
+/// A live authorized inbound connection plus the revocation signal shared
+/// with its `serve_stream` future.
+struct LiveConnection {
+    connection: Connection,
+    revocation: RevocationSignal,
+}
+
 /// A bound roaming node.
 pub struct RoamingNode {
     endpoint: Endpoint,
@@ -129,7 +159,7 @@ pub struct RoamingNode {
     /// Live authorized inbound connections, by peer key. Lets revocation reach
     /// into the open data plane: a key that leaves the allowlist gets its
     /// connections force-closed, not just refused on the next dial.
-    live: Mutex<std::collections::HashMap<EndpointId, Vec<Connection>>>,
+    live: Mutex<std::collections::HashMap<EndpointId, Vec<LiveConnection>>>,
     revocation_watcher: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
@@ -267,19 +297,27 @@ impl RoamingNode {
         Ok(())
     }
 
-    async fn register_live(&self, client: EndpointId, connection: Connection) {
+    async fn register_live(
+        &self,
+        client: EndpointId,
+        connection: Connection,
+        revocation: RevocationSignal,
+    ) {
         self.live
             .lock()
             .await
             .entry(client)
             .or_default()
-            .push(connection);
+            .push(LiveConnection {
+                connection,
+                revocation,
+            });
     }
 
     async fn unregister_live(&self, client: EndpointId, connection: &Connection) {
         let mut live = self.live.lock().await;
         if let Some(conns) = live.get_mut(&client) {
-            conns.retain(|c| c.stable_id() != connection.stable_id());
+            conns.retain(|c| c.connection.stable_id() != connection.stable_id());
             if conns.is_empty() {
                 live.remove(&client);
             }
@@ -291,7 +329,7 @@ impl RoamingNode {
     /// not just a gate on new dials, it is authority over connections that
     /// already exist. Returns the number of connections closed.
     pub async fn enforce_trust(&self, trust: &TrustBook) -> usize {
-        let to_close: Vec<(EndpointId, Vec<Connection>)> = {
+        let to_close: Vec<(EndpointId, Vec<LiveConnection>)> = {
             let mut live = self.live.lock().await;
             let revoked: Vec<EndpointId> = live
                 .keys()
@@ -306,7 +344,11 @@ impl RoamingNode {
         let mut closed = 0;
         for (client, conns) in to_close {
             for conn in conns {
-                conn.close(0u32.into(), b"revoked");
+                // Mark the connection revoked *before* closing it so the
+                // serve_stream future observes the signal as soon as its
+                // stream errors out.
+                conn.revocation.set();
+                conn.connection.close(0u32.into(), b"revoked");
                 closed += 1;
                 // One disconnect per closed connection so the directory's
                 // per-peer live count reaches zero.
@@ -516,7 +558,10 @@ impl ProtocolHandler for RoamingAcpHandler {
                     tracing::warn!("roaming: failed to send accept ack: {e}");
                     return Ok(());
                 }
-                self.node.register_live(client, connection.clone()).await;
+                let revocation = RevocationSignal::default();
+                self.node
+                    .register_live(client, connection.clone(), revocation.clone())
+                    .await;
 
                 // Close the accept/register TOCTOU: a revocation that lands
                 // after `authorize` read the allowlist but before the line
@@ -548,7 +593,11 @@ impl ProtocolHandler for RoamingAcpHandler {
                     .await;
                 let recv_box: Box<dyn AsyncRead + Send + Unpin> = Box::new(recv.compat());
                 let send_box: Box<dyn AsyncWrite + Send + Unpin> = Box::new(send.compat_write());
-                if let Err(e) = self.server.serve_stream(client, recv_box, send_box).await {
+                if let Err(e) = self
+                    .server
+                    .serve_stream(client, recv_box, send_box, revocation)
+                    .await
+                {
                     tracing::warn!("roaming: ACP session ended with error: {e}");
                 }
                 self.node.unregister_live(client, &connection).await;

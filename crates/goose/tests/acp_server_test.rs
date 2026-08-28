@@ -1257,100 +1257,102 @@ async fn raw_response_with_id<R: futures::AsyncRead + Unpin>(
     }
 }
 
-/// A client that loses its connection mid-`session/prompt` must not lose the
-/// turn: it keeps executing detached from the transport and persists its
-/// messages, so reconnecting and calling `session/load` shows the finished
-/// work.
-#[test]
-fn test_prompt_keeps_running_after_client_disconnect() {
-    run_test(async {
-        use futures::AsyncBufReadExt;
-        use std::time::Duration;
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
+/// When the client's connection is lost mid-`session/prompt`, the turn must
+/// not be lost with it: it keeps executing detached from the transport and
+/// persists its messages, so reconnecting and calling `session/load` shows the
+/// finished work. `drop_before_provider_call` controls how early the transport
+/// dies: `false` waits until the provider request is in flight, `true` drops
+/// immediately after the prompt request is written — before the turn has sent
+/// its first notification — pinning that the startup sends are fail-soft too.
+async fn run_prompt_survives_client_disconnect(drop_before_provider_call: bool) {
+    use futures::AsyncBufReadExt;
+    use std::time::Duration;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        let data_root = tempfile::tempdir().unwrap();
-        let work_dir = tempfile::tempdir().unwrap();
+    let data_root = tempfile::tempdir().unwrap();
+    let work_dir = tempfile::tempdir().unwrap();
 
-        // Hand-rolled OpenAI mock instead of OpenAiFixture: the completion is
-        // delayed so the turn is still mid-flight when the transport drops.
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/v1/models"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-type", "application/json")
-                    .set_body_string(include_str!("acp_test_data/openai_models.json")),
-            )
-            .mount(&mock_server)
-            .await;
-        Mock::given(method("POST"))
-            .and(path("/v1/chat/completions"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-type", "text/event-stream")
-                    .set_delay(Duration::from_millis(1500))
-                    .set_body_string(include_str!("acp_test_data/openai_basic.txt")),
-            )
-            .mount(&mock_server)
-            .await;
-
-        let (transport, _handle, _permission_manager) = spawn_acp_server_in_process(
-            &mock_server.uri(),
-            &[],
-            data_root.path(),
-            GooseMode::default(),
-            None,
-            goose_test_support::TEST_MODEL,
-            true,
+    // Hand-rolled OpenAI mock instead of OpenAiFixture: the completion is
+    // delayed so the turn is still mid-flight when the transport drops.
+    let mock_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/models"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_string(include_str!("acp_test_data/openai_models.json")),
         )
+        .mount(&mock_server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_delay(Duration::from_millis(1500))
+                .set_body_string(include_str!("acp_test_data/openai_basic.txt")),
+        )
+        .mount(&mock_server)
         .await;
 
-        let (mut outgoing, incoming) = transport.into_parts();
-        let mut incoming = futures::io::BufReader::new(incoming).lines();
+    let (transport, _handle, _permission_manager) = spawn_acp_server_in_process(
+        &mock_server.uri(),
+        &[],
+        data_root.path(),
+        GooseMode::default(),
+        None,
+        goose_test_support::TEST_MODEL,
+        true,
+    )
+    .await;
 
-        send_raw_line(
-            &mut outgoing,
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {"protocolVersion": 1, "clientCapabilities": {}},
-            }),
-        )
-        .await;
-        raw_response_with_id(&mut incoming, 1).await;
+    let (mut outgoing, incoming) = transport.into_parts();
+    let mut incoming = futures::io::BufReader::new(incoming).lines();
 
-        send_raw_line(
-            &mut outgoing,
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "session/new",
-                "params": {"cwd": work_dir.path(), "mcpServers": []},
-            }),
-        )
-        .await;
-        let response = raw_response_with_id(&mut incoming, 2).await;
-        let session_id = response["result"]["sessionId"]
-            .as_str()
-            .unwrap()
-            .to_string();
+    send_raw_line(
+        &mut outgoing,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": 1, "clientCapabilities": {}},
+        }),
+    )
+    .await;
+    raw_response_with_id(&mut incoming, 1).await;
 
-        send_raw_line(
-            &mut outgoing,
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "session/prompt",
-                "params": {
-                    "sessionId": session_id,
-                    "prompt": [{"type": "text", "text": "what is 1+1"}],
-                },
-            }),
-        )
-        .await;
+    send_raw_line(
+        &mut outgoing,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "session/new",
+            "params": {"cwd": work_dir.path(), "mcpServers": []},
+        }),
+    )
+    .await;
+    let response = raw_response_with_id(&mut incoming, 2).await;
+    let session_id = response["result"]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
+    send_raw_line(
+        &mut outgoing,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "session/prompt",
+            "params": {
+                "sessionId": session_id,
+                "prompt": [{"type": "text", "text": "what is 1+1"}],
+            },
+        }),
+    )
+    .await;
+
+    if !drop_before_provider_call {
         // Wait until the turn is mid-flight (the provider request arrived and
         // its delayed response is still pending), then drop the client
         // transport without ever reading the prompt response.
@@ -1368,43 +1370,57 @@ fn test_prompt_keeps_running_after_client_disconnect() {
             );
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        drop(outgoing);
-        drop(incoming);
+    }
+    drop(outgoing);
+    drop(incoming);
 
-        // The detached turn must finish and persist the assistant reply so a
-        // later session/load sees the completed work.
-        let session_manager = SessionManager::new(data_root.path().to_path_buf());
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
-        loop {
-            let assistant_text: String = session_manager
-                .get_session(&session_id, true)
-                .await
-                .ok()
-                .and_then(|session| session.conversation)
-                .map(|conversation| {
-                    conversation
-                        .messages()
-                        .iter()
-                        .filter(|message| message.role == rmcp::model::Role::Assistant)
-                        .flat_map(|message| message.content.iter())
-                        .filter_map(|content| match content {
-                            goose::conversation::message::MessageContent::Text(text) => {
-                                Some(text.text.clone())
-                            }
-                            _ => None,
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            if assistant_text == "2" {
-                break;
-            }
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "assistant reply was not persisted after the client disconnected \
-                 mid-turn; got {assistant_text:?}"
-            );
-            tokio::time::sleep(Duration::from_millis(50)).await;
+    // The detached turn must finish and persist the assistant reply so a
+    // later session/load sees the completed work.
+    let session_manager = SessionManager::new(data_root.path().to_path_buf());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let assistant_text: String = session_manager
+            .get_session(&session_id, true)
+            .await
+            .ok()
+            .and_then(|session| session.conversation)
+            .map(|conversation| {
+                conversation
+                    .messages()
+                    .iter()
+                    .filter(|message| message.role == rmcp::model::Role::Assistant)
+                    .flat_map(|message| message.content.iter())
+                    .filter_map(|content| match content {
+                        goose::conversation::message::MessageContent::Text(text) => {
+                            Some(text.text.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if assistant_text == "2" {
+            break;
         }
-    });
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "assistant reply was not persisted after the client disconnected \
+             mid-turn; got {assistant_text:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+#[test]
+fn test_prompt_keeps_running_after_client_disconnect() {
+    run_test(async { run_prompt_survives_client_disconnect(false).await });
+}
+
+/// The earliest possible disconnect: the transport dies right after the prompt
+/// request is written, before the turn's startup notifications go out. The
+/// prompt must still run to completion instead of being silently discarded
+/// when those startup sends fail.
+#[test]
+fn test_prompt_survives_disconnect_before_first_notification() {
+    run_test(async { run_prompt_survives_client_disconnect(true).await });
 }

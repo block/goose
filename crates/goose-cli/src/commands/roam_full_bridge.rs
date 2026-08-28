@@ -19,7 +19,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 
 use goose::acp::server::serve;
 use goose::acp::server_factory::AcpServer;
-use goose_roaming::{AcpStreamServer, EndpointId};
+use goose_roaming::{AcpStreamServer, EndpointId, RevocationSignal};
 
 /// An [`AcpStreamServer`] that serves goose's full ACP surface, a fresh agent
 /// per connection.
@@ -54,6 +54,7 @@ impl AcpStreamServer for FullAcpBridge {
         client: EndpointId,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
+        revocation: RevocationSignal,
     ) -> BoxFuture<'static, anyhow::Result<()>> {
         let server = self.server.clone();
         let session_cwd = self.session_cwd.clone();
@@ -62,7 +63,24 @@ impl AcpStreamServer for FullAcpBridge {
             let agent = server
                 .create_agent_with_session_cwd(Some(session_cwd))
                 .await?;
-            serve(agent, recv, send).await
+            let result = serve(agent.clone(), recv, send).await;
+            // Detached prompt runs deliberately survive ordinary transport
+            // loss so a reconnecting peer can `session/load` the finished
+            // work. Revocation is different: the node force-closed this
+            // connection because the peer's authority was withdrawn, so its
+            // in-flight turns must stop rather than keep executing tools and
+            // consuming the provider.
+            if revocation.is_revoked() {
+                let cancelled = agent.cancel_own_active_runs().await;
+                if cancelled > 0 {
+                    tracing::info!(
+                        %client,
+                        cancelled,
+                        "roaming: cancelled active run(s) of revoked peer"
+                    );
+                }
+            }
+            result
         })
     }
 

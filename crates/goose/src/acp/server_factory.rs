@@ -262,6 +262,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_own_active_runs_only_cancels_this_agents_runs() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let revoked = server.create_agent().await.unwrap();
+        let unaffected = server.create_agent().await.unwrap();
+        let owner = Arc::new(crate::agents::Agent::new());
+        let revoked_token = revoked
+            .test_start_active_run("session-revoked", "run-1".to_string(), owner.clone())
+            .await
+            .unwrap();
+        let unaffected_token = unaffected
+            .test_start_active_run("session-other", "run-2".to_string(), owner)
+            .await
+            .unwrap();
+
+        // The roaming bridge calls this when a peer is revoked: only the
+        // revoked connection's runs stop; runs owned by other connections on
+        // the same shared registry keep executing.
+        let cancelled = revoked.cancel_own_active_runs().await;
+
+        assert_eq!(cancelled, 1);
+        assert!(
+            revoked_token.is_cancelled(),
+            "the revoked agent's own run must be cancelled"
+        );
+        assert!(
+            !unaffected_token.is_cancelled(),
+            "another connection's run must survive a peer revocation"
+        );
+        // Cancellation leaves the registry entry for the run's own task to
+        // clear, exactly like session/cancel.
+        assert!(revoked
+            .test_require_active_run("session-revoked", "run-1")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
     async fn start_scheduler_initializes_before_any_client_connects() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), true);
