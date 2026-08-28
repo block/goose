@@ -1165,7 +1165,7 @@ where
                     let mut message = Message::new(
                         Role::Assistant,
                         chrono::Utc::now().timestamp(),
-                        vec![MessageContentBlock::tool_request(id, Err(error))],
+                        vec![MessageContentBlock::tool_request_with_provider_index(id, Err(error), None, index)],
                     );
                     message.id = message_id.clone();
                     yield (Some(message), None);
@@ -2740,6 +2740,41 @@ mod tests {
             "expected actionable truncation message, got: {}",
             msg
         );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_unfinished_tool_calls_keep_provider_indices() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_t3","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_open_a","name":"search","input":{}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool_open_b","name":"write","input":{}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"ru"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/re"}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":8192}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let requests = collect_tool_requests(events).await;
+
+        assert_eq!(requests.len(), 2);
+        let indexed: Vec<(String, Option<i32>)> = requests
+            .iter()
+            .map(|r| (r.id.clone(), r.provider_index()))
+            .collect();
+        assert_eq!(
+            indexed,
+            vec![
+                ("tool_open_a".to_string(), Some(0)),
+                ("tool_open_b".to_string(), Some(1)),
+            ]
+        );
+        assert!(requests.iter().all(|r| r.tool_call.is_err()));
     }
 
     #[tokio::test]
