@@ -170,7 +170,24 @@ jobs:
         shell: bash
         run: cp -R native-artifacts/* crates/goose-sdk/maven/src/main/resources/
 
+      - name: Check Maven Central
+        id: central
+        shell: bash
+        run: |
+          version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+          url="https://repo.maven.apache.org/maven2/io/github/aaif-goose/gdk/$version/gdk-$version.pom"
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' "$url")
+          case "$status" in
+            200)
+              echo "io.github.aaif-goose:gdk:$version is already published; skipping"
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Maven Central returned HTTP $status while checking $url" >&2; exit 1 ;;
+          esac
+
       - name: Publish to Maven Central
+        if: steps.central.outputs.published == 'false'
         working-directory: crates/goose-sdk/maven
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_TOKEN_USERNAME }}

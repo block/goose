@@ -120,6 +120,19 @@ crates-publish dry_run="true":
             esac; \
         fi; \
         cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
+        if [ "{{dry_run}}" = "false" ]; then \
+            for attempt in $(seq 1 60); do \
+                if cargo info "$crate@$version" --registry crates-io >/dev/null 2>&1; then \
+                    echo "$crate $version is available on crates.io"; \
+                    break; \
+                fi; \
+                if [ "$attempt" -eq 60 ]; then \
+                    echo "timed out waiting for $crate $version to become available on crates.io" >&2; \
+                    exit 1; \
+                fi; \
+                sleep 10; \
+            done; \
+        fi; \
     done
 
 check-version rust_version:

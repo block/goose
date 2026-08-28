@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gdk-release-${{ github.ref }}
+  group: gdk-release
   cancel-in-progress: false
 
 jobs:
