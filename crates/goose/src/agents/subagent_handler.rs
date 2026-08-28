@@ -6,6 +6,7 @@ use crate::{
     },
     prompt_template::render_template,
     recipe::Recipe,
+    session::{EnabledExtensionsState, Session},
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
@@ -238,7 +239,42 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
     })
 }
 
-async fn build_subagent_prompt(
+pub(crate) async fn restore_subagent_runtime(agent: &Arc<Agent>, session: &Session) -> Result<()> {
+    let recipe = session
+        .recipe
+        .as_ref()
+        .ok_or_else(|| anyhow!("persisted subagent session has no recipe"))?;
+    let provider = agent.provider().await?;
+    let model_config = agent.model_config_for_session(&session.id).await?;
+    let extensions = EnabledExtensionsState::extensions_or_default(
+        Some(&session.extension_data),
+        crate::config::Config::global(),
+    );
+    let max_turns = recipe
+        .settings
+        .as_ref()
+        .and_then(|settings| settings.max_turns)
+        .unwrap_or(crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS);
+    let task_config = TaskConfig::new(
+        provider,
+        model_config,
+        session.parent_session_id.as_deref().unwrap_or_default(),
+        &session.working_dir,
+        extensions,
+    )
+    .with_max_turns(Some(max_turns));
+    let prompt = build_subagent_prompt(
+        agent,
+        &task_config,
+        &session.id,
+        recipe.instructions.clone().unwrap_or_default(),
+    )
+    .await?;
+    agent.override_system_prompt(prompt).await;
+    Ok(())
+}
+
+pub(crate) async fn build_subagent_prompt(
     agent: &Agent,
     task_config: &TaskConfig,
     session_id: &str,

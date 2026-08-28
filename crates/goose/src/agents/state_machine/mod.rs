@@ -5,13 +5,16 @@
 //! `StateMachine::run`. Goose's concrete operations remain internal because their
 //! configuration is part of `Agent::reply`, not the state-machine protocol.
 
+mod child_executor;
 mod effects;
 mod inference_preparation;
+mod ops_background_subagent;
 mod ops_bang_shell;
 mod ops_compaction;
 mod ops_doctor;
 mod ops_entry_hook;
 mod ops_exit_on_error;
+mod ops_foreground_subagent;
 mod ops_llm;
 mod ops_maxturns;
 mod ops_project;
@@ -33,6 +36,7 @@ mod usage;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use child_executor::ChildExecutor;
 pub use effects::GooseEffect;
 pub use goose_agent::machine::{
     EffectHandler, EffectUsage, MachineSession, SessionLoader, StateMachine, Step,
@@ -42,6 +46,7 @@ pub use goose_agent::operation::{
     not_applicable, trailing_error, yielded, yielded_with, ConversationEffect, Emitter, Inference,
     InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
+pub(super) use ops_background_subagent::BackgroundSubagentOperation;
 
 pub(super) use inference_preparation::GooseInferenceRequestPreparer;
 pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};
@@ -49,6 +54,7 @@ pub(super) use ops_compaction::CompactionOperation;
 pub(super) use ops_doctor::DoctorOperation;
 pub(super) use ops_entry_hook::EntryHookOperation;
 pub(super) use ops_exit_on_error::ExitOnErrorOperation;
+pub(super) use ops_foreground_subagent::ForegroundSubagentOperation;
 pub(super) use ops_llm::{GooseInferenceProvider, InferenceRunner};
 pub(super) use ops_maxturns::{MaxTurnsOperation, MAX_TURNS_MESSAGE};
 pub(super) use ops_project::ProjectOperation;
@@ -69,3 +75,6 @@ pub fn enabled() -> bool {
         .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes"))
         .unwrap_or(false)
 }
+
+pub(crate) const SPIKE_SUBAGENT_EXECUTION_EXTENSION: &str = "subagent_execution";
+pub(crate) const SPIKE_SUBAGENT_EXECUTION_VERSION: &str = "spike_v0";

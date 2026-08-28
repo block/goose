@@ -184,32 +184,58 @@ impl AgentManager {
             }
         }
 
-        let mut mode = self.agent_config.goose_mode;
-        if let Ok(session) = self
+        let loaded_session = self
             .agent_config
             .session_manager
             .get_session(session_id, false)
             .await
-        {
+            .ok();
+        let mut mode = self.agent_config.goose_mode;
+        if let Some(session) = &loaded_session {
             mode = session.goose_mode;
             info!(goose_mode = %mode, session_id = %session_id, "Session loaded");
         }
 
         let mut config = self.agent_config.clone();
         config.goose_mode = mode;
+        if loaded_session
+            .as_ref()
+            .is_some_and(|session| session.session_type == crate::session::SessionType::SubAgent)
+        {
+            config.goose_mode = crate::config::GooseMode::Auto;
+            config.disable_session_naming = true;
+            config.is_subagent = true;
+        }
         config.mcp_host_info = runtime_context.mcp_host_info;
         config.use_login_shell_path = runtime_context.use_login_shell_path;
         config.session_name_update_tx = runtime_context.session_name_update_tx;
         let agent = Arc::new(Agent::with_config(config));
         let mut extension_results = Vec::new();
 
-        if let Ok(session) = self
-            .agent_config
-            .session_manager
-            .get_session(session_id, false)
-            .await
-        {
-            if session.provider_name.is_some() {
+        if let Some(session) = &loaded_session {
+            let default_provider = self.default_provider.read().await.clone();
+            let restored_from_default = match (
+                default_provider,
+                session.provider_name.as_deref(),
+                session.model_config.clone(),
+            ) {
+                (Some(provider), Some(provider_name), Some(model_config))
+                    if provider.get_name() == provider_name =>
+                {
+                    agent
+                        .update_provider(provider.clone(), model_config, session_id)
+                        .await?;
+                    provider
+                        .update_mode(session_id, mode)
+                        .await
+                        .map_err(|error| {
+                            anyhow::anyhow!("Failed to propagate mode to provider: {error}")
+                        })?;
+                    true
+                }
+                _ => false,
+            };
+            if session.provider_name.is_some() && !restored_from_default {
                 info!(
                     "Restoring evicted session {} (provider: {:?})",
                     session_id, session.provider_name
@@ -236,16 +262,21 @@ impl AgentManager {
         if agent.provider().await.is_err() {
             if let Some(provider) = &*self.default_provider.read().await {
                 let config = crate::config::Config::global();
-                let model_config = config
-                    .get_goose_provider()
-                    .ok()
-                    .zip(config.get_goose_model().ok())
-                    .and_then(|(provider_name, model_name)| {
-                        crate::model_config::model_config_from_user_config(
-                            &provider_name,
-                            &model_name,
-                        )
-                        .ok()
+                let model_config = loaded_session
+                    .as_ref()
+                    .and_then(|session| session.model_config.clone())
+                    .or_else(|| {
+                        config
+                            .get_goose_provider()
+                            .ok()
+                            .zip(config.get_goose_model().ok())
+                            .and_then(|(provider_name, model_name)| {
+                                crate::model_config::model_config_from_user_config(
+                                    &provider_name,
+                                    &model_name,
+                                )
+                                .ok()
+                            })
                     })
                     .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
                 agent
@@ -256,6 +287,13 @@ impl AgentManager {
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to propagate mode to provider: {}", e))?;
             }
+        }
+
+        if let Some(session) = loaded_session
+            .as_ref()
+            .filter(|session| session.session_type == crate::session::SessionType::SubAgent)
+        {
+            crate::agents::subagent_handler::restore_subagent_runtime(&agent, session).await?;
         }
 
         let mut sessions = self.sessions.write().await;

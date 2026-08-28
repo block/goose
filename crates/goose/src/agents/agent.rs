@@ -30,8 +30,9 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
-    run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
+    run_goose, BackgroundSubagentOperation, BangShellOperation, CompactionOperation,
+    DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation,
+    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
     GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
     RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
     StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
@@ -614,7 +615,7 @@ impl Agent {
         }
     }
 
-    async fn steer_queue(&self, session_id: &str) -> SteerQueue {
+    pub(super) async fn steer_queue(&self, session_id: &str) -> SteerQueue {
         self.steer_queues
             .lock()
             .await
@@ -1727,6 +1728,7 @@ impl Agent {
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
+        child_executor: Option<Arc<super::state_machine::ChildExecutor>>,
     ) -> StateMachine<'_, Session, GooseEffect> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()
@@ -1774,7 +1776,7 @@ impl Agent {
                 compaction_threshold,
             )));
         }
-        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
+        let mut remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
                 provider.clone(),
                 model_config.clone(),
@@ -1797,7 +1799,16 @@ impl Agent {
                 self.extension_manager.clone(),
                 self.hook_manager.clone(),
             )),
-            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
+        ];
+        if let Some(child_executor) = child_executor {
+            remaining_operations.push(Arc::new(ForegroundSubagentOperation::new(Arc::clone(
+                &child_executor,
+            ))));
+            remaining_operations.push(Arc::new(BackgroundSubagentOperation::new(child_executor)));
+        }
+        remaining_operations.extend([
+            Arc::new(UnknownToolOperation::new(self.hook_manager.clone()))
+                as Arc<dyn Operation<Session, GooseEffect> + '_>,
             Arc::new(RetryOperation::new(
                 &self.goal,
                 &self.grind,
@@ -1809,7 +1820,7 @@ impl Agent {
                 stop_hook_block_cap,
             )),
             Arc::new(ExitOnErrorOperation),
-        ];
+        ]);
         operations.extend(remaining_operations);
         let request_preparer = GooseInferenceRequestPreparer {
             #[cfg(feature = "code-mode")]
@@ -1913,6 +1924,15 @@ impl Agent {
         let context_limit =
             crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
                 .await?;
+        let child_executor = if super::state_machine::enabled() {
+            let manager = Arc::new(
+                crate::execution::manager::AgentManager::new(self.config.clone(), None).await?,
+            );
+            manager.set_default_provider(provider.clone()).await;
+            Some(Arc::new(super::state_machine::ChildExecutor::new(manager)))
+        } else {
+            None
+        };
         let steer_queue = self.steer_queue(&session_id).await;
         let machine = self.create_state_machine(
             provider,
@@ -1921,6 +1941,7 @@ impl Agent {
             session_config.max_turns,
             cancel.clone(),
             steer_queue,
+            child_executor,
         );
         let reply_span = tracing::Span::current();
 

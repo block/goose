@@ -9,9 +9,9 @@ use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
-use crate::session::SessionType;
+use crate::recipe::{Recipe, RecipeParameter, Response, Settings, RECIPE_FILE_EXTENSIONS};
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::{ExtensionData, Session, SessionType};
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -1346,8 +1346,20 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to get session: {}", e))?;
 
-        if session.session_type == SessionType::SubAgent {
+        if session.session_type == SessionType::SubAgent && !crate::agents::state_machine::enabled()
+        {
             return Err("Delegated tasks cannot spawn further delegations".to_string());
+        }
+
+        if crate::agents::state_machine::enabled() {
+            let execution_mode = if params.r#async {
+                "background"
+            } else {
+                "foreground"
+            };
+            return self
+                .handle_state_machine_delegate(&session, params, execution_mode)
+                .await;
         }
 
         if params.r#async {
@@ -1426,6 +1438,104 @@ impl SummonClient {
             ))])
             .with_meta(Some(meta))),
         }
+    }
+
+    async fn handle_state_machine_delegate(
+        &self,
+        parent_session: &Session,
+        params: DelegateParams,
+        execution_mode: &str,
+    ) -> Result<CallToolResult, String> {
+        let working_dir = parent_session.working_dir.clone();
+        let mut recipe = self
+            .build_delegate_recipe(&params, &parent_session.id, &working_dir)
+            .await?;
+        let task_config = self
+            .build_task_config(&params, &recipe, parent_session)
+            .await
+            .map_err(|error| format!("Failed to build task config: {error}"))?;
+
+        let max_turns = task_config
+            .max_turns
+            .expect("TaskConfig always resolves subagent max turns");
+        match recipe.settings.as_mut() {
+            Some(settings) => settings.max_turns = Some(max_turns),
+            None => {
+                recipe.settings = Some(Settings {
+                    goose_provider: None,
+                    goose_model: None,
+                    temperature: None,
+                    max_turns: Some(max_turns),
+                });
+            }
+        }
+        if recipe.response.is_none() {
+            recipe.response = Some(Response {
+                json_schema: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "result": { "type": "string" }
+                    },
+                    "required": ["result"],
+                    "additionalProperties": false
+                })),
+            });
+        }
+
+        let child = self
+            .create_subagent_session(
+                &task_config,
+                format!("Delegated {execution_mode} task (spike)"),
+            )
+            .await?;
+        let mut extension_data = ExtensionData::new();
+        EnabledExtensionsState::new(task_config.extensions.clone())
+            .to_extension_data(&mut extension_data)
+            .map_err(|error| format!("Failed to persist subagent extensions: {error}"))?;
+        extension_data.set_extension_state(
+            crate::agents::state_machine::SPIKE_SUBAGENT_EXECUTION_EXTENSION,
+            crate::agents::state_machine::SPIKE_SUBAGENT_EXECUTION_VERSION,
+            serde_json::json!({ "mode": execution_mode }),
+        );
+
+        self.context
+            .session_manager
+            .update(&child.id)
+            .recipe(Some(recipe.clone()))
+            .extension_data(extension_data)
+            .provider_name(task_config.provider.get_name())
+            .model_config(task_config.model_config.clone())
+            .apply()
+            .await
+            .map_err(|error| format!("Failed to persist subagent configuration: {error}"))?;
+
+        let initial_message = crate::conversation::message::Message::user().with_text(
+            recipe
+                .prompt
+                .clone()
+                .unwrap_or_else(|| "Begin.".to_string()),
+        );
+        self.context
+            .session_manager
+            .add_message(&child.id, &initial_message)
+            .await
+            .map_err(|error| format!("Failed to persist subagent task: {error}"))?;
+
+        let mut meta = MetaObject::new();
+        meta.0.insert(
+            "subagent_session_id".to_string(),
+            serde_json::Value::String(child.id.clone()),
+        );
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "{} subagent created with session ID {}.",
+            if execution_mode == "background" {
+                "Background"
+            } else {
+                "Foreground"
+            },
+            child.id
+        ))])
+        .with_meta(Some(meta)))
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
@@ -2071,7 +2181,7 @@ impl McpClientTrait for SummonClient {
 
         let mut tools = vec![self.create_load_tool()];
 
-        if !is_subagent {
+        if !is_subagent || crate::agents::state_machine::enabled() {
             tools.push(self.create_delegate_tool());
         }
 

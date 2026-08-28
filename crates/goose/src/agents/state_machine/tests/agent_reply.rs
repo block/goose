@@ -15,6 +15,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::acp::server::GooseAcpAgent;
+use crate::agents::extension::ExtensionConfig;
+use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
@@ -24,6 +26,12 @@ use crate::session::{SessionManager, SessionType};
 use goose_providers::model::ModelConfig;
 
 async fn agent_with_dummy_api() -> Result<(Agent, Arc<DummyApi>, String, tempfile::TempDir)> {
+    agent_with_named_dummy_api("openai").await
+}
+
+async fn agent_with_named_dummy_api(
+    provider_name: &str,
+) -> Result<(Agent, Arc<DummyApi>, String, tempfile::TempDir)> {
     let api = Arc::new(DummyApi::start(ProviderFeatures::default()).await);
     let api_client = goose_providers::api_client::ApiClient::new_with_tls(
         api.uri(),
@@ -32,7 +40,7 @@ async fn agent_with_dummy_api() -> Result<(Agent, Arc<DummyApi>, String, tempfil
     )?;
     let provider: Arc<dyn Provider> = Arc::new(
         goose_providers::openai::OpenAiProviderBuilder::new(api_client)
-            .name("openai")
+            .name(provider_name)
             .build(),
     );
 
@@ -64,6 +72,273 @@ async fn agent_with_dummy_api() -> Result<(Agent, Arc<DummyApi>, String, tempfil
         .await?;
 
     Ok((agent, api, session.id, temp_dir))
+}
+
+#[tokio::test]
+async fn foreground_subagent_spike_runs_outside_delegate() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
+    let (agent, api, session_id, _temp_dir) =
+        agent_with_named_dummy_api("subagent-spike-test").await?;
+    agent
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: "summon".to_string(),
+                description: "Delegate work".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+            &session_id,
+        )
+        .await?;
+
+    api.on("Delegate a child").call(
+        "delegate",
+        serde_json::json!({
+            "instructions": "Return the number 42"
+        }),
+    );
+    api.on("Return the number 42").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "result": "42" }),
+    );
+    api.on("[subagent-result:")
+        .reply("The foreground child returned 42.");
+
+    let messages = reply_messages(
+        &agent,
+        session_id.clone(),
+        Message::user().with_text("Delegate a child"),
+    )
+    .await?;
+
+    let message_texts = messages
+        .iter()
+        .map(Message::as_concat_text)
+        .collect::<Vec<_>>();
+    let joined_messages = message_texts.join("");
+    assert!(
+        joined_messages.contains("The foreground child returned 42."),
+        "expected parent continuation, got messages {message_texts:?} and {} API calls",
+        api.call_count()
+    );
+    let calls = api.calls();
+    let children = agent
+        .config
+        .session_manager
+        .list_sessions_by_types(&[SessionType::SubAgent])
+        .await?;
+    let child = children
+        .into_iter()
+        .find(|child| child.parent_session_id.as_deref() == Some(session_id.as_str()))
+        .expect("foreground delegate should persist a child session");
+    let child = agent
+        .config
+        .session_manager
+        .get_session(&child.id, true)
+        .await?;
+    assert!(
+        calls
+            .iter()
+            .any(|call| call.input_contains("Delegate a child")),
+        "parent delegation prompt did not reach the provider"
+    );
+    assert!(
+        calls
+            .iter()
+            .any(|call| call.system_contains("specialized subagent")),
+        "a reconstructed subagent runtime did not reach the provider"
+    );
+    assert!(
+        calls
+            .iter()
+            .any(|call| call.input_contains("[subagent-result:")),
+        "parent did not infer after child result delivery"
+    );
+
+    assert!(child
+        .conversation
+        .expect("child should have a persisted conversation")
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text().contains("42")));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn foreground_subagent_spike_supports_nested_delegation() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
+    let (agent, api, session_id, _temp_dir) =
+        agent_with_named_dummy_api("nested-subagent-spike-test").await?;
+    agent
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: "summon".to_string(),
+                description: "Delegate work".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+            &session_id,
+        )
+        .await?;
+
+    api.on("ROOT_DELEGATE_REQUEST").call(
+        "delegate",
+        serde_json::json!({ "instructions": "CHILD_MUST_DELEGATE" }),
+    );
+    api.on("CHILD_MUST_DELEGATE").call(
+        "delegate",
+        serde_json::json!({ "instructions": "GRANDCHILD_RETURN_42" }),
+    );
+    api.on("GRANDCHILD_RETURN_42").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "result": "NESTED-42" }),
+    );
+    api.on("\"result\":\"NESTED-42\"").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "result": "LEVEL_ONE_DONE" }),
+    );
+    api.on("\"result\":\"LEVEL_ONE_DONE\"").reply("ROOT_DONE");
+
+    let messages = reply_messages(
+        &agent,
+        session_id.clone(),
+        Message::user().with_text("ROOT_DELEGATE_REQUEST"),
+    )
+    .await?;
+    assert!(messages
+        .iter()
+        .map(Message::as_concat_text)
+        .collect::<String>()
+        .contains("ROOT_DONE"));
+
+    let calls = api.calls();
+    assert_eq!(calls.len(), 5);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call.system_contains("specialized subagent"))
+            .count(),
+        3
+    );
+
+    let children = agent
+        .config
+        .session_manager
+        .list_sessions_by_types(&[SessionType::SubAgent])
+        .await?;
+    let child = children
+        .iter()
+        .find(|child| child.parent_session_id.as_deref() == Some(session_id.as_str()))
+        .expect("parent should have a direct child");
+    let grandchild = children
+        .iter()
+        .find(|candidate| candidate.parent_session_id.as_deref() == Some(child.id.as_str()))
+        .expect("child should have its own child");
+    let grandchild = agent
+        .config
+        .session_manager
+        .get_session(&grandchild.id, true)
+        .await?;
+    let grandchild_conversation = grandchild
+        .conversation
+        .expect("grandchild should have a persisted conversation");
+    assert_eq!(
+        super::super::ops_recipe::RecipeOperation::successful_final_output(
+            grandchild_conversation.messages()
+        )
+        .as_deref(),
+        Some(r#"{"result":"NESTED-42"}"#)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn background_subagent_spike_outlives_the_parent_turn() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
+    let (agent, api, session_id, _temp_dir) =
+        agent_with_named_dummy_api("background-subagent-spike-test").await?;
+    agent
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: "summon".to_string(),
+                description: "Delegate work".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+            &session_id,
+        )
+        .await?;
+
+    api.on("START_BACKGROUND_CHILD").call(
+        "delegate",
+        serde_json::json!({
+            "instructions": "BACKGROUND_CHILD_TASK",
+            "async": true
+        }),
+    );
+    let child_blocked = api
+        .on_system("specialized subagent")
+        .hold_reply("BACKGROUND_WORKING");
+    api.on("BACKGROUND_WORKING").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "result": "BACKGROUND_DONE" }),
+    );
+    api.on("Background subagent created")
+        .reply("PARENT_CONTINUED");
+
+    let messages = reply_messages(
+        &agent,
+        session_id.clone(),
+        Message::user().with_text("START_BACKGROUND_CHILD"),
+    )
+    .await?;
+    assert!(messages
+        .iter()
+        .map(Message::as_concat_text)
+        .collect::<String>()
+        .contains("PARENT_CONTINUED"));
+    tokio::time::timeout(Duration::from_secs(5), child_blocked.entered()).await?;
+
+    let children = agent
+        .config
+        .session_manager
+        .list_sessions_by_types(&[SessionType::SubAgent])
+        .await?;
+    let child_id = children
+        .into_iter()
+        .find(|child| child.parent_session_id.as_deref() == Some(session_id.as_str()))
+        .expect("background delegate should persist a child")
+        .id;
+
+    child_blocked.release();
+    let completed = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let child = agent
+                .config
+                .session_manager
+                .get_session(&child_id, true)
+                .await?;
+            if let Some(conversation) = child.conversation {
+                if let Some(output) =
+                    super::super::ops_recipe::RecipeOperation::successful_final_output(
+                        conversation.messages(),
+                    )
+                {
+                    return Ok::<_, anyhow::Error>(output);
+                }
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await??;
+    assert_eq!(completed, r#"{"result":"BACKGROUND_DONE"}"#);
+
+    Ok(())
 }
 
 #[tokio::test]
