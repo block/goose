@@ -104,9 +104,17 @@ impl super::GooseAcpAgent {
         let callback_session_manager = Arc::clone(&self.session_manager);
         let callback_session_id = session_id.clone();
         let callback_elicitation_id = elicitation_id.clone();
-        if let Err(error) = cx
+        let fallback_session_manager = Arc::clone(&self.session_manager);
+        let fallback_session_id = session_id.clone();
+        let fallback_elicitation_id = elicitation_id.clone();
+        let pending_request = super::PendingClientRequest::new();
+        let callback_pending_request = pending_request.clone();
+        let sent = cx
             .send_request(CreateElicitationRequestMessage(request))
             .on_receiving_result(move |result| async move {
+                if !callback_pending_request.try_complete() {
+                    return Ok(());
+                }
                 let response = match result {
                     Ok(response) => elicitation_response_from_acp(response.0),
                     Err(error) => {
@@ -129,17 +137,36 @@ impl super::GooseAcpAgent {
                 .await;
 
                 Ok(())
-            })
-        {
-            record_acp_elicitation_response(
-                &self.session_manager,
-                &session_id,
-                &elicitation_id,
-                ElicitationOutcome::Cancel,
-            )
-            .await;
+            });
+
+        if let Err(error) = sent {
+            if pending_request.try_complete() {
+                record_acp_elicitation_response(
+                    &fallback_session_manager,
+                    &fallback_session_id,
+                    &fallback_elicitation_id,
+                    ElicitationOutcome::Cancel,
+                )
+                .await;
+            }
             return Err(error);
         }
+
+        let transport_terminated = self.client_transport_terminated.clone();
+        tokio::spawn(async move {
+            if pending_request
+                .complete_on_transport_termination(&transport_terminated)
+                .await
+            {
+                record_acp_elicitation_response(
+                    &fallback_session_manager,
+                    &fallback_session_id,
+                    &fallback_elicitation_id,
+                    ElicitationOutcome::Cancel,
+                )
+                .await;
+            }
+        });
 
         Ok(())
     }

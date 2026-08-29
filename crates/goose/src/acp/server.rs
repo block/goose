@@ -373,6 +373,11 @@ pub struct GooseAcpAgent {
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
+    /// Cancelled when this agent's client transport stops for any reason,
+    /// including I/O errors that bypass the ACP SDK's clean-EOF callback.
+    /// Detached prompt runs watch this only for client interactions; the run
+    /// itself keeps executing and persisting after a disconnect.
+    client_transport_terminated: CancellationToken,
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     config_dir: std::path::PathBuf,
@@ -1006,6 +1011,7 @@ impl GooseAcpAgent {
             client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
+            client_transport_terminated: CancellationToken::new(),
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             config_dir: options.config_dir,
@@ -1598,6 +1604,8 @@ impl GooseAcpAgent {
         let session_id = session_id.clone();
         let fallback_agent = agent.clone();
         let fallback_request_id = request_id.clone();
+        let pending_request = PendingClientRequest::new();
+        let callback_pending_request = pending_request.clone();
 
         let tool_call_update =
             build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
@@ -1623,6 +1631,9 @@ impl GooseAcpAgent {
         let sent =
             cx.send_request(permission_request)
                 .on_receiving_result(move |result| async move {
+                    if !callback_pending_request.try_complete() {
+                        return Ok(());
+                    }
                     match result {
                         Ok(response) => {
                             agent
@@ -1655,15 +1666,35 @@ impl GooseAcpAgent {
             // above: deny the tool so a detached turn keeps moving instead of
             // waiting on a confirmation forever.
             error!(error = ?e, "could not send permission request");
-            fallback_agent
-                .handle_confirmation(
-                    fallback_request_id,
-                    PermissionConfirmation {
-                        principal_type: PrincipalType::Tool,
-                        permission: Permission::Cancel,
-                    },
-                )
-                .await;
+            if pending_request.try_complete() {
+                fallback_agent
+                    .handle_confirmation(
+                        fallback_request_id,
+                        PermissionConfirmation {
+                            principal_type: PrincipalType::Tool,
+                            permission: Permission::Cancel,
+                        },
+                    )
+                    .await;
+            }
+        } else {
+            let transport_terminated = self.client_transport_terminated.clone();
+            tokio::spawn(async move {
+                if pending_request
+                    .complete_on_transport_termination(&transport_terminated)
+                    .await
+                {
+                    fallback_agent
+                        .handle_confirmation(
+                            fallback_request_id,
+                            PermissionConfirmation {
+                                principal_type: PrincipalType::Tool,
+                                permission: Permission::Cancel,
+                            },
+                        )
+                        .await;
+                }
+            });
         }
 
         Ok(())
@@ -1838,6 +1869,53 @@ fn message_usage_update(
 #[derive(Default)]
 struct ClientNotificationSink {
     failed_sends: std::sync::atomic::AtomicUsize,
+}
+
+/// Coordinates an ACP client request's normal response callback with its
+/// transport-termination fallback. The SDK drops response callbacks on some
+/// transport I/O errors, so the fallback runs on a Tokio task independent of
+/// the connection actor. Exactly one side claims completion.
+#[derive(Clone)]
+struct PendingClientRequest {
+    completed: Arc<std::sync::atomic::AtomicBool>,
+    completion: CancellationToken,
+}
+
+impl PendingClientRequest {
+    fn new() -> Self {
+        Self {
+            completed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            completion: CancellationToken::new(),
+        }
+    }
+
+    fn try_complete(&self) -> bool {
+        if self
+            .completed
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            self.completion.cancel();
+            true
+        } else {
+            false
+        }
+    }
+
+    async fn complete_on_transport_termination(
+        &self,
+        transport_terminated: &CancellationToken,
+    ) -> bool {
+        tokio::select! {
+            _ = transport_terminated.cancelled() => self.try_complete(),
+            _ = self.completion.cancelled() => false,
+        }
+    }
 }
 
 impl ClientNotificationSink {
@@ -2828,6 +2906,24 @@ pub struct GooseAcpHandler {
     pub agent: Arc<GooseAcpAgent>,
 }
 
+struct ClientTransportDropGuard {
+    transport_terminated: CancellationToken,
+}
+
+impl ClientTransportDropGuard {
+    fn new(agent: &GooseAcpAgent) -> Self {
+        Self {
+            transport_terminated: agent.client_transport_terminated.clone(),
+        }
+    }
+}
+
+impl Drop for ClientTransportDropGuard {
+    fn drop(&mut self) {
+        self.transport_terminated.cancel();
+    }
+}
+
 pub fn serve<R, W>(
     agent: Arc<GooseAcpAgent>,
     read: R,
@@ -2838,6 +2934,7 @@ where
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
     Box::pin(async move {
+        let _transport_guard = ClientTransportDropGuard::new(&agent);
         let handler = GooseAcpHandler { agent };
 
         SacpAgent
@@ -2873,6 +2970,7 @@ impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
         client: impl agent_client_protocol::ConnectTo<SacpAgent>,
     ) -> std::result::Result<(), agent_client_protocol::Error> {
         let agent = self.server.create_agent().await.internal_err()?;
+        let _transport_guard = ClientTransportDropGuard::new(&agent);
         let handler = GooseAcpHandler { agent };
         SacpAgent
             .builder()
@@ -3485,6 +3583,49 @@ print(\"hello, world\")
         expected: PermissionConfirmation,
     ) {
         assert_eq!(outcome_to_confirmation(&input), expected);
+    }
+
+    #[tokio::test]
+    async fn pending_client_request_completes_on_transport_termination() {
+        let pending = PendingClientRequest::new();
+        let transport_terminated = CancellationToken::new();
+        let waiter_pending = pending.clone();
+        let waiter_transport = transport_terminated.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_pending
+                .complete_on_transport_termination(&waiter_transport)
+                .await
+        });
+
+        transport_terminated.cancel();
+
+        assert!(waiter.await.unwrap());
+        assert!(
+            !pending.try_complete(),
+            "completion must only be claimed once"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_client_response_wins_transport_termination_fallback() {
+        let pending = PendingClientRequest::new();
+        let transport_terminated = CancellationToken::new();
+        let waiter_pending = pending.clone();
+        let waiter_transport = transport_terminated.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_pending
+                .complete_on_transport_termination(&waiter_transport)
+                .await
+        });
+
+        assert!(pending.try_complete());
+
+        assert!(!waiter.await.unwrap());
+        transport_terminated.cancel();
+        assert!(
+            !pending.try_complete(),
+            "fallback must not complete it again"
+        );
     }
 
     #[test]
