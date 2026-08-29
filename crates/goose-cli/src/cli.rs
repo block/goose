@@ -954,6 +954,15 @@ enum Command {
         )]
         history: bool,
 
+        /// Additional system prompt to customize agent behavior
+        #[arg(
+            long = "system",
+            value_name = "TEXT",
+            help = "Additional system prompt to customize agent behavior",
+            long_help = "Provide additional system instructions to customize the agent's behavior"
+        )]
+        system: Option<String>,
+
         #[command(flatten)]
         session_opts: SessionOptions,
 
@@ -1983,6 +1992,7 @@ struct InteractiveSessionArgs {
     fork: bool,
     edit: bool,
     history: bool,
+    system: Option<String>,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
     model_opts: ModelOptions,
@@ -1995,6 +2005,7 @@ async fn handle_interactive_session(args: InteractiveSessionArgs) -> Result<()> 
         fork,
         edit,
         history,
+        system,
         session_opts,
         extension_opts,
         model_opts,
@@ -2072,7 +2083,7 @@ async fn handle_interactive_session(args: InteractiveSessionArgs) -> Result<()> 
         builtins: extension_opts.builtins,
         no_profile: extension_opts.no_profile,
         recipe: None,
-        additional_system_prompt: None,
+        additional_system_prompt: system,
         provider: model_opts.provider,
         model: model_opts.model,
         debug: session_opts.debug,
@@ -2851,6 +2862,7 @@ pub async fn cli() -> anyhow::Result<()> {
             fork,
             edit,
             history,
+            system,
             session_opts,
             extension_opts,
             model_opts,
@@ -2861,6 +2873,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 fork,
                 edit,
                 history,
+                system,
                 session_opts,
                 extension_opts,
                 model_opts,
@@ -3029,6 +3042,19 @@ mod tests {
             }) => {
                 assert!(!resume);
                 assert_eq!(model_opts.model.as_deref(), Some("gpt-5.4"));
+            }
+            _ => panic!("expected session command"),
+        }
+    }
+
+    #[test]
+    fn session_accepts_system_prompt() {
+        let cli = Cli::try_parse_from(["goose", "session", "--system", "extra instructions"])
+            .expect("system prompt should work for a new session");
+
+        match cli.command {
+            Some(Command::Session { system, .. }) => {
+                assert_eq!(system.as_deref(), Some("extra instructions"));
             }
             _ => panic!("expected session command"),
         }
