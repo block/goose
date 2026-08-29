@@ -696,7 +696,7 @@ impl GooseAcpAgent {
         }
 
         let provider = normalize_custom_provider_upsert(req.provider, false)?;
-        if provider.requires_auth && provider.api_key.is_none() {
+        if provider.requires_auth && provider.api_key.is_none() && loaded.config.auth.is_none() {
             let api_key_env = if loaded.config.api_key_env.is_empty() {
                 declarative_providers::generate_api_key_name(&req.provider_id)
             } else {
@@ -713,7 +713,11 @@ impl GooseAcpAgent {
                 engine: provider.engine,
                 display_name: provider.display_name,
                 api_url: provider.api_url,
-                api_key: provider.api_key,
+                api_key: if loaded.config.auth.is_some() {
+                    None
+                } else {
+                    provider.api_key
+                },
                 models: custom_provider_models(
                     provider.models,
                     &loaded.config.models,

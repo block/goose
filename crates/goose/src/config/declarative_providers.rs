@@ -570,6 +570,10 @@ fn huggingface_declarative_inventory_configured_from_sources(
     provider_secret_configured: impl FnOnce(&str) -> bool,
     global_huggingface_configured: impl FnOnce() -> bool,
 ) -> bool {
+    if config.auth.is_some() {
+        return true;
+    }
+
     if !config.requires_auth {
         return true;
     }
@@ -644,6 +648,24 @@ mod tests {
         assert!(huggingface_declarative_inventory_configured_from_sources(
             &config,
             |key| key == "CUSTOM_HF_TOKEN",
+            || false,
+        ));
+    }
+
+    #[test]
+    fn huggingface_inventory_accepts_command_auth() {
+        let mut config = test_huggingface_config();
+        config.auth = Some(AuthConfig {
+            command: "get-token".to_string(),
+            args: vec![],
+            refresh_interval: 3600,
+            timeout_seconds: None,
+            cwd: None,
+        });
+
+        assert!(huggingface_declarative_inventory_configured_from_sources(
+            &config,
+            |_| false,
             || false,
         ));
     }
