@@ -501,3 +501,90 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
 
     Ok(())
 }
+
+#[tokio::test]
+async fn a_tool_loop_that_crosses_the_threshold_compacts_mid_turn() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+
+    // The kickoff starts well under the threshold (0.8 * the model's 128k
+    // canonical limit), so the only check that can see this turn grow is one
+    // that runs after a tool response lands. Padding rides in the assistant
+    // reply beside each tool call, growing the context past the trigger after
+    // a few round-trips but below the API's hard 128k rejection.
+    let padding = |round: usize| format!("padding {round} {}", "x".repeat(24_000));
+
+    api.on("grow the context")
+        .reasoning("looping")
+        .reply(padding(0))
+        .call(ADD, value(1));
+    for round in 1..=4 {
+        api.on(format!("result: {round}"))
+            .reasoning("looping")
+            .reply(padding(round))
+            .call(ADD, value(1));
+    }
+    api.on(SUMMARIZE_HISTORY).reply("summary of the tool loop");
+    api.on("Your context was compacted").reply("loop finished");
+
+    let run = pipeline.run(["grow the context"]).await?;
+
+    run.assert_message(-1, Agent, "loop finished");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "the tool loop should compact exactly once"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.system_contains("result:"),
+        "summarization ran while tool output was still in context, i.e. mid-turn"
+    );
+    assert_eq!(
+        api.context_limit_rejections(),
+        0,
+        "compaction must fire before the provider rejects an oversized request"
+    );
+    assert!(
+        !run.conversation()
+            .messages()
+            .iter()
+            .any(|message| message.error_kind() == Some(MessageErrorKind::ContextLengthExceeded)),
+        "a reactive compaction would have left a context-length error behind"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_context_owning_provider_loops_tools_without_compacting() -> Result<()> {
+    let (pipeline, api) = pipeline::test_pipeline_with(ProviderFeatures {
+        manages_own_context: true,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+
+    api.on("grow the context").call(ADD, value(1));
+    api.on("result: 1").call(ADD, value(1));
+    api.on("result: 2").reply("loop finished");
+
+    // Past the threshold for the whole run, turn boundary included.
+    pipeline
+        .set_total_tokens((pipeline.context_limit() as f64 * 0.9) as i32)
+        .await;
+
+    let run = pipeline.run(["grow the context"]).await?;
+
+    run.assert_message(-1, Agent, "loop finished");
+    assert_eq!(run.history_replacements(), 0);
+    assert!(!api
+        .calls()
+        .iter()
+        .any(|call| call.input_contains(SUMMARIZE_HISTORY)));
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}

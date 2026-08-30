@@ -2086,6 +2086,8 @@ impl Agent {
                     .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
                 let threshold_percentage = (threshold * 100.0) as u32;
 
+                debug!(trigger = "turn-boundary", "auto-compaction threshold exceeded");
+
                 let inline_msg = format!(
                     "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
                     threshold_percentage
@@ -2958,6 +2960,7 @@ impl Agent {
                                 break;
                             }
 
+                            debug!(trigger = "reactive", "compacting after a context-length error");
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -3320,6 +3323,65 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+
+                // The turn-start check cannot see tool output, so a turn that
+                // begins under the threshold can run to the context limit
+                // without ever being re-examined. Re-check here, once the tool
+                // responses have been appended: compacting between a request
+                // and its response would orphan the request. Skipped when the
+                // turn is ending, since the next turn starts with a check,
+                // after a recovery compaction, which already shrank the
+                // context, and when the provider errored, where the reactive
+                // recovery path owns the outcome.
+                if !no_tools_called
+                    && !exit_chat
+                    && !did_recovery_compact_this_iteration
+                    && !provider_errored
+                {
+                    let session_now = session_manager
+                        .get_session(&session_config.id, true)
+                        .await?;
+                    let over_threshold = check_if_compaction_needed(
+                        self.provider().await?.as_ref(),
+                        &conversation,
+                        None,
+                        &session_now,
+                    )
+                    .await?;
+
+                    if over_threshold {
+                        debug!(trigger = "mid-turn", "auto-compaction threshold exceeded");
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::ProgressMessage,
+                                COMPACTION_PROGRESS_TEXT,
+                            )
+                        );
+                        let compact_model_config =
+                            self.model_config_for_session(&session_config.id).await?;
+                        match compact_messages(
+                            self.provider().await?.as_ref(),
+                            &compact_model_config,
+                            &session_config.id,
+                            &conversation,
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(compaction) => {
+                                session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                conversation = compaction.conversation;
+                                yield AgentEvent::HistoryReplaced(conversation.clone());
+                            }
+                            Err(e) => {
+                                // The turn can continue: the request that follows may
+                                // still fit, and the reactive path catches it if not.
+                                error!("Mid-turn compaction failed: {}", e);
+                            }
+                        }
+                    }
+                }
 
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;

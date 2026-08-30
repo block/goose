@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use tracing::debug;
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
@@ -232,6 +233,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
+        let mut trigger = "reactive";
         if reactive_context_error {
             let context_errors = messages
                 .iter()
@@ -243,14 +245,39 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if context_errors > MAX_CONTEXT_ERROR_COMPACTIONS {
                 return not_applicable();
             }
+            debug!(
+                trigger,
+                "auto-compaction triggered by a context-length error"
+            );
         } else {
-            if last_effective_role(messages)? != EffectiveRole::User {
+            // Tool output accumulates inside a turn, so a user-boundary-only
+            // check cannot see a turn that grows from under the threshold to
+            // past the context limit without ever returning to the user.
+            //
+            // `Tool` is the other safe point: it means the responses for the
+            // preceding requests have landed. `Assistant` stays excluded —
+            // compacting there would hide tool requests whose responses have
+            // not arrived yet, orphaning them.
+            let role = last_effective_role(messages)?;
+            if !matches!(role, EffectiveRole::User | EffectiveRole::Tool) {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }
+            trigger = if role == EffectiveRole::Tool {
+                "mid-turn"
+            } else {
+                "turn-boundary"
+            };
+            debug!(
+                trigger,
+                tokens,
+                context_limit = self.context_limit,
+                threshold = self.threshold,
+                "auto-compaction threshold exceeded"
+            );
         }
 
         let conversation_with_hidden_error;

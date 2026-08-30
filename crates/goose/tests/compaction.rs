@@ -5,6 +5,8 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
+use goose::permission::permission_confirmation::PrincipalType;
+use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
@@ -13,8 +15,8 @@ use goose::session::Session;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use rmcp::model::Tool;
-use std::sync::atomic::{AtomicBool, Ordering};
+use rmcp::model::{CallToolRequestParams, Tool};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -22,6 +24,18 @@ struct MockCompactionProvider {
     /// Tracks whether compaction has occurred (for context limit recovery case)
     has_compacted: Arc<AtomicBool>,
     manages_own_context: bool,
+    /// When > 0, non-compaction replies interleave a tool request with the
+    /// reply text for this many round-trips before finishing the turn.
+    tool_loop_rounds: usize,
+    /// Whether loop replies carry `long_tool_call` padding (15k tokens in the
+    /// input and output accounting), so each round-trip grows the context.
+    tool_loop_padding: bool,
+    /// Context limit the provider reports to the agent. The streaming wall
+    /// below stays at 20k so a provider rejection stays distinguishable from
+    /// the auto-compact threshold.
+    context_limit: usize,
+    /// Number of requests rejected with ContextLengthExceeded
+    context_limit_rejections: Arc<AtomicUsize>,
 }
 
 impl MockCompactionProvider {
@@ -29,14 +43,70 @@ impl MockCompactionProvider {
         Self {
             has_compacted: Arc::new(AtomicBool::new(false)),
             manages_own_context: false,
+            tool_loop_rounds: 0,
+            tool_loop_padding: false,
+            context_limit: 128_000,
+            context_limit_rejections: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     fn context_owning() -> Self {
         Self {
-            has_compacted: Arc::new(AtomicBool::new(false)),
             manages_own_context: true,
+            ..Self::new()
         }
+    }
+
+    /// A provider that keeps calling tools, inflating the context by 15k
+    /// tokens per round-trip. Reports a 16k context limit, so the auto-compact
+    /// threshold (12.8k) sits below the 20k streaming wall.
+    fn looping() -> Self {
+        Self {
+            tool_loop_rounds: 2,
+            tool_loop_padding: true,
+            context_limit: 16_000,
+            ..Self::new()
+        }
+    }
+
+    /// Same tool loop, but the provider manages its own context: the padding
+    /// stays small so the loop never approaches the 20k wall.
+    fn context_owning_looping() -> Self {
+        Self {
+            manages_own_context: true,
+            tool_loop_rounds: 2,
+            tool_loop_padding: false,
+            context_limit: 16_000,
+            ..Self::new()
+        }
+    }
+
+    fn context_limit_rejections(&self) -> usize {
+        self.context_limit_rejections.load(Ordering::SeqCst)
+    }
+
+    /// The round-trip a loop reply belongs to, based on the tool responses
+    /// already in the conversation. `None` once the loop is done or the
+    /// conversation was compacted (the continuation text ends the turn).
+    fn loop_reply_round(&self, messages: &[Message]) -> Option<usize> {
+        if self.tool_loop_rounds == 0 {
+            return None;
+        }
+        if messages
+            .iter()
+            .any(|msg| msg.as_concat_text().contains("Your context was compacted"))
+        {
+            return None;
+        }
+        let done = messages
+            .iter()
+            .filter(|msg| {
+                msg.content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            })
+            .count();
+        (done < self.tool_loop_rounds).then_some(done + 1)
     }
 
     /// Calculate input tokens based on system prompt and messages
@@ -65,10 +135,13 @@ impl MockCompactionProvider {
                 .map(|msg| {
                     let mut tokens = 100;
                     for content in &msg.content {
-                        if let MessageContent::Text(text) = content {
-                            if text.text.contains("long_tool_call") {
-                                tokens += 15000;
-                            }
+                        let serialized = match content {
+                            MessageContent::Text(text) => text.text.clone(),
+                            MessageContent::Thinking(thinking) => thinking.thinking.clone(),
+                            _ => String::new(),
+                        };
+                        if serialized.contains("long_tool_call") {
+                            tokens += 15000;
                         }
                     }
                     tokens
@@ -84,6 +157,9 @@ impl MockCompactionProvider {
         if is_compaction {
             // Compaction produces a compact summary
             200
+        } else if self.loop_reply_round(messages).is_some() {
+            // Loop replies carry the padding payload alongside the tool call
+            15_000
         } else {
             // Regular responses vary by content
             let has_hello = messages.iter().any(|msg| {
@@ -111,6 +187,10 @@ impl Provider for MockCompactionProvider {
         self.manages_own_context
     }
 
+    async fn get_context_limit(&self, _model: &str, _override_limit: Option<usize>) -> usize {
+        self.context_limit
+    }
+
     async fn stream(
         &self,
         _model_config: &ModelConfig,
@@ -118,7 +198,9 @@ impl Provider for MockCompactionProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Check if this is a compaction call (message contains "summarize")
+        // Check if this is a compaction call (message contains "summarize";
+        // a post-compaction continuation also matches, which existing tests
+        // rely on for their token accounting)
         let is_compaction = messages.iter().any(|msg| {
             msg.content.iter().any(|content| {
                 if let MessageContent::Text(text) = content {
@@ -128,9 +210,25 @@ impl Provider for MockCompactionProvider {
                 }
             })
         });
+        // Only a real summarization request is a single "summarize" message
+        let is_summarization_request = messages.len() == 1
+            && messages[0].content.iter().any(|content| {
+                if let MessageContent::Text(text) = content {
+                    text.text.to_lowercase().contains("summarize")
+                } else {
+                    false
+                }
+            });
 
         // Calculate realistic token counts based on actual content
         let input_tokens = self.calculate_input_tokens(system_prompt, messages);
+        let loop_finished = self.tool_loop_rounds > 0
+            && self.loop_reply_round(messages).is_none()
+            && messages.iter().any(|msg| {
+                msg.content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            });
         let output_tokens = self.calculate_output_tokens(is_compaction, messages);
 
         // Simulate context limit: if input > 20k tokens and we haven't compacted yet, fail
@@ -139,6 +237,7 @@ impl Provider for MockCompactionProvider {
             && input_tokens > CONTEXT_LIMIT
             && !self.has_compacted.load(Ordering::SeqCst)
         {
+            self.context_limit_rejections.fetch_add(1, Ordering::SeqCst);
             return Err(ProviderError::ContextLengthExceeded(format!(
                 "Context limit exceeded: {} > {}",
                 input_tokens, CONTEXT_LIMIT
@@ -151,7 +250,41 @@ impl Provider for MockCompactionProvider {
         }
 
         // Generate response
-        let message = if is_compaction {
+        let message = if is_summarization_request {
+            Message::assistant().with_text("<mock summary of conversation>")
+        } else if self.loop_reply_round(messages).is_some() {
+            let round = messages
+                .iter()
+                .filter(|msg| {
+                    msg.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                })
+                .count()
+                + 1;
+            // The legacy loop does not persist assistant text next to a tool
+            // call, so the padding rides in the thinking block, which is
+            // carried onto the persisted tool-call message.
+            let reply = Message::assistant().with_text(format!("tool loop round {round}"));
+            let reply = if self.tool_loop_padding {
+                reply.with_thinking(
+                    format!("long_tool_call round {round}: {}", "x".repeat(600)),
+                    "",
+                )
+            } else {
+                reply
+            };
+            reply.with_tool_request(
+                format!("loop_call_{round}"),
+                Ok(CallToolRequestParams::new("echo_tool")),
+            )
+        } else if messages
+            .iter()
+            .any(|msg| msg.as_concat_text().contains("Your context was compacted"))
+            || loop_finished
+        {
+            Message::assistant().with_text("done after the tool loop")
+        } else if is_compaction {
             Message::assistant().with_text("<mock summary of conversation>")
         } else {
             let response_text = if messages.iter().any(|msg| {
@@ -826,6 +959,147 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
         .conversation
         .expect("Session should have conversation");
     assert_conversation_compacted(&updated_conversation);
+
+    Ok(())
+}
+
+/// Drives a reply to completion, approving every tool the mock provider
+/// requests, and returns (history replacements, final visible assistant text).
+async fn run_reply_approving_tools(agent: &Agent, session: &Session) -> Result<(usize, String)> {
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("keep processing each result"),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    let mut final_text = String::new();
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Message(message) => {
+                for content in &message.content {
+                    if let MessageContent::ActionRequired(action) = content {
+                        if let goose::conversation::message::ActionRequiredData::ToolConfirmation {
+                            id,
+                            ..
+                        } = &action.data
+                        {
+                            agent
+                                .handle_confirmation(
+                                    id.clone(),
+                                    PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::AllowOnce,
+                                    },
+                                )
+                                .await;
+                        }
+                    }
+                }
+                if let Some(text) = message.content.iter().find_map(|content| match content {
+                    MessageContent::Text(text) if !text.text.is_empty() => Some(&text.text),
+                    _ => None,
+                }) {
+                    final_text = text.clone();
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok((history_replacements, final_text))
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_during_tool_loop() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The session starts at 1,000 tokens against a 12,800-token trigger
+    // (0.8 * the mock's declared 16k limit), so the turn-boundary check at
+    // reply start passes. Each tool round-trip then inflates the context by
+    // 15k tokens: after the first response lands, the session sits at ~21k
+    // and the mid-turn re-check must compact before the next request hits
+    // the mock's 20k streaming wall.
+    let session = setup_test_session(&agent, &temp_dir, "mid-turn-compact-test", vec![]).await?;
+
+    let provider = Arc::new(MockCompactionProvider::looping());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 1,
+        "the tool loop should compact exactly once"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(
+        provider.context_limit_rejections(),
+        0,
+        "compaction must fire before the provider rejects an oversized request, not reactively after"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_skipped_for_context_owning_provider() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    let session =
+        setup_test_session(&agent, &temp_dir, "mid-turn-own-context-test", vec![]).await?;
+
+    // Session usage already past the 12,800-token trigger, so a mid-turn
+    // check that ignored manages_own_context would compact during the loop.
+    agent
+        .config
+        .session_manager
+        .update(&session.id)
+        .usage(Usage::new(Some(10_000), Some(10_000), Some(20_000)))
+        .apply()
+        .await?;
+
+    let provider = Arc::new(MockCompactionProvider::context_owning_looping());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 0,
+        "a context-owning provider never compacts"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        !provider.has_compacted.load(Ordering::SeqCst),
+        "no summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
 
     Ok(())
 }

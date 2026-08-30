@@ -77,6 +77,7 @@ struct DummyApiState {
     rules: Mutex<Vec<ApiRule>>,
     calls: Mutex<Vec<ApiCall>>,
     next_response_id: AtomicUsize,
+    context_limit_rejections: AtomicUsize,
 }
 
 pub(super) struct DummyApi {
@@ -193,6 +194,7 @@ impl DummyApi {
             rules: Mutex::new(Vec::new()),
             calls: Mutex::new(Vec::new()),
             next_response_id: AtomicUsize::new(1),
+            context_limit_rejections: AtomicUsize::new(0),
         });
         let responder = state.clone();
         Mock::given(method("POST"))
@@ -227,6 +229,13 @@ impl DummyApi {
 
     pub(super) fn call_count(&self) -> usize {
         self.state.calls.lock().unwrap().len()
+    }
+
+    /// Number of requests the API rejected with a context-length 400, whether
+    /// enforced from the model's canonical limit or scripted via
+    /// `context_limit_error`.
+    pub(super) fn context_limit_rejections(&self) -> usize {
+        self.state.context_limit_rejections.load(Ordering::SeqCst)
     }
 
     fn add_rule(&self, matcher: ApiMatcher, response: ApiResponse) -> usize {
@@ -438,6 +447,7 @@ impl DummyApiState {
             .with_canonical_limits("openai")
             .context_limit();
         if input_tokens as usize > context_limit {
+            self.context_limit_rejections.fetch_add(1, Ordering::SeqCst);
             return context_limit_response(input_tokens, context_limit);
         }
 
@@ -535,9 +545,12 @@ impl DummyApiState {
             }
             ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
             ApiResponse::OutputLimit => sse_response(output_limit_events(&meta(0))),
-            ApiResponse::ContextLimitError(message) => ResponseTemplate::new(400).set_body_json(
-                context_limit_error(format!("context_length_exceeded: {message}")),
-            ),
+            ApiResponse::ContextLimitError(message) => {
+                self.context_limit_rejections.fetch_add(1, Ordering::SeqCst);
+                ResponseTemplate::new(400).set_body_json(context_limit_error(format!(
+                    "context_length_exceeded: {message}"
+                )))
+            }
             ApiResponse::ServerError(message) => {
                 sse_response(format!("data: {}\n\n", api_error(message)))
             }

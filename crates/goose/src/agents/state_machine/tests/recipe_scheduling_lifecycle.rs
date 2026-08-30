@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde_json::json;
+use serial_test::serial;
 
 use super::dummy_api::ProviderFeatures;
 use super::pipeline::{
@@ -90,6 +91,7 @@ extensions:
 }
 
 #[tokio::test]
+#[serial]
 async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let pipeline = pipeline.with_goose_mode(GooseMode::Chat).await;
@@ -155,10 +157,23 @@ settings:
         .call("delegate", json!({ "source": "bounded" }));
     api.on("Keep taking actions")
         .unadvertised_call("keep_working", json!({}));
+    // The delegated child's first request (system prompt plus the platform
+    // toolset) already reports usage past the auto-compact threshold, so the
+    // child mid-turn compacts once the tool response lands, then takes its
+    // final turn. Rules match newest-first, so this must be registered after
+    // "Keep taking actions", whose text the summarization prompt echoes.
+    api.on("Please summarize the conversation history")
+        .reply("child context summarized");
     api.on(MAX_TURNS_MESSAGE).reply("child stopped on time");
 
     let result = pipeline.run(["Delegate the bounded child"]).await?;
-    assert_eq!(api.call_count(), 3);
+    assert_eq!(api.call_count(), 4);
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains("Please summarize the conversation history"))
+        .expect("child mid-turn compaction request");
+    assert!(summarization.system_contains("Keep taking actions"));
     result.assert_message(-2, ToolResponse, MAX_TURNS_MESSAGE);
     result.assert_message(-1, Agent, "child stopped on time");
 
