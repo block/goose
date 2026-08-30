@@ -865,6 +865,24 @@ fn session_model_id(meta: &ActivitySessionMeta) -> Option<String> {
     )
 }
 
+fn remap_session_id(session_id: String, parent_map: &HashMap<String, String>) -> String {
+    parent_map.get(&session_id).cloned().unwrap_or(session_id)
+}
+
+fn remap_activity_session_ids<T>(
+    rows: Vec<T>,
+    parent_map: &HashMap<String, String>,
+    session_id: impl Fn(&mut T) -> &mut String,
+) -> Vec<T> {
+    rows.into_iter()
+        .map(|mut row| {
+            let id = session_id(&mut row);
+            *id = remap_session_id(id.clone(), parent_map);
+            row
+        })
+        .collect()
+}
+
 fn add_model_tokens(
     models: &mut HashMap<(Option<String>, Option<String>), SessionActivityModel>,
     model_sessions: &mut HashMap<(Option<String>, Option<String>), HashSet<String>>,
@@ -2619,19 +2637,15 @@ impl SessionStorage {
 
         let message_query = format!(
             r#"
-            SELECT m.session_id, {timestamp}
-            FROM messages m
-            JOIN sessions s ON s.id = m.session_id
-            WHERE s.session_type IN ({placeholders})
-              AND {timestamp} >= ? AND {timestamp} < ?
+            SELECT session_id, {timestamp}
+            FROM messages
+            WHERE {timestamp} >= ? AND {timestamp} < ?
             "#,
-            timestamp = normalized_message_timestamp_sql("m.created_timestamp")
+            timestamp = normalized_message_timestamp_sql("created_timestamp")
         );
-        let mut message_q = sqlx::query_as::<_, (String, i64)>(AssertSqlSafe(message_query));
-        for session_type in types {
-            message_q = message_q.bind(session_type.to_string());
-        }
-        message_q = message_q.bind(start.timestamp()).bind(end.timestamp());
+        let message_q = sqlx::query_as::<_, (String, i64)>(AssertSqlSafe(message_query))
+            .bind(start.timestamp())
+            .bind(end.timestamp());
         let messages = message_q
             .fetch_all(pool)
             .await?
@@ -2644,21 +2658,17 @@ impl SessionStorage {
 
         let ledger_query = format!(
             r#"
-            SELECT l.session_id, l.model, {timestamp}, COALESCE(l.total_tokens, 0), l.cost_source
-            FROM usage_ledger l
-            JOIN sessions s ON s.id = l.session_id
-            WHERE s.session_type IN ({placeholders})
-              AND {timestamp} >= ? AND {timestamp} < ?
+            SELECT session_id, model, {timestamp}, COALESCE(total_tokens, 0), cost_source
+            FROM usage_ledger
+            WHERE {timestamp} >= ? AND {timestamp} < ?
             "#,
-            timestamp = normalized_message_timestamp_sql("l.created_timestamp")
+            timestamp = normalized_message_timestamp_sql("created_timestamp")
         );
-        let mut ledger_q = sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(
+        let ledger_q = sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(
             AssertSqlSafe(ledger_query),
-        );
-        for session_type in types {
-            ledger_q = ledger_q.bind(session_type.to_string());
-        }
-        ledger_q = ledger_q.bind(start.timestamp()).bind(end.timestamp());
+        )
+        .bind(start.timestamp())
+        .bind(end.timestamp());
         let ledger = ledger_q
             .fetch_all(pool)
             .await?
@@ -2674,20 +2684,13 @@ impl SessionStorage {
             )
             .collect();
 
-        let ledger_presence_query = format!(
-            r#"
-            SELECT DISTINCT l.session_id
-            FROM usage_ledger l
-            JOIN sessions s ON s.id = l.session_id
-            WHERE s.session_type IN ({placeholders})
-              AND COALESCE(l.cost_source, '') != 'carried_forward'
-            "#
-        );
-        let mut presence_q = sqlx::query_as::<_, (String,)>(AssertSqlSafe(ledger_presence_query));
-        for session_type in types {
-            presence_q = presence_q.bind(session_type.to_string());
-        }
-        let sessions_with_ledger = presence_q
+        let ledger_presence_query = r#"
+            SELECT DISTINCT session_id
+            FROM usage_ledger
+            WHERE COALESCE(cost_source, '') != 'carried_forward'
+        "#;
+        let presence_q = sqlx::query_as::<_, (String,)>(AssertSqlSafe(ledger_presence_query));
+        let sessions_with_ledger: HashSet<String> = presence_q
             .fetch_all(pool)
             .await?
             .into_iter()
@@ -2696,20 +2699,15 @@ impl SessionStorage {
 
         let last_message_query = format!(
             r#"
-            SELECT m.session_id, MAX({timestamp})
-            FROM messages m
-            JOIN sessions s ON s.id = m.session_id
-            WHERE s.session_type IN ({placeholders})
-            GROUP BY m.session_id
+            SELECT session_id, MAX({timestamp})
+            FROM messages
+            GROUP BY session_id
             "#,
-            timestamp = normalized_message_timestamp_sql("m.created_timestamp")
+            timestamp = normalized_message_timestamp_sql("created_timestamp")
         );
-        let mut last_message_q =
+        let last_message_q =
             sqlx::query_as::<_, (String, Option<i64>)>(AssertSqlSafe(last_message_query));
-        for session_type in types {
-            last_message_q = last_message_q.bind(session_type.to_string());
-        }
-        let last_message_days = last_message_q
+        let last_message_days: HashMap<String, String> = last_message_q
             .fetch_all(pool)
             .await?
             .into_iter()
@@ -2720,6 +2718,29 @@ impl SessionStorage {
             })
             .collect();
 
+        let parent_map = self.activity_visible_parent_map(types).await?;
+        let messages =
+            remap_activity_session_ids(messages, &parent_map, |event| &mut event.session_id);
+        let ledger = remap_activity_session_ids(ledger, &parent_map, |row| &mut row.session_id);
+        let sessions_with_ledger = sessions_with_ledger
+            .into_iter()
+            .map(|session_id| remap_session_id(session_id, &parent_map))
+            .collect();
+        let last_message_days =
+            last_message_days
+                .into_iter()
+                .fold(HashMap::new(), |mut map, (session_id, date)| {
+                    let session_id = remap_session_id(session_id, &parent_map);
+                    map.entry(session_id)
+                        .and_modify(|existing: &mut String| {
+                            if date > *existing {
+                                *existing = date.clone();
+                            }
+                        })
+                        .or_insert(date);
+                    map
+                });
+
         Ok(build_session_activity(
             year,
             sessions,
@@ -2728,6 +2749,59 @@ impl SessionStorage {
             sessions_with_ledger,
             last_message_days,
         ))
+    }
+
+    async fn activity_visible_parent_map(
+        &self,
+        types: &[SessionType],
+    ) -> Result<HashMap<String, String>> {
+        let pool = self.pool().await?;
+        let rows = sqlx::query_as::<_, (String, Option<String>, String)>(
+            r#"
+            SELECT id, parent_session_id, session_type
+            FROM sessions
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let parents: HashMap<String, String> = rows
+            .iter()
+            .filter_map(|(id, parent, _)| parent.clone().map(|parent| (id.clone(), parent)))
+            .collect();
+        let visible: HashSet<String> = rows
+            .iter()
+            .filter_map(|(id, _, session_type)| {
+                session_type
+                    .parse::<SessionType>()
+                    .ok()
+                    .filter(|parsed| types.contains(parsed))
+                    .map(|_| id.clone())
+            })
+            .collect();
+
+        let mut map = HashMap::new();
+        for (id, _, session_type) in &rows {
+            let Ok(parsed) = session_type.parse::<SessionType>() else {
+                continue;
+            };
+            if types.contains(&parsed) {
+                continue;
+            }
+            let mut current = id.clone();
+            let mut seen = HashSet::from([current.clone()]);
+            while let Some(parent) = parents.get(&current) {
+                if !seen.insert(parent.clone()) {
+                    break;
+                }
+                if visible.contains(parent) {
+                    map.insert(id.clone(), parent.clone());
+                    break;
+                }
+                current = parent.clone();
+            }
+        }
+        Ok(map)
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -5707,5 +5781,22 @@ mod tests {
         assert_eq!(year_2025.total_tokens, 80);
         assert_eq!(year_2025.days[0].date, "2025-02-01");
         assert_eq!(year_2025.days[0].total_tokens, 80);
+    }
+
+    #[test]
+    fn test_remap_activity_session_ids_moves_child_usage_to_parent() {
+        let mut rows = vec![
+            ActivityEvent {
+                session_id: "child".into(),
+                timestamp: 1,
+            },
+            ActivityEvent {
+                session_id: "parent".into(),
+                timestamp: 2,
+            },
+        ];
+        let parent_map = HashMap::from([("child".into(), "parent".into())]);
+        rows = remap_activity_session_ids(rows, &parent_map, |event| &mut event.session_id);
+        assert!(rows.iter().all(|event| event.session_id == "parent"));
     }
 }
