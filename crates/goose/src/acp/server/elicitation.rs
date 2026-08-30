@@ -112,29 +112,28 @@ impl super::GooseAcpAgent {
         let sent = cx
             .send_request(CreateElicitationRequestMessage(request))
             .on_receiving_result(move |result| async move {
-                if !callback_pending_request.try_complete() {
-                    return Ok(());
-                }
-                let response = match result {
-                    Ok(response) => elicitation_response_from_acp(response.0),
-                    Err(error) => {
-                        warn!(
-                            error = %error,
-                            session_id = %callback_session_id,
-                            elicitation_id = %callback_elicitation_id,
-                            "ACP elicitation request failed"
-                        );
-                        ElicitationOutcome::Cancel
-                    }
-                };
+                callback_pending_request.spawn_response_resolution(async move {
+                    let response = match result {
+                        Ok(response) => elicitation_response_from_acp(response.0),
+                        Err(error) => {
+                            warn!(
+                                error = %error,
+                                session_id = %callback_session_id,
+                                elicitation_id = %callback_elicitation_id,
+                                "ACP elicitation request failed"
+                            );
+                            ElicitationOutcome::Cancel
+                        }
+                    };
 
-                record_acp_elicitation_response(
-                    &callback_session_manager,
-                    &callback_session_id,
-                    &callback_elicitation_id,
-                    response,
-                )
-                .await;
+                    record_acp_elicitation_response(
+                        &callback_session_manager,
+                        &callback_session_id,
+                        &callback_elicitation_id,
+                        response,
+                    )
+                    .await;
+                });
 
                 Ok(())
             });

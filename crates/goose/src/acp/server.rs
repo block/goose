@@ -1631,33 +1631,31 @@ impl GooseAcpAgent {
         let sent =
             cx.send_request(permission_request)
                 .on_receiving_result(move |result| async move {
-                    if !callback_pending_request.try_complete() {
-                        return Ok(());
-                    }
-                    match result {
-                        Ok(response) => {
-                            agent
-                                .handle_confirmation(
-                                    request_id,
-                                    outcome_to_confirmation(&response.outcome),
-                                )
-                                .await;
-                            Ok(())
+                    callback_pending_request.spawn_response_resolution(async move {
+                        match result {
+                            Ok(response) => {
+                                agent
+                                    .handle_confirmation(
+                                        request_id,
+                                        outcome_to_confirmation(&response.outcome),
+                                    )
+                                    .await;
+                            }
+                            Err(e) => {
+                                error!(error = ?e, "permission request failed");
+                                agent
+                                    .handle_confirmation(
+                                        request_id,
+                                        PermissionConfirmation {
+                                            principal_type: PrincipalType::Tool,
+                                            permission: Permission::Cancel,
+                                        },
+                                    )
+                                    .await;
+                            }
                         }
-                        Err(e) => {
-                            error!(error = ?e, "permission request failed");
-                            agent
-                                .handle_confirmation(
-                                    request_id,
-                                    PermissionConfirmation {
-                                        principal_type: PrincipalType::Tool,
-                                        permission: Permission::Cancel,
-                                    },
-                                )
-                                .await;
-                            Ok(())
-                        }
-                    }
+                    });
+                    Ok(())
                 });
 
         if let Err(e) = sent {
@@ -1905,6 +1903,18 @@ impl PendingClientRequest {
         } else {
             false
         }
+    }
+
+    fn spawn_response_resolution<F>(&self, resolution: F)
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let pending_request = self.clone();
+        tokio::spawn(async move {
+            if pending_request.try_complete() {
+                resolution.await;
+            }
+        });
     }
 
     async fn complete_on_transport_termination(
@@ -3607,7 +3617,7 @@ print(\"hello, world\")
     }
 
     #[tokio::test]
-    async fn pending_client_response_wins_transport_termination_fallback() {
+    async fn pending_client_response_resolution_survives_transport_termination() {
         let pending = PendingClientRequest::new();
         let transport_terminated = CancellationToken::new();
         let waiter_pending = pending.clone();
@@ -3618,10 +3628,21 @@ print(\"hello, world\")
                 .await
         });
 
-        assert!(pending.try_complete());
+        let (resolution_started_tx, resolution_started_rx) = tokio::sync::oneshot::channel();
+        let (finish_resolution_tx, finish_resolution_rx) = tokio::sync::oneshot::channel();
+        let (resolution_finished_tx, resolution_finished_rx) = tokio::sync::oneshot::channel();
+        pending.spawn_response_resolution(async move {
+            resolution_started_tx.send(()).unwrap();
+            finish_resolution_rx.await.unwrap();
+            resolution_finished_tx.send(()).unwrap();
+        });
+
+        resolution_started_rx.await.unwrap();
+        transport_terminated.cancel();
 
         assert!(!waiter.await.unwrap());
-        transport_terminated.cancel();
+        finish_resolution_tx.send(()).unwrap();
+        resolution_finished_rx.await.unwrap();
         assert!(
             !pending.try_complete(),
             "fallback must not complete it again"
