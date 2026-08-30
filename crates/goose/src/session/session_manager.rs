@@ -830,6 +830,7 @@ struct ActivitySessionMeta {
     provider_name: Option<String>,
     model_config_json: Option<String>,
     accumulated_tokens: i64,
+    session_type: SessionType,
 }
 
 struct ActivityEvent {
@@ -852,6 +853,13 @@ fn local_date_key(timestamp: i64) -> Option<String> {
             .format("%Y-%m-%d")
             .to_string()
     })
+}
+
+fn previous_local_date(date: &str) -> Option<String> {
+    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    parsed
+        .pred_opt()
+        .map(|previous| previous.format("%Y-%m-%d").to_string())
 }
 
 fn session_provider_id(meta: &ActivitySessionMeta) -> Option<String> {
@@ -941,17 +949,28 @@ fn build_session_activity(
         HashMap::new();
     let mut model_sessions: HashMap<(Option<String>, Option<String>), HashSet<String>> =
         HashMap::new();
+    let mut carried_forward: HashMap<String, i64> = HashMap::new();
+    let mut first_request_day: HashMap<String, String> = HashMap::new();
 
     for row in ledger {
         if !metas.contains_key(&row.session_id) {
             continue;
         }
         if row.cost_source.as_deref() == Some("carried_forward") {
+            *carried_forward.entry(row.session_id.clone()).or_insert(0) += row.tokens;
             continue;
         }
         let Some(date) = local_date_key(row.timestamp) else {
             continue;
         };
+        first_request_day
+            .entry(row.session_id.clone())
+            .and_modify(|existing| {
+                if date < *existing {
+                    *existing = date.clone();
+                }
+            })
+            .or_insert(date.clone());
         *day_session_tokens
             .entry(date.clone())
             .or_default()
@@ -975,8 +994,42 @@ fn build_session_activity(
         );
     }
 
+    let sessions_with_carried_forward: HashSet<String> = carried_forward.keys().cloned().collect();
+    for (session_id, tokens) in carried_forward {
+        if tokens <= 0 {
+            continue;
+        }
+        let date = first_request_day
+            .get(&session_id)
+            .and_then(|day| previous_local_date(day))
+            .or_else(|| last_message_days.get(&session_id).cloned());
+        let Some(date) = date else {
+            continue;
+        };
+        if !date.starts_with(&year.to_string()) {
+            continue;
+        }
+        *day_session_tokens
+            .entry(date)
+            .or_default()
+            .entry(session_id.clone())
+            .or_insert(0) += tokens;
+        if let Some(meta) = metas.get(&session_id) {
+            add_model_tokens(
+                &mut models,
+                &mut model_sessions,
+                &session_id,
+                session_provider_id(meta),
+                session_model_id(meta),
+                tokens,
+            );
+        }
+    }
+
     for (session_id, meta) in &metas {
-        if sessions_with_ledger.contains(session_id) {
+        if sessions_with_ledger.contains(session_id)
+            || sessions_with_carried_forward.contains(session_id)
+        {
             continue;
         }
         let Some(date) = last_message_days.get(session_id) else {
@@ -2595,34 +2648,44 @@ impl SessionStorage {
         let start = local_year_start(year)?;
         let end = local_year_start(year + 1)?;
 
-        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let pool = self.pool().await?;
 
-        let session_query = format!(
-            r#"
+        let session_query = r#"
             SELECT
                 s.id,
                 s.name,
                 COALESCE(s.description, '') as description,
                 s.provider_name,
                 s.model_config_json,
-                COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as accumulated_tokens
+                COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as accumulated_tokens,
+                s.session_type
             FROM sessions s
-            WHERE s.session_type IN ({placeholders})
-            "#
-        );
-        let mut session_q = sqlx::query_as::<
+        "#;
+        let session_q = sqlx::query_as::<
             _,
-            (String, String, String, Option<String>, Option<String>, i64),
+            (
+                String,
+                String,
+                String,
+                Option<String>,
+                Option<String>,
+                i64,
+                String,
+            ),
         >(AssertSqlSafe(session_query));
-        for session_type in types {
-            session_q = session_q.bind(session_type.to_string());
-        }
         let session_rows = session_q.fetch_all(pool).await?;
         let sessions = session_rows
             .into_iter()
             .map(
-                |(id, name, description, provider_name, model_config_json, accumulated_tokens)| {
+                |(
+                    id,
+                    name,
+                    description,
+                    provider_name,
+                    model_config_json,
+                    accumulated_tokens,
+                    session_type,
+                )| {
                     ActivitySessionMeta {
                         id,
                         name,
@@ -2630,6 +2693,7 @@ impl SessionStorage {
                         provider_name,
                         model_config_json,
                         accumulated_tokens,
+                        session_type: session_type.parse().unwrap_or_default(),
                     }
                 },
             )
@@ -2719,6 +2783,21 @@ impl SessionStorage {
             .collect();
 
         let parent_map = self.activity_visible_parent_map(types).await?;
+        let mut sessions =
+            remap_activity_session_ids(sessions, &parent_map, |session| &mut session.id);
+        let mut merged: HashMap<String, ActivitySessionMeta> = HashMap::new();
+        for session in sessions {
+            merged
+                .entry(session.id.clone())
+                .and_modify(|existing| {
+                    existing.accumulated_tokens += session.accumulated_tokens;
+                })
+                .or_insert(session);
+        }
+        sessions = merged
+            .into_values()
+            .filter(|session| types.contains(&session.session_type))
+            .collect();
         let messages =
             remap_activity_session_ids(messages, &parent_map, |event| &mut event.session_id);
         let ledger = remap_activity_session_ids(ledger, &parent_map, |row| &mut row.session_id);
@@ -5565,6 +5644,7 @@ mod tests {
                     provider_name: Some("openai".into()),
                     model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
                     accumulated_tokens: 10,
+                    session_type: SessionType::User,
                 },
                 ActivitySessionMeta {
                     id: "a".into(),
@@ -5573,6 +5653,7 @@ mod tests {
                     provider_name: Some("anthropic".into()),
                     model_config_json: Some(r#"{"model_name":"claude","toolshim":false}"#.into()),
                     accumulated_tokens: 50,
+                    session_type: SessionType::User,
                 },
             ],
             vec![
@@ -5621,6 +5702,7 @@ mod tests {
                 provider_name: Some("openai".into()),
                 model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
                 accumulated_tokens: 999,
+                session_type: SessionType::User,
             }],
             vec![
                 ActivityEvent {
@@ -5687,6 +5769,7 @@ mod tests {
                 provider_name: Some("openai".into()),
                 model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
                 accumulated_tokens: 999,
+                session_type: SessionType::User,
             }],
             vec![ActivityEvent {
                 session_id: "s1".into(),
@@ -5718,6 +5801,7 @@ mod tests {
                 provider_name: Some("openai".into()),
                 model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
                 accumulated_tokens: 999,
+                session_type: SessionType::User,
             }],
             vec![ActivityEvent {
                 session_id: "s1".into(),
@@ -5753,6 +5837,7 @@ mod tests {
             provider_name: Some("openai".into()),
             model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
             accumulated_tokens: 80,
+            session_type: SessionType::User,
         }];
         let last_days = HashMap::from([("s1".into(), "2025-02-01".into())]);
 
