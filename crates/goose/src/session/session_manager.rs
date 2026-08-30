@@ -794,11 +794,26 @@ fn session_display_name(name: String, description: String) -> String {
 }
 
 fn local_year_start(year: i32) -> Result<DateTime<Utc>> {
-    NaiveDate::from_ymd_opt(year, 1, 1)
+    let naive = NaiveDate::from_ymd_opt(year, 1, 1)
         .and_then(|date| date.and_hms_opt(0, 0, 0))
-        .and_then(|naive| Local.from_local_datetime(&naive).single())
-        .map(|local| local.with_timezone(&Utc))
-        .ok_or_else(|| anyhow::anyhow!("invalid activity year"))
+        .ok_or_else(|| anyhow::anyhow!("invalid activity year"))?;
+    match Local.from_local_datetime(&naive) {
+        chrono::LocalResult::Single(local) | chrono::LocalResult::Ambiguous(local, _) => {
+            Ok(local.with_timezone(&Utc))
+        }
+        chrono::LocalResult::None => {
+            let mut cursor = naive;
+            for _ in 0..24 * 60 {
+                cursor += chrono::TimeDelta::minutes(1);
+                if let chrono::LocalResult::Single(local)
+                | chrono::LocalResult::Ambiguous(local, _) = Local.from_local_datetime(&cursor)
+                {
+                    return Ok(local.with_timezone(&Utc));
+                }
+            }
+            Err(anyhow::anyhow!("invalid activity year"))
+        }
+    }
 }
 
 fn model_id_from_config_json(provider_name: Option<&str>, json: Option<&str>) -> Option<String> {
@@ -2665,6 +2680,7 @@ impl SessionStorage {
             FROM usage_ledger l
             JOIN sessions s ON s.id = l.session_id
             WHERE s.session_type IN ({placeholders})
+              AND COALESCE(l.cost_source, '') != 'carried_forward'
             "#
         );
         let mut presence_q = sqlx::query_as::<_, (String,)>(AssertSqlSafe(ledger_presence_query));
@@ -5640,13 +5656,13 @@ mod tests {
                 tokens: 999,
                 cost_source: Some("carried_forward".into()),
             }],
-            HashSet::from(["s1".into()]),
+            HashSet::new(),
             HashMap::from([("s1".into(), "2024-01-15".into())]),
         );
 
-        assert_eq!(activity.total_tokens, 0);
-        assert_eq!(activity.days[0].total_tokens, 0);
-        assert!(activity.models.is_empty());
+        assert_eq!(activity.total_tokens, 999);
+        assert_eq!(activity.days[0].total_tokens, 999);
+        assert_eq!(activity.models[0].total_tokens, 999);
     }
 
     #[test]
