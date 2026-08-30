@@ -2769,17 +2769,13 @@ impl SessionStorage {
             r#"
             SELECT session_id, model, {timestamp}, COALESCE(total_tokens, 0), cost_source
             FROM usage_ledger
-            WHERE {timestamp} >= ? AND {timestamp} < ?
+            WHERE cost_source = 'carried_forward'
             "#,
             timestamp = normalized_message_timestamp_sql("created_timestamp")
         );
-        let extra_end = end + chrono::TimeDelta::days(1);
-        let extra_carried_q =
-            sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(AssertSqlSafe(
-                extra_carried_query,
-            ))
-            .bind(end.timestamp())
-            .bind(extra_end.timestamp());
+        let extra_carried_q = sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(
+            AssertSqlSafe(extra_carried_query),
+        );
         let extra_carried = extra_carried_q.fetch_all(pool).await?.into_iter().map(
             |(session_id, model, timestamp, tokens, cost_source)| ActivityLedgerRow {
                 session_id,
@@ -2806,11 +2802,19 @@ impl SessionStorage {
 
         let last_message_query = format!(
             r#"
-            SELECT session_id, MAX({timestamp})
-            FROM messages
-            GROUP BY session_id
+            SELECT m.session_id, MAX({message_ts})
+            FROM messages m
+            LEFT JOIN (
+                SELECT session_id, MIN({ledger_ts}) AS first_request
+                FROM usage_ledger
+                WHERE COALESCE(cost_source, '') != 'carried_forward'
+                GROUP BY session_id
+            ) r ON r.session_id = m.session_id
+            WHERE r.first_request IS NULL OR {message_ts} < r.first_request
+            GROUP BY m.session_id
             "#,
-            timestamp = normalized_message_timestamp_sql("created_timestamp")
+            message_ts = normalized_message_timestamp_sql("m.created_timestamp"),
+            ledger_ts = normalized_message_timestamp_sql("created_timestamp"),
         );
         let last_message_q =
             sqlx::query_as::<_, (String, Option<i64>)>(AssertSqlSafe(last_message_query));
