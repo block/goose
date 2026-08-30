@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import {
   acpGetSessionActivity,
@@ -22,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { cn } from '../utils';
 import { View, ViewOptions } from '../utils/navigationUtils';
 
@@ -135,24 +134,32 @@ export default function ActivityHeatmap({
   const [selectedDay, setSelectedDay] = useState<SessionActivityDay | null>(null);
   const [modelsOpen, setModelsOpen] = useState(false);
 
-  const load = useCallback(async (requestedYear: number) => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(false);
-    try {
-      const next = await acpGetSessionActivity(requestedYear);
-      setActivity(next);
-    } catch (loadError) {
-      console.error('Failed to load session activity:', loadError);
-      setActivity(null);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load(year);
-  }, [load, year]);
+    void acpGetSessionActivity(year)
+      .then((next) => {
+        if (!cancelled) {
+          setActivity(next);
+        }
+      })
+      .catch((loadError) => {
+        console.error('Failed to load session activity:', loadError);
+        if (!cancelled) {
+          setActivity(null);
+          setError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [year]);
 
   const daysByDate = useMemo(() => {
     const map = new Map<string, SessionActivityDay>();
@@ -370,37 +377,35 @@ function HeatmapGrid({
           const y = cell.weekday * (CELL + GAP);
 
           return (
-            <Tooltip key={cell.date}>
-              <TooltipTrigger asChild>
-                <rect
-                  x={x}
-                  y={y}
-                  width={CELL}
-                  height={CELL}
-                  rx={2}
-                  className={cn(
-                    LEVEL_CLASS[level],
-                    cell.inYear && day
-                      ? 'cursor-pointer'
-                      : cell.inYear
-                        ? 'cursor-default'
-                        : 'opacity-20'
-                  )}
-                  tabIndex={cell.inYear ? 0 : -1}
-                  aria-label={label}
-                  onClick={() => {
-                    if (day) onSelectDay(day);
-                  }}
-                  onKeyDown={(event) => {
-                    if (day && (event.key === 'Enter' || event.key === ' ')) {
-                      event.preventDefault();
-                      onSelectDay(day);
-                    }
-                  }}
-                />
-              </TooltipTrigger>
-              <TooltipContent>{label}</TooltipContent>
-            </Tooltip>
+            <rect
+              key={cell.date}
+              x={x}
+              y={y}
+              width={CELL}
+              height={CELL}
+              rx={2}
+              className={cn(
+                LEVEL_CLASS[level],
+                cell.inYear && day
+                  ? 'cursor-pointer'
+                  : cell.inYear
+                    ? 'cursor-default'
+                    : 'opacity-20'
+              )}
+              tabIndex={cell.inYear && day ? 0 : -1}
+              aria-label={label}
+              onClick={() => {
+                if (day) onSelectDay(day);
+              }}
+              onKeyDown={(event) => {
+                if (day && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  onSelectDay(day);
+                }
+              }}
+            >
+              <title>{label}</title>
+            </rect>
           );
         })}
       </svg>

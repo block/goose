@@ -2435,7 +2435,7 @@ impl SessionStorage {
                 COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as total_tokens,
                 {activity_at_sql} as activity_at
             FROM sessions s
-            LEFT JOIN messages m ON s.id = m.session_id
+            JOIN messages m ON s.id = m.session_id
             WHERE s.session_type IN ({placeholders})
               AND s.archived_at IS NULL
             GROUP BY s.id

@@ -8,6 +8,12 @@ impl GooseAcpAgent {
         &self,
         req: SessionActivityRequest,
     ) -> Result<SessionActivityResponse, agent_client_protocol::Error> {
+        if let Some(year) = req.year {
+            if !(1970..=2100).contains(&year) {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data("year must be between 1970 and 2100"));
+            }
+        }
         let activity = self
             .session_manager
             .get_activity(req.year)
