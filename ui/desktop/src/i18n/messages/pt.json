@@ -4663,6 +4663,57 @@
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Verifique a ligação da sua conta antes de continuar."
   },
+  "activityHeatmap.daySessionsDescription": {
+    "defaultMessage": "{sessions,plural,one{# session · {tokens} tokens} other{# sessions · {tokens} tokens}}"
+  },
+  "activityHeatmap.daySessionsTitle": {
+    "defaultMessage": "Sessions on {date}"
+  },
+  "activityHeatmap.dayTooltip": {
+    "defaultMessage": "{sessions,plural,one{{date}: # session, {tokens} tokens} other{{date}: # sessions, {tokens} tokens}}"
+  },
+  "activityHeatmap.empty": {
+    "defaultMessage": "No sessions in {year}"
+  },
+  "activityHeatmap.exploreByModel": {
+    "defaultMessage": "Tokens by model"
+  },
+  "activityHeatmap.loadError": {
+    "defaultMessage": "Couldn't load activity"
+  },
+  "activityHeatmap.loading": {
+    "defaultMessage": "Loading activity…"
+  },
+  "activityHeatmap.modelDialogDescription": {
+    "defaultMessage": "{sessions,plural,one{{tokens} tokens across # session} other{{tokens} tokens across # sessions}}"
+  },
+  "activityHeatmap.modelDialogTitle": {
+    "defaultMessage": "Tokens by model in {year}"
+  },
+  "activityHeatmap.nextYear": {
+    "defaultMessage": "Next year"
+  },
+  "activityHeatmap.noActivity": {
+    "defaultMessage": "{date}: no sessions"
+  },
+  "activityHeatmap.previousYear": {
+    "defaultMessage": "Previous year"
+  },
+  "activityHeatmap.unknownModel": {
+    "defaultMessage": "Unknown model"
+  },
+  "activityHeatmap.unnamedSession": {
+    "defaultMessage": "Untitled session"
+  },
+  "activityHeatmap.weekday": {
+    "defaultMessage": "{day}"
+  },
+  "activityHeatmap.yearSessions": {
+    "defaultMessage": "{count,plural,one{# session} other{# sessions}}"
+  },
+  "activityHeatmap.yearTokens": {
+    "defaultMessage": "{count} tokens in {year}"
+  },
   "providerConfigForm.deviceCodeAndEnter": {
     "defaultMessage": "e insira:"
   },
