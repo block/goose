@@ -1002,10 +1002,20 @@ fn build_session_activity(
         if tokens <= 0 {
             continue;
         }
-        let date = first_request_day
+        let date = last_message_days
             .get(&session_id)
-            .and_then(|day| previous_local_date(day))
-            .or_else(|| last_message_days.get(&session_id).cloned());
+            .cloned()
+            .filter(|date| {
+                first_request_day
+                    .get(&session_id)
+                    .map(|request_day| date < request_day)
+                    .unwrap_or(true)
+            })
+            .or_else(|| {
+                first_request_day
+                    .get(&session_id)
+                    .and_then(|day| previous_local_date(day))
+            });
         let Some(date) = date else {
             continue;
         };
@@ -2816,11 +2826,21 @@ impl SessionStorage {
             .collect();
 
         let parent_map = self.activity_visible_parent_map(types).await?;
+        let carried_forward_by_session: HashMap<String, i64> = ledger
+            .iter()
+            .filter(|row| row.cost_source.as_deref() == Some("carried_forward"))
+            .fold(HashMap::new(), |mut map, row| {
+                *map.entry(row.session_id.clone()).or_insert(0) += row.tokens;
+                map
+            });
         let mut merged: HashMap<String, ActivitySessionMeta> = HashMap::new();
         for mut session in sessions {
             let original_id = session.id.clone();
             if sessions_with_ledger.contains(&original_id) {
                 session.accumulated_tokens = 0;
+            }
+            if let Some(carried) = carried_forward_by_session.get(&original_id) {
+                session.accumulated_tokens = session.accumulated_tokens.saturating_sub(*carried);
             }
             if let Some(parent) = parent_map.get(&original_id) {
                 session.id = parent.clone();
