@@ -15,6 +15,7 @@ use rmcp::transport::auth::{
 };
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
 use std::net::SocketAddr;
@@ -208,9 +209,15 @@ fn resolve_refreshed_granted_scopes(
 }
 
 const REFRESH_BUFFER_SECS: u64 = 30;
+const MAX_OAUTH_LOCK_STEM_LEN: usize = 200;
 
 fn sanitize_oauth_lock_name(name: &str) -> String {
-    let sanitized: String = name
+    let digest = Sha256::digest(name.as_bytes());
+    let hash: String = digest[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let mut stem: String = name
         .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
@@ -220,11 +227,45 @@ fn sanitize_oauth_lock_name(name: &str) -> String {
             }
         })
         .collect();
-    if sanitized.is_empty() || sanitized.chars().all(|c| c == '_') {
-        "unnamed".to_string()
-    } else {
-        sanitized
+    if stem.is_empty() || stem.chars().all(|c| c == '_') {
+        stem = "unnamed".to_string();
     }
+    let max_stem = MAX_OAUTH_LOCK_STEM_LEN.saturating_sub(hash.len() + 1);
+    if stem.len() > max_stem {
+        stem.truncate(max_stem);
+    }
+    format!("{stem}_{hash}")
+}
+
+fn challenged_scopes(challenge: &str, mcp_server_url: &str) -> Vec<String> {
+    let Ok(base_url) = url::Url::parse(mcp_server_url) else {
+        return Vec::new();
+    };
+    WWWAuthenticateParams::parse(challenge, &base_url)
+        .scope
+        .map(|scope| {
+            scope
+                .split_whitespace()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn stored_grant_satisfies_challenge(
+    stored: &StoredCredentials,
+    challenge: &str,
+    mcp_server_url: &str,
+) -> bool {
+    if stored.token_response.is_none() {
+        return false;
+    }
+    let needed = challenged_scopes(challenge, mcp_server_url);
+    if needed.is_empty() {
+        return true;
+    }
+    let granted = scope_set(&stored.granted_scopes);
+    needed.iter().all(|scope| granted.contains(scope.as_str()))
 }
 
 fn oauth_flow_lock_path(name: &str) -> PathBuf {
@@ -338,11 +379,7 @@ fn build_authorization_request(
                 .into_iter()
                 .flat_map(|client| client.scopes.iter().cloned()),
         );
-        if let Ok(base_url) = url::Url::parse(mcp_server_url) {
-            if let Some(challenged) = WWWAuthenticateParams::parse(&challenge, &base_url).scope {
-                scopes.extend(challenged.split_whitespace().map(str::to_string));
-            }
-        }
+        scopes.extend(challenged_scopes(&challenge, mcp_server_url));
         let mut seen = BTreeSet::new();
         scopes.retain(|scope| seen.insert(scope.clone()));
         if !scopes.is_empty() {
@@ -384,11 +421,15 @@ pub async fn oauth_flow_with_challenge(
         .map(|stored| stored.granted_scopes.clone())
         .unwrap_or_default();
 
-    // With a challenge in hand (e.g. a 403 insufficient_scope after a
-    // previously successful authorization), a refresh cannot satisfy the new
-    // scope requirement: skip straight to a full re-authorization that
-    // requests the union of scopes.
-    if auth_manager.initialize_from_store().await? && challenge.is_none() {
+    // After the lock, another process may already have completed the grant
+    // this challenge asked for. Reuse it instead of opening a second browser.
+    let challenge_already_satisfied = challenge.as_deref().is_none_or(|challenge| {
+        stored_credentials.as_ref().is_some_and(|stored| {
+            stored_grant_satisfies_challenge(stored, challenge, mcp_server_url)
+        })
+    });
+
+    if auth_manager.initialize_from_store().await? && challenge_already_satisfied {
         let stored_credentials = stored_credentials
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("OAuth credentials disappeared during startup"))?;
@@ -931,31 +972,102 @@ mod tests {
 
     #[test]
     fn oauth_lock_name_replaces_unsafe_characters() {
-        assert_eq!(sanitize_oauth_lock_name("Pi Swisssync"), "Pi_Swisssync");
-        assert_eq!(sanitize_oauth_lock_name("../etc/passwd"), "___etc_passwd");
-        assert_eq!(sanitize_oauth_lock_name(""), "unnamed");
-        assert_eq!(sanitize_oauth_lock_name("///"), "unnamed");
-        assert_eq!(
-            sanitize_oauth_lock_name("Composio Connect"),
-            "Composio_Connect"
+        let pi = sanitize_oauth_lock_name("Pi Swisssync");
+        assert!(pi.starts_with("Pi_Swisssync_"));
+        assert_eq!(pi.len(), "Pi_Swisssync".len() + 1 + 16);
+
+        let passwd = sanitize_oauth_lock_name("../etc/passwd");
+        assert!(passwd.starts_with("___etc_passwd_"));
+
+        assert!(sanitize_oauth_lock_name("").starts_with("unnamed_"));
+        assert!(sanitize_oauth_lock_name("///").starts_with("unnamed_"));
+        assert_ne!(
+            sanitize_oauth_lock_name(""),
+            sanitize_oauth_lock_name("///"),
+            "empty and punctuation-only names must not share a lock"
+        );
+
+        let composio = sanitize_oauth_lock_name("Composio Connect");
+        assert!(composio.starts_with("Composio_Connect_"));
+
+        assert_ne!(
+            sanitize_oauth_lock_name("Pi Swisssync"),
+            sanitize_oauth_lock_name("Pi_Swisssync"),
+            "names that only differ by separators must not share a lock"
+        );
+
+        let long_name = "a".repeat(MAX_OAUTH_LOCK_STEM_LEN + 50);
+        let long = sanitize_oauth_lock_name(&long_name);
+        assert_eq!(long.len(), MAX_OAUTH_LOCK_STEM_LEN);
+        assert_ne!(
+            sanitize_oauth_lock_name(&format!("{long_name}x")),
+            long,
+            "distinct long names must not collide"
         );
     }
 
     #[test]
-    fn oauth_flow_lock_path_is_stable_per_sanitized_name() {
+    fn stored_grant_satisfies_empty_or_covered_challenge() {
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "mcp_token",
+            "token_type": "bearer",
+            "expires_in": 3600,
+        }))
+        .unwrap();
+        let stored = StoredCredentials::new(
+            "client-id".to_string(),
+            Some(token_response),
+            vec!["scope.read".to_string(), "scope.write".to_string()],
+            Some(1),
+        );
+
+        assert!(stored_grant_satisfies_challenge(
+            &stored,
+            r#"Bearer error="invalid_token""#,
+            "https://mcp.example",
+        ));
+        assert!(stored_grant_satisfies_challenge(
+            &stored,
+            r#"Bearer error="insufficient_scope", scope="scope.read""#,
+            "https://mcp.example",
+        ));
+        assert!(!stored_grant_satisfies_challenge(
+            &stored,
+            r#"Bearer error="insufficient_scope", scope="scope.admin""#,
+            "https://mcp.example",
+        ));
+    }
+
+    #[test]
+    fn missing_token_does_not_satisfy_a_challenge() {
+        let stored = StoredCredentials::new("client-id".to_string(), None, vec![], None);
+        assert!(!stored_grant_satisfies_challenge(
+            &stored,
+            r#"Bearer error="invalid_token""#,
+            "https://mcp.example",
+        ));
+    }
+
+    #[test]
+    fn oauth_flow_lock_path_is_stable_per_original_name() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().to_str().unwrap();
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root))]);
 
         let path = oauth_flow_lock_path("Pi Swisssync");
         assert_eq!(
-            path,
-            temp.path()
-                .join("config")
-                .join("oauth")
-                .join("Pi_Swisssync.lock")
+            path.parent(),
+            Some(temp.path().join("config").join("oauth").as_path())
         );
+        assert!(path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("Pi_Swisssync_") && name.ends_with(".lock")));
         assert_eq!(
+            oauth_flow_lock_path("Pi Swisssync"),
+            oauth_flow_lock_path("Pi Swisssync")
+        );
+        assert_ne!(
             oauth_flow_lock_path("Pi Swisssync"),
             oauth_flow_lock_path("Pi_Swisssync")
         );
