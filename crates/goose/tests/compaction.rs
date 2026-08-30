@@ -34,7 +34,6 @@ struct MockCompactionProvider {
     /// below stays at 20k so a provider rejection stays distinguishable from
     /// the auto-compact threshold.
     context_limit: usize,
-    /// Number of requests rejected with ContextLengthExceeded
     context_limit_rejections: Arc<AtomicUsize>,
 }
 
@@ -198,9 +197,9 @@ impl Provider for MockCompactionProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Check if this is a compaction call (message contains "summarize";
-        // a post-compaction continuation also matches, which existing tests
-        // rely on for their token accounting)
+        // Any "summarize" text marks the request as compaction-related: the
+        // continuation prompt after a compaction also matches, which existing
+        // tests rely on for their token accounting.
         let is_compaction = messages.iter().any(|msg| {
             msg.content.iter().any(|content| {
                 if let MessageContent::Text(text) = content {
@@ -210,25 +209,13 @@ impl Provider for MockCompactionProvider {
                 }
             })
         });
-        // Only a real summarization request is a single "summarize" message
-        let is_summarization_request = messages.len() == 1
-            && messages[0].content.iter().any(|content| {
-                if let MessageContent::Text(text) = content {
-                    text.text.to_lowercase().contains("summarize")
-                } else {
-                    false
-                }
-            });
+        // Only a real summarization request is a lone "summarize" message
+        let is_summarization_request = messages.len() == 1 && is_compaction;
 
         // Calculate realistic token counts based on actual content
         let input_tokens = self.calculate_input_tokens(system_prompt, messages);
-        let loop_finished = self.tool_loop_rounds > 0
-            && self.loop_reply_round(messages).is_none()
-            && messages.iter().any(|msg| {
-                msg.content
-                    .iter()
-                    .any(|c| matches!(c, MessageContent::ToolResponse(_)))
-            });
+        let loop_round = self.loop_reply_round(messages);
+        let loop_finished = self.tool_loop_rounds > 0 && loop_round.is_none();
         let output_tokens = self.calculate_output_tokens(is_compaction, messages);
 
         // Simulate context limit: if input > 20k tokens and we haven't compacted yet, fail
@@ -252,16 +239,7 @@ impl Provider for MockCompactionProvider {
         // Generate response
         let message = if is_summarization_request {
             Message::assistant().with_text("<mock summary of conversation>")
-        } else if self.loop_reply_round(messages).is_some() {
-            let round = messages
-                .iter()
-                .filter(|msg| {
-                    msg.content
-                        .iter()
-                        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
-                })
-                .count()
-                + 1;
+        } else if let Some(round) = loop_round {
             // The legacy loop does not persist assistant text next to a tool
             // call, so the padding rides in the thinking block, which is
             // carried onto the persisted tool-call message.

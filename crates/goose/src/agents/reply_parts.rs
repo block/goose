@@ -13,7 +13,9 @@ use super::gen_ai_telemetry;
 use crate::agents::extension_manager::{get_tool_owner, recover_mangled_tool_name};
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
+use crate::agents::types::SessionConfig;
 use crate::config::{Config, GooseMode};
+use crate::context_mgmt::CompactionResult;
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
 #[cfg(test)]
@@ -23,6 +25,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
+use crate::session::SessionManager;
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::{ErrorData, Tool};
@@ -764,6 +767,29 @@ impl Agent {
             .await?;
 
         Ok(enriched)
+    }
+
+    /// Persists `compaction` for the session and swaps `conversation` to the
+    /// compacted history.
+    pub(crate) async fn persist_compaction(
+        &self,
+        session_manager: &SessionManager,
+        session_config: &SessionConfig,
+        compaction: CompactionResult,
+        conversation: &mut Conversation,
+    ) -> Result<()> {
+        session_manager
+            .replace_conversation(&session_config.id, &compaction.conversation)
+            .await?;
+        self.update_session_metrics(
+            &session_config.id,
+            session_config.schedule_id.clone(),
+            &compaction.usage,
+            Some(compaction.retained_context_tokens),
+        )
+        .await?;
+        *conversation = compaction.conversation;
+        Ok(())
     }
 
     fn resolve_chunk_cost(

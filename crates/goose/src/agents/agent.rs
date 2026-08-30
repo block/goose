@@ -89,6 +89,27 @@ const MAX_EMPTY_TURN_RETRIES: u32 = 3;
 const EMPTY_TURN_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 
+/// Client notice emitted when an automatic compaction starts, shared by the
+/// turn-boundary and mid-turn auto-compaction paths.
+fn auto_compaction_started_events() -> [AgentEvent; 2] {
+    let threshold = Config::global()
+        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+    [
+        AgentEvent::Message(Message::assistant().with_system_notification(
+            SystemNotificationType::InlineMessage,
+            format!(
+                "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                (threshold * 100.0) as u32
+            ),
+        )),
+        AgentEvent::Message(Message::assistant().with_system_notification(
+            SystemNotificationType::ProgressMessage,
+            COMPACTION_PROGRESS_TEXT,
+        )),
+    ]
+}
+
 fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
     let message = format!("{context}: {error}");
     error.context(message)
@@ -2068,7 +2089,6 @@ impl Agent {
         )
         .await?;
 
-        let conversation_to_compact = conversation.clone();
         let reply_span = tracing::Span::current();
         reply_span.record("gen_ai.agent.name", gen_ai_telemetry::agent_name(&session));
 
@@ -2077,61 +2097,32 @@ impl Agent {
                 yield event;
             }
 
-            let final_conversation = if !needs_auto_compact {
-                conversation
-            } else {
-                let config = Config::global();
-                let threshold = config
-                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                let threshold_percentage = (threshold * 100.0) as u32;
-
+            let mut final_conversation = conversation;
+            if needs_auto_compact {
                 debug!(trigger = "turn-boundary", "auto-compaction threshold exceeded");
-
-                let inline_msg = format!(
-                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                    threshold_percentage
-                );
-
-                yield AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::InlineMessage,
-                        inline_msg,
-                    )
-                );
-
-                yield AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::ProgressMessage,
-                        COMPACTION_PROGRESS_TEXT,
-                    )
-                );
+                for event in auto_compaction_started_events() {
+                    yield event;
+                }
 
                 let compact_model_config = self.model_config_for_session(&session_config.id).await?;
                 match compact_messages(
                     self.provider().await?.as_ref(),
                     &compact_model_config,
                     &session_config.id,
-                    &conversation_to_compact,
+                    &final_conversation,
                     false,
                 )
                 .await
                 {
                     Ok(compaction) => {
-                        let compacted_conversation = compaction.conversation;
-                        session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
-
-                        yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
-
+                        self.persist_compaction(&session_manager, &session_config, compaction, &mut final_conversation).await?;
+                        yield AgentEvent::HistoryReplaced(final_conversation.clone());
                         yield AgentEvent::Message(
                             Message::assistant().with_system_notification(
                                 SystemNotificationType::InlineMessage,
                                 "Compaction complete",
                             )
                         );
-
-                        compacted_conversation
                     }
                     Err(e) => {
                         yield AgentEvent::Message(
@@ -2142,7 +2133,7 @@ impl Agent {
                         return;
                     }
                 }
-            };
+            }
 
             let parent_span = tracing::Span::current();
             let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, parent_span.clone()).await?;
@@ -2984,9 +2975,7 @@ impl Agent {
                             .await
                             {
                                 Ok(compaction) => {
-                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
-                                    conversation = compaction.conversation;
+                                    self.persist_compaction(&session_manager, &session_config, compaction, &mut conversation).await?;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -3331,21 +3320,19 @@ impl Agent {
                 }
 
                 // The turn-start check cannot see tool output, so a turn that
-                // begins under the threshold can run to the context limit
-                // without ever being re-examined. Re-check here, once the tool
-                // responses have been appended: compacting between a request
-                // and its response would orphan the request. Skipped when the
-                // turn is ending, since the next turn starts with a check,
-                // after a recovery compaction, which already shrank the
-                // context, and when the provider errored, where the reactive
-                // recovery path owns the outcome.
+                // begins under the threshold can grow past the context limit
+                // without ever being re-examined. Re-check now that the tool
+                // responses have landed: compacting between a request and its
+                // response would orphan the request. Skip when the turn is
+                // ending (the next turn starts with a check), right after a
+                // recovery compaction (the context was just shrunk), and when
+                // the provider errored (the reactive path owns the outcome).
                 if !no_tools_called
                     && !exit_chat
                     && !did_recovery_compact_this_iteration
                     && !provider_errored
                 {
-                    // Only the usage and model config metadata are read; the
-                    // conversation is already in memory.
+                    // Metadata only: the conversation is already in memory.
                     let session_now = session_manager
                         .get_session(&session_config.id, false)
                         .await?;
@@ -3359,24 +3346,9 @@ impl Agent {
 
                     if over_threshold {
                         debug!(trigger = "mid-turn", "auto-compaction threshold exceeded");
-                        let threshold = Config::global()
-                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::InlineMessage,
-                                format!(
-                                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                                    (threshold * 100.0) as u32
-                                ),
-                            )
-                        );
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::ProgressMessage,
-                                COMPACTION_PROGRESS_TEXT,
-                            )
-                        );
+                        for event in auto_compaction_started_events() {
+                            yield event;
+                        }
                         let compact_model_config =
                             self.model_config_for_session(&session_config.id).await?;
                         match compact_messages(
@@ -3389,9 +3361,7 @@ impl Agent {
                         .await
                         {
                             Ok(compaction) => {
-                                session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
-                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
-                                conversation = compaction.conversation;
+                                self.persist_compaction(&session_manager, &session_config, compaction, &mut conversation).await?;
                                 yield AgentEvent::HistoryReplaced(conversation.clone());
                                 yield AgentEvent::Message(
                                     Message::assistant().with_system_notification(
@@ -3400,11 +3370,10 @@ impl Agent {
                                     )
                                 );
                             }
-                            Err(e) => {
-                                // The turn can continue: the request that follows may
-                                // still fit, and the reactive path catches it if not.
-                                error!("Mid-turn compaction failed: {}", e);
-                            }
+                            // The turn can continue: the request that follows
+                            // may still fit, and the reactive path catches it
+                            // if not.
+                            Err(e) => error!("Mid-turn compaction failed: {}", e),
                         }
                     }
                 }

@@ -231,9 +231,8 @@ impl DummyApi {
         self.state.calls.lock().unwrap().len()
     }
 
-    /// Number of requests the API rejected with a context-length 400, whether
-    /// enforced from the model's canonical limit or scripted via
-    /// `context_limit_error`.
+    /// Requests the API rejected with a context-length 400, whether enforced
+    /// from the model's canonical limit or scripted via `context_limit_error`.
     pub(super) fn context_limit_rejections(&self) -> usize {
         self.state.context_limit_rejections.load(Ordering::SeqCst)
     }

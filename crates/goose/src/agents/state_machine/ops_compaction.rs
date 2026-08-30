@@ -233,7 +233,6 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
-        let mut trigger = "reactive";
         if reactive_context_error {
             let context_errors = messages
                 .iter()
@@ -246,7 +245,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
             debug!(
-                trigger,
+                trigger = "reactive",
                 "auto-compaction triggered by a context-length error"
             );
         } else {
@@ -266,7 +265,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }
-            trigger = if role == EffectiveRole::Tool {
+            let trigger = if role == EffectiveRole::Tool {
                 "mid-turn"
             } else {
                 "turn-boundary"
