@@ -2762,7 +2762,7 @@ impl SessionStorage {
             sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(AssertSqlSafe(
                 extra_carried_query,
             ))
-            .bind(start.timestamp())
+            .bind(end.timestamp())
             .bind(extra_end.timestamp());
         let extra_carried = extra_carried_q.fetch_all(pool).await?.into_iter().map(
             |(session_id, model, timestamp, tokens, cost_source)| ActivityLedgerRow {
@@ -2829,6 +2829,11 @@ impl SessionStorage {
         let sessions: Vec<ActivitySessionMeta> = merged
             .into_values()
             .filter(|session| types.contains(&session.session_type))
+            .collect();
+        let sessions_with_ledger: HashSet<String> = sessions
+            .iter()
+            .filter(|session| session.accumulated_tokens == 0)
+            .map(|session| session.id.clone())
             .collect();
         let messages =
             remap_activity_session_ids(messages, &parent_map, |event| &mut event.session_id);
