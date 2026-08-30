@@ -3324,6 +3324,12 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
+                // Revive the turn for pending steers before the mid-turn check
+                // below, so a turn that continues is not skipped as "ending".
+                if exit_chat && self.has_pending_steers(&session_config.id).await {
+                    exit_chat = false;
+                }
+
                 // The turn-start check cannot see tool output, so a turn that
                 // begins under the threshold can run to the context limit
                 // without ever being re-examined. Re-check here, once the tool
@@ -3338,8 +3344,10 @@ impl Agent {
                     && !did_recovery_compact_this_iteration
                     && !provider_errored
                 {
+                    // Only the usage and model config metadata are read; the
+                    // conversation is already in memory.
                     let session_now = session_manager
-                        .get_session(&session_config.id, true)
+                        .get_session(&session_config.id, false)
                         .await?;
                     let over_threshold = check_if_compaction_needed(
                         self.provider().await?.as_ref(),
@@ -3351,6 +3359,18 @@ impl Agent {
 
                     if over_threshold {
                         debug!(trigger = "mid-turn", "auto-compaction threshold exceeded");
+                        let threshold = Config::global()
+                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                format!(
+                                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                                    (threshold * 100.0) as u32
+                                ),
+                            )
+                        );
                         yield AgentEvent::Message(
                             Message::assistant().with_system_notification(
                                 SystemNotificationType::ProgressMessage,
@@ -3373,6 +3393,12 @@ impl Agent {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
                                 conversation = compaction.conversation;
                                 yield AgentEvent::HistoryReplaced(conversation.clone());
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        "Compaction complete",
+                                    )
+                                );
                             }
                             Err(e) => {
                                 // The turn can continue: the request that follows may
@@ -3381,10 +3407,6 @@ impl Agent {
                             }
                         }
                     }
-                }
-
-                if exit_chat && self.has_pending_steers(&session_config.id).await {
-                    exit_chat = false;
                 }
 
                 if exit_chat {
