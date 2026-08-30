@@ -443,6 +443,7 @@ pub async fn oauth_flow_with_challenge(
     // Serialize refresh and browser auth per extension across processes so a
     // rotating refresh token cannot be spent twice and then wipe the winner.
     let _oauth_lock = acquire_oauth_flow_lock(name).await?;
+    credential_store.invalidate_cache();
     auth_manager.set_credential_store(credential_store.clone());
 
     let stored_credentials = credential_store.load().await?;
