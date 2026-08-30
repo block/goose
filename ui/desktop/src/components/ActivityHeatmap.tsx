@@ -190,15 +190,19 @@ export default function ActivityHeatmap({
     <div className="mb-8">
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm text-text-primary">
-            {intl.formatMessage(i18n.yearTokens, {
-              count: formatTokenCount(loadedActivity?.totalTokens ?? 0),
-              year,
-            })}
-          </p>
-          <p className="text-xs text-text-secondary">
-            {intl.formatMessage(i18n.yearSessions, { count: loadedActivity?.totalSessions ?? 0 })}
-          </p>
+          {loadedActivity && (
+            <>
+              <p className="text-sm text-text-primary">
+                {intl.formatMessage(i18n.yearTokens, {
+                  count: formatTokenCount(loadedActivity.totalTokens),
+                  year,
+                })}
+              </p>
+              <p className="text-xs text-text-secondary">
+                {intl.formatMessage(i18n.yearSessions, { count: loadedActivity.totalSessions })}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
