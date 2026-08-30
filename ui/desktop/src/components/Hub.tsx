@@ -12,6 +12,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
+import ActivityHeatmap from './ActivityHeatmap';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -154,6 +155,8 @@ export default function Hub({
           <span className="text-2xl font-light text-text-secondary">{meridiem}</span>
         </div>
         <p className="text-xl text-text-secondary mb-6">{greeting}</p>
+
+        <ActivityHeatmap setView={setView} />
 
         <ChatInputCard>
           <ChatInput

@@ -141,6 +141,14 @@ impl GooseAcpAgent {
         self.on_get_diagnostics(req).await
     }
 
+    #[custom_method(SessionActivityRequest)]
+    async fn dispatch_session_activity(
+        &self,
+        req: SessionActivityRequest,
+    ) -> Result<SessionActivityResponse, agent_client_protocol::Error> {
+        self.on_session_activity(req).await
+    }
+
     #[custom_method(ListPromptsRequest)]
     async fn dispatch_list_prompts(
         &self,

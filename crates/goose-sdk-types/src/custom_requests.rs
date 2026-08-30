@@ -2272,6 +2272,64 @@ pub struct SetToolPermissionsRequest {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct SetToolPermissionsResponse {}
 
+/// Calendar-year session activity for the desktop heatmap.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/sessions/activity",
+    response = SessionActivityResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityRequest {
+    /// Calendar year in UTC. Defaults to the current UTC year when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub year: Option<i32>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivitySession {
+    pub id: String,
+    pub name: String,
+    pub total_tokens: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityDay {
+    pub date: String,
+    pub session_count: u32,
+    pub total_tokens: i64,
+    #[serde(default)]
+    pub sessions: Vec<SessionActivitySession>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityModel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    pub total_tokens: i64,
+    pub session_count: u32,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityResponse {
+    pub year: i32,
+    pub total_tokens: i64,
+    pub total_sessions: u64,
+    #[serde(default)]
+    pub days: Vec<SessionActivityDay>,
+    #[serde(default)]
+    pub models: Vec<SessionActivityModel>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

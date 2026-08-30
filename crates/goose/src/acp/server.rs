@@ -116,6 +116,7 @@ mod providers;
 mod recipe;
 mod resources;
 mod schedule;
+mod session_activity;
 mod slash_commands;
 mod sources;
 mod tool_calls;

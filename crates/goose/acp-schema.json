@@ -1326,6 +1326,143 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/diagnostics/get"
     },
+    "SessionActivityRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Calendar year in UTC. Defaults to the current UTC year when omitted."
+        }
+      },
+      "description": "Calendar-year session activity for the desktop heatmap.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/sessions/activity"
+    },
+    "SessionActivityResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "year": {
+          "type": "integer"
+        },
+        "totalTokens": {
+          "type": "integer"
+        },
+        "totalSessions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionActivityDay"
+          },
+          "default": []
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionActivityModel"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "year",
+        "totalTokens",
+        "totalSessions"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/sessions/activity"
+    },
+    "SessionActivityDay": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "sessionCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer"
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionActivitySession"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "date",
+        "sessionCount",
+        "totalTokens"
+      ]
+    },
+    "SessionActivitySession": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "totalTokens": {
+          "type": "integer"
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "totalTokens"
+      ]
+    },
+    "SessionActivityModel": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "totalTokens": {
+          "type": "integer"
+        },
+        "sessionCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "totalTokens",
+        "sessionCount"
+      ]
+    },
     "ListPromptsRequest_unstable": {
       "type": "object",
       "description": "List all available Goose prompt templates.",
@@ -7063,6 +7200,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/SessionActivityRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/sessions/activity",
+                  "title": "SessionActivityRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/ListPromptsRequest_unstable"
                     }
                   ],
@@ -8023,6 +8169,14 @@
                         }
                       ],
                       "title": "DiagnosticsGetResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/SessionActivityResponse_unstable"
+                        }
+                      ],
+                      "title": "SessionActivityResponse_unstable"
                     },
                     {
                       "allOf": [

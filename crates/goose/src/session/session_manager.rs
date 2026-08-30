@@ -11,7 +11,7 @@ use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
 };
 use anyhow::Result;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Utc};
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
@@ -174,6 +174,48 @@ pub struct SessionUpdateBuilder<'a> {
 pub struct SessionInsights {
     pub total_sessions: usize,
     pub total_tokens: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivitySession {
+    pub id: String,
+    pub name: String,
+    pub total_tokens: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityDay {
+    pub date: String,
+    pub session_count: u32,
+    pub total_tokens: i64,
+    pub sessions: Vec<SessionActivitySession>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityModel {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    pub total_tokens: i64,
+    pub session_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivity {
+    pub year: i32,
+    pub total_tokens: i64,
+    pub total_sessions: usize,
+    pub days: Vec<SessionActivityDay>,
+    pub models: Vec<SessionActivityModel>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -502,6 +544,12 @@ impl SessionManager {
             .await
     }
 
+    pub async fn get_activity(&self, year: Option<i32>) -> Result<SessionActivity> {
+        self.storage
+            .get_activity(year, &[SessionType::User, SessionType::Scheduled])
+            .await
+    }
+
     pub async fn get_session_usage_totals(&self, id: &str) -> Result<SessionUsageTotals> {
         self.storage.get_session_usage_totals(id).await
     }
@@ -735,6 +783,109 @@ fn user_visible_message_sql(column: &str) -> String {
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
     session.last_message_at.unwrap_or(session.updated_at)
+}
+
+fn session_display_name(name: String, description: String) -> String {
+    if !name.is_empty() {
+        name
+    } else {
+        description
+    }
+}
+
+fn model_id_from_config_json(json: Option<&str>) -> Option<String> {
+    let json = json?;
+    serde_json::from_str::<serde_json::Value>(json)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("model_name")
+                .and_then(|model| model.as_str())
+                .map(ToString::to_string)
+        })
+        .filter(|model_id| !model_id.is_empty())
+}
+
+type SessionActivityRow = (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    i64,
+    i64,
+);
+
+fn build_session_activity(year: i32, rows: Vec<SessionActivityRow>) -> SessionActivity {
+    let mut days: HashMap<String, SessionActivityDay> = HashMap::new();
+    let mut models: HashMap<(Option<String>, Option<String>), SessionActivityModel> =
+        HashMap::new();
+    let mut total_tokens = 0_i64;
+
+    for (id, name, description, provider_name, model_config_json, tokens, activity_at) in rows {
+        let Some(activity_at) = message_timestamp_to_datetime(activity_at) else {
+            continue;
+        };
+        let date = activity_at.format("%Y-%m-%d").to_string();
+        let model_id = model_id_from_config_json(model_config_json.as_deref());
+        let provider_id = provider_name.filter(|value| !value.is_empty());
+        let session = SessionActivitySession {
+            id,
+            name: session_display_name(name, description),
+            total_tokens: tokens,
+            provider_id: provider_id.clone(),
+            model_id: model_id.clone(),
+        };
+
+        let day = days
+            .entry(date.clone())
+            .or_insert_with(|| SessionActivityDay {
+                date,
+                session_count: 0,
+                total_tokens: 0,
+                sessions: Vec::new(),
+            });
+        day.session_count += 1;
+        day.total_tokens += tokens;
+        day.sessions.push(session);
+
+        let model = models
+            .entry((provider_id.clone(), model_id.clone()))
+            .or_insert_with(|| SessionActivityModel {
+                provider_id,
+                model_id,
+                total_tokens: 0,
+                session_count: 0,
+            });
+        model.session_count += 1;
+        model.total_tokens += tokens;
+        total_tokens += tokens;
+    }
+
+    let mut days: Vec<SessionActivityDay> = days.into_values().collect();
+    days.sort_by(|left, right| left.date.cmp(&right.date));
+    for day in &mut days {
+        day.sessions.sort_by(|left, right| left.id.cmp(&right.id));
+    }
+
+    let mut models: Vec<SessionActivityModel> = models.into_values().collect();
+    models.sort_by(|left, right| {
+        right
+            .total_tokens
+            .cmp(&left.total_tokens)
+            .then_with(|| left.model_id.cmp(&right.model_id))
+            .then_with(|| left.provider_id.cmp(&right.provider_id))
+    });
+
+    let total_sessions = days.iter().map(|day| day.session_count as usize).sum();
+
+    SessionActivity {
+        year,
+        total_tokens,
+        total_sessions,
+        days,
+        models,
+    }
 }
 
 impl Default for Session {
@@ -2241,6 +2392,66 @@ impl SessionStorage {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    async fn get_activity(
+        &self,
+        year: Option<i32>,
+        types: &[SessionType],
+    ) -> Result<SessionActivity> {
+        let year = year.unwrap_or_else(|| Utc::now().year());
+        if types.is_empty() {
+            return Ok(SessionActivity {
+                year,
+                total_tokens: 0,
+                total_sessions: 0,
+                days: Vec::new(),
+                models: Vec::new(),
+            });
+        }
+
+        let start = NaiveDate::from_ymd_opt(year, 1, 1)
+            .and_then(|date| date.and_hms_opt(0, 0, 0))
+            .map(|naive| Utc.from_utc_datetime(&naive))
+            .ok_or_else(|| anyhow::anyhow!("invalid activity year"))?;
+        let end = NaiveDate::from_ymd_opt(year + 1, 1, 1)
+            .and_then(|date| date.and_hms_opt(0, 0, 0))
+            .map(|naive| Utc.from_utc_datetime(&naive))
+            .ok_or_else(|| anyhow::anyhow!("invalid activity year"))?;
+
+        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let activity_at_sql = format!(
+            "COALESCE(MAX({normalized}), strftime('%s', s.updated_at))",
+            normalized = normalized_message_timestamp_sql("m.created_timestamp")
+        );
+        let query = format!(
+            r#"
+            SELECT
+                s.id,
+                s.name,
+                COALESCE(s.description, '') as description,
+                s.provider_name,
+                s.model_config_json,
+                COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as total_tokens,
+                {activity_at_sql} as activity_at
+            FROM sessions s
+            LEFT JOIN messages m ON s.id = m.session_id
+            WHERE s.session_type IN ({placeholders})
+              AND s.archived_at IS NULL
+            GROUP BY s.id
+            HAVING activity_at >= ? AND activity_at < ?
+            "#
+        );
+
+        let pool = self.pool().await?;
+        let mut q = sqlx::query_as::<_, SessionActivityRow>(AssertSqlSafe(query));
+        for session_type in types {
+            q = q.bind(session_type.to_string());
+        }
+        q = q.bind(start.timestamp()).bind(end.timestamp());
+
+        let rows = q.fetch_all(pool).await?;
+        Ok(build_session_activity(year, rows))
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -4839,5 +5050,175 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(remaining, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_activity_groups_sessions_by_local_utc_day_and_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let first = sm
+            .create_session(
+                PathBuf::from("/tmp/a"),
+                "Review rust".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        sm.update(&first.id)
+            .accumulated_usage(Usage::new(Some(10), Some(20), Some(30)))
+            .provider_name("openai")
+            .model_config(ModelConfig::new("gpt-4o"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(&first.id, &Message::user().with_text("hello"))
+            .await
+            .unwrap();
+
+        let second = sm
+            .create_session(
+                PathBuf::from("/tmp/b"),
+                "Write docs".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        sm.update(&second.id)
+            .accumulated_usage(Usage::new(Some(40), Some(50), Some(90)))
+            .provider_name("anthropic")
+            .model_config(ModelConfig::new("claude-sonnet"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(&second.id, &Message::user().with_text("docs"))
+            .await
+            .unwrap();
+
+        let scheduled = sm
+            .create_session(
+                PathBuf::from("/tmp/c"),
+                "Scheduled".to_string(),
+                SessionType::Scheduled,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        sm.update(&scheduled.id)
+            .accumulated_usage(Usage::new(Some(1), Some(2), Some(3)))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(&scheduled.id, &Message::user().with_text("cron"))
+            .await
+            .unwrap();
+
+        let hidden = sm
+            .create_session(
+                PathBuf::from("/tmp/d"),
+                "Hidden".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        sm.update(&hidden.id)
+            .accumulated_usage(Usage::new(Some(100), Some(100), Some(200)))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(&hidden.id, &Message::user().with_text("secret"))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let jan_day = Utc.with_ymd_and_hms(2024, 1, 15, 12, 0, 0).unwrap();
+        let feb_day = Utc.with_ymd_and_hms(2024, 2, 2, 8, 0, 0).unwrap();
+        sqlx::query("UPDATE messages SET created_timestamp = ? WHERE session_id = ?")
+            .bind(jan_day.timestamp())
+            .bind(&first.id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE messages SET created_timestamp = ? WHERE session_id = ?")
+            .bind(jan_day.timestamp())
+            .bind(&scheduled.id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE messages SET created_timestamp = ? WHERE session_id = ?")
+            .bind(feb_day.timestamp())
+            .bind(&second.id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE messages SET created_timestamp = ? WHERE session_id = ?")
+            .bind(jan_day.timestamp())
+            .bind(&hidden.id)
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let activity = sm.get_activity(Some(2024)).await.unwrap();
+        assert_eq!(activity.year, 2024);
+        assert_eq!(activity.total_sessions, 3);
+        assert_eq!(activity.total_tokens, 123);
+        assert_eq!(activity.days.len(), 2);
+        assert_eq!(activity.days[0].date, "2024-01-15");
+        assert_eq!(activity.days[0].session_count, 2);
+        assert_eq!(activity.days[0].total_tokens, 33);
+        assert_eq!(activity.days[1].date, "2024-02-02");
+        assert_eq!(activity.days[1].session_count, 1);
+        assert_eq!(activity.days[1].total_tokens, 90);
+        assert_eq!(
+            activity.models[0].model_id.as_deref(),
+            Some("claude-sonnet")
+        );
+        assert_eq!(activity.models[0].total_tokens, 90);
+        assert_eq!(activity.models[1].model_id.as_deref(), Some("gpt-4o"));
+        assert_eq!(activity.models[1].total_tokens, 30);
+
+        let empty = sm.get_activity(Some(2023)).await.unwrap();
+        assert_eq!(empty.total_sessions, 0);
+        assert!(empty.days.is_empty());
+    }
+
+    #[test]
+    fn test_build_session_activity_sorts_days_and_models() {
+        let activity = build_session_activity(
+            2024,
+            vec![
+                (
+                    "b".into(),
+                    "Later".into(),
+                    String::new(),
+                    Some("openai".into()),
+                    Some(r#"{"model_name":"gpt-4o"}"#.into()),
+                    10,
+                    Utc.with_ymd_and_hms(2024, 3, 2, 0, 0, 0)
+                        .unwrap()
+                        .timestamp(),
+                ),
+                (
+                    "a".into(),
+                    String::new(),
+                    "Earlier".into(),
+                    Some("anthropic".into()),
+                    Some(r#"{"model_name":"claude"}"#.into()),
+                    50,
+                    Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0)
+                        .unwrap()
+                        .timestamp(),
+                ),
+            ],
+        );
+
+        assert_eq!(activity.days[0].date, "2024-03-01");
+        assert_eq!(activity.days[0].sessions[0].name, "Earlier");
+        assert_eq!(activity.days[1].date, "2024-03-02");
+        assert_eq!(activity.models[0].model_id.as_deref(), Some("claude"));
+        assert_eq!(activity.models[0].total_tokens, 50);
     }
 }
