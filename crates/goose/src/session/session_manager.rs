@@ -2733,7 +2733,7 @@ impl SessionStorage {
         )
         .bind(start.timestamp())
         .bind(end.timestamp());
-        let ledger = ledger_q
+        let mut ledger: Vec<ActivityLedgerRow> = ledger_q
             .fetch_all(pool)
             .await?
             .into_iter()
@@ -2747,6 +2747,33 @@ impl SessionStorage {
                 },
             )
             .collect();
+
+        let extra_carried_query = format!(
+            r#"
+            SELECT session_id, model, {timestamp}, COALESCE(total_tokens, 0), cost_source
+            FROM usage_ledger
+            WHERE cost_source = 'carried_forward'
+              AND {timestamp} >= ? AND {timestamp} < ?
+            "#,
+            timestamp = normalized_message_timestamp_sql("created_timestamp")
+        );
+        let extra_end = end + chrono::TimeDelta::days(1);
+        let extra_carried_q =
+            sqlx::query_as::<_, (String, Option<String>, i64, i64, Option<String>)>(AssertSqlSafe(
+                extra_carried_query,
+            ))
+            .bind(start.timestamp())
+            .bind(extra_end.timestamp());
+        let extra_carried = extra_carried_q.fetch_all(pool).await?.into_iter().map(
+            |(session_id, model, timestamp, tokens, cost_source)| ActivityLedgerRow {
+                session_id,
+                model,
+                timestamp,
+                tokens,
+                cost_source,
+            },
+        );
+        ledger.extend(extra_carried);
 
         let ledger_presence_query = r#"
             SELECT DISTINCT session_id
@@ -2783,10 +2810,15 @@ impl SessionStorage {
             .collect();
 
         let parent_map = self.activity_visible_parent_map(types).await?;
-        let mut sessions =
-            remap_activity_session_ids(sessions, &parent_map, |session| &mut session.id);
         let mut merged: HashMap<String, ActivitySessionMeta> = HashMap::new();
-        for session in sessions {
+        for mut session in sessions {
+            let original_id = session.id.clone();
+            if sessions_with_ledger.contains(&original_id) {
+                session.accumulated_tokens = 0;
+            }
+            if let Some(parent) = parent_map.get(&original_id) {
+                session.id = parent.clone();
+            }
             merged
                 .entry(session.id.clone())
                 .and_modify(|existing| {
@@ -2794,17 +2826,13 @@ impl SessionStorage {
                 })
                 .or_insert(session);
         }
-        sessions = merged
+        let sessions: Vec<ActivitySessionMeta> = merged
             .into_values()
             .filter(|session| types.contains(&session.session_type))
             .collect();
         let messages =
             remap_activity_session_ids(messages, &parent_map, |event| &mut event.session_id);
         let ledger = remap_activity_session_ids(ledger, &parent_map, |row| &mut row.session_id);
-        let sessions_with_ledger = sessions_with_ledger
-            .into_iter()
-            .map(|session_id| remap_session_id(session_id, &parent_map))
-            .collect();
         let last_message_days =
             last_message_days
                 .into_iter()
