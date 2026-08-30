@@ -18,7 +18,7 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{AssertSqlSafe, Pool, Sqlite};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
@@ -807,67 +807,186 @@ fn model_id_from_config_json(provider_name: Option<&str>, json: Option<&str>) ->
         .filter(|model_id| !model_id.is_empty())
 }
 
-type SessionActivityRow = (
-    String,
-    String,
-    String,
-    Option<String>,
-    Option<String>,
-    i64,
-    i64,
-);
+struct ActivitySessionMeta {
+    id: String,
+    name: String,
+    description: String,
+    provider_name: Option<String>,
+    model_config_json: Option<String>,
+    accumulated_tokens: i64,
+}
 
-fn build_session_activity(year: i32, rows: Vec<SessionActivityRow>) -> SessionActivity {
-    let mut days: HashMap<String, SessionActivityDay> = HashMap::new();
-    let mut models: HashMap<(Option<String>, Option<String>), SessionActivityModel> =
-        HashMap::new();
-    let mut total_tokens = 0_i64;
+struct ActivityEvent {
+    session_id: String,
+    timestamp: i64,
+}
 
-    for (id, name, description, provider_name, model_config_json, tokens, activity_at) in rows {
-        let Some(activity_at) = message_timestamp_to_datetime(activity_at) else {
-            continue;
-        };
-        let date = activity_at
+struct ActivityLedgerRow {
+    session_id: String,
+    model: Option<String>,
+    timestamp: i64,
+    tokens: i64,
+}
+
+fn local_date_key(timestamp: i64) -> Option<String> {
+    message_timestamp_to_datetime(timestamp).map(|activity_at| {
+        activity_at
             .with_timezone(&Local)
             .format("%Y-%m-%d")
-            .to_string();
-        let model_id =
-            model_id_from_config_json(provider_name.as_deref(), model_config_json.as_deref());
-        let provider_id = provider_name.filter(|value| !value.is_empty());
-        let session = SessionActivitySession {
-            id,
-            name: session_display_name(name, description),
-            total_tokens: tokens,
-            provider_id: provider_id.clone(),
-            model_id: model_id.clone(),
+            .to_string()
+    })
+}
+
+fn session_provider_id(meta: &ActivitySessionMeta) -> Option<String> {
+    meta.provider_name.clone().filter(|value| !value.is_empty())
+}
+
+fn session_model_id(meta: &ActivitySessionMeta) -> Option<String> {
+    model_id_from_config_json(
+        meta.provider_name.as_deref(),
+        meta.model_config_json.as_deref(),
+    )
+}
+
+fn add_model_tokens(
+    models: &mut HashMap<(Option<String>, Option<String>), SessionActivityModel>,
+    model_sessions: &mut HashMap<(Option<String>, Option<String>), HashSet<String>>,
+    session_id: &str,
+    provider_id: Option<String>,
+    model_id: Option<String>,
+    tokens: i64,
+) {
+    let key = (provider_id.clone(), model_id.clone());
+    let model = models
+        .entry(key.clone())
+        .or_insert_with(|| SessionActivityModel {
+            provider_id,
+            model_id,
+            total_tokens: 0,
+            session_count: 0,
+        });
+    model.total_tokens += tokens;
+    model_sessions
+        .entry(key)
+        .or_default()
+        .insert(session_id.to_string());
+}
+
+fn build_session_activity(
+    year: i32,
+    sessions: Vec<ActivitySessionMeta>,
+    messages: Vec<ActivityEvent>,
+    ledger: Vec<ActivityLedgerRow>,
+) -> SessionActivity {
+    let metas: HashMap<String, ActivitySessionMeta> = sessions
+        .into_iter()
+        .map(|session| (session.id.clone(), session))
+        .collect();
+
+    let mut day_session_tokens: HashMap<String, HashMap<String, i64>> = HashMap::new();
+    let mut last_message_day: HashMap<String, String> = HashMap::new();
+
+    for event in messages {
+        if !metas.contains_key(&event.session_id) {
+            continue;
+        }
+        let Some(date) = local_date_key(event.timestamp) else {
+            continue;
         };
-
-        let day = days
-            .entry(date.clone())
-            .or_insert_with(|| SessionActivityDay {
-                date,
-                session_count: 0,
-                total_tokens: 0,
-                sessions: Vec::new(),
-            });
-        day.session_count += 1;
-        day.total_tokens += tokens;
-        day.sessions.push(session);
-
-        let model = models
-            .entry((provider_id.clone(), model_id.clone()))
-            .or_insert_with(|| SessionActivityModel {
-                provider_id,
-                model_id,
-                total_tokens: 0,
-                session_count: 0,
-            });
-        model.session_count += 1;
-        model.total_tokens += tokens;
-        total_tokens += tokens;
+        last_message_day.insert(event.session_id.clone(), date.clone());
+        day_session_tokens
+            .entry(date)
+            .or_default()
+            .entry(event.session_id.clone())
+            .or_insert(0);
     }
 
-    let mut days: Vec<SessionActivityDay> = days.into_values().collect();
+    let mut models: HashMap<(Option<String>, Option<String>), SessionActivityModel> =
+        HashMap::new();
+    let mut model_sessions: HashMap<(Option<String>, Option<String>), HashSet<String>> =
+        HashMap::new();
+    let mut sessions_with_ledger: HashSet<String> = HashSet::new();
+
+    for row in ledger {
+        let Some(meta) = metas.get(&row.session_id) else {
+            continue;
+        };
+        let Some(date) = local_date_key(row.timestamp) else {
+            continue;
+        };
+        sessions_with_ledger.insert(row.session_id.clone());
+        *day_session_tokens
+            .entry(date)
+            .or_default()
+            .entry(row.session_id.clone())
+            .or_insert(0) += row.tokens;
+
+        let model_id = row
+            .model
+            .filter(|value| !value.is_empty())
+            .or_else(|| session_model_id(meta));
+        add_model_tokens(
+            &mut models,
+            &mut model_sessions,
+            &row.session_id,
+            session_provider_id(meta),
+            model_id,
+            row.tokens,
+        );
+    }
+
+    for (session_id, meta) in &metas {
+        if sessions_with_ledger.contains(session_id) {
+            continue;
+        }
+        let Some(date) = last_message_day.get(session_id) else {
+            continue;
+        };
+        *day_session_tokens
+            .entry(date.clone())
+            .or_default()
+            .entry(session_id.clone())
+            .or_insert(0) += meta.accumulated_tokens;
+        add_model_tokens(
+            &mut models,
+            &mut model_sessions,
+            session_id,
+            session_provider_id(meta),
+            session_model_id(meta),
+            meta.accumulated_tokens,
+        );
+    }
+
+    for (key, sessions) in model_sessions {
+        if let Some(model) = models.get_mut(&key) {
+            model.session_count = sessions.len() as u32;
+        }
+    }
+
+    let mut days: Vec<SessionActivityDay> = day_session_tokens
+        .into_iter()
+        .map(|(date, session_tokens)| {
+            let sessions = session_tokens
+                .iter()
+                .filter_map(|(session_id, tokens)| {
+                    let meta = metas.get(session_id)?;
+                    Some(SessionActivitySession {
+                        id: session_id.clone(),
+                        name: session_display_name(meta.name.clone(), meta.description.clone()),
+                        total_tokens: *tokens,
+                        provider_id: session_provider_id(meta),
+                        model_id: session_model_id(meta),
+                    })
+                })
+                .collect::<Vec<_>>();
+            SessionActivityDay {
+                date,
+                session_count: sessions.len() as u32,
+                total_tokens: sessions.iter().map(|session| session.total_tokens).sum(),
+                sessions,
+            }
+        })
+        .collect();
     days.sort_by(|left, right| left.date.cmp(&right.date));
     for day in &mut days {
         day.sessions.sort_by(|left, right| left.id.cmp(&right.id));
@@ -882,7 +1001,12 @@ fn build_session_activity(year: i32, rows: Vec<SessionActivityRow>) -> SessionAc
             .then_with(|| left.provider_id.cmp(&right.provider_id))
     });
 
-    let total_sessions = days.iter().map(|day| day.session_count as usize).sum();
+    let total_tokens = days.iter().map(|day| day.total_tokens).sum();
+    let total_sessions = days
+        .iter()
+        .flat_map(|day| day.sessions.iter().map(|session| session.id.as_str()))
+        .collect::<HashSet<_>>()
+        .len();
 
     SessionActivity {
         year,
@@ -2404,7 +2528,7 @@ impl SessionStorage {
         year: Option<i32>,
         types: &[SessionType],
     ) -> Result<SessionActivity> {
-        let year = year.unwrap_or_else(|| Utc::now().year());
+        let year = year.unwrap_or_else(|| Local::now().year());
         if types.is_empty() {
             return Ok(SessionActivity {
                 year,
@@ -2419,11 +2543,9 @@ impl SessionStorage {
         let end = local_year_start(year + 1)?;
 
         let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-        let activity_at_sql = format!(
-            "COALESCE(MAX({normalized}), strftime('%s', s.updated_at))",
-            normalized = normalized_message_timestamp_sql("m.created_timestamp")
-        );
-        let query = format!(
+        let pool = self.pool().await?;
+
+        let session_query = format!(
             r#"
             SELECT
                 s.id,
@@ -2431,26 +2553,92 @@ impl SessionStorage {
                 COALESCE(s.description, '') as description,
                 s.provider_name,
                 s.model_config_json,
-                COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as total_tokens,
-                {activity_at_sql} as activity_at
+                COALESCE(s.accumulated_total_tokens, s.total_tokens, 0) as accumulated_tokens
             FROM sessions s
-            JOIN messages m ON s.id = m.session_id
             WHERE s.session_type IN ({placeholders})
               AND s.archived_at IS NULL
-            GROUP BY s.id
-            HAVING activity_at >= ? AND activity_at < ?
             "#
         );
-
-        let pool = self.pool().await?;
-        let mut q = sqlx::query_as::<_, SessionActivityRow>(AssertSqlSafe(query));
+        let mut session_q = sqlx::query_as::<
+            _,
+            (String, String, String, Option<String>, Option<String>, i64),
+        >(AssertSqlSafe(session_query));
         for session_type in types {
-            q = q.bind(session_type.to_string());
+            session_q = session_q.bind(session_type.to_string());
         }
-        q = q.bind(start.timestamp()).bind(end.timestamp());
+        let session_rows = session_q.fetch_all(pool).await?;
+        let sessions = session_rows
+            .into_iter()
+            .map(
+                |(id, name, description, provider_name, model_config_json, accumulated_tokens)| {
+                    ActivitySessionMeta {
+                        id,
+                        name,
+                        description,
+                        provider_name,
+                        model_config_json,
+                        accumulated_tokens,
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
 
-        let rows = q.fetch_all(pool).await?;
-        Ok(build_session_activity(year, rows))
+        let message_query = format!(
+            r#"
+            SELECT m.session_id, {timestamp}
+            FROM messages m
+            JOIN sessions s ON s.id = m.session_id
+            WHERE s.session_type IN ({placeholders})
+              AND s.archived_at IS NULL
+              AND {timestamp} >= ? AND {timestamp} < ?
+            "#,
+            timestamp = normalized_message_timestamp_sql("m.created_timestamp")
+        );
+        let mut message_q = sqlx::query_as::<_, (String, i64)>(AssertSqlSafe(message_query));
+        for session_type in types {
+            message_q = message_q.bind(session_type.to_string());
+        }
+        message_q = message_q.bind(start.timestamp()).bind(end.timestamp());
+        let messages = message_q
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|(session_id, timestamp)| ActivityEvent {
+                session_id,
+                timestamp,
+            })
+            .collect();
+
+        let ledger_query = format!(
+            r#"
+            SELECT l.session_id, l.model, {timestamp}, COALESCE(l.total_tokens, 0)
+            FROM usage_ledger l
+            JOIN sessions s ON s.id = l.session_id
+            WHERE s.session_type IN ({placeholders})
+              AND s.archived_at IS NULL
+              AND {timestamp} >= ? AND {timestamp} < ?
+            "#,
+            timestamp = normalized_message_timestamp_sql("l.created_timestamp")
+        );
+        let mut ledger_q =
+            sqlx::query_as::<_, (String, Option<String>, i64, i64)>(AssertSqlSafe(ledger_query));
+        for session_type in types {
+            ledger_q = ledger_q.bind(session_type.to_string());
+        }
+        ledger_q = ledger_q.bind(start.timestamp()).bind(end.timestamp());
+        let ledger = ledger_q
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|(session_id, model, timestamp, tokens)| ActivityLedgerRow {
+                session_id,
+                model,
+                timestamp,
+                tokens,
+            })
+            .collect();
+
+        Ok(build_session_activity(year, sessions, messages, ledger))
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -5194,36 +5382,47 @@ mod tests {
 
     #[test]
     fn test_build_session_activity_sorts_days_and_models() {
+        let march_first = Local
+            .with_ymd_and_hms(2024, 3, 1, 12, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp();
+        let march_second = Local
+            .with_ymd_and_hms(2024, 3, 2, 12, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp();
         let activity = build_session_activity(
             2024,
             vec![
-                (
-                    "b".into(),
-                    "Later".into(),
-                    String::new(),
-                    Some("openai".into()),
-                    Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
-                    10,
-                    Local
-                        .with_ymd_and_hms(2024, 3, 2, 12, 0, 0)
-                        .single()
-                        .unwrap()
-                        .timestamp(),
-                ),
-                (
-                    "a".into(),
-                    String::new(),
-                    "Earlier".into(),
-                    Some("anthropic".into()),
-                    Some(r#"{"model_name":"claude","toolshim":false}"#.into()),
-                    50,
-                    Local
-                        .with_ymd_and_hms(2024, 3, 1, 12, 0, 0)
-                        .single()
-                        .unwrap()
-                        .timestamp(),
-                ),
+                ActivitySessionMeta {
+                    id: "b".into(),
+                    name: "Later".into(),
+                    description: String::new(),
+                    provider_name: Some("openai".into()),
+                    model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
+                    accumulated_tokens: 10,
+                },
+                ActivitySessionMeta {
+                    id: "a".into(),
+                    name: String::new(),
+                    description: "Earlier".into(),
+                    provider_name: Some("anthropic".into()),
+                    model_config_json: Some(r#"{"model_name":"claude","toolshim":false}"#.into()),
+                    accumulated_tokens: 50,
+                },
             ],
+            vec![
+                ActivityEvent {
+                    session_id: "b".into(),
+                    timestamp: march_second,
+                },
+                ActivityEvent {
+                    session_id: "a".into(),
+                    timestamp: march_first,
+                },
+            ],
+            Vec::new(),
         );
 
         assert_eq!(activity.days[0].date, "2024-03-01");
@@ -5231,5 +5430,65 @@ mod tests {
         assert_eq!(activity.days[1].date, "2024-03-02");
         assert_eq!(activity.models[0].model_id.as_deref(), Some("claude"));
         assert_eq!(activity.models[0].total_tokens, 50);
+    }
+
+    #[test]
+    fn test_build_session_activity_splits_multi_day_and_multi_model_usage() {
+        let january = Local
+            .with_ymd_and_hms(2024, 1, 15, 12, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp();
+        let february = Local
+            .with_ymd_and_hms(2024, 2, 2, 8, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp();
+        let activity = build_session_activity(
+            2024,
+            vec![ActivitySessionMeta {
+                id: "s1".into(),
+                name: "Long chat".into(),
+                description: String::new(),
+                provider_name: Some("openai".into()),
+                model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
+                accumulated_tokens: 999,
+            }],
+            vec![
+                ActivityEvent {
+                    session_id: "s1".into(),
+                    timestamp: january,
+                },
+                ActivityEvent {
+                    session_id: "s1".into(),
+                    timestamp: february,
+                },
+            ],
+            vec![
+                ActivityLedgerRow {
+                    session_id: "s1".into(),
+                    model: Some("gpt-4o".into()),
+                    timestamp: january,
+                    tokens: 30,
+                },
+                ActivityLedgerRow {
+                    session_id: "s1".into(),
+                    model: Some("o3".into()),
+                    timestamp: february,
+                    tokens: 70,
+                },
+            ],
+        );
+
+        assert_eq!(activity.total_sessions, 1);
+        assert_eq!(activity.total_tokens, 100);
+        assert_eq!(activity.days[0].date, "2024-01-15");
+        assert_eq!(activity.days[0].total_tokens, 30);
+        assert_eq!(activity.days[1].date, "2024-02-02");
+        assert_eq!(activity.days[1].total_tokens, 70);
+        assert_eq!(activity.models[0].model_id.as_deref(), Some("o3"));
+        assert_eq!(activity.models[0].total_tokens, 70);
+        assert_eq!(activity.models[1].model_id.as_deref(), Some("gpt-4o"));
+        assert_eq!(activity.models[1].total_tokens, 30);
     }
 }

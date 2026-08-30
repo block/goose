@@ -27,6 +27,7 @@ import { View, ViewOptions } from '../utils/navigationUtils';
 
 const CELL = 10;
 const GAP = 3;
+const MIN_ACTIVITY_YEAR = 1970;
 
 const i18n = defineMessages({
   yearTokens: {
@@ -210,7 +211,8 @@ export default function ActivityHeatmap({
             variant="ghost"
             size="xs"
             shape="pill"
-            onClick={() => setYear((current) => current - 1)}
+            onClick={() => setYear((current) => Math.max(MIN_ACTIVITY_YEAR, current - 1))}
+            disabled={year <= MIN_ACTIVITY_YEAR}
             aria-label={intl.formatMessage(i18n.previousYear)}
           >
             ‹
@@ -368,7 +370,7 @@ function HeatmapGrid({
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        className="min-w-0"
+        className="shrink-0"
       >
         {cells.map((cell) => {
           const day = daysByDate.get(cell.date);
