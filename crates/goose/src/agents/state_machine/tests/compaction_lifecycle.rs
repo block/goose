@@ -1,6 +1,7 @@
 use anyhow::Result;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage as ProviderTokenUsage};
 use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
+use serde_json::json;
 
 use super::calculator_extension::{value, ADD};
 use super::dummy_api::ProviderFeatures;
@@ -498,6 +499,61 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
         .agent_visible_messages()
         .iter()
         .any(|message| message.as_concat_text().contains(&large_result)));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_large_tool_result_alone_triggers_the_mid_turn_check() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // Six parallel shell calls each land a ~10k-character (≈5k-token)
+    // truncated preview, so the conversation grows by ~31k tokens in one
+    // step — far past the 19.2k threshold — while the request that produced
+    // the calls was under it. Only a mid-turn check that recounts the
+    // conversation, rather than trusting the preceding request's usage, can
+    // see the turn cross the threshold. gpt-4.1's ~1M canonical limit keeps
+    // the API's rejection wall far above every request, summarization
+    // included.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let huge_output = json!({ "command": "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'" });
+    api.on("read the huge outputs").calls([
+        ("big-1", "shell", huge_output.clone()),
+        ("big-2", "shell", huge_output.clone()),
+        ("big-3", "shell", huge_output.clone()),
+        ("big-4", "shell", huge_output.clone()),
+        ("big-5", "shell", huge_output.clone()),
+        ("big-6", "shell", huge_output),
+    ]);
+    api.on(SUMMARIZE_HISTORY).reply("huge outputs summarized");
+    api.on("Your context was compacted")
+        .reply("continued after the huge outputs");
+
+    let run = pipeline.run(["read the huge outputs"]).await?;
+
+    run.assert_message(-1, Agent, "continued after the huge outputs");
+    assert_eq!(run.history_replacements(), 1);
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.input_tokens() > 60_000,
+        "the summarization request must carry the huge tool results, i.e. the check ran mid-turn"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
 
     Ok(())
 }

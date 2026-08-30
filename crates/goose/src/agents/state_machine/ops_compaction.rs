@@ -11,7 +11,7 @@ use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
 use crate::agents::state_machine::{
     applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
     yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
-    SlashCommand,
+    RecipeOperation, SlashCommand,
 };
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -77,9 +77,17 @@ impl CompactionOperation {
         (tokens as f64 / self.context_limit as f64) > self.threshold
     }
 
-    async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
+    async fn context_tokens(
+        &self,
+        session: &Session,
+        conversation: &Conversation,
+        recount: bool,
+    ) -> Result<i32> {
         match session.usage.total_tokens {
-            Some(tokens) => Ok(tokens),
+            Some(tokens) if !recount => Ok(tokens),
+            Some(tokens) => {
+                Ok(tokens.max(crate::context_mgmt::count_context_tokens(conversation).await?))
+            }
             None => crate::context_mgmt::count_context_tokens(conversation).await,
         }
     }
@@ -209,7 +217,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             return Ok(Vec::new());
         }
         Ok(compaction_part(
-            Some(self.context_tokens(session, conversation).await?),
+            Some(self.context_tokens(session, conversation, false).await?),
             self.context_limit,
             self.threshold,
         )
@@ -261,7 +269,23 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if !matches!(role, EffectiveRole::User | EffectiveRole::Tool) {
                 return not_applicable();
             }
-            let tokens = self.context_tokens(session, conversation).await?;
+            if role == EffectiveRole::Tool {
+                // A successful final-output response ends the recipe: the
+                // recipe operation delivers it later in this same pass.
+                // Summarizing between the response and its delivery wastes a
+                // request and, on failure, can end the run without the
+                // already-completed result. The next turn boundary re-checks
+                // the threshold.
+                if RecipeOperation::successful_final_output(messages).is_some() {
+                    return not_applicable();
+                }
+            }
+            // Session usage reflects the last provider call and cannot see
+            // tool responses that landed after it, so a mid-turn check
+            // recounts the conversation and trusts the larger estimate.
+            let tokens = self
+                .context_tokens(session, conversation, role == EffectiveRole::Tool)
+                .await?;
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }

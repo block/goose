@@ -516,6 +516,24 @@ impl TestPipeline {
             .map_err(anyhow::Error::from)
     }
 
+    pub(super) async fn add_extension_with_tools(&self, name: &str, tools: &[&str]) -> Result<()> {
+        self.extension_manager
+            .add_extension(
+                ExtensionConfig::Platform {
+                    name: name.to_string(),
+                    description: name.to_string(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: tools.iter().map(|tool| tool.to_string()).collect(),
+                },
+                Some(self.working_dir.clone()),
+                None,
+                Some(&self.session_id),
+            )
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
     pub(super) async fn resume_cancelled(&self) -> Result<TestRun> {
         let cancel = CancellationToken::new();
         cancel.cancel();

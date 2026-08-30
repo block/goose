@@ -78,6 +78,9 @@ struct DummyApiState {
     calls: Mutex<Vec<ApiCall>>,
     next_response_id: AtomicUsize,
     context_limit_rejections: AtomicUsize,
+    /// Rejection wall for every request, replacing the canonical limit of the
+    /// request's model. Zero keeps the canonical lookup.
+    context_limit_override: AtomicUsize,
 }
 
 pub(super) struct DummyApi {
@@ -195,6 +198,7 @@ impl DummyApi {
             calls: Mutex::new(Vec::new()),
             next_response_id: AtomicUsize::new(1),
             context_limit_rejections: AtomicUsize::new(0),
+            context_limit_override: AtomicUsize::new(0),
         });
         let responder = state.clone();
         Mock::given(method("POST"))
@@ -235,6 +239,16 @@ impl DummyApi {
     /// from the model's canonical limit or scripted via `context_limit_error`.
     pub(super) fn context_limit_rejections(&self) -> usize {
         self.state.context_limit_rejections.load(Ordering::SeqCst)
+    }
+
+    /// Pins the rejection wall for every request, decoupling it from the
+    /// canonical limit of the request's model (which thresholds derived from
+    /// the provider still use). Lets a test grow a context far past its
+    /// threshold without tripping the wall.
+    pub(super) fn set_context_limit(&self, limit: usize) {
+        self.state
+            .context_limit_override
+            .store(limit, Ordering::SeqCst);
     }
 
     fn add_rule(&self, matcher: ApiMatcher, response: ApiResponse) -> usize {
@@ -442,9 +456,14 @@ impl DummyApiState {
 
         let input_tokens = serialized_chars(&body);
         let model = body["model"].as_str().expect("OpenAI request model");
-        let context_limit = goose_providers::model::ModelConfig::new(model)
-            .with_canonical_limits("openai")
-            .context_limit();
+        let override_limit = self.context_limit_override.load(Ordering::SeqCst);
+        let context_limit = if override_limit > 0 {
+            override_limit
+        } else {
+            goose_providers::model::ModelConfig::new(model)
+                .with_canonical_limits("openai")
+                .context_limit()
+        };
         if input_tokens as usize > context_limit {
             self.context_limit_rejections.fetch_add(1, Ordering::SeqCst);
             return context_limit_response(input_tokens, context_limit);

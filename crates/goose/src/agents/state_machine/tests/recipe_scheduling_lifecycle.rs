@@ -120,17 +120,30 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
 
     let (pipeline, api) = test_pipeline().await?;
     let pipeline = pipeline.with_provider_name("state-machine-test").await?;
+    // Pin the rejection wall far above every request, including the child's
+    // summarization call: the compaction threshold still tracks the model's
+    // canonical limit, so this only removes the wall as a failure mode.
+    api.set_context_limit(1_000_000);
     let child_path = pipeline.working_dir().join("bounded-child.yaml");
+    // The kickoff padding pushes the child's first request (system prompt plus
+    // the platform toolset, whose size varies with the environment) past the
+    // 102.4k-token auto-compact threshold in every environment, while its
+    // token count stays far below the threshold so the child's turn-boundary
+    // check passes and only the mid-turn check can fire.
+    let padding = "x ".repeat(20_000);
     std::fs::write(
         &child_path,
-        r#"
+        format!(
+            r#"
 version: 1.0.0
 title: Bounded child
 description: Stops after one turn
-prompt: Keep taking actions
+prompt: |
+  Keep taking actions {padding}
 settings:
   max_turns: 1
-"#,
+"#
+        ),
     )?;
     let recipe = Recipe::builder()
         .title("Delegating recipe")
@@ -157,11 +170,11 @@ settings:
         .call("delegate", json!({ "source": "bounded" }));
     api.on("Keep taking actions")
         .unadvertised_call("keep_working", json!({}));
-    // The delegated child's first request (system prompt plus the platform
-    // toolset) already reports usage past the auto-compact threshold, so the
-    // child mid-turn compacts once the tool response lands, then takes its
-    // final turn. Rules match newest-first, so this must be registered after
-    // "Keep taking actions", whose text the summarization prompt echoes.
+    // The delegated child mid-turn compacts once its first tool response
+    // lands (its first request reports usage past the threshold), then hits
+    // its turn limit. Rules match newest-first, so the summarization rule
+    // must be registered after "Keep taking actions", whose padded text the
+    // summarization prompt echoes.
     api.on("Please summarize the conversation history")
         .reply("child context summarized");
     api.on(MAX_TURNS_MESSAGE).reply("child stopped on time");
@@ -176,6 +189,53 @@ settings:
     assert!(summarization.system_contains("Keep taking actions"));
     result.assert_message(-2, ToolResponse, MAX_TURNS_MESSAGE);
     result.assert_message(-1, Agent, "child stopped on time");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_collected_final_output_skips_the_mid_turn_compaction() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The kickoff padding keeps its token count (what the turn-boundary check
+    // counts on a fresh session) far under the threshold, while the first
+    // request reports usage past it (the dummy API bills by serialized
+    // character): over threshold exactly when the final-output response has
+    // landed, so a mid-turn check that ignored the completed recipe would
+    // summarize before the result is delivered.
+    let kickoff = format!("deliver the structured result {}", "x ".repeat(48_000));
+    api.on("deliver the structured result")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    api.on("Please summarize the conversation history")
+        .reply("summarized before delivery");
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .prompt("deliver the structured result")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    let completed = pipeline.run([kickoff.as_str()]).await?;
+
+    completed.assert_message(-1, Agent, r#"{"result":"42"}"#);
+    assert_eq!(
+        completed.history_replacements(),
+        0,
+        "the completed recipe result must be delivered, not summarized first"
+    );
+    assert!(
+        !api.calls()
+            .iter()
+            .any(|call| call.input_contains("Please summarize the conversation history")),
+        "no summarization request may run between the final-output response and its delivery"
+    );
 
     Ok(())
 }

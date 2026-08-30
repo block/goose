@@ -222,11 +222,18 @@ pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<
 }
 
 /// Check if messages exceed the auto-compaction threshold
+///
+/// `recount_context` counts the agent-visible conversation and trusts the
+/// larger of that count and the session metadata. Pass it at points where
+/// messages may have been appended since the last provider call — mid-turn,
+/// after tool responses land — because `session.usage.total_tokens` reflects
+/// the preceding request and cannot see them.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
     threshold_override: Option<f64>,
     session: &crate::session::Session,
+    recount_context: bool,
 ) -> Result<bool> {
     if provider.manages_own_context() {
         return Ok(false);
@@ -248,7 +255,14 @@ pub async fn check_if_compaction_needed(
         crate::context_limit::get_context_limit(provider, &model_config.model_name).await?;
 
     let (current_tokens, _token_source) = match session.usage.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
+        Some(tokens) if !recount_context => (tokens as usize, "session metadata"),
+        Some(tokens) => {
+            let counted = count_context_tokens(conversation).await?;
+            (
+                (tokens as usize).max(counted as usize),
+                "session metadata and recounted conversation",
+            )
+        }
         None => {
             let token_counter = create_token_counter()
                 .await

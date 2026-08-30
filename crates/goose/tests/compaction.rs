@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
+use goose::agents::extension::ExtensionConfig;
 use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
@@ -10,6 +11,7 @@ use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
+use goose::recipe::Response;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -30,6 +32,18 @@ struct MockCompactionProvider {
     /// Whether loop replies carry `long_tool_call` padding (15k tokens in the
     /// input and output accounting), so each round-trip grows the context.
     tool_loop_padding: bool,
+    /// Whether loop replies request the developer `shell` tool (whose real
+    /// truncated output grows the context) instead of the fictional padding.
+    tool_result_padding: bool,
+    /// When set, the reply to the kickoff calls the final-output tool beside
+    /// `long_tool_call` padding, so usage crosses the threshold exactly when
+    /// the recipe result is ready to deliver.
+    final_output_reply: bool,
+    /// Fictional token cost of the system prompt in input accounting. Lowered
+    /// for scenarios that grow the context through real tool output: there the
+    /// reported usage must stay under the threshold so only a conversation
+    /// recount can see the growth.
+    system_input_tokens: i32,
     /// Context limit the provider reports to the agent. The streaming wall
     /// below stays at 20k so a provider rejection stays distinguishable from
     /// the auto-compact threshold.
@@ -44,6 +58,9 @@ impl MockCompactionProvider {
             manages_own_context: false,
             tool_loop_rounds: 0,
             tool_loop_padding: false,
+            tool_result_padding: false,
+            final_output_reply: false,
+            system_input_tokens: 6_000,
             context_limit: 128_000,
             context_limit_rejections: Arc::new(AtomicUsize::new(0)),
         }
@@ -68,6 +85,33 @@ impl MockCompactionProvider {
         }
     }
 
+    /// One round-trip whose two `shell` calls land real truncated output
+    /// (~10k characters each, ≈5k tokens a pair) in the conversation. The
+    /// lean input accounting keeps reported usage far under the 8k threshold,
+    /// so only the conversation the tool responses grew can cross it.
+    fn result_looping() -> Self {
+        Self {
+            tool_loop_rounds: 1,
+            tool_result_padding: true,
+            system_input_tokens: 500,
+            context_limit: 10_000,
+            ..Self::new()
+        }
+    }
+
+    /// Replies to the kickoff with `long_tool_call` padding (which drives
+    /// reported usage past the 12.8k threshold) beside a final-output tool
+    /// call, so the threshold is crossed exactly when the recipe result is
+    /// ready to deliver.
+    fn final_output() -> Self {
+        Self {
+            final_output_reply: true,
+            tool_loop_padding: true,
+            context_limit: 16_000,
+            ..Self::new()
+        }
+    }
+
     /// Same tool loop, but the provider manages its own context: the padding
     /// stays small so the loop never approaches the 20k wall.
     fn context_owning_looping() -> Self {
@@ -82,6 +126,18 @@ impl MockCompactionProvider {
 
     fn context_limit_rejections(&self) -> usize {
         self.context_limit_rejections.load(Ordering::SeqCst)
+    }
+
+    /// Whether the kickoff still awaits its final-output reply: the
+    /// final-output mode answers the first request and nothing later.
+    fn final_output_reply_due(&self, messages: &[Message]) -> bool {
+        self.final_output_reply
+            && messages
+                .iter()
+                .any(|msg| msg.as_concat_text().contains("keep processing each result"))
+            && !messages
+                .iter()
+                .any(|msg| msg.as_concat_text().contains("Your context was compacted"))
     }
 
     /// The round-trip a loop reply belongs to, based on the tool responses
@@ -123,8 +179,7 @@ impl MockCompactionProvider {
 
         if is_compaction_call {
             // For compaction: system prompt length is a good proxy for conversation size
-            // Base: 6000 (system) + conversation content embedded in prompt
-            6000 + (system_prompt.len() as i32 / 4).max(400)
+            self.system_input_tokens.max(6_000) + (system_prompt.len() as i32 / 4).max(400)
         } else {
             // Regular call: system prompt + messages
             let system_tokens = if system_prompt.is_empty() { 0 } else { 6000 };
@@ -156,8 +211,10 @@ impl MockCompactionProvider {
         if is_compaction {
             // Compaction produces a compact summary
             200
-        } else if self.loop_reply_round(messages).is_some() {
-            // Loop replies carry the padding payload alongside the tool call
+        } else if (self.loop_reply_round(messages).is_some() && self.tool_loop_padding)
+            || self.final_output_reply_due(messages)
+        {
+            // Replies that carry the fictional padding payload
             15_000
         } else {
             // Regular responses vary by content
@@ -239,6 +296,22 @@ impl Provider for MockCompactionProvider {
         // Generate response
         let message = if is_summarization_request {
             Message::assistant().with_text("<mock summary of conversation>")
+        } else if self.final_output_reply_due(messages) {
+            // The padding rides in the thinking block (counted in the output
+            // accounting above), so reported usage crosses the threshold in
+            // the same round-trip that collects the recipe result.
+            let mut arguments = serde_json::Map::new();
+            arguments.insert(
+                "result".to_string(),
+                serde_json::Value::String("42".to_string()),
+            );
+            Message::assistant()
+                .with_thinking(format!("long_tool_call final: {}", "x".repeat(600)), "")
+                .with_tool_request(
+                    "final_output_call",
+                    Ok(CallToolRequestParams::new("recipe__final_output")
+                        .with_arguments(arguments)),
+                )
         } else if let Some(round) = loop_round {
             // The legacy loop does not persist assistant text next to a tool
             // call, so the padding rides in the thinking block, which is
@@ -252,10 +325,29 @@ impl Provider for MockCompactionProvider {
             } else {
                 reply
             };
-            reply.with_tool_request(
-                format!("loop_call_{round}"),
-                Ok(CallToolRequestParams::new("echo_tool")),
-            )
+            if self.tool_result_padding {
+                let mut arguments = serde_json::Map::new();
+                arguments.insert(
+                    "command".to_string(),
+                    serde_json::Value::String(
+                        "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'".to_string(),
+                    ),
+                );
+                reply
+                    .with_tool_request(
+                        "loop_call_a",
+                        Ok(CallToolRequestParams::new("shell").with_arguments(arguments.clone())),
+                    )
+                    .with_tool_request(
+                        "loop_call_b",
+                        Ok(CallToolRequestParams::new("shell").with_arguments(arguments)),
+                    )
+            } else {
+                reply.with_tool_request(
+                    format!("loop_call_{round}"),
+                    Ok(CallToolRequestParams::new("echo_tool")),
+                )
+            }
         } else if messages
             .iter()
             .any(|msg| msg.as_concat_text().contains("Your context was compacted"))
@@ -1073,6 +1165,108 @@ async fn test_mid_turn_compaction_skipped_for_context_owning_provider() -> Resul
         "a context-owning provider never compacts"
     );
     assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        !provider.has_compacted.load(Ordering::SeqCst),
+        "no summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_triggered_by_tool_output() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // Two `shell` calls land ~10k characters (≈5k tokens) of real truncated
+    // output each, growing the conversation past the 8k-token threshold. The
+    // lean input accounting keeps reported usage far below it: the turn was
+    // under the threshold when its only provider call was made, so only a
+    // mid-turn check that recounts the conversation can see the growth.
+    let session =
+        setup_test_session(&agent, &temp_dir, "mid-turn-tool-output-test", vec![]).await?;
+    agent
+        .extension_manager
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: "developer".to_string(),
+                description: "developer tools".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec!["shell".to_string()],
+            },
+            Some(temp_dir.path().to_path_buf()),
+            None,
+            Some(&session.id),
+        )
+        .await?;
+
+    let provider = Arc::new(MockCompactionProvider::result_looping());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 1,
+        "the tool responses alone must cross the threshold mid-turn"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_skipped_when_final_output_is_ready() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The thinking padding drives reported usage past the 12.8k-token
+    // threshold in the same round-trip that collects the recipe result, so a
+    // mid-turn check that ignored the completed recipe would summarize
+    // between the response and its delivery.
+    let session =
+        setup_test_session(&agent, &temp_dir, "mid-turn-final-output-test", vec![]).await?;
+    agent
+        .apply_recipe_components(
+            Some(Response {
+                json_schema: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": { "result": { "type": "string" } },
+                    "required": ["result"]
+                })),
+            }),
+            true,
+        )
+        .await?;
+
+    let provider = Arc::new(MockCompactionProvider::final_output());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 0,
+        "the collected final output must be delivered, not summarized first"
+    );
+    assert_eq!(final_text, r#"{"result":"42"}"#);
     assert!(
         !provider.has_compacted.load(Ordering::SeqCst),
         "no summarization call should have run"

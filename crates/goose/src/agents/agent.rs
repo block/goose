@@ -1058,6 +1058,16 @@ impl Agent {
         Ok(())
     }
 
+    /// Whether the final-output tool has collected an output that the top of
+    /// the next loop pass delivers as the recipe result.
+    async fn has_collected_final_output(&self) -> bool {
+        self.final_output_tool
+            .lock()
+            .await
+            .as_ref()
+            .is_some_and(|tool| tool.final_output.is_some())
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(
         skip(self, tool_call, request_id, cancellation_token, session),
@@ -2086,6 +2096,7 @@ impl Agent {
             &conversation,
             None,
             &session,
+            false,
         )
         .await?;
 
@@ -3331,16 +3342,22 @@ impl Agent {
                     && !exit_chat
                     && !did_recovery_compact_this_iteration
                     && !provider_errored
+                    && !self.has_collected_final_output().await
                 {
                     // Metadata only: the conversation is already in memory.
                     let session_now = session_manager
                         .get_session(&session_config.id, false)
                         .await?;
+                    // Session usage reflects the preceding provider call and
+                    // cannot see the tool responses that just landed, so this
+                    // check recounts the conversation and trusts the larger
+                    // estimate.
                     let over_threshold = check_if_compaction_needed(
                         self.provider().await?.as_ref(),
                         &conversation,
                         None,
                         &session_now,
+                        true,
                     )
                     .await?;
 
