@@ -2752,8 +2752,7 @@ impl SessionStorage {
             r#"
             SELECT session_id, model, {timestamp}, COALESCE(total_tokens, 0), cost_source
             FROM usage_ledger
-            WHERE cost_source = 'carried_forward'
-              AND {timestamp} >= ? AND {timestamp} < ?
+            WHERE {timestamp} >= ? AND {timestamp} < ?
             "#,
             timestamp = normalized_message_timestamp_sql("created_timestamp")
         );
