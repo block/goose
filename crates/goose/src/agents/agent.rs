@@ -2096,7 +2096,7 @@ impl Agent {
             &conversation,
             None,
             &session,
-            false,
+            true,
         )
         .await?;
 
@@ -3336,12 +3336,16 @@ impl Agent {
                 // responses have landed: compacting between a request and its
                 // response would orphan the request. Skip when the turn is
                 // ending (the next turn starts with a check), right after a
-                // recovery compaction (the context was just shrunk), and when
-                // the provider errored (the reactive path owns the outcome).
+                // recovery compaction (the context was just shrunk), when the
+                // provider errored (the reactive path owns the outcome), and
+                // when the client cancelled — the state machine suppresses
+                // every operation once cancelled, and a summarization request
+                // is not something a cancelled turn should start.
                 if !no_tools_called
                     && !exit_chat
                     && !did_recovery_compact_this_iteration
                     && !provider_errored
+                    && !is_token_cancelled(&cancel_token)
                     && !self.has_collected_final_output().await
                 {
                     // Metadata only: the conversation is already in memory.
@@ -3350,8 +3354,9 @@ impl Agent {
                         .await?;
                     // Session usage reflects the preceding provider call and
                     // cannot see the tool responses that just landed, so this
-                    // check recounts the conversation and trusts the larger
-                    // estimate.
+                    // check recounts the conversation: unsent growth is added
+                    // to the session baseline, with the conversation count as
+                    // a floor.
                     let over_threshold = check_if_compaction_needed(
                         self.provider().await?.as_ref(),
                         &conversation,

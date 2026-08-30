@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use tracing::debug;
+use tracing::{debug, error};
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
@@ -86,7 +86,12 @@ impl CompactionOperation {
         match session.usage.total_tokens {
             Some(tokens) if !recount => Ok(tokens),
             Some(tokens) => {
-                Ok(tokens.max(crate::context_mgmt::count_context_tokens(conversation).await?))
+                // The metadata covers the preceding request, system prompt and
+                // tool schemas included, but not what landed after it; the
+                // unsent growth is added to it and the conversation count is
+                // kept as a floor.
+                let counts = crate::context_mgmt::recount_context_tokens(conversation).await?;
+                Ok(tokens.saturating_add(counts.unsent).max(counts.total))
             }
             None => crate::context_mgmt::count_context_tokens(conversation).await,
         }
@@ -241,6 +246,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
+        let mut mid_turn = false;
         if reactive_context_error {
             let context_errors = messages
                 .iter()
@@ -269,7 +275,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if !matches!(role, EffectiveRole::User | EffectiveRole::Tool) {
                 return not_applicable();
             }
-            if role == EffectiveRole::Tool {
+            mid_turn = role == EffectiveRole::Tool;
+            if mid_turn {
                 // A successful final-output response ends the recipe: the
                 // recipe operation delivers it later in this same pass.
                 // Summarizing between the response and its delivery wastes a
@@ -280,16 +287,15 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                     return not_applicable();
                 }
             }
-            // Session usage reflects the last provider call and cannot see
-            // tool responses that landed after it, so a mid-turn check
-            // recounts the conversation and trusts the larger estimate.
-            let tokens = self
-                .context_tokens(session, conversation, role == EffectiveRole::Tool)
-                .await?;
+            // A proactive check never lands on the provider's own response —
+            // a User boundary appends the kickoff (or a steer drained after
+            // tool responses), a Tool boundary appends responses — so there
+            // is always unsent growth to fold into the session baseline.
+            let tokens = self.context_tokens(session, conversation, true).await?;
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }
-            let trigger = if role == EffectiveRole::Tool {
+            let trigger = if mid_turn {
                 "mid-turn"
             } else {
                 "turn-boundary"
@@ -363,6 +369,15 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
+                if mid_turn {
+                    // The turn can continue: the request that follows may
+                    // still fit, and the reactive path owns the outcome if
+                    // not. Ending the run here would discard an
+                    // already-completed tool round-trip, which the legacy
+                    // loop instead carries into the next inference.
+                    error!("Mid-turn compaction failed: {e}");
+                    return not_applicable();
+                }
                 emit.message(Message::assistant().with_text(format!(
                     "Ran into this error trying to compact: {e}.\n\n\
                      Please try again or create a new session"

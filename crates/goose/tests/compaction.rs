@@ -21,6 +21,7 @@ use rmcp::model::{CallToolRequestParams, Tool};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tempfile::TempDir;
+use tokio_util::sync::CancellationToken;
 
 struct MockCompactionProvider {
     /// Tracks whether compaction has occurred (for context limit recovery case)
@@ -35,6 +36,13 @@ struct MockCompactionProvider {
     /// Whether loop replies request the developer `shell` tool (whose real
     /// truncated output grows the context) instead of the fictional padding.
     tool_result_padding: bool,
+    /// How many `shell` calls a tool-result round-trip requests.
+    tool_result_calls: usize,
+    /// The command the `shell` calls run.
+    tool_result_command: String,
+    /// When set, every real summarization request fails, so mid-turn
+    /// compaction is attempted but cannot succeed.
+    fail_summarizations: bool,
     /// When set, the reply to the kickoff calls the final-output tool beside
     /// `long_tool_call` padding, so usage crosses the threshold exactly when
     /// the recipe result is ready to deliver.
@@ -51,6 +59,12 @@ struct MockCompactionProvider {
     context_limit_rejections: Arc<AtomicUsize>,
 }
 
+/// A command whose stdout (~120k characters) truncates to a ~10k-character
+/// (≈5k-token) preview, growing the conversation per call.
+fn awk_command() -> String {
+    "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'".to_string()
+}
+
 impl MockCompactionProvider {
     fn new() -> Self {
         Self {
@@ -59,6 +73,9 @@ impl MockCompactionProvider {
             tool_loop_rounds: 0,
             tool_loop_padding: false,
             tool_result_padding: false,
+            tool_result_calls: 2,
+            tool_result_command: awk_command(),
+            fail_summarizations: false,
             final_output_reply: false,
             system_input_tokens: 6_000,
             context_limit: 128_000,
@@ -96,6 +113,47 @@ impl MockCompactionProvider {
             system_input_tokens: 500,
             context_limit: 10_000,
             ..Self::new()
+        }
+    }
+
+    /// One round-trip with a single `shell` call, against a 10k limit whose
+    /// threshold sits at 8k. Reported usage (~6.5k: the 6k system overhead
+    /// dominates) and the conversation alone (~5.5k) each stay under the
+    /// threshold, so only a check that adds the unsent tool result to the
+    /// reported baseline can see the crossing.
+    fn baseline_growth() -> Self {
+        Self {
+            tool_loop_rounds: 1,
+            tool_result_padding: true,
+            tool_result_calls: 1,
+            system_input_tokens: 500,
+            context_limit: 10_000,
+            ..Self::new()
+        }
+    }
+
+    /// One `sleep`-ing `shell` call beside reply padding that drives reported
+    /// usage past the 12.8k threshold, so an over-threshold session reaches
+    /// the mid-turn check while the tool is still executing — the window a
+    /// client cancellation lands in.
+    fn cancellable() -> Self {
+        Self {
+            tool_loop_rounds: 1,
+            tool_loop_padding: true,
+            tool_result_padding: true,
+            tool_result_calls: 1,
+            tool_result_command: "sleep 1".to_string(),
+            context_limit: 16_000,
+            ..Self::new()
+        }
+    }
+
+    /// Same growth as `result_looping`, but every summarization request
+    /// fails, so the mid-turn compaction attempt cannot succeed.
+    fn failing_summarization() -> Self {
+        Self {
+            fail_summarizations: true,
+            ..Self::result_looping()
         }
     }
 
@@ -293,6 +351,12 @@ impl Provider for MockCompactionProvider {
             self.has_compacted.store(true, Ordering::SeqCst);
         }
 
+        if is_summarization_request && self.fail_summarizations {
+            return Err(ProviderError::ServerError(
+                "summarization unavailable".to_string(),
+            ));
+        }
+
         // Generate response
         let message = if is_summarization_request {
             Message::assistant().with_text("<mock summary of conversation>")
@@ -329,19 +393,16 @@ impl Provider for MockCompactionProvider {
                 let mut arguments = serde_json::Map::new();
                 arguments.insert(
                     "command".to_string(),
-                    serde_json::Value::String(
-                        "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'".to_string(),
-                    ),
+                    serde_json::Value::String(self.tool_result_command.clone()),
                 );
-                reply
-                    .with_tool_request(
-                        "loop_call_a",
+                let mut reply = reply;
+                for call in 1..=self.tool_result_calls {
+                    reply = reply.with_tool_request(
+                        format!("loop_call_{call}"),
                         Ok(CallToolRequestParams::new("shell").with_arguments(arguments.clone())),
-                    )
-                    .with_tool_request(
-                        "loop_call_b",
-                        Ok(CallToolRequestParams::new("shell").with_arguments(arguments)),
-                    )
+                    );
+                }
+                reply
             } else {
                 reply.with_tool_request(
                     format!("loop_call_{round}"),
@@ -1186,21 +1247,7 @@ async fn test_mid_turn_compaction_triggered_by_tool_output() -> Result<()> {
     // mid-turn check that recounts the conversation can see the growth.
     let session =
         setup_test_session(&agent, &temp_dir, "mid-turn-tool-output-test", vec![]).await?;
-    agent
-        .extension_manager
-        .add_extension(
-            ExtensionConfig::Platform {
-                name: "developer".to_string(),
-                description: "developer tools".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: vec!["shell".to_string()],
-            },
-            Some(temp_dir.path().to_path_buf()),
-            None,
-            Some(&session.id),
-        )
-        .await?;
+    add_shell_extension(&agent, &session, &temp_dir).await?;
 
     let provider = Arc::new(MockCompactionProvider::result_looping());
     agent
@@ -1270,6 +1317,171 @@ async fn test_mid_turn_compaction_skipped_when_final_output_is_ready() -> Result
     assert!(
         !provider.has_compacted.load(Ordering::SeqCst),
         "no summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+/// Adds the developer `shell` extension, whose real truncated output grows
+/// the conversation mid-turn.
+async fn add_shell_extension(agent: &Agent, session: &Session, temp_dir: &TempDir) -> Result<()> {
+    agent
+        .extension_manager
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: "developer".to_string(),
+                description: "developer tools".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec!["shell".to_string()],
+            },
+            Some(temp_dir.path().to_path_buf()),
+            None,
+            Some(&session.id),
+        )
+        .await
+        .map_err(anyhow::Error::from)
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_adds_tool_growth_to_the_provider_baseline() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // A single `shell` call lands ~5k tokens of real output. The recounted
+    // conversation (~5.5k) and the reported usage (~6.5k, dominated by the 6k
+    // system overhead) each stay under the 8k threshold, so trusting only the
+    // larger of the two misses the crossing; the unsent tool growth must be
+    // added to the provider's baseline for the check to see it.
+    let session = setup_test_session(&agent, &temp_dir, "mid-turn-baseline-test", vec![]).await?;
+    add_shell_extension(&agent, &session, &temp_dir).await?;
+
+    let provider = Arc::new(MockCompactionProvider::baseline_growth());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 1,
+        "the unsent tool growth must be added to the reported usage baseline"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_skipped_when_cancelled_during_tools() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The reply padding drives the session past the threshold in the same
+    // round-trip whose `shell` call sleeps, so the mid-turn check is reached
+    // over-threshold while the tool is still executing — the window a client
+    // cancellation lands in. A cancelled turn must not start a summarization
+    // request; the state machine suppresses every operation once cancelled.
+    let session = setup_test_session(&agent, &temp_dir, "mid-turn-cancel-test", vec![]).await?;
+    add_shell_extension(&agent, &session, &temp_dir).await?;
+
+    let provider = Arc::new(MockCompactionProvider::cancellable());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let cancel_token = CancellationToken::new();
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("keep processing each result"),
+            session_config,
+            Some(cancel_token.clone()),
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Message(message)
+                if message
+                    .content
+                    .iter()
+                    .any(|content| matches!(content, MessageContent::ToolRequest(_))) =>
+            {
+                // The tool-request message is yielded before dispatch: the
+                // shell sleeps for a second, so cancelling here lands while
+                // the tool is still executing.
+                cancel_token.cancel();
+            }
+            _ => {}
+        }
+    }
+
+    assert_eq!(
+        history_replacements, 0,
+        "a cancelled turn must not start a compaction request"
+    );
+    assert!(
+        !provider.has_compacted.load(Ordering::SeqCst),
+        "no summarization call should have run"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_failure_continues_the_turn() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The two `shell` outputs cross the 8k threshold, but every summarization
+    // request fails. The turn must continue to the next inference instead of
+    // ending: the request that follows may still fit, and the reactive path
+    // owns the outcome if it does not.
+    let session = setup_test_session(&agent, &temp_dir, "mid-turn-failure-test", vec![]).await?;
+    add_shell_extension(&agent, &session, &temp_dir).await?;
+
+    let provider = Arc::new(MockCompactionProvider::failing_summarization());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 0,
+        "the failed compaction must not replace the history"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization attempt should have run"
     );
     assert_eq!(provider.context_limit_rejections(), 0);
 

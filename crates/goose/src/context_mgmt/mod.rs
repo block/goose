@@ -221,13 +221,53 @@ pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<
     Ok(total.try_into()?)
 }
 
+/// Token estimates for a conversation recount.
+pub(crate) struct ContextTokenCounts {
+    /// Tokens of the whole agent-visible conversation.
+    pub(crate) total: i32,
+    /// Tokens of the agent-visible messages appended after the provider's
+    /// last response — tool results and steers it has not received yet.
+    pub(crate) unsent: i32,
+}
+
+/// Count the agent-visible conversation and its unsent suffix in one pass.
+pub(crate) async fn recount_context_tokens(
+    conversation: &Conversation,
+) -> Result<ContextTokenCounts> {
+    let counter = create_token_counter()
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
+    let mut total: usize = 0;
+    let mut unsent: usize = 0;
+    for message in conversation.messages().iter().rev() {
+        let tokens = if message.is_agent_visible() {
+            counter.count_chat_tokens("", std::slice::from_ref(message), &[])
+        } else {
+            0
+        };
+        total += tokens;
+        // Iterating in reverse, everything before the last assistant message
+        // is appended after the provider's own response.
+        if message.role == Role::Assistant {
+            break;
+        }
+        unsent += tokens;
+    }
+    Ok(ContextTokenCounts {
+        total: total.try_into()?,
+        unsent: unsent.try_into()?,
+    })
+}
+
 /// Check if messages exceed the auto-compaction threshold
 ///
-/// `recount_context` counts the agent-visible conversation and trusts the
-/// larger of that count and the session metadata. Pass it at points where
-/// messages may have been appended since the last provider call — mid-turn,
-/// after tool responses land — because `session.usage.total_tokens` reflects
-/// the preceding request and cannot see them.
+/// `recount_context` re-estimates the context from the conversation instead
+/// of trusting the session metadata alone: the metadata covers the preceding
+/// request (its system prompt and tool schemas included) but cannot see what
+/// landed after it, so the unsent growth is added to it and the whole
+/// conversation count is kept as a floor. Pass it at points where messages
+/// may have been appended since the last provider call — turn boundaries and
+/// mid-turn, after tool responses land.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
@@ -257,10 +297,12 @@ pub async fn check_if_compaction_needed(
     let (current_tokens, _token_source) = match session.usage.total_tokens {
         Some(tokens) if !recount_context => (tokens as usize, "session metadata"),
         Some(tokens) => {
-            let counted = count_context_tokens(conversation).await?;
+            let counts = recount_context_tokens(conversation).await?;
             (
-                (tokens as usize).max(counted as usize),
-                "session metadata and recounted conversation",
+                (tokens as usize)
+                    .saturating_add(counts.unsent as usize)
+                    .max(counts.total as usize),
+                "session metadata plus unsent growth, floored by the recounted conversation",
             )
         }
         None => {

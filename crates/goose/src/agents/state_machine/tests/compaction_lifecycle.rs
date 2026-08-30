@@ -644,3 +644,202 @@ async fn a_context_owning_provider_loops_tools_without_compacting() -> Result<()
 
     Ok(())
 }
+
+#[tokio::test]
+async fn a_tool_result_added_to_the_provider_baseline_crosses_the_threshold() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // Three parallel shell calls land ~15k tokens of truncated output. The
+    // recounted conversation (~15.5k) and the preceding request's usage (the
+    // serialized request, whose system overhead the conversation count cannot
+    // see) each stay under the 19.2k threshold, so trusting only the larger
+    // of the two misses the crossing; the unsent tool growth must be added to
+    // the provider baseline for the mid-turn check to see it. gpt-4.1's ~1M
+    // canonical limit keeps the API's rejection wall far above every request.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let huge_output = json!({ "command": "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'" });
+    api.on("grow past the baseline").calls([
+        ("big-1", "shell", huge_output.clone()),
+        ("big-2", "shell", huge_output.clone()),
+        ("big-3", "shell", huge_output),
+    ]);
+    api.on(SUMMARIZE_HISTORY)
+        .reply("baseline growth summarized");
+    api.on("Your context was compacted")
+        .reply("continued past the baseline");
+
+    let run = pipeline.run(["grow past the baseline"]).await?;
+
+    let producing_request = api.calls().first().cloned().expect("producing request");
+    assert!(
+        producing_request.input_tokens() < 19_200,
+        "the producing request must stay under the threshold, got {}",
+        producing_request.input_tokens()
+    );
+
+    run.assert_message(-1, Agent, "continued past the baseline");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "the unsent tool growth must be added to the provider baseline"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.system_contains("x x x"),
+        "the summarization request must carry the tool results, i.e. the check ran mid-turn"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_steer_drained_before_the_check_still_recounts_tool_growth() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The steer operation runs before compaction and appends the steer as
+    // the last User message, so the check that follows it sees a User
+    // boundary. Three shell calls grow the context by ~15k tokens of unsent
+    // output; the producing request stays under the 19.2k threshold, and so
+    // does the recounted conversation alone — only the unsent growth added
+    // to the provider baseline crosses it. A check that only recounts at a
+    // Tool boundary sends the grown context on. The delayed calculator call
+    // holds the tool step open so the steer is queued mid-execution.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let huge_output = json!({ "command": "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'" });
+    api.on("grow then steer").calls([
+        ("big-1", "shell", huge_output.clone()),
+        ("big-2", "shell", huge_output.clone()),
+        ("big-3", "shell", huge_output.clone()),
+        (
+            "slow-1",
+            ADD,
+            super::calculator_extension::delayed_value(7, 1_500),
+        ),
+    ]);
+    api.on(SUMMARIZE_HISTORY).reply("steered work summarized");
+    api.on("Your context was compacted")
+        .reply("continued after the steer");
+
+    let run = pipeline.run(["grow then steer"]);
+    let steer = async {
+        while pipeline.tool_contexts().is_empty() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        pipeline
+            .steer(Message::user().with_text("redirect the work"))
+            .await;
+    };
+    let (result, ()) = tokio::join!(run, steer);
+    let result = result?;
+
+    let producing_request = api.calls().first().cloned().expect("producing request");
+    assert!(
+        producing_request.input_tokens() < 19_200,
+        "the producing request must stay under the threshold, got {}",
+        producing_request.input_tokens()
+    );
+
+    result.assert_message(-1, Agent, "continued after the steer");
+    assert_eq!(
+        result.history_replacements(),
+        1,
+        "the tool growth behind the steer must still be recounted"
+    );
+    assert_eq!(
+        api.call_count(),
+        3,
+        "compaction must fire before the grown context is sent back to the provider"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.system_contains("redirect the work"),
+        "the summarization request must carry the drained steer"
+    );
+    assert!(!pipeline.has_pending_steers().await);
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_failed_mid_turn_compaction_continues_the_turn() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // Three shell calls grow the context past the 19.2k threshold, but the
+    // summarization request fails. The pass must continue to the next
+    // inference instead of yielding the compaction error: the request that
+    // follows may still fit, and the reactive path owns the outcome if it
+    // does not. Rules match newest-first, so the summarization failure is
+    // registered last while the recovery reply only matches a request that
+    // already carries the tool results.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let huge_output = json!({ "command": "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'" });
+    api.on("recover from a failed compaction").calls([
+        ("big-1", "shell", huge_output.clone()),
+        ("big-2", "shell", huge_output.clone()),
+        ("big-3", "shell", huge_output),
+    ]);
+    api.on("x x x x").reply("recovered without compaction");
+    api.on(SUMMARIZE_HISTORY).server_error("summarizer offline");
+
+    let run = pipeline.run(["recover from a failed compaction"]).await?;
+
+    run.assert_message(-1, Agent, "recovered without compaction");
+    assert_eq!(
+        run.history_replacements(),
+        0,
+        "the failed compaction must not replace the history"
+    );
+    assert!(api
+        .calls()
+        .iter()
+        .any(|call| call.input_contains(SUMMARIZE_HISTORY)));
+    assert!(run.conversation().messages().iter().all(|message| !message
+        .as_concat_text()
+        .contains("Ran into this error trying to compact")));
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
