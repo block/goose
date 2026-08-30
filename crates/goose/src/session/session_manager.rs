@@ -877,6 +877,7 @@ fn build_session_activity(
     sessions: Vec<ActivitySessionMeta>,
     messages: Vec<ActivityEvent>,
     ledger: Vec<ActivityLedgerRow>,
+    sessions_with_ledger: HashSet<String>,
 ) -> SessionActivity {
     let metas: HashMap<String, ActivitySessionMeta> = sessions
         .into_iter()
@@ -905,31 +906,26 @@ fn build_session_activity(
         HashMap::new();
     let mut model_sessions: HashMap<(Option<String>, Option<String>), HashSet<String>> =
         HashMap::new();
-    let mut sessions_with_ledger: HashSet<String> = HashSet::new();
 
     for row in ledger {
-        let Some(meta) = metas.get(&row.session_id) else {
+        if !metas.contains_key(&row.session_id) {
             continue;
-        };
+        }
         let Some(date) = local_date_key(row.timestamp) else {
             continue;
         };
-        sessions_with_ledger.insert(row.session_id.clone());
         *day_session_tokens
             .entry(date)
             .or_default()
             .entry(row.session_id.clone())
             .or_insert(0) += row.tokens;
 
-        let model_id = row
-            .model
-            .filter(|value| !value.is_empty())
-            .or_else(|| session_model_id(meta));
+        let model_id = row.model.filter(|value| !value.is_empty());
         add_model_tokens(
             &mut models,
             &mut model_sessions,
             &row.session_id,
-            session_provider_id(meta),
+            None,
             model_id,
             row.tokens,
         );
@@ -2638,7 +2634,33 @@ impl SessionStorage {
             })
             .collect();
 
-        Ok(build_session_activity(year, sessions, messages, ledger))
+        let ledger_presence_query = format!(
+            r#"
+            SELECT DISTINCT l.session_id
+            FROM usage_ledger l
+            JOIN sessions s ON s.id = l.session_id
+            WHERE s.session_type IN ({placeholders})
+              AND s.archived_at IS NULL
+            "#
+        );
+        let mut presence_q = sqlx::query_as::<_, (String,)>(AssertSqlSafe(ledger_presence_query));
+        for session_type in types {
+            presence_q = presence_q.bind(session_type.to_string());
+        }
+        let sessions_with_ledger = presence_q
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|(session_id,)| session_id)
+            .collect();
+
+        Ok(build_session_activity(
+            year,
+            sessions,
+            messages,
+            ledger,
+            sessions_with_ledger,
+        ))
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -5423,6 +5445,7 @@ mod tests {
                 },
             ],
             Vec::new(),
+            HashSet::new(),
         );
 
         assert_eq!(activity.days[0].date, "2024-03-01");
@@ -5478,6 +5501,7 @@ mod tests {
                     tokens: 70,
                 },
             ],
+            HashSet::from(["s1".into()]),
         );
 
         assert_eq!(activity.total_sessions, 1);
@@ -5490,5 +5514,37 @@ mod tests {
         assert_eq!(activity.models[0].total_tokens, 70);
         assert_eq!(activity.models[1].model_id.as_deref(), Some("gpt-4o"));
         assert_eq!(activity.models[1].total_tokens, 30);
+        assert_eq!(activity.models[0].provider_id, None);
+        assert_eq!(activity.models[1].provider_id, None);
+    }
+
+    #[test]
+    fn test_build_session_activity_skips_accumulated_fallback_when_ledger_exists_elsewhere() {
+        let january = Local
+            .with_ymd_and_hms(2024, 1, 15, 12, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp();
+        let activity = build_session_activity(
+            2024,
+            vec![ActivitySessionMeta {
+                id: "s1".into(),
+                name: "Long chat".into(),
+                description: String::new(),
+                provider_name: Some("openai".into()),
+                model_config_json: Some(r#"{"model_name":"gpt-4o","toolshim":false}"#.into()),
+                accumulated_tokens: 999,
+            }],
+            vec![ActivityEvent {
+                session_id: "s1".into(),
+                timestamp: january,
+            }],
+            Vec::new(),
+            HashSet::from(["s1".into()]),
+        );
+
+        assert_eq!(activity.total_tokens, 0);
+        assert_eq!(activity.days[0].total_tokens, 0);
+        assert!(activity.models.is_empty());
     }
 }
