@@ -252,6 +252,17 @@ fn challenged_scopes(challenge: &str, mcp_server_url: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn stored_access_token(stored: &StoredCredentials) -> Option<&str> {
+    stored
+        .token_response
+        .as_ref()
+        .map(|token| token.access_token().secret().as_str())
+}
+
+fn stored_grant_changed(before: Option<&StoredCredentials>, after: &StoredCredentials) -> bool {
+    stored_access_token(after) != before.and_then(stored_access_token)
+}
+
 fn stored_grant_satisfies_challenge(
     stored: &StoredCredentials,
     challenge: &str,
@@ -266,6 +277,21 @@ fn stored_grant_satisfies_challenge(
     }
     let granted = scope_set(&stored.granted_scopes);
     needed.iter().all(|scope| granted.contains(scope.as_str()))
+}
+
+fn challenge_can_reuse_stored_grant(
+    snapshot: Option<&StoredCredentials>,
+    stored: Option<&StoredCredentials>,
+    challenge: Option<&str>,
+    mcp_server_url: &str,
+) -> bool {
+    let Some(challenge) = challenge else {
+        return true;
+    };
+    stored.is_some_and(|stored| {
+        stored_grant_changed(snapshot, stored)
+            && stored_grant_satisfies_challenge(stored, challenge, mcp_server_url)
+    })
 }
 
 fn oauth_flow_lock_path(name: &str) -> PathBuf {
@@ -409,6 +435,11 @@ pub async fn oauth_flow_with_challenge(
     let static_client = static_client.or(env_client.as_ref());
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+    let snapshot = if challenge.is_some() {
+        credential_store.load().await?
+    } else {
+        None
+    };
     // Serialize refresh and browser auth per extension across processes so a
     // rotating refresh token cannot be spent twice and then wipe the winner.
     let _oauth_lock = acquire_oauth_flow_lock(name).await?;
@@ -421,13 +452,15 @@ pub async fn oauth_flow_with_challenge(
         .map(|stored| stored.granted_scopes.clone())
         .unwrap_or_default();
 
-    // After the lock, another process may already have completed the grant
-    // this challenge asked for. Reuse it instead of opening a second browser.
-    let challenge_already_satisfied = challenge.as_deref().is_none_or(|challenge| {
-        stored_credentials.as_ref().is_some_and(|stored| {
-            stored_grant_satisfies_challenge(stored, challenge, mcp_server_url)
-        })
-    });
+    // After the lock, reuse a stored grant only when another process wrote a
+    // new token that already covers this challenge. The token that triggered
+    // the 401/403 must not be reused.
+    let challenge_already_satisfied = challenge_can_reuse_stored_grant(
+        snapshot.as_ref(),
+        stored_credentials.as_ref(),
+        challenge.as_deref(),
+        mcp_server_url,
+    );
 
     if auth_manager.initialize_from_store().await? && challenge_already_satisfied {
         let stored_credentials = stored_credentials
@@ -1044,6 +1077,60 @@ mod tests {
         assert!(!stored_grant_satisfies_challenge(
             &stored,
             r#"Bearer error="invalid_token""#,
+            "https://mcp.example",
+        ));
+    }
+
+    fn stored_with_token(access_token: &str, scopes: &[&str]) -> StoredCredentials {
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": 3600,
+        }))
+        .unwrap();
+        StoredCredentials::new(
+            "client-id".to_string(),
+            Some(token_response),
+            scopes.iter().map(|scope| (*scope).to_string()).collect(),
+            Some(1),
+        )
+    }
+
+    #[test]
+    fn challenge_reuse_requires_a_new_token() {
+        let rejected = stored_with_token("old-token", &["scope.read"]);
+        let refreshed = stored_with_token("new-token", &["scope.read"]);
+        let invalid_token = r#"Bearer error="invalid_token""#;
+        let extra_scope = r#"Bearer error="insufficient_scope", scope="scope.admin""#;
+
+        assert!(
+            !challenge_can_reuse_stored_grant(
+                Some(&rejected),
+                Some(&rejected),
+                Some(invalid_token),
+                "https://mcp.example",
+            ),
+            "the token that triggered the 401 must not be reused"
+        );
+        assert!(challenge_can_reuse_stored_grant(
+            Some(&rejected),
+            Some(&refreshed),
+            Some(invalid_token),
+            "https://mcp.example",
+        ));
+        assert!(
+            !challenge_can_reuse_stored_grant(
+                Some(&rejected),
+                Some(&refreshed),
+                Some(extra_scope),
+                "https://mcp.example",
+            ),
+            "a new token still missing the challenged scope must not skip browser auth"
+        );
+        assert!(challenge_can_reuse_stored_grant(
+            None,
+            Some(&refreshed),
+            None,
             "https://mcp.example",
         ));
     }
