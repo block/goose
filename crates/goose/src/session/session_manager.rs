@@ -1043,10 +1043,8 @@ fn build_session_activity(
         if sessions_with_ledger.contains(session_id) {
             continue;
         }
-        let leftover = meta
-            .accumulated_tokens
-            .saturating_sub(*carried_forward_totals.get(session_id).unwrap_or(&0));
-        if leftover <= 0 {
+        let leftover = meta.accumulated_tokens;
+        if leftover <= 0 || leftover == *carried_forward_totals.get(session_id).unwrap_or(&0) {
             continue;
         }
         let Some(date) = last_message_days.get(session_id) else {
@@ -2785,7 +2783,23 @@ impl SessionStorage {
                 cost_source,
             },
         );
-        ledger.extend(extra_carried);
+        let existing: HashSet<(String, i64, Option<String>)> = ledger
+            .iter()
+            .map(|row| {
+                (
+                    row.session_id.clone(),
+                    row.timestamp,
+                    row.cost_source.clone(),
+                )
+            })
+            .collect();
+        ledger.extend(extra_carried.filter(|row| {
+            !existing.contains(&(
+                row.session_id.clone(),
+                row.timestamp,
+                row.cost_source.clone(),
+            ))
+        }));
 
         let ledger_presence_query = r#"
             SELECT DISTINCT session_id
@@ -2810,7 +2824,7 @@ impl SessionStorage {
                 WHERE COALESCE(cost_source, '') != 'carried_forward'
                 GROUP BY session_id
             ) r ON r.session_id = m.session_id
-            WHERE r.first_request IS NULL OR {message_ts} < r.first_request
+            WHERE r.first_request IS NULL OR {message_ts} <= r.first_request - 1
             GROUP BY m.session_id
             "#,
             message_ts = normalized_message_timestamp_sql("m.created_timestamp"),
