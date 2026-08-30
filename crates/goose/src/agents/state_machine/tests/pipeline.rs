@@ -771,12 +771,22 @@ async fn build_test_pipeline(
         goose_providers::api_client::AuthMethod::NoAuth,
         None,
     )?;
-    let provider: Arc<dyn Provider> = Arc::new(
-        goose_providers::openai::OpenAiProviderBuilder::new(api_client)
+    let provider: Arc<dyn Provider> = {
+        let mut builder = goose_providers::openai::OpenAiProviderBuilder::new(api_client)
             .name(provider_name)
-            .preserve_thinking_context(provider_features.preserves_thinking)
-            .build(),
-    );
+            .preserve_thinking_context(provider_features.preserves_thinking);
+        if let Some(limit) = provider_features.context_limit_override {
+            let model = session
+                .model_config
+                .as_ref()
+                .map(|config| config.model_name.clone())
+                .unwrap_or_else(|| goose_providers::openai::OPEN_AI_DEFAULT_MODEL.to_string());
+            let mut info = goose_providers::base::ModelInfo::new(model);
+            info.context_limit = Some(limit);
+            builder = builder.custom_models(Some(vec![info]));
+        }
+        Arc::new(builder.build())
+    };
     let provider: Arc<dyn Provider> =
         if provider_features.resolved_model.is_some() || provider_features.manages_own_context {
             Arc::new(FeatureProvider {

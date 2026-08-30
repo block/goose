@@ -13,6 +13,10 @@ pub(super) struct ProviderFeatures {
     pub(super) cache_read_tokens: Option<i32>,
     pub(super) cache_write_tokens: Option<i32>,
     pub(super) manages_own_context: bool,
+    /// Serves this limit from `get_context_limit` for the session's model, as
+    /// a declarative provider's configured model would. The compaction
+    /// operation itself keeps using the model config's limit.
+    pub(super) context_limit_override: Option<usize>,
 }
 
 impl Default for ProviderFeatures {
@@ -24,6 +28,7 @@ impl Default for ProviderFeatures {
             cache_read_tokens: None,
             cache_write_tokens: None,
             manages_own_context: false,
+            context_limit_override: None,
         }
     }
 }

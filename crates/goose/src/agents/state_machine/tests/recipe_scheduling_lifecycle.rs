@@ -118,19 +118,26 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
     result.assert_message(-1, Agent, "delegation stayed in chat");
 
-    let (pipeline, api) = test_pipeline().await?;
+    let (pipeline, api) = test_pipeline_with(ProviderFeatures {
+        context_limit_override: Some(24_000),
+        ..ProviderFeatures::default()
+    })
+    .await?;
     let pipeline = pipeline.with_provider_name("state-machine-test").await?;
     // Pin the rejection wall far above every request, including the child's
     // summarization call: the compaction threshold still tracks the model's
     // canonical limit, so this only removes the wall as a failure mode.
     api.set_context_limit(1_000_000);
     let child_path = pipeline.working_dir().join("bounded-child.yaml");
-    // The kickoff padding pushes the child's first request (system prompt plus
-    // the platform toolset, whose size varies with the environment) past the
-    // 102.4k-token auto-compact threshold in every environment, while its
-    // token count stays far below the threshold so the child's turn-boundary
-    // check passes and only the mid-turn check can fire.
-    let padding = "x ".repeat(20_000);
+    // The delegated child resolves its context limit through the provider
+    // (24k above), so its auto-compact threshold sits at 19.2k. The kickoff
+    // padding is sized so the child's turn-boundary check — which counts
+    // ~14k tokens for it on a fresh session — stays under that threshold,
+    // while the first request bills past it (~28k serialized characters from
+    // the padding alone, before the system prompt and toolset, whose size
+    // varies with the environment). Only the mid-turn check can fire, in any
+    // environment.
+    let padding = "x ".repeat(14_000);
     std::fs::write(
         &child_path,
         format!(
