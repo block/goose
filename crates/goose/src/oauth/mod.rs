@@ -6,6 +6,7 @@ use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
+use fs2::FileExt;
 use minijinja::{context, Environment};
 use oauth2::{Scope, TokenResponse};
 use rmcp::transport::auth::{
@@ -15,11 +16,15 @@ use rmcp::transport::auth::{
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::collections::BTreeSet;
+use std::fs::{File, OpenOptions};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
+
+use crate::config::paths::Paths;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 const CLIENT_METADATA_URL: &str = "https://goose-docs.ai/oauth/client-metadata.json";
@@ -204,6 +209,53 @@ fn resolve_refreshed_granted_scopes(
 
 const REFRESH_BUFFER_SECS: u64 = 30;
 
+fn sanitize_oauth_lock_name(name: &str) -> String {
+    let sanitized: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if sanitized.is_empty() || sanitized.chars().all(|c| c == '_') {
+        "unnamed".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn oauth_flow_lock_path(name: &str) -> PathBuf {
+    Paths::config_dir()
+        .join("oauth")
+        .join(format!("{}.lock", sanitize_oauth_lock_name(name)))
+}
+
+fn lock_oauth_flow(name: &str) -> Result<File, anyhow::Error> {
+    let path = oauth_flow_lock_path(name);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)?;
+    file.lock_exclusive()
+        .map_err(|e| anyhow::anyhow!("Failed to lock OAuth flow for {name}: {e}"))?;
+    Ok(file)
+}
+
+async fn acquire_oauth_flow_lock(name: &str) -> Result<File, anyhow::Error> {
+    let lock_name = name.to_string();
+    tokio::task::spawn_blocking(move || lock_oauth_flow(&lock_name))
+        .await
+        .map_err(|e| anyhow::anyhow!("OAuth flow lock task failed: {e}"))?
+}
+
 fn access_token_needs_refresh(stored_credentials: &StoredCredentials) -> bool {
     let Some(token_response) = stored_credentials.token_response.as_ref() else {
         return true;
@@ -320,6 +372,9 @@ pub async fn oauth_flow_with_challenge(
     let static_client = static_client.or(env_client.as_ref());
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+    // Serialize refresh and browser auth per extension across processes so a
+    // rotating refresh token cannot be spent twice and then wipe the winner.
+    let _oauth_lock = acquire_oauth_flow_lock(name).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
     let stored_credentials = credential_store.load().await?;
@@ -856,6 +911,75 @@ mod tests {
             access_token_needs_refresh(&expired),
             "an expired token must still take the refresh path"
         );
+    }
+
+    #[test]
+    fn missing_expiry_metadata_does_not_force_refresh() {
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "mcp_no_expiry",
+            "token_type": "bearer",
+        }))
+        .unwrap();
+        let stored =
+            StoredCredentials::new("client-id".to_string(), Some(token_response), vec![], None);
+
+        assert!(
+            !access_token_needs_refresh(&stored),
+            "legacy credentials without expiry metadata must be used as-is"
+        );
+    }
+
+    #[test]
+    fn oauth_lock_name_replaces_unsafe_characters() {
+        assert_eq!(sanitize_oauth_lock_name("Pi Swisssync"), "Pi_Swisssync");
+        assert_eq!(sanitize_oauth_lock_name("../etc/passwd"), "___etc_passwd");
+        assert_eq!(sanitize_oauth_lock_name(""), "unnamed");
+        assert_eq!(sanitize_oauth_lock_name("///"), "unnamed");
+        assert_eq!(
+            sanitize_oauth_lock_name("Composio Connect"),
+            "Composio_Connect"
+        );
+    }
+
+    #[test]
+    fn oauth_flow_lock_path_is_stable_per_sanitized_name() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().to_str().unwrap();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root))]);
+
+        let path = oauth_flow_lock_path("Pi Swisssync");
+        assert_eq!(
+            path,
+            temp.path()
+                .join("config")
+                .join("oauth")
+                .join("Pi_Swisssync.lock")
+        );
+        assert_eq!(
+            oauth_flow_lock_path("Pi Swisssync"),
+            oauth_flow_lock_path("Pi_Swisssync")
+        );
+    }
+
+    #[test]
+    fn oauth_flow_lock_is_exclusive() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().to_str().unwrap();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root))]);
+
+        let held = lock_oauth_flow("Pi Swisssync").unwrap();
+        let path = oauth_flow_lock_path("Pi Swisssync");
+        let contender = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        assert!(
+            contender.try_lock_exclusive().is_err(),
+            "a second process must wait for the OAuth flow lock"
+        );
+        drop(held);
+        assert!(contender.try_lock_exclusive().is_ok());
     }
 
     #[tokio::test]
