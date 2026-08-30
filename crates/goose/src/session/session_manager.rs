@@ -971,6 +971,9 @@ fn build_session_activity(
                 }
             })
             .or_insert(date.clone());
+        if !date.starts_with(&year.to_string()) {
+            continue;
+        }
         *day_session_tokens
             .entry(date.clone())
             .or_default()
@@ -994,7 +997,7 @@ fn build_session_activity(
         );
     }
 
-    let sessions_with_carried_forward: HashSet<String> = carried_forward.keys().cloned().collect();
+    let carried_forward_totals = carried_forward.clone();
     for (session_id, tokens) in carried_forward {
         if tokens <= 0 {
             continue;
@@ -1027,9 +1030,13 @@ fn build_session_activity(
     }
 
     for (session_id, meta) in &metas {
-        if sessions_with_ledger.contains(session_id)
-            || sessions_with_carried_forward.contains(session_id)
-        {
+        if sessions_with_ledger.contains(session_id) {
+            continue;
+        }
+        let leftover = meta
+            .accumulated_tokens
+            .saturating_sub(*carried_forward_totals.get(session_id).unwrap_or(&0));
+        if leftover <= 0 {
             continue;
         }
         let Some(date) = last_message_days.get(session_id) else {
@@ -1042,14 +1049,14 @@ fn build_session_activity(
             .entry(date.clone())
             .or_default()
             .entry(session_id.clone())
-            .or_insert(0) += meta.accumulated_tokens;
+            .or_insert(0) += leftover;
         add_model_tokens(
             &mut models,
             &mut model_sessions,
             session_id,
             session_provider_id(meta),
             session_model_id(meta),
-            meta.accumulated_tokens,
+            leftover,
         );
     }
 
