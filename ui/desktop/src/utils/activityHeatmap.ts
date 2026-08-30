@@ -7,41 +7,45 @@ export interface HeatmapCell {
   inYear: boolean;
 }
 
-export function utcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
 }
 
-export function parseUtcDateKey(date: string): Date {
+export function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function parseLocalDateKey(date: string): Date {
   const [year, month, day] = date.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
+  return new Date(year, month - 1, day);
 }
 
-export function startOfUtcWeek(date: Date): Date {
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+export function startOfLocalWeek(date: Date): Date {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  start.setDate(start.getDate() - start.getDay());
   return start;
 }
 
 export function buildYearHeatmap(year: number): HeatmapCell[] {
-  const yearStart = new Date(Date.UTC(year, 0, 1));
-  const yearEnd = new Date(Date.UTC(year, 11, 31));
-  const gridStart = startOfUtcWeek(yearStart);
-  const gridEnd = startOfUtcWeek(yearEnd);
-  gridEnd.setUTCDate(gridEnd.getUTCDate() + 6);
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31);
+  const gridStart = startOfLocalWeek(yearStart);
+  const gridEnd = startOfLocalWeek(yearEnd);
+  gridEnd.setDate(gridEnd.getDate() + 6);
 
   const cells: HeatmapCell[] = [];
   const cursor = new Date(gridStart);
   let weekIndex = 0;
 
   while (cursor.getTime() <= gridEnd.getTime()) {
-    const weekday = cursor.getUTCDay();
+    const weekday = cursor.getDay();
     cells.push({
-      date: utcDateKey(cursor),
+      date: localDateKey(cursor),
       weekday,
       weekIndex,
-      inYear: cursor.getUTCFullYear() === year,
+      inYear: cursor.getFullYear() === year,
     });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    cursor.setDate(cursor.getDate() + 1);
     if (weekday === 6) {
       weekIndex += 1;
     }

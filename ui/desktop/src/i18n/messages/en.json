@@ -30,7 +30,7 @@
     "defaultMessage": "{sessions,plural,one{{date}: # session, {tokens} tokens} other{{date}: # sessions, {tokens} tokens}}"
   },
   "activityHeatmap.empty": {
-    "defaultMessage": "No sessions this year"
+    "defaultMessage": "No sessions in {year}"
   },
   "activityHeatmap.exploreByModel": {
     "defaultMessage": "Tokens by model"
@@ -69,7 +69,7 @@
     "defaultMessage": "{count,plural,one{# session} other{# sessions}}"
   },
   "activityHeatmap.yearTokens": {
-    "defaultMessage": "{count} tokens this year"
+    "defaultMessage": "{count} tokens in {year}"
   },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"

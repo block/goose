@@ -31,7 +31,7 @@ const GAP = 3;
 const i18n = defineMessages({
   yearTokens: {
     id: 'activityHeatmap.yearTokens',
-    defaultMessage: '{count} tokens this year',
+    defaultMessage: '{count} tokens in {year}',
   },
   yearSessions: {
     id: 'activityHeatmap.yearSessions',
@@ -59,7 +59,7 @@ const i18n = defineMessages({
   },
   empty: {
     id: 'activityHeatmap.empty',
-    defaultMessage: 'No sessions this year',
+    defaultMessage: 'No sessions in {year}',
   },
   dayTooltip: {
     id: 'activityHeatmap.dayTooltip',
@@ -126,7 +126,7 @@ export default function ActivityHeatmap({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const intl = useIntl();
-  const currentYear = new Date().getUTCFullYear();
+  const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [activity, setActivity] = useState<SessionActivity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,19 +161,21 @@ export default function ActivityHeatmap({
     };
   }, [year]);
 
+  const loadedActivity = activity?.year === year ? activity : null;
+
   const daysByDate = useMemo(() => {
     const map = new Map<string, SessionActivityDay>();
-    for (const day of activity?.days ?? []) {
+    for (const day of loadedActivity?.days ?? []) {
       map.set(day.date, day);
     }
     return map;
-  }, [activity]);
+  }, [loadedActivity]);
 
   const cells = useMemo(() => buildYearHeatmap(year), [year]);
   const weekCount = heatmapWeekCount(cells);
   const maxSessionCount = useMemo(
-    () => Math.max(0, ...(activity?.days.map((day) => day.sessionCount) ?? [0])),
-    [activity]
+    () => Math.max(0, ...(loadedActivity?.days.map((day) => day.sessionCount) ?? [0])),
+    [loadedActivity]
   );
 
   const openSession = (sessionId: string) => {
@@ -190,11 +192,12 @@ export default function ActivityHeatmap({
         <div>
           <p className="text-sm text-text-primary">
             {intl.formatMessage(i18n.yearTokens, {
-              count: formatTokenCount(activity?.totalTokens ?? 0),
+              count: formatTokenCount(loadedActivity?.totalTokens ?? 0),
+              year,
             })}
           </p>
           <p className="text-xs text-text-secondary">
-            {intl.formatMessage(i18n.yearSessions, { count: activity?.totalSessions ?? 0 })}
+            {intl.formatMessage(i18n.yearSessions, { count: loadedActivity?.totalSessions ?? 0 })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -226,7 +229,7 @@ export default function ActivityHeatmap({
             size="xs"
             shape="pill"
             onClick={() => setModelsOpen(true)}
-            disabled={!activity || activity.models.length === 0}
+            disabled={!loadedActivity || loadedActivity.models.length === 0}
           >
             {intl.formatMessage(i18n.exploreByModel)}
           </Button>
@@ -246,8 +249,10 @@ export default function ActivityHeatmap({
             maxSessionCount={maxSessionCount}
             onSelectDay={setSelectedDay}
           />
-          {!activity?.days.length && (
-            <p className="text-xs text-text-secondary mt-2">{intl.formatMessage(i18n.empty)}</p>
+          {!loadedActivity?.days.length && (
+            <p className="text-xs text-text-secondary mt-2">
+              {intl.formatMessage(i18n.empty, { year })}
+            </p>
           )}
         </>
       )}
@@ -302,13 +307,13 @@ export default function ActivityHeatmap({
             </DialogTitle>
             <DialogDescription>
               {intl.formatMessage(i18n.modelDialogDescription, {
-                tokens: formatTokenCount(activity?.totalTokens ?? 0),
-                sessions: activity?.totalSessions ?? 0,
+                tokens: formatTokenCount(loadedActivity?.totalTokens ?? 0),
+                sessions: loadedActivity?.totalSessions ?? 0,
               })}
             </DialogDescription>
           </DialogHeader>
           <ul className="space-y-2 max-h-72 overflow-y-auto">
-            {(activity?.models ?? []).map((model) => (
+            {(loadedActivity?.models ?? []).map((model) => (
               <li
                 key={`${model.providerId ?? ''}:${model.modelId ?? ''}`}
                 className="flex items-baseline justify-between gap-3 text-sm"
@@ -355,7 +360,7 @@ function HeatmapGrid({
         ))}
       </div>
       <svg
-        role="img"
+        role="group"
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
@@ -392,6 +397,7 @@ function HeatmapGrid({
                     ? 'cursor-default'
                     : 'opacity-20'
               )}
+              role={cell.inYear && day ? 'button' : undefined}
               tabIndex={cell.inYear && day ? 0 : -1}
               aria-label={label}
               onClick={() => {

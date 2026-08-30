@@ -1334,7 +1334,9 @@
             "integer",
             "null"
           ],
-          "description": "Calendar year in UTC. Defaults to the current UTC year when omitted."
+          "maximum": 2100,
+          "description": "Calendar year in the agent's local timezone. Defaults to the current local year when omitted.",
+          "minimum": 1970
         }
       },
       "description": "Calendar-year session activity for the desktop heatmap.",

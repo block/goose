@@ -425,7 +425,7 @@ export const zDiagnosticsGetResponse_unstable = z.object({
  * Calendar-year session activity for the desktop heatmap.
  */
 export const zSessionActivityRequest_unstable = z.object({
-    year: z.int().nullish()
+    year: z.int().gte(1970).lte(2100).nullish()
 });
 
 export const zSessionActivitySession = z.object({

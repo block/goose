@@ -681,7 +681,7 @@ export type DiagnosticsGetResponse_unstable = {
  */
 export type SessionActivityRequest_unstable = {
     /**
-     * Calendar year in UTC. Defaults to the current UTC year when omitted.
+     * Calendar year in the agent's local timezone. Defaults to the current local year when omitted.
      */
     year?: number | null;
 };

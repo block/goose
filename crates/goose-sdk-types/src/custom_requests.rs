@@ -2280,8 +2280,9 @@ pub struct SetToolPermissionsResponse {}
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SessionActivityRequest {
-    /// Calendar year in UTC. Defaults to the current UTC year when omitted.
+    /// Calendar year in the agent's local timezone. Defaults to the current local year when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1970, max = 2100))]
     pub year: Option<i32>,
 }
 
