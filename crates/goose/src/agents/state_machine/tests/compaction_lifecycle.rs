@@ -959,6 +959,90 @@ async fn a_failed_compaction_behind_a_steer_continues_the_run() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failed_compaction_behind_a_goal_nudge_continues_the_run() -> Result<()> {
+    // Calibrate the serialized size of the kickoff request on a throwaway
+    // session, so the goal can be sized from the real budget on any machine.
+    let (calibration, api) = test_pipeline().await?;
+    let calibration = calibration
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    api.on("calibrate the budget").reply("probe acknowledged");
+    calibration.run(["calibrate the budget"]).await?;
+    let first = api.calls().first().cloned().expect("calibration request");
+    let threshold = (calibration.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
+    let target = threshold - first.input_tokens() + 1_000;
+    assert!(
+        target > 5_000,
+        "kickoff request unexpectedly large: {}",
+        first.input_tokens()
+    );
+
+    let (pipeline, api) = test_pipeline().await?;
+    // A goal nudge is an agent-only user continuation: the text-only reply
+    // ends the turn, the retry operation appends the nudge, and the next
+    // pass reaches the compaction check over the 19.2k threshold. The nudge
+    // boundary is neither mid-turn nor a steer, but the summarization
+    // failure must still not end the run — the legacy loop appends the same
+    // nudge after its checks and proceeds straight to inference, so the run
+    // continues and the reactive path owns any oversized request. The goal
+    // is sized in tokens — grown until the counter the check uses reports
+    // enough to cross — because the baseline is reported in serialized
+    // characters. Rules match newest-first, so the continuation rule
+    // registered last wins even though the follow-up request also carries
+    // the kickoff.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    let counter = crate::token_counter::create_token_counter()
+        .await
+        .expect("token counter");
+    let mut pairs = target.max(1) as usize;
+    let goal = loop {
+        let candidate =
+            Message::user().with_text(format!("ship the release {}", "x ".repeat(pairs)));
+        let tokens = counter.count_chat_tokens("", std::slice::from_ref(&candidate), &[]);
+        if tokens as i32 >= target {
+            break candidate.as_concat_text();
+        }
+        pairs += (target.saturating_sub(tokens as i32)).max(1) as usize;
+    };
+    pipeline.set_goal(Some(goal)).await;
+
+    api.on("wrap up the work").reply("a text-only wrap-up");
+    api.on("check whether the following goal")
+        .reply("goal satisfied, finishing");
+    api.on(SUMMARIZE_HISTORY).server_error("summarizer offline");
+
+    let run = pipeline.run(["wrap up the work"]).await?;
+
+    run.assert_message(-1, Agent, "goal satisfied, finishing");
+    assert_eq!(
+        run.history_replacements(),
+        0,
+        "the failed compaction must not replace the history"
+    );
+    assert!(api
+        .calls()
+        .iter()
+        .any(|call| call.input_contains(SUMMARIZE_HISTORY)));
+    assert!(run.conversation().messages().iter().all(|message| !message
+        .as_concat_text()
+        .contains("Ran into this error trying to compact")));
+    assert_eq!(api.context_limit_rejections(), 0);
+    assert_eq!(
+        pipeline.get_goal().await,
+        None,
+        "the satisfied goal must be cleared"
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn a_failed_mid_turn_compaction_continues_the_turn() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;

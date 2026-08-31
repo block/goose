@@ -308,6 +308,10 @@ impl TestPipeline {
         self.goal.lock().await.clone()
     }
 
+    pub(super) async fn set_goal(&self, goal: Option<String>) {
+        *self.goal.lock().await = goal;
+    }
+
     pub(super) async fn set_grind(&self, grind: Option<String>) {
         *self.grind.lock().await = grind;
     }

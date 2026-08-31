@@ -268,6 +268,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
 
         let mut mid_turn = false;
         let mut steer_boundary = false;
+        let mut internal_boundary = false;
         let mut trigger = "reactive";
         if reactive_context_error {
             let context_errors = messages
@@ -303,6 +304,16 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             // run is mid-flight — matching the legacy loop's dedicated steer
             // re-check site.
             steer_boundary = !mid_turn && messages.iter().any(|message| message.metadata.steer);
+            // Agent-only `User` continuations — a stop-hook denial, a
+            // goal/grind nudge — never start a run, so a `User` boundary the
+            // user cannot see is an in-flight continuation: the legacy loop
+            // appends the same nudges after its checks and proceeds straight
+            // to inference, so a failure here must not end the run either.
+            internal_boundary = !mid_turn
+                && !steer_boundary
+                && messages
+                    .last()
+                    .is_some_and(|message| !message.is_user_visible());
             // Steers redefine `messages_since_kickoff`, so both guards below
             // scan back to the run's own kickoff.
             let run_messages = messages_since_run_start(conversation)?;
@@ -338,6 +349,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 "mid-turn"
             } else if steer_boundary {
                 "steer"
+            } else if internal_boundary {
+                "continuation"
             } else {
                 "turn-boundary"
             };
@@ -410,13 +423,14 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                if mid_turn || steer_boundary {
+                if mid_turn || steer_boundary || internal_boundary {
                     // The run can continue: the request that follows may
                     // still fit, and the reactive path owns the outcome if
                     // not. Ending the run here would discard an
-                    // already-completed tool round-trip or drop a drained
-                    // steer, which the legacy loop instead carries into the
-                    // next inference.
+                    // already-completed tool round-trip, drop a drained
+                    // steer, or terminate behind an internal nudge — all
+                    // continuations the legacy loop carries into the next
+                    // inference.
                     error!(trigger, "compaction failed: {e}");
                     return not_applicable();
                 }
