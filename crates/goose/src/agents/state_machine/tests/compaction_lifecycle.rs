@@ -893,10 +893,12 @@ async fn a_stale_token_count_floors_on_the_full_conversation() -> Result<()> {
 async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     // The first reply is text-only and stays under the 19.2k threshold, so
-    // the steer is what pushes past it: the check that runs after the steer
+    // the steers are what push past it: the check that runs after the steer
     // operation must recount and compact before the grown context is sent
-    // back. The steer is sized from the first request's reported usage so
-    // the crossing comes from the unsent growth added to the baseline.
+    // back. The large steer is sized from the first request's reported usage
+    // so the crossing comes from the unsent growth added to the baseline,
+    // and the small steer behind it is what compaction preserves, keeping
+    // the retained context far under the threshold.
     let pipeline = pipeline
         .with_model_config(
             goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
@@ -915,17 +917,18 @@ async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Resul
         text_only.entered().await;
         let first = api.calls().first().cloned().expect("text-only request");
         let threshold = (pipeline.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
-        // The recount adds the steer's measured tokens to the reported
-        // baseline, so the steer must be sized in tokens, not characters:
-        // the baseline is reported in serialized characters while the
-        // growth is counted in tokens, and machines whose first request
-        // differs slightly can leave a character-sized steer short of the
-        // crossing. Grow the text until the counter — the same one the
-        // check uses — reports enough tokens to cross with ~1k to spare,
-        // while the steer alone stays far enough under the threshold that
-        // compaction (which preserves the most recent text-only user
-        // message verbatim) is not re-triggered by the retained steer
-        // afterwards.
+        // The recount adds each drained steer's measured tokens to the
+        // reported baseline, so the growth must be sized in tokens, not
+        // characters: the baseline is reported in serialized characters
+        // while the growth is counted in tokens, and machines whose first
+        // request differs can leave a character-sized steer short of the
+        // crossing. Grow the first steer until the counter — the same one
+        // the check uses — reports enough tokens to cross with ~1k to
+        // spare. A second, small steer rides behind it: compaction
+        // preserves the most recent text-only user message verbatim, so the
+        // large one is summarized away and the retained context cannot
+        // re-trigger compaction no matter how large the first steer had to
+        // grow.
         let target = threshold - first.input_tokens() + 1_000;
         assert!(
             target > 5_000,
@@ -936,7 +939,7 @@ async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Resul
             .await
             .expect("token counter");
         let mut pairs = target.max(1) as usize;
-        let message = loop {
+        let large = loop {
             let candidate =
                 Message::user().with_text(format!("redirect the work {}", "x ".repeat(pairs)));
             let tokens = counter.count_chat_tokens("", std::slice::from_ref(&candidate), &[]);
@@ -945,7 +948,10 @@ async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Resul
             }
             pairs += (target.saturating_sub(tokens as i32)).max(1) as usize;
         };
-        pipeline.steer(message).await;
+        pipeline.steer(large).await;
+        pipeline
+            .steer(Message::user().with_text("and keep it brief"))
+            .await;
         text_only.release();
     };
     let (result, ()) = tokio::join!(run, steer);
