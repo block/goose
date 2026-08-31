@@ -27,6 +27,7 @@ import {
 } from '../utils/nextChatExtensions';
 import { formatAcpError } from '../acp/errors';
 import { toastError } from '../toasts';
+import { formatClockDisplay } from '../utils/timeUtils';
 
 const i18n = defineMessages({
   goodMorning: { id: 'hub.goodMorning', defaultMessage: 'Good morning' },
@@ -34,19 +35,14 @@ const i18n = defineMessages({
   goodEvening: { id: 'hub.goodEvening', defaultMessage: 'Good evening' },
 });
 
-function useClock(): { time: string; meridiem: string; hour: number } {
+function useClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(interval);
   }, []);
 
-  const hour = now.getHours();
-  const minutes = now.getMinutes();
-  const meridiem = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = ((hour + 11) % 12) + 1;
-  const time = `${displayHour}:${String(minutes).padStart(2, '0')}`;
-  return { time, meridiem, hour };
+  return formatClockDisplay(now);
 }
 
 export default function Hub({
@@ -151,7 +147,9 @@ export default function Hub({
           <span className="text-6xl font-light text-text-primary tracking-tight tabular-nums">
             {time}
           </span>
-          <span className="text-2xl font-light text-text-secondary">{meridiem}</span>
+          {meridiem ? (
+            <span className="text-2xl font-light text-text-secondary">{meridiem}</span>
+          ) : null}
         </div>
         <p className="text-xl text-text-secondary mb-6">{greeting}</p>
 
