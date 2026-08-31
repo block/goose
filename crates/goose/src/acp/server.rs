@@ -753,6 +753,7 @@ fn prompt_stop_reason(was_cancelled: bool, output_token_limit_reached: bool) -> 
 struct SessionAgentTarget {
     agent: Arc<Agent>,
     session_id: String,
+    cancel_token: Option<CancellationToken>,
 }
 
 struct PendingToolPermission {
@@ -1623,6 +1624,9 @@ impl GooseAcpAgent {
                         %error,
                         "failed to submit tool confirmation"
                     );
+                    if let Some(cancel_token) = target.cancel_token {
+                        cancel_token.cancel();
+                    }
                 }
                 Ok(())
             })?;
@@ -2096,6 +2100,7 @@ impl GooseAcpAgent {
         let target = SessionAgentTarget {
             agent: agent.clone(),
             session_id: session_id.to_string(),
+            cancel_token: Some(cancel_token.clone()),
         };
 
         while let Some(event) = stream.next().await {

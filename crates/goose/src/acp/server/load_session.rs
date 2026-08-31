@@ -224,6 +224,7 @@ impl GooseAcpAgent {
         agent: &Arc<Agent>,
         session_id: &str,
         requests: &[ToolConfirmationRequest],
+        cancel_token: Option<CancellationToken>,
     ) -> Result<(), agent_client_protocol::Error> {
         let acp_session_id = SessionId::new(session_id.to_string());
         for request in requests {
@@ -239,6 +240,7 @@ impl GooseAcpAgent {
                 SessionAgentTarget {
                     agent: agent.clone(),
                     session_id: session_id.to_string(),
+                    cancel_token: cancel_token.clone(),
                 },
             )?;
         }
@@ -251,7 +253,8 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
         session_id: &str,
-    ) -> Result<bool, agent_client_protocol::Error> {
+        requests: &[ToolConfirmationRequest],
+    ) -> Result<(), agent_client_protocol::Error> {
         let run_id = format!("resume_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
         self.start_active_run(
@@ -282,7 +285,7 @@ impl GooseAcpAgent {
             Ok(None) => {
                 self.clear_active_run(session_id, &run_id).await;
                 Self::send_active_run_update(cx, &acp_session_id, None)?;
-                return Ok(false);
+                return Ok(());
             }
             Err(error) => {
                 self.clear_active_run(session_id, &run_id).await;
@@ -292,6 +295,19 @@ impl GooseAcpAgent {
                 )));
             }
         };
+
+        if let Err(error) = self.resend_pending_tool_permissions(
+            cx,
+            agent,
+            session_id,
+            requests,
+            Some(cancel_token.clone()),
+        ) {
+            cancel_token.cancel();
+            self.clear_active_run(session_id, &run_id).await;
+            let _ = Self::send_active_run_update(cx, &acp_session_id, None);
+            return Err(error);
+        }
 
         let server = Arc::clone(self);
         let task_cx = cx.clone();
@@ -340,7 +356,7 @@ impl GooseAcpAgent {
             return Err(error);
         }
 
-        Ok(true)
+        Ok(())
     }
 
     pub(super) async fn handle_load_session(
@@ -395,18 +411,21 @@ impl GooseAcpAgent {
                     .conversation
                     .as_ref()
                     .is_some_and(has_unapplied_tool_confirmation_response));
-        let should_resend_confirmations = if should_resume_state_machine {
-            self.start_resumed_state_machine_turn(cx, &agent, &session_id_str)
-                .await?
+        if should_resume_state_machine {
+            self.start_resumed_state_machine_turn(
+                cx,
+                &agent,
+                &session_id_str,
+                &pending_confirmations,
+            )
+            .await?;
         } else {
-            true
-        };
-        if should_resend_confirmations {
             self.resend_pending_tool_permissions(
                 cx,
                 &agent,
                 &session_id_str,
                 &pending_confirmations,
+                None,
             )?;
         }
 

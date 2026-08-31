@@ -1633,6 +1633,11 @@ impl CliSession {
                                             data: None,
                                         }),
                                     ));
+                                    self.agent
+                                        .config
+                                        .session_manager
+                                        .add_message(&self.session_id, &response_message)
+                                        .await?;
                                     self.messages.push(response_message);
                                     cancel_token_clone.cancel();
                                     drop(stream);
