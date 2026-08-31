@@ -45,7 +45,16 @@ impl CommandAuthProvider {
             .cwd
             .as_ref()
             .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            .unwrap_or_else(|| PathBuf::from("."));
+        let cwd = std::env::current_dir()
+            .map(|base| {
+                if cwd.is_absolute() {
+                    cwd.clone()
+                } else {
+                    base.join(&cwd)
+                }
+            })
+            .unwrap_or(cwd);
         Self {
             command: auth_config.command.clone(),
             args: auth_config.args.clone(),
@@ -54,7 +63,6 @@ impl CommandAuthProvider {
                 .timeout_seconds
                 .map(Duration::from_secs)
                 .unwrap_or(DEFAULT_AUTH_COMMAND_TIMEOUT),
-            cwd,
             header_name: header_name.into(),
             header_value_prefix: header_value_prefix.into(),
             cached: Arc::new(RwLock::new(None)),
@@ -71,23 +79,39 @@ impl CommandAuthProvider {
             .args(&self.args)
             .current_dir(&self.cwd)
             // No stdin, so a script that unexpectedly tries to prompt fails
-            // fast instead of hanging on the parent's stdin. Killed on drop
-            // so a command still running when `timeout` below fires doesn't
-            // linger as an orphan.
+            // fast instead of hanging on the parent's stdin.
             .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
         configure_subprocess(&mut command);
 
-        let output = tokio::time::timeout(self.timeout, command.output())
-            .await
-            .map_err(|_| {
-                anyhow::anyhow!(
+        let child = command
+            .spawn()
+            .map_err(|e| anyhow::anyhow!("failed to run auth command '{}': {}", self.command, e))?;
+        #[cfg(unix)]
+        let pid = child.id();
+
+        let output = match tokio::time::timeout(self.timeout, child.wait_with_output()).await {
+            Ok(result) => result.map_err(|e| {
+                anyhow::anyhow!("failed to run auth command '{}': {}", self.command, e)
+            })?,
+            Err(_) => {
+                #[cfg(unix)]
+                if let Some(pid) = pid {
+                    // SAFETY: signals only the process group `configure_subprocess`
+                    // put this child in (negative pid), never an unrelated group.
+                    unsafe {
+                        libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+                    }
+                }
+                anyhow::bail!(
                     "auth command '{}' timed out after {:?}",
                     self.command,
                     self.timeout
-                )
-            })?
-            .map_err(|e| anyhow::anyhow!("failed to run auth command '{}': {}", self.command, e))?;
+                );
+            }
+        };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -202,22 +226,76 @@ impl AuthProvider for CommandAuthProvider {
 mod tests {
     use super::*;
 
-    fn auth_config(command: &str, args: Vec<&str>, refresh_interval: u64) -> AuthConfig {
+    fn auth_config(
+        command: impl Into<String>,
+        args: Vec<impl Into<String>>,
+        refresh_interval: u64,
+    ) -> AuthConfig {
         AuthConfig {
-            command: command.to_string(),
-            args: args.into_iter().map(str::to_string).collect(),
+            command: command.into(),
+            args: args.into_iter().map(Into::into).collect(),
             refresh_interval,
             timeout_seconds: None,
             cwd: None,
         }
     }
 
+    /// A command whose stdout differs on every invocation (this process's own
+    /// PID / a fresh pseudo-random draw), so two captured values back-to-back
+    /// prove whether the underlying command was actually re-run.
+    #[cfg(unix)]
+    fn distinct_value_command() -> (&'static str, Vec<&'static str>) {
+        ("sh", vec!["-c", "echo $$"])
+    }
+    #[cfg(windows)]
+    fn distinct_value_command() -> (&'static str, Vec<&'static str>) {
+        ("cmd", vec!["/C", "echo %RANDOM%%RANDOM%%RANDOM%"])
+    }
+
+    #[cfg(unix)]
+    fn sleep_seconds_command(seconds: u64) -> (&'static str, Vec<String>) {
+        ("sleep", vec![seconds.to_string()])
+    }
+    #[cfg(windows)]
+    fn sleep_seconds_command(seconds: u64) -> (&'static str, Vec<String>) {
+        (
+            "powershell",
+            vec![
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                format!("Start-Sleep -Seconds {seconds}"),
+            ],
+        )
+    }
+
+    #[cfg(unix)]
+    fn fail_command() -> (&'static str, Vec<&'static str>) {
+        ("sh", vec!["-c", "exit 1"])
+    }
+    #[cfg(windows)]
+    fn fail_command() -> (&'static str, Vec<&'static str>) {
+        ("cmd", vec!["/C", "exit 1"])
+    }
+
+    #[cfg(unix)]
+    fn fail_after_printing_command(text: &str) -> (&'static str, Vec<String>) {
+        ("sh", vec!["-c".to_string(), format!("echo {text}; exit 1")])
+    }
+    #[cfg(windows)]
+    fn fail_after_printing_command(text: &str) -> (&'static str, Vec<String>) {
+        (
+            "cmd",
+            vec!["/C".to_string(), format!("echo {text} & exit 1")],
+        )
+    }
+
     #[tokio::test]
     async fn caches_token_within_refresh_interval() {
-        // `date +%N` (nanoseconds) changes on every invocation, so two equal
-        // results back-to-back prove the command was only run once.
+        // A fresh value on every invocation, so two equal results back-to-back
+        // prove the command was only run once.
+        let (command, args) = distinct_value_command();
         let provider = CommandAuthProvider::new(
-            &auth_config("date", vec!["+%N"], 3600),
+            &auth_config(command, args, 3600),
             "Authorization",
             "Bearer ",
         );
@@ -231,11 +309,9 @@ mod tests {
 
     #[tokio::test]
     async fn refetches_after_ttl_expires() {
-        let provider = CommandAuthProvider::new(
-            &auth_config("date", vec!["+%N"], 1),
-            "Authorization",
-            "Bearer ",
-        );
+        let (command, args) = distinct_value_command();
+        let provider =
+            CommandAuthProvider::new(&auth_config(command, args, 1), "Authorization", "Bearer ");
 
         let (_, first) = provider.get_auth_header().await.unwrap();
         tokio::time::sleep(Duration::from_millis(1100)).await;
@@ -249,11 +325,9 @@ mod tests {
         // Matches Codex's `refresh_interval_ms: 0` convention: the cache
         // never ages out on its own, only `refresh_credentials()` (the
         // reactive, on-401 path) invalidates it.
-        let provider = CommandAuthProvider::new(
-            &auth_config("date", vec!["+%N"], 0),
-            "Authorization",
-            "Bearer ",
-        );
+        let (command, args) = distinct_value_command();
+        let provider =
+            CommandAuthProvider::new(&auth_config(command, args, 0), "Authorization", "Bearer ");
 
         let (_, first) = provider.get_auth_header().await.unwrap();
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -267,8 +341,9 @@ mod tests {
 
     #[tokio::test]
     async fn refresh_credentials_forces_refetch() {
+        let (command, args) = distinct_value_command();
         let provider = CommandAuthProvider::new(
-            &auth_config("date", vec!["+%N"], 3600),
+            &auth_config(command, args, 3600),
             "Authorization",
             "Bearer ",
         );
@@ -282,7 +357,8 @@ mod tests {
 
     #[tokio::test]
     async fn enforces_timeout() {
-        let mut config = auth_config("sleep", vec!["5"], 3600);
+        let (command, args) = sleep_seconds_command(5);
+        let mut config = auth_config(command, args, 3600);
         config.timeout_seconds = Some(1);
         let provider = CommandAuthProvider::new(&config, "Authorization", "Bearer ");
 
@@ -294,8 +370,9 @@ mod tests {
 
     #[tokio::test]
     async fn errors_on_nonzero_exit_without_falling_back_to_stale_cache() {
+        let (command, args) = fail_command();
         let provider = CommandAuthProvider::new(
-            &auth_config("sh", vec!["-c", "exit 1"], 3600),
+            &auth_config(command, args, 3600),
             "Authorization",
             "Bearer ",
         );
@@ -314,8 +391,9 @@ mod tests {
 
     #[tokio::test]
     async fn error_message_does_not_leak_stdout() {
+        let (command, args) = fail_after_printing_command("super-secret-token");
         let provider = CommandAuthProvider::new(
-            &auth_config("sh", vec!["-c", "echo super-secret-token; exit 1"], 3600),
+            &auth_config(command, args, 3600),
             "Authorization",
             "Bearer ",
         );
@@ -345,6 +423,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn relative_cwd_is_resolved_to_absolute_before_use() {
+        // A relative `cwd` must become absolute once, at construction, so it
+        // isn't applied twice: once by `resolve_program`'s join, once by the
+        // OS resolving a relative program path against the already
+        // `current_dir`-ed child process.
+        let mut config = auth_config("./get-token", Vec::<&str>::new(), 3600);
+        config.cwd = Some("some/relative/dir".to_string());
+        let provider = CommandAuthProvider::new(&config, "Authorization", "Bearer ");
+
+        assert!(provider.cwd.is_absolute());
+        assert_eq!(
+            provider.cwd,
+            std::env::current_dir().unwrap().join("some/relative/dir")
+        );
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn command_runs_with_configured_cwd_and_resolves_relative_path() {
@@ -355,7 +450,7 @@ mod tests {
         std::fs::write(&script_path, "#!/bin/sh\npwd\n").unwrap();
         std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
 
-        let mut config = auth_config("./get-token.sh", vec![], 3600);
+        let mut config = auth_config("./get-token.sh", Vec::<&str>::new(), 3600);
         config.cwd = Some(dir.path().to_string_lossy().to_string());
         let provider = CommandAuthProvider::new(&config, "Authorization", "Bearer ");
 

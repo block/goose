@@ -244,7 +244,7 @@ impl ProviderRegistry {
             let mut config_keys = base_metadata.config_keys.clone();
 
             if let Some(api_key_index) = config_keys.iter().position(|key| key.secret) {
-                if !config.requires_auth {
+                if !config.requires_auth || config.auth.is_some() {
                     config_keys.remove(api_key_index);
                 } else if !config.api_key_env.is_empty() {
                     config_keys[api_key_index] =

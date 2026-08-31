@@ -731,8 +731,13 @@ impl GooseAcpAgent {
                 preserves_thinking: provider.preserves_thinking,
                 // The desktop/ACP form doesn't yet support editing command-based
                 // auth, so carry the existing setting forward unchanged rather
-                // than silently clearing it.
-                auth: loaded.config.auth.clone(),
+                // than silently clearing it — but only while auth stays enabled;
+                // disabling auth must actually stop the credential command.
+                auth: if provider.requires_auth {
+                    loaded.config.auth.clone()
+                } else {
+                    None
+                },
             },
         )
         .internal_err_ctx("Failed to update custom provider")?;

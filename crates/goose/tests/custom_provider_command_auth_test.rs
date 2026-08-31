@@ -42,6 +42,18 @@ fn custom_config_with_auth(base_url: &str, auth: AuthConfig) -> DeclarativeProvi
     }
 }
 
+/// A command whose stdout differs on every invocation (this process's own
+/// PID / a fresh pseudo-random draw), so two captured values back-to-back
+/// prove whether the underlying command was actually re-run.
+#[cfg(unix)]
+fn distinct_value_command() -> (&'static str, Vec<&'static str>) {
+    ("sh", vec!["-c", "echo $$"])
+}
+#[cfg(windows)]
+fn distinct_value_command() -> (&'static str, Vec<&'static str>) {
+    ("cmd", vec!["/C", "echo %RANDOM%%RANDOM%%RANDOM%"])
+}
+
 fn chat_completions_sse() -> String {
     format!(
         "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
@@ -141,15 +153,17 @@ async fn command_auth_refreshes_credential_on_401_and_retries() {
         .mount(&server)
         .await;
 
-    // A fresh nanosecond timestamp on every invocation, so two distinct
-    // captured Authorization headers prove the auth command actually ran
-    // twice (once up front, once after `refresh_credentials` invalidated
-    // the cache on the 401), rather than the same token being reused.
+    // A value that differs on every invocation (this process's own PID / a
+    // fresh pseudo-random draw), so two distinct captured Authorization
+    // headers prove the auth command actually ran twice (once up front, once
+    // after `refresh_credentials` invalidated the cache on the 401), rather
+    // than the same token being reused.
+    let (command, args) = distinct_value_command();
     let config = custom_config_with_auth(
         &server.uri(),
         AuthConfig {
-            command: "date".to_string(),
-            args: vec!["+%N".to_string()],
+            command: command.to_string(),
+            args: args.into_iter().map(str::to_string).collect(),
             refresh_interval: 3600,
             timeout_seconds: None,
             cwd: None,

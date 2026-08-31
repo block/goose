@@ -992,6 +992,19 @@ pub fn declarative_inventory_identity(
                 .insert(config.api_key_env.clone(), value);
         }
     }
+    if let Some(auth) = &config.auth {
+        identity
+            .secret_inputs
+            .insert("auth_command".to_string(), auth.command.clone());
+        identity
+            .secret_inputs
+            .insert("auth_args".to_string(), serde_json::to_string(&auth.args)?);
+        if let Some(cwd) = &auth.cwd {
+            identity
+                .secret_inputs
+                .insert("auth_cwd".to_string(), cwd.clone());
+        }
+    }
 
     Ok(identity)
 }
