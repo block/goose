@@ -47,6 +47,10 @@ struct MockCompactionProvider {
     /// `long_tool_call` padding, so usage crosses the threshold exactly when
     /// the recipe result is ready to deliver.
     final_output_reply: bool,
+    /// When set, the first regular reply carries no content while still
+    /// reporting usage, so the loop drops the response and the turn's usage
+    /// has no assistant message to attach to.
+    empty_first_reply: bool,
     /// Fictional token cost of the system prompt in input accounting. Lowered
     /// for scenarios that grow the context through real tool output: there the
     /// reported usage must stay under the threshold so only a conversation
@@ -84,6 +88,7 @@ impl MockCompactionProvider {
             tool_result_command: awk_command(),
             fail_summarizations: false,
             final_output_reply: false,
+            empty_first_reply: false,
             system_input_tokens: 6_000,
             context_limit: 128_000,
             context_limit_rejections: Arc::new(AtomicUsize::new(0)),
@@ -217,6 +222,18 @@ impl MockCompactionProvider {
         Self {
             context_limit: 10_000,
             ..Self::new()
+        }
+    }
+
+    /// Same conversational replies, but the first response is content-free
+    /// while still reporting usage: the loop drops the empty assistant
+    /// message, so only a preserved usage boundary can keep the drained
+    /// steer's re-check from sweeping the already-sent kickoff back in as
+    /// unsent growth.
+    fn empty_then_conversational() -> Self {
+        Self {
+            empty_first_reply: true,
+            ..Self::conversational()
         }
     }
 
@@ -398,6 +415,19 @@ impl Provider for MockCompactionProvider {
         // Generate response
         let message = if is_summarization_request {
             Message::assistant().with_text("<mock summary of conversation>")
+        } else if self.empty_first_reply
+            && !is_compaction
+            // The kickoff is answered before the steer lands; once the
+            // drained steer rides in the request, replies are normal. The
+            // loop merges consecutive user messages, so the message count
+            // cannot tell the two apart.
+            && !messages
+                .iter()
+                .any(|msg| msg.as_concat_text().contains("steered onward"))
+        {
+            // A content-free response with usage: the loop drops it, so the
+            // turn's usage has no assistant message to attach to.
+            Message::assistant()
         } else if self.final_output_reply_due(messages) {
             // The padding rides in the thinking block (counted in the output
             // accounting above), so reported usage crosses the threshold in
@@ -1605,6 +1635,100 @@ async fn test_auto_compaction_floors_on_the_recounted_conversation() -> Result<(
         provider.has_compacted.load(Ordering::SeqCst),
         "the summarization call should have run"
     );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_empty_response_usage_preserves_the_recount_boundary() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // A large kickoff (~2k tokens) is answered by an empty response that
+    // still reports usage (~6.2k against the 8k threshold), and the loop
+    // drops the empty assistant message. A steer queued during that
+    // round-trip (~300 tokens) revives the turn, and the steer re-check
+    // recounts: the session baseline already contains the kickoff, so only
+    // the steer may count as growth — 6.2k + 0.3k stays under the threshold
+    // and no compaction may run. A recount that lost the dropped response's
+    // boundary would fall back to the previous marker, sweep the
+    // already-sent kickoff back in as unsent growth (~8.5k), and compact a
+    // context whose real next request still fits.
+    let session =
+        setup_test_session(&agent, &temp_dir, "empty-reply-boundary-test", vec![]).await?;
+
+    let provider = Arc::new(MockCompactionProvider::empty_then_conversational());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("x ".repeat(2_000)),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    let mut final_text = String::new();
+    let mut steered = false;
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Usage(_) => {
+                // The empty response yields no message events, so the usage
+                // event is the suspension point: queueing here guarantees
+                // the steer is pending when the loop decides whether the
+                // empty turn continues.
+                if !steered {
+                    steered = true;
+                    agent
+                        .steer(
+                            &session.id,
+                            Message::user()
+                                .with_text(format!("steered onward {}", "x ".repeat(300))),
+                        )
+                        .await;
+                }
+            }
+            AgentEvent::Message(message) => {
+                if let Some(text) = message.content.iter().find_map(|content| match content {
+                    MessageContent::Text(text) if !text.text.is_empty() => Some(&text.text),
+                    _ => None,
+                }) {
+                    final_text = text.clone();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    assert!(
+        steered,
+        "the steer must be queued while the empty response is processed"
+    );
+    assert_eq!(
+        history_replacements, 0,
+        "the already-sent kickoff must not be recounted as unsent growth"
+    );
+    assert!(
+        !provider.has_compacted.load(Ordering::SeqCst),
+        "no summarization may run while the real next request still fits"
+    );
+    assert_eq!(final_text, "This is a mock response.");
     assert_eq!(provider.context_limit_rejections(), 0);
 
     Ok(())

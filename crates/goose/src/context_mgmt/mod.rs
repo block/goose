@@ -243,16 +243,21 @@ pub(crate) async fn recount_context_tokens(
     // the provider's latest response, so the unsent suffix starts there: the
     // legacy loop splits a parallel batch into per-request assistant
     // messages, and only that marker distinguishes the batch's first split
-    // from an older response. The response's own content is excluded from
-    // the growth — the session baseline reports input plus output tokens,
-    // so the response is already counted in it, and counting it again would
-    // compact a context whose real next request still fits. Histories
-    // without usage metadata fall back to the last assistant message as the
-    // boundary, which undercounts a legacy split batch but stays correct for
-    // the state machine's single-message representation.
+    // from an older response. The marker can also sit on a user message —
+    // the legacy loop drops an empty response but preserves its boundary by
+    // marking the newest message the request already carried — so the
+    // suffix starts after the marked message rather than at it. The
+    // response's own content is excluded from the growth — the session
+    // baseline reports input plus output tokens, so the response is already
+    // counted in it, and counting it again would compact a context whose
+    // real next request still fits. Histories without usage metadata fall
+    // back to the last assistant message as the boundary, which
+    // undercounts a legacy split batch but stays correct for the state
+    // machine's single-message representation.
     let unsent_start = messages
         .iter()
         .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())
+        .map(|marker| marker + 1)
         .or_else(|| {
             messages
                 .iter()
@@ -843,6 +848,40 @@ mod tests {
         assert!(
             counts.unsent < counts.total,
             "unsent must stop at the newest assistant message"
+        );
+    }
+
+    #[tokio::test]
+    async fn recount_starts_the_suffix_after_a_marker_on_a_user_message() {
+        // The legacy loop drops an empty response but preserves its boundary
+        // by marking the newest message the request already carried — a user
+        // message. The unsent suffix must start after that marker, not at
+        // it: the marked message was part of the request the session
+        // baseline reports, so counting it again as growth would compact a
+        // context whose real next request still fits.
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::assistant()
+                .with_text("older reply")
+                .with_metadata(MessageMetadata {
+                    usage: Some(Box::new(MessageUsage::default())),
+                    ..MessageMetadata::default()
+                }),
+            Message::user()
+                .with_text("x ".repeat(200))
+                .with_metadata(MessageMetadata {
+                    usage: Some(Box::new(MessageUsage::default())),
+                    ..MessageMetadata::default()
+                }),
+            Message::user().with_text("x ".repeat(50)),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let suffix = Conversation::new_unvalidated(vec![conversation.messages()[2].clone()]);
+        let suffix_tokens = count_context_tokens(&suffix).await.unwrap();
+        assert_eq!(
+            counts.unsent, suffix_tokens,
+            "only what landed after the marked message may count as growth"
         );
     }
 

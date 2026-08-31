@@ -368,6 +368,45 @@ fn user_visible_message_text(message: &Message) -> String {
     message.user_visible_content().as_concat_text()
 }
 
+/// Preserve the usage boundary of a response whose content was not
+/// persisted — an empty response the loop drops, or a notification-only
+/// reply that is yielded without persisting. The session baseline still
+/// reports that request, so the recount must learn where its input ended:
+/// mark the newest agent-visible message, which the request already
+/// carried, so the unsent suffix starts after it instead of after an older
+/// response — which would sweep the messages this request already sent back
+/// in as growth and compact a context whose real next request still fits.
+/// A message that already carries usage is left alone: it is already the
+/// newest boundary, and nothing was appended after it.
+async fn preserve_usage_boundary(
+    session_manager: &SessionManager,
+    session_id: &str,
+    conversation: &mut Conversation,
+    usage: &ProviderUsage,
+) -> Result<()> {
+    let Some(index) = conversation
+        .messages()
+        .iter()
+        .rposition(|message| message.is_agent_visible())
+    else {
+        return Ok(());
+    };
+    if conversation.messages()[index].metadata.usage.is_some() {
+        return Ok(());
+    }
+    let marker = MessageUsage::from_provider_usage(usage, false);
+    conversation.messages_mut()[index].metadata.usage = Some(Box::new(marker.clone()));
+    if let Some(message_id) = conversation.messages()[index].id.clone() {
+        session_manager
+            .update_message_metadata(session_id, &message_id, move |mut metadata| {
+                metadata.usage = Some(Box::new(marker));
+                metadata
+            })
+            .await?;
+    }
+    Ok(())
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -3380,6 +3419,19 @@ impl Agent {
                         preferred_turn_usage_message_id.as_deref(),
                     ) {
                         yield AgentEvent::MessageUsage { message_id, usage };
+                    } else {
+                        // No assistant message carried the usage, so the
+                        // response's content was dropped. `conversation`
+                        // still ends exactly where that request's input did —
+                        // the additions below have not landed yet — making
+                        // this the point to preserve its boundary.
+                        preserve_usage_boundary(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            &usage,
+                        )
+                        .await?;
                     }
                 }
 
@@ -5704,6 +5756,73 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(
             conversation.messages()[0].metadata.usage.is_none(),
             "user message must stay untouched"
+        );
+    }
+
+    #[tokio::test]
+    async fn preserve_usage_boundary_marks_the_newest_carried_message() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let manager = SessionManager::new(temp.path().to_path_buf());
+        let session = manager
+            .create_session(
+                temp.path().to_path_buf(),
+                "boundary-test".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_id("kickoff").with_text("hi"),
+            Message::user().with_id("steer").with_text("and again"),
+        ]);
+        for message in conversation.messages() {
+            manager.add_message(&session.id, message).await.unwrap();
+        }
+
+        preserve_usage_boundary(&manager, &session.id, &mut conversation, &usage)
+            .await
+            .unwrap();
+
+        assert!(
+            conversation.messages()[0].metadata.usage.is_none(),
+            "older messages must stay untouched"
+        );
+        assert!(conversation.messages()[1].metadata.usage.is_some());
+        let reloaded = manager.get_session(&session.id, true).await.unwrap();
+        let persisted = reloaded.conversation.clone().expect("session conversation");
+        let marked = persisted
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("steer"))
+            .unwrap();
+        assert!(
+            marked.metadata.usage.is_some(),
+            "the boundary must survive a session reload"
+        );
+
+        // An already-marked newest message is the boundary itself: the
+        // usage must not be overwritten.
+        let newer_usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(9_999), Some(1), None),
+        );
+        preserve_usage_boundary(&manager, &session.id, &mut conversation, &newer_usage)
+            .await
+            .unwrap();
+        assert_eq!(
+            conversation.messages()[1]
+                .metadata
+                .usage
+                .as_ref()
+                .unwrap()
+                .input_tokens,
+            Some(1200),
+            "an existing boundary must be preserved"
         );
     }
 
