@@ -1,9 +1,7 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
 use crate::conversation::message::{Message, MessageContentBlock};
-use crate::conversation::token_usage::{
-    AnthropicResponseMetadata, CostSource, ProviderUsage, Usage,
-};
+use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, ImageFormat};
 use crate::mcp_utils::extract_text_from_resource;
@@ -15,7 +13,7 @@ use rmcp::model::{
     ResourceContents, Role, Tool,
 };
 use rmcp::object as json_object;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
@@ -649,15 +647,16 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
     }
 }
 
-pub fn get_response_metadata(data: &Value) -> Option<AnthropicResponseMetadata> {
-    let service_tier = data
-        .get("usage")?
-        .get("service_tier")?
-        .as_str()?
-        .to_string();
-    Some(AnthropicResponseMetadata {
-        service_tier: Some(service_tier),
-    })
+/// Anthropic response fields that have no canonical `ProviderUsage` equivalent.
+const ADDITIONAL_USAGE_FIELDS: [&str; 1] = ["service_tier"];
+
+pub fn get_additional_data(data: &Value) -> Option<Map<String, Value>> {
+    let usage = data.get("usage")?.as_object()?;
+    let additional: Map<String, Value> = ADDITIONAL_USAGE_FIELDS
+        .iter()
+        .filter_map(|field| Some(((*field).to_string(), usage.get(*field)?.clone())))
+        .collect();
+    (!additional.is_empty()).then_some(additional)
 }
 
 fn provider_usage_with_cost(
@@ -893,7 +892,7 @@ where
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
         let mut stop_reason: Option<String> = None;
-        let mut response_metadata: Option<AnthropicResponseMetadata> = None;
+        let mut additional_data: Option<Map<String, Value>> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -923,7 +922,7 @@ where
             match event.event_type.as_str() {
                 EVENT_MESSAGE_START => {
                     if let Some(message_data) = event.data.get("message") {
-                        response_metadata = get_response_metadata(message_data);
+                        additional_data = get_additional_data(message_data);
                         if let Some(id) = message_data.get("id").and_then(|v| v.as_str()) {
                             message_id = Some(id.to_string());
                         }
@@ -1103,7 +1102,7 @@ where
                             if let Some(mut usage) = final_usage.take() {
                                 usage.finish_reasons = Some(vec![STOP_REASON_REFUSAL.to_string()]);
                                 usage.response_id = message_id.clone();
-                                usage.anthropic = response_metadata.clone();
+                                usage.additional_data = additional_data.clone();
                                 yield (None, Some(usage));
                             }
                             Err(ProviderError::Refusal { details, category })?;
@@ -1185,7 +1184,7 @@ where
             if let Some(id) = message_id {
                 usage.response_id = Some(id);
             }
-            usage.anthropic = response_metadata;
+            usage.additional_data = additional_data;
             yield (None, Some(usage));
         }
     }
@@ -2456,7 +2455,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_streaming_surfaces_anthropic_response_metadata() {
+    async fn test_streaming_surfaces_additional_usage_data() {
         let events = concat!(
             r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-sonnet-4-5","usage":{"input_tokens":7,"output_tokens":0,"service_tier":"fast"}}}"#,
             "\n",
@@ -2471,15 +2470,15 @@ mod tests {
             r#"data: {"type":"message_stop"}"#,
         );
 
-        let metadata = streamed_usage(events)
+        let additional = streamed_usage(events)
             .await
-            .anthropic
-            .expect("metadata should be reported");
-        assert_eq!(metadata.service_tier.as_deref(), Some("fast"));
+            .additional_data
+            .expect("additional data should be reported");
+        assert_eq!(additional["service_tier"], json!("fast"));
     }
 
     #[tokio::test]
-    async fn test_streaming_omits_anthropic_response_metadata_when_absent() {
+    async fn test_streaming_omits_additional_usage_data_when_absent() {
         let events = concat!(
             r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-sonnet-4-5","usage":{"input_tokens":7,"output_tokens":0}}}"#,
             "\n",
@@ -2494,7 +2493,7 @@ mod tests {
             r#"data: {"type":"message_stop"}"#,
         );
 
-        assert!(streamed_usage(events).await.anthropic.is_none());
+        assert!(streamed_usage(events).await.additional_data.is_none());
     }
 
     #[tokio::test]

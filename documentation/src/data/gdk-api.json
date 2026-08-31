@@ -629,25 +629,10 @@
               "docs": ""
             },
             {
-              "name": "anthropic_metadata",
-              "type": "Option<AnthropicResponseMetadata>",
-              "default": null,
-              "docs": ""
-            }
-          ],
-          "variants": [],
-          "methods": []
-        },
-        {
-          "name": "AnthropicResponseMetadata",
-          "kind": "record",
-          "docs": "",
-          "fields": [
-            {
-              "name": "service_tier",
+              "name": "additional_data_json",
               "type": "Option<String>",
               "default": null,
-              "docs": ""
+              "docs": "Provider-specific response fields as a JSON object, present only when the provider reported fields with no canonical `Usage` equivalent."
             }
           ],
           "variants": [],
