@@ -91,15 +91,28 @@ impl RevocationSignal {
     /// Keep `work` revocable by this connection's peer key even after the
     /// connection ends: a later `peers revoke` / trust refresh invokes
     /// [`RevocableWork::revoke`] although there is no live connection left to
-    /// force-close. If this connection was already closed for a revocation,
-    /// the work is revoked immediately instead of parked.
+    /// force-close. If this connection was already closed for a revocation, or
+    /// the peer has meanwhile left the allowlist, the work is revoked
+    /// immediately instead of parked.
+    ///
+    /// The revoked-or-not decision is taken by the node inside the same
+    /// critical section its revocation drain uses, so this cannot interleave
+    /// with a concurrent revocation of the peer (see
+    /// [`RoamingNode::register_revocable_work`]).
     pub async fn register_revocable_work(&self, work: Arc<dyn RevocableWork>) {
-        if self.is_revoked() {
-            work.revoke().await;
-            return;
-        }
-        if let (Some(node), Some(peer)) = (self.node.upgrade(), self.peer) {
-            node.register_revocable_work(peer, work).await;
+        match (self.node.upgrade(), self.peer) {
+            (Some(node), Some(peer)) => {
+                node.register_revocable_work_for_connection(peer, work, Some(self))
+                    .await;
+            }
+            // No registrar (a default-constructed signal, or the node is gone):
+            // registration is a no-op, but a signal that is already revoked
+            // must still stop the work it was handed.
+            _ => {
+                if self.is_revoked() {
+                    work.revoke().await;
+                }
+            }
         }
     }
 }
@@ -376,11 +389,72 @@ impl RoamingNode {
     /// even after every connection is gone. Dead handles for the same peer are
     /// pruned here, which bounds the registry for peers that reconnect often:
     /// a handle only stays alive while its worker still has work in flight.
+    ///
+    /// Registering is *mutually exclusive* with revoking: whether to park the
+    /// work or revoke it is decided inside the same `revocable_work` critical
+    /// section that [`Self::enforce_trust`] drains under, so a registration
+    /// cannot land behind a concurrent drain and leave a revoked peer's work
+    /// parked and unrevoked. Work for a peer that is no longer allowed is
+    /// revoked instead of parked.
     pub async fn register_revocable_work(&self, peer: EndpointId, work: Arc<dyn RevocableWork>) {
-        let mut revocable_work = self.revocable_work.lock().await;
-        let entries = revocable_work.entry(peer).or_default();
-        entries.retain(|entry| entry.is_alive());
-        entries.push(work);
+        self.register_revocable_work_for_connection(peer, work, None)
+            .await;
+    }
+
+    /// [`Self::register_revocable_work`] plus the originating connection's
+    /// revocation signal, which is re-read under the registry lock: a
+    /// connection the node already force-closed for a revocation must not be
+    /// able to park anything, even if the allowlist has since changed again.
+    ///
+    /// Lock order: `revocable_work` -> `trust`. Nothing acquires `trust` (or
+    /// `live`) before `revocable_work`, so this cannot deadlock; `enforce_trust`
+    /// takes `live` and `revocable_work` in disjoint critical sections and never
+    /// takes `trust`.
+    async fn register_revocable_work_for_connection(
+        &self,
+        peer: EndpointId,
+        work: Arc<dyn RevocableWork>,
+        signal: Option<&RevocationSignal>,
+    ) {
+        let rejected = {
+            let mut revocable_work = self.revocable_work.lock().await;
+            // Both checks happen here, under the drain's own lock, so no
+            // revocation can slip between the decision and the insert.
+            if signal.is_some_and(RevocationSignal::is_revoked)
+                || !self.peer_is_allowed(&peer).await
+            {
+                Some(work)
+            } else {
+                let entries = revocable_work.entry(peer).or_default();
+                entries.retain(|entry| entry.is_alive());
+                entries.push(work);
+                None
+            }
+        };
+        // `RevocableWork::revoke` is integration-supplied and may do arbitrary
+        // async work, so it runs after the guard is dropped.
+        if let Some(work) = rejected {
+            tracing::info!(%peer, "roaming: refusing to park work for a revoked key; revoking it");
+            work.revoke().await;
+        }
+    }
+
+    /// Whether `peer` is currently allowed, read from the same source of truth
+    /// `enforce_trust`'s callers use: the persisted allowlist when a
+    /// `trust_path` is configured (what the revocation watcher loads and what
+    /// `roam peers revoke` writes), otherwise the in-memory book. A failed load
+    /// fails *closed*, matching the accept path.
+    async fn peer_is_allowed(&self, peer: &EndpointId) -> bool {
+        match &self.trust_path {
+            Some(path) => match TrustBook::load(path) {
+                Ok(book) => book.is_allowed(peer),
+                Err(e) => {
+                    tracing::warn!(%peer, "roaming: trust read failed, refusing to park work: {e}");
+                    false
+                }
+            },
+            None => self.trust.lock().await.is_allowed(peer),
+        }
     }
 
     async fn unregister_live(&self, client: EndpointId, connection: &Connection) {
@@ -400,6 +474,15 @@ impl RoamingNode {
     /// allowlist is not just a gate on new dials, it is authority over
     /// connections — and work — that already exist. Returns the number of
     /// connections closed.
+    ///
+    /// Ordering against [`Self::register_revocable_work`]: every connection's
+    /// revocation signal is set before the parked-work drain runs, and the
+    /// drain shares its critical section with the registration decision. So for
+    /// any concurrent registration exactly one of two things happens — it is
+    /// admitted before the drain and the drain then revokes it, or the drain has
+    /// already run and the registration re-reads the signal/allowlist under the
+    /// same lock and revokes the work itself. Neither order can leave a revoked
+    /// key's work parked.
     pub async fn enforce_trust(&self, trust: &TrustBook) -> usize {
         let to_close: Vec<(EndpointId, Vec<LiveConnection>)> = {
             let mut live = self.live.lock().await;
@@ -434,6 +517,9 @@ impl RoamingNode {
         // keys are drained — if the peer is later re-accepted, its new
         // connections register fresh workers — and dead entries for keys that
         // remain allowed are pruned opportunistically.
+        //
+        // This drain and the registration decision share this one lock: see the
+        // ordering note on this function.
         let revoked_work: Vec<(EndpointId, Vec<Arc<dyn RevocableWork>>)> = {
             let mut revocable_work = self.revocable_work.lock().await;
             revocable_work.retain(|key, entries| {

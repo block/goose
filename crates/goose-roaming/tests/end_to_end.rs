@@ -435,6 +435,13 @@ async fn revocation_registry_is_peer_keyed_and_prunes_dead_work() {
     let host = bind_node().await;
     let peer_a = bind_node().await.endpoint_id();
     let peer_b = bind_node().await.endpoint_id();
+    // Work is only parked for peers that currently hold authority.
+    {
+        let trust = host.trust();
+        let mut trust = trust.lock().await;
+        trust.accept(&peer_a);
+        trust.accept(&peer_b);
+    }
 
     // A handle whose work already finished is pruned when the same peer
     // registers again, so it never sees a later revocation.
@@ -474,6 +481,157 @@ async fn revocation_registry_is_peer_keyed_and_prunes_dead_work() {
     assert_eq!(running_a.revocations(), 1);
 
     host.shutdown().await.unwrap();
+}
+
+/// Registration and revocation are mutually exclusive: once a peer has been
+/// revoked, work registered afterwards is revoked instead of parked. This is
+/// the interleaving the peer-keyed registry exists to close — a worker that
+/// registers *after* the revocation drain must not stay registered and
+/// unrevoked — pinned in the deterministic order (drain first, then register)
+/// rather than by timing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revoked_peer_cannot_park_work_after_the_revocation_drain() {
+    let host = bind_node().await;
+    let peer = bind_node().await.endpoint_id();
+    host.trust().lock().await.accept(&peer);
+
+    // While trusted, work registers normally and a later revocation stops it.
+    let before = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer, before.clone()).await;
+
+    let revoked_book = {
+        let trust = host.trust();
+        let mut trust = trust.lock().await;
+        trust.revoke_key(&peer);
+        trust.clone()
+    };
+    host.enforce_trust(&revoked_book).await;
+    assert_eq!(
+        before.revocations(),
+        1,
+        "work parked while trusted must be revoked by the drain"
+    );
+
+    // The drain has run. A registration arriving now — the race window — must
+    // be revoked by the registration path itself, not parked.
+    let after = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer, after.clone()).await;
+    assert_eq!(
+        after.revocations(),
+        1,
+        "work registered for a revoked peer must be revoked, not parked"
+    );
+
+    // And it must not be left in the registry: if it had been parked, this
+    // second enforcement pass would revoke it a second time.
+    host.enforce_trust(&revoked_book).await;
+    assert_eq!(
+        after.revocations(),
+        1,
+        "rejected work must not be left registered under the revoked key"
+    );
+    assert_eq!(before.revocations(), 1, "revocation must stay idempotent");
+
+    host.shutdown().await.unwrap();
+}
+
+/// A peer that is re-accepted registers cleanly again: rejecting work for a
+/// revoked key must not fence the key permanently.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn re_accepted_peer_registers_work_again() {
+    let host = bind_node().await;
+    let peer = bind_node().await.endpoint_id();
+
+    // Revoked: refused.
+    let revoked_book = {
+        let trust = host.trust();
+        let mut trust = trust.lock().await;
+        trust.revoke_key(&peer);
+        trust.clone()
+    };
+    let refused = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer, refused.clone()).await;
+    assert_eq!(refused.revocations(), 1);
+
+    // Re-accepted out of band: the next connection's work parks normally, with
+    // no leftover state from the revoked era.
+    let allowed_book = {
+        let trust = host.trust();
+        let mut trust = trust.lock().await;
+        trust.accept(&peer);
+        trust.clone()
+    };
+    let fresh = FakeDetachedWork::new(true);
+    host.register_revocable_work(peer, fresh.clone()).await;
+    assert_eq!(
+        fresh.revocations(),
+        0,
+        "a re-accepted peer's work must be parked, not revoked"
+    );
+
+    // Enforcing the allowing book keeps it parked; revoking again reaches it.
+    host.enforce_trust(&allowed_book).await;
+    assert_eq!(fresh.revocations(), 0);
+    host.enforce_trust(&revoked_book).await;
+    assert_eq!(
+        fresh.revocations(),
+        1,
+        "the re-registered work must be revocable by peer key"
+    );
+
+    host.shutdown().await.unwrap();
+}
+
+/// The same invariant under a genuinely concurrent registration/enforcement:
+/// whichever order the two critical sections happen to take, the work of a
+/// revoked peer is revoked exactly once and nothing stays parked. Serializing
+/// the decision with the drain is what makes both orders safe — admitted before
+/// the drain (the drain revokes it) or after it (the registration revokes it).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_registration_and_revocation_revoke_exactly_once() {
+    for _ in 0..32 {
+        let host = bind_node().await;
+        let peer = bind_node().await.endpoint_id();
+        host.trust().lock().await.accept(&peer);
+
+        let revoked_book = {
+            let trust = host.trust();
+            let mut trust = trust.lock().await;
+            trust.revoke_key(&peer);
+            trust.clone()
+        };
+
+        let work = FakeDetachedWork::new(true);
+        let registrar = {
+            let host = host.clone();
+            let work = work.clone();
+            tokio::spawn(async move { host.register_revocable_work(peer, work).await })
+        };
+        let enforcer = {
+            let host = host.clone();
+            let book = revoked_book.clone();
+            tokio::spawn(async move { host.enforce_trust(&book).await })
+        };
+        registrar.await.unwrap();
+        enforcer.await.unwrap();
+
+        assert_eq!(
+            work.revocations(),
+            1,
+            "a revoked peer's work must be revoked exactly once, whichever \
+             order registration and enforcement ran in"
+        );
+
+        // Nothing may remain parked under the revoked key.
+        host.enforce_trust(&revoked_book).await;
+        assert_eq!(
+            work.revocations(),
+            1,
+            "no work may be left registered under the revoked key"
+        );
+
+        host.shutdown().await.unwrap();
+    }
 }
 
 /// Dial the host on its live endpoint address (bypassing relay-based discovery,
