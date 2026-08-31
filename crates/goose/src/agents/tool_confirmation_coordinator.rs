@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::{anyhow, Result};
@@ -14,114 +14,98 @@ pub(super) enum ConfirmationAnswer {
     StateMachine(Permission),
 }
 
-#[derive(Default)]
-struct PendingConfirmationBatch {
-    request_ids: HashSet<String>,
-    answers: HashMap<String, ConfirmationAnswer>,
-}
-
-#[derive(Default)]
-struct TurnState {
-    active_request_ids: HashSet<String>,
-    pending_batch: Option<PendingConfirmationBatch>,
-}
-
 pub(super) struct SessionToolConfirmationState {
-    execution: Arc<Mutex<()>>,
-    pub(super) submission: Mutex<()>,
-    turn: StdMutex<TurnState>,
-    notification: Notify,
+    // Held for the lifetime of one Agent::reply stream, including confirmation waits and resumes.
+    turn_lock: Arc<Mutex<()>>,
+    // Serializes submit_tool_confirmation so concurrent answers cannot both be accepted.
+    pub(super) confirmation_submission_lock: Mutex<()>,
+    // Tracks requests from the current confirmation pause; None means still unanswered.
+    confirmations: StdMutex<HashMap<String, Option<ConfirmationAnswer>>>,
+    // Wakes wait_for_all_confirmation_answers; confirmations remains the source of truth.
+    confirmation_answered: Notify,
 }
 
 impl SessionToolConfirmationState {
     fn new() -> Self {
         Self {
-            execution: Arc::new(Mutex::new(())),
-            submission: Mutex::new(()),
-            turn: StdMutex::new(TurnState::default()),
-            notification: Notify::new(),
+            turn_lock: Arc::new(Mutex::new(())),
+            confirmation_submission_lock: Mutex::new(()),
+            confirmations: StdMutex::new(HashMap::new()),
+            confirmation_answered: Notify::new(),
         }
     }
 
     pub(super) fn try_start_turn(self: &Arc<Self>) -> Result<ActiveTurnGuard> {
-        let execution_guard = self
-            .execution
+        let turn_lock_guard = self
+            .turn_lock
             .clone()
             .try_lock_owned()
             .map_err(|_| anyhow!("session already has an active turn"))?;
         Ok(ActiveTurnGuard {
             state: self.clone(),
-            _execution_guard: execution_guard,
+            _turn_lock_guard: turn_lock_guard,
         })
     }
 
     pub(super) fn register_request(&self, request_id: String) {
-        let mut turn = self.turn.lock().expect("tool confirmation state poisoned");
-        turn.active_request_ids.insert(request_id.clone());
-        turn.pending_batch
-            .get_or_insert_with(PendingConfirmationBatch::default)
-            .request_ids
-            .insert(request_id);
+        self.confirmations
+            .lock()
+            .expect("tool confirmation state unavailable")
+            .entry(request_id)
+            .or_insert(None);
     }
 
     pub(super) fn answer(&self, request_id: &str) -> Option<ConfirmationAnswer> {
-        self.turn
+        self.confirmations
             .lock()
-            .expect("tool confirmation state poisoned")
-            .pending_batch
-            .as_ref()
-            .and_then(|batch| batch.answers.get(request_id).cloned())
+            .expect("tool confirmation state unavailable")
+            .get(request_id)
+            .and_then(Clone::clone)
     }
 
     pub(super) fn contains_request(&self, request_id: &str) -> bool {
-        self.turn
+        self.confirmations
             .lock()
-            .expect("tool confirmation state poisoned")
-            .active_request_ids
-            .contains(request_id)
+            .expect("tool confirmation state unavailable")
+            .contains_key(request_id)
     }
 
     pub(super) fn record_answer(&self, request_id: &str, answer: ConfirmationAnswer) -> Result<()> {
-        let mut turn = self.turn.lock().expect("tool confirmation state poisoned");
-        let batch = turn
-            .pending_batch
-            .as_mut()
-            .ok_or_else(|| anyhow!("tool confirmation request is no longer active"))?;
-        if !batch.request_ids.contains(request_id) {
-            return Err(anyhow!("tool confirmation request is no longer active"));
+        let mut confirmations = self
+            .confirmations
+            .lock()
+            .expect("tool confirmation state unavailable");
+        match confirmations.get_mut(request_id) {
+            None => return Err(anyhow!("tool confirmation request is no longer active")),
+            Some(Some(_)) => return Err(anyhow!("tool confirmation request was already answered")),
+            Some(slot @ None) => *slot = Some(answer),
         }
-        match batch.answers.entry(request_id.to_string()) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(anyhow!("tool confirmation request was already answered"));
-            }
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(answer);
-            }
-        }
-        drop(turn);
-        self.notification.notify_waiters();
+        drop(confirmations);
+        self.confirmation_answered.notify_waiters();
         Ok(())
     }
 
-    pub(super) async fn wait_for_batch(
+    pub(super) async fn wait_for_all_confirmation_answers(
         &self,
         cancel: &CancellationToken,
     ) -> Result<Vec<ToolConfirmationDecision>> {
         loop {
-            let notified = self.notification.notified();
-            tokio::pin!(notified);
-            notified.as_mut().enable();
+            let answer_received = self.confirmation_answered.notified();
+            tokio::pin!(answer_received);
+            answer_received.as_mut().enable();
 
             let completed = {
-                let turn = self.turn.lock().expect("tool confirmation state poisoned");
-                turn.pending_batch.as_ref().and_then(|batch| {
-                    (batch.request_ids.len() == batch.answers.len()).then(|| {
-                        let mut decisions: Vec<_> = batch
-                            .answers
+                let confirmations = self
+                    .confirmations
+                    .lock()
+                    .expect("tool confirmation state unavailable");
+                (!confirmations.is_empty() && confirmations.values().all(Option::is_some)).then(
+                    || {
+                        let mut decisions: Vec<_> = confirmations
                             .iter()
                             .filter_map(|(request_id, answer)| match answer {
-                                ConfirmationAnswer::LiveHandled => None,
-                                ConfirmationAnswer::StateMachine(permission) => {
+                                None | Some(ConfirmationAnswer::LiveHandled) => None,
+                                Some(ConfirmationAnswer::StateMachine(permission)) => {
                                     Some(ToolConfirmationDecision {
                                         request_id: request_id.clone(),
                                         permission: permission.clone(),
@@ -131,30 +115,31 @@ impl SessionToolConfirmationState {
                             .collect();
                         decisions.sort_by(|left, right| left.request_id.cmp(&right.request_id));
                         decisions
-                    })
-                })
+                    },
+                )
             };
             if let Some(decisions) = completed {
                 return Ok(decisions);
             }
 
             tokio::select! {
-                _ = notified => {}
+                _ = answer_received => {}
                 _ = cancel.cancelled() => return Err(anyhow!("state-machine turn cancelled")),
             }
         }
     }
 
-    pub(super) fn clear_batch(&self) {
-        let mut turn = self.turn.lock().expect("tool confirmation state poisoned");
-        turn.active_request_ids.clear();
-        turn.pending_batch = None;
+    pub(super) fn clear_confirmations(&self) {
+        self.confirmations
+            .lock()
+            .expect("tool confirmation state unavailable")
+            .clear();
     }
 }
 
 pub(super) struct ActiveTurnGuard {
     state: Arc<SessionToolConfirmationState>,
-    _execution_guard: OwnedMutexGuard<()>,
+    _turn_lock_guard: OwnedMutexGuard<()>,
 }
 
 impl ActiveTurnGuard {
@@ -165,7 +150,7 @@ impl ActiveTurnGuard {
 
 impl Drop for ActiveTurnGuard {
     fn drop(&mut self) {
-        self.state.clear_batch();
+        self.state.clear_confirmations();
     }
 }
 
@@ -183,7 +168,7 @@ impl ToolConfirmationCoordinator {
     pub(super) fn session(&self, session_id: &str) -> Arc<SessionToolConfirmationState> {
         self.sessions
             .lock()
-            .expect("tool confirmation coordinator poisoned")
+            .expect("tool confirmation coordinator unavailable")
             .entry(session_id.to_string())
             .or_insert_with(|| Arc::new(SessionToolConfirmationState::new()))
             .clone()
@@ -224,7 +209,7 @@ mod tests {
             .unwrap();
 
         let decisions = session
-            .wait_for_batch(&CancellationToken::new())
+            .wait_for_all_confirmation_answers(&CancellationToken::new())
             .await
             .unwrap();
 

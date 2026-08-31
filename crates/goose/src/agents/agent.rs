@@ -1705,7 +1705,7 @@ impl Agent {
             .await?;
 
         let state = self.tool_confirmation_coordinator.session(session_id);
-        let _submission = state.submission.lock().await;
+        let _confirmation_submission_guard = state.confirmation_submission_lock.lock().await;
         let state_machine_permission = if permission == Permission::Cancel {
             Permission::DenyOnce
         } else {
@@ -1976,6 +1976,26 @@ impl Agent {
         Ok(self.stream_state_machine_turn(session_config, cancel, turn_guard, initial_stream))
     }
 
+    fn tool_confirmation_request_ids(event: &AgentEvent) -> Vec<String> {
+        let AgentEvent::Message(message) = event else {
+            return Vec::new();
+        };
+
+        message
+            .content
+            .iter()
+            .filter_map(|content| {
+                let MessageContent::ActionRequired(action) = content else {
+                    return None;
+                };
+                let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
+                    return None;
+                };
+                Some(id.clone())
+            })
+            .collect()
+    }
+
     fn stream_state_machine_turn<'a>(
         &'a self,
         session_config: SessionConfig,
@@ -1989,17 +2009,9 @@ impl Agent {
                 let mut has_confirmations = false;
                 while let Some(event) = stream.next().await {
                     let event = event?;
-                    if let AgentEvent::Message(message) = &event {
-                        for content in &message.content {
-                            let MessageContent::ActionRequired(action) = content else {
-                                continue;
-                            };
-                            let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
-                                continue;
-                            };
-                            turn_guard.state().register_request(id.clone());
-                            has_confirmations = true;
-                        }
+                    for request_id in Self::tool_confirmation_request_ids(&event) {
+                        turn_guard.state().register_request(request_id);
+                        has_confirmations = true;
                     }
                     yield event;
                 }
@@ -2008,7 +2020,10 @@ impl Agent {
                     return;
                 }
 
-                let decisions = turn_guard.state().wait_for_batch(&cancel).await?;
+                let decisions = turn_guard
+                    .state()
+                    .wait_for_all_confirmation_answers(&cancel)
+                    .await?;
                 if decisions.is_empty() {
                     return;
                 }
@@ -2018,7 +2033,7 @@ impl Agent {
                     &decisions,
                 )
                 .await?;
-                turn_guard.state().clear_batch();
+                turn_guard.state().clear_confirmations();
                 stream = self
                     .stream_state_machine_session(
                         session_config.clone(),
