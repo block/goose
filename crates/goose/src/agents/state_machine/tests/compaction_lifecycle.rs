@@ -708,6 +708,99 @@ async fn a_tool_result_added_to_the_provider_baseline_crosses_the_threshold() ->
     Ok(())
 }
 
+#[tokio::test]
+async fn a_pending_parallel_sibling_blocks_the_mid_turn_compaction() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // A parallel batch pairs `load_skill` — answered by the skill operation,
+    // which runs ahead of tool execution — with an ordinary `shell` call.
+    // The skill body is large enough that its response alone crosses the
+    // 19.2k threshold once added to the producing request's baseline, so the
+    // pass after the skill response is over the threshold while the shell
+    // request is still unanswered: compacting then would replace the history
+    // and discard the request before it executes. The check must wait for
+    // the batch to complete — the legacy loop persists the whole batch
+    // before its check — and compact only once every response has landed.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let skill_dir = pipeline.working_dir().join(".agents/skills/review");
+    std::fs::create_dir_all(&skill_dir).expect("skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!(
+            "---\nname: review\ndescription: Review helper\n---\n{}\n",
+            "x ".repeat(20_000)
+        ),
+    )
+    .expect("skill file");
+
+    api.on("run the batch").calls([
+        ("skill-1", "load_skill", json!({ "name": "review" })),
+        (
+            "sibling-1",
+            "shell",
+            json!({ "command": "echo done-$(echo 99)" }),
+        ),
+    ]);
+    api.on(SUMMARIZE_HISTORY).reply("batch summarized");
+    api.on("Your context was compacted")
+        .reply("done after the batch");
+
+    let run = pipeline.run(["run the batch"]).await?;
+
+    run.assert_message(-1, Agent, "done after the batch");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "compaction must run once the batch is complete"
+    );
+    let shell_responses = run
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(|message| message.content.iter())
+        .filter(|content| {
+            matches!(
+                content,
+                crate::conversation::message::MessageContent::ToolResponse(response)
+                    if response.id == "sibling-1"
+                        && response.tool_result.as_ref().is_ok_and(|result| {
+                            result
+                                .content
+                                .iter()
+                                .any(|block| block.as_text().is_some_and(|text| text.text.contains("done-99")))
+                        })
+            )
+        })
+        .count();
+    assert_eq!(
+        shell_responses, 1,
+        "the shell sibling must execute exactly once, not be compacted away"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.system_contains("done-99"),
+        "compaction must wait for the sibling's output before summarizing"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_steer_drained_before_the_check_still_recounts_tool_growth() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
@@ -787,6 +880,80 @@ async fn a_steer_drained_before_the_check_still_recounts_tool_growth() -> Result
         "the summarization request must carry the drained steer"
     );
     assert!(!pipeline.has_pending_steers().await);
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_failed_compaction_behind_a_steer_continues_the_run() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // A steer drained after a tool round-trip reaches the check as a User
+    // boundary, and the grown context crosses the 19.2k threshold — but the
+    // summarization request fails. Ending the run there would drop the
+    // drained steer, where the legacy loop's steer site logs the failure and
+    // proceeds; the run must continue to the next inference and let the
+    // reactive path own any oversized request. The delayed calculator call
+    // holds the tool step open so the steer is queued mid-execution. Rules
+    // match newest-first, so the summarization failure is registered last
+    // while the recovery reply only matches a request that already carries
+    // the tool results.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .add_extension_with_tools("developer", &["shell"])
+        .await?;
+    pipeline.set_permission(
+        "shell",
+        crate::config::permission::PermissionLevel::AlwaysAllow,
+    );
+
+    let huge_output = json!({ "command": "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'" });
+    api.on("grow then steer and fail").calls([
+        ("big-1", "shell", huge_output.clone()),
+        ("big-2", "shell", huge_output.clone()),
+        ("big-3", "shell", huge_output),
+        (
+            "slow-1",
+            ADD,
+            super::calculator_extension::delayed_value(7, 1_500),
+        ),
+    ]);
+    api.on("x x x x").reply("recovered behind the steer");
+    api.on(SUMMARIZE_HISTORY).server_error("summarizer offline");
+
+    let run = pipeline.run(["grow then steer and fail"]);
+    let steer = async {
+        while pipeline.tool_contexts().is_empty() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        pipeline
+            .steer(Message::user().with_text("redirect the work"))
+            .await;
+    };
+    let (result, ()) = tokio::join!(run, steer);
+    let result = result?;
+
+    result.assert_message(-1, Agent, "recovered behind the steer");
+    assert_eq!(
+        result.history_replacements(),
+        0,
+        "the failed compaction must not replace the history"
+    );
+    assert!(api
+        .calls()
+        .iter()
+        .any(|call| call.input_contains(SUMMARIZE_HISTORY)));
+    assert!(result
+        .conversation()
+        .messages()
+        .iter()
+        .all(|message| !message
+            .as_concat_text()
+            .contains("Ran into this error trying to compact")));
     assert_eq!(api.context_limit_rejections(), 0);
 
     Ok(())
@@ -884,6 +1051,76 @@ async fn a_stale_token_count_floors_on_the_full_conversation() -> Result<()> {
         2,
         "compaction must precede the first inference"
     );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_large_text_only_reply_alone_does_not_compact_behind_a_steer() -> Result<()> {
+    // Calibrate the serialized size of the kickoff request on a throwaway
+    // session, so the dense reply can be sized from the real budget on any
+    // machine.
+    let (calibration, api) = test_pipeline().await?;
+    let calibration = calibration
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    api.on("answer densely without tools")
+        .reply("probe acknowledged");
+    calibration.run(["answer densely without tools"]).await?;
+    let first = api.calls().first().cloned().expect("calibration request");
+    let threshold = (calibration.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
+    let budget = threshold - first.input_tokens();
+    assert!(
+        budget > 5_000,
+        "kickoff request unexpectedly large: {}",
+        first.input_tokens()
+    );
+
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    // The reply is text-only and dense — CJK text measures roughly one token
+    // per character — so its reported output (the dummy API bills by
+    // serialized character) and its recounted tokens are nearly the same
+    // size. The reply is sized to leave the baseline under the 19.2k
+    // threshold once the small steer lands: the real next request — the
+    // baseline plus the steer — fits, so no compaction may run. A recount
+    // that also counted the reply itself as unsent growth would add its
+    // tokens on top of a baseline that already contains them as output and
+    // summarize prematurely.
+    let reply = "你".repeat((budget as f64 * 0.6) as usize);
+    api.on("answer densely without tools").reply(reply);
+    api.on("and keep going").reply("followed the small steer");
+    api.on(SUMMARIZE_HISTORY).reply("prematurely summarized");
+    api.on("Your context was compacted")
+        .reply("compacted anyway");
+    // The queued steer waits for the reply's turn boundary, so it lands
+    // between the reply and the check that follows it.
+    pipeline
+        .steer(Message::user().with_text("and keep going"))
+        .await;
+
+    let result = pipeline.run(["answer densely without tools"]).await?;
+
+    result.assert_message(-1, Agent, "followed the small steer");
+    assert_eq!(
+        result.history_replacements(),
+        0,
+        "a reply the baseline already counts must not be added to it as growth"
+    );
+    assert!(
+        !api.calls()
+            .iter()
+            .any(|call| call.input_contains(SUMMARIZE_HISTORY)),
+        "no summarization may run while the real next request still fits"
+    );
+    assert!(!pipeline.has_pending_steers().await);
     assert_eq!(api.context_limit_rejections(), 0);
 
     Ok(())

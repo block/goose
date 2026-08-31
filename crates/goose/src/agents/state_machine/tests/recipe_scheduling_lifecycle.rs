@@ -247,6 +247,62 @@ async fn a_collected_final_output_skips_the_mid_turn_compaction() -> Result<()> 
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_steer_after_final_output_still_skips_the_compaction() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The queued steer waits for a Tool boundary, so it lands exactly between
+    // the successful final-output response and its delivery, and the User
+    // message it appends would bypass a guard keyed on the boundary being
+    // mid-turn. The kickoff padding keeps the first request under the
+    // threshold while its reported usage (the dummy API bills by serialized
+    // character) crosses it only once the final-output response has landed,
+    // so a bypassed guard summarizes before the result is delivered. The
+    // steer reply calls the final-output tool again — the recipe operation
+    // cannot deliver across the steer boundary — so the run must complete
+    // without any summarization in between.
+    let kickoff = format!("deliver the structured result {}", "x ".repeat(48_000));
+    api.on("deliver the structured result")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    api.on("Please summarize the conversation history")
+        .reply("summarized before delivery");
+    api.on("redirect the work")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .prompt("deliver the structured result")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    pipeline
+        .steer(crate::conversation::message::Message::user().with_text("redirect the work"))
+        .await;
+    let completed = pipeline.run([kickoff.as_str()]).await?;
+
+    completed.assert_message(-1, Agent, r#"{"result":"42"}"#);
+    assert_eq!(
+        completed.history_replacements(),
+        0,
+        "the completed recipe result must be delivered, not summarized first"
+    );
+    assert!(
+        !api.calls()
+            .iter()
+            .any(|call| call.input_contains("Please summarize the conversation history")),
+        "a steer behind the completed result must not let the compaction run first"
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;

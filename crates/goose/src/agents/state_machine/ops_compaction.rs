@@ -8,6 +8,7 @@ use tracing::{debug, error};
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
+use crate::agents::state_machine::ops_toolcalling::pending_tool_requests;
 use crate::agents::state_machine::{
     applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
     yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
@@ -23,6 +24,25 @@ use goose_providers::model::ModelConfig;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
 pub(super) const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
+
+/// Messages since the kickoff that started the current run. Steers land
+/// inside a run and, being user messages, redefine `messages_since_kickoff`,
+/// which would hide the run's earlier messages from the checks below: a
+/// completed recipe result or an unanswered sibling request from before the
+/// steer must still be visible to them.
+fn messages_since_run_start(conversation: &Conversation) -> Result<&[Message]> {
+    let messages = conversation.messages();
+    let start = messages
+        .iter()
+        .rposition(|message| {
+            message.role == rmcp::model::Role::User
+                && message.is_user_visible()
+                && !message.is_tool_response()
+                && !message.metadata.steer
+        })
+        .ok_or_else(|| anyhow!("state machine conversation has no kickoff message"))?;
+    Ok(&messages[start..])
+}
 
 fn compaction_part(
     total_tokens: Option<i32>,
@@ -247,6 +267,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
         );
 
         let mut mid_turn = false;
+        let mut steer_boundary = false;
+        let mut trigger = "reactive";
         if reactive_context_error {
             let context_errors = messages
                 .iter()
@@ -276,16 +298,33 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
             mid_turn = role == EffectiveRole::Tool;
-            if mid_turn {
-                // A successful final-output response ends the recipe: the
-                // recipe operation delivers it later in this same pass.
-                // Summarizing between the response and its delivery wastes a
-                // request and, on failure, can end the run without the
-                // already-completed result. The next turn boundary re-checks
-                // the threshold.
-                if RecipeOperation::successful_final_output(messages).is_some() {
-                    return not_applicable();
-                }
+            // A steer drained after tool responses appends a `User` message,
+            // so it reaches this check as a turn boundary even though the
+            // run is mid-flight — matching the legacy loop's dedicated steer
+            // re-check site.
+            steer_boundary = !mid_turn && messages.iter().any(|message| message.metadata.steer);
+            // Steers redefine `messages_since_kickoff`, so both guards below
+            // scan back to the run's own kickoff.
+            let run_messages = messages_since_run_start(conversation)?;
+            // A successful final-output response ends the recipe: the recipe
+            // operation delivers it later in this same pass. Summarizing
+            // between the response and its delivery wastes a request and, on
+            // failure, can end the run without the already-completed result.
+            // The guard holds at every boundary — including one a steer
+            // created — because the result is still pending delivery. The
+            // next turn boundary re-checks the threshold.
+            if RecipeOperation::successful_final_output(run_messages).is_some() {
+                return not_applicable();
+            }
+            // A `Tool` boundary means responses have landed, but not
+            // necessarily for every request in a parallel batch: specialized
+            // operations answer only their own requests, and the siblings
+            // wait for later ones. Compacting while a request is unanswered
+            // would replace the history and discard it before it executes,
+            // so wait until the batch is complete — the legacy loop persists
+            // the whole batch before its check.
+            if !pending_tool_requests(run_messages).is_empty() {
+                return not_applicable();
             }
             // A proactive check never lands on the provider's own response —
             // a User boundary appends the kickoff (or a steer drained after
@@ -295,8 +334,10 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }
-            let trigger = if mid_turn {
+            trigger = if mid_turn {
                 "mid-turn"
+            } else if steer_boundary {
+                "steer"
             } else {
                 "turn-boundary"
             };
@@ -369,13 +410,14 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                if mid_turn {
-                    // The turn can continue: the request that follows may
+                if mid_turn || steer_boundary {
+                    // The run can continue: the request that follows may
                     // still fit, and the reactive path owns the outcome if
                     // not. Ending the run here would discard an
-                    // already-completed tool round-trip, which the legacy
-                    // loop instead carries into the next inference.
-                    error!("Mid-turn compaction failed: {e}");
+                    // already-completed tool round-trip or drop a drained
+                    // steer, which the legacy loop instead carries into the
+                    // next inference.
+                    error!(trigger, "compaction failed: {e}");
                     return not_applicable();
                 }
                 emit.message(Message::assistant().with_text(format!(

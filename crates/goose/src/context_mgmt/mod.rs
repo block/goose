@@ -225,9 +225,9 @@ pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<
 pub(crate) struct ContextTokenCounts {
     /// Tokens of the whole agent-visible conversation.
     pub(crate) total: i32,
-    /// Tokens of the agent-visible messages the provider has not received
-    /// yet: its latest response — which no request has included — plus the
-    /// tool results, steers, and user messages appended after it.
+    /// Tokens of the agent-visible messages no request has carried yet: the
+    /// tool results, steers, and user messages appended after the
+    /// provider's latest response.
     pub(crate) unsent: i32,
 }
 
@@ -243,11 +243,13 @@ pub(crate) async fn recount_context_tokens(
     // the provider's latest response, so the unsent suffix starts there: the
     // legacy loop splits a parallel batch into per-request assistant
     // messages, and only that marker distinguishes the batch's first split
-    // from an older response. The response itself counts as growth — no
-    // request has included it yet. Histories without usage metadata fall
-    // back to the last assistant message as the boundary, which undercounts
-    // a legacy split batch but stays correct for the state machine's
-    // single-message representation.
+    // from an older response. The response's own content is excluded from
+    // the growth — the session baseline reports input plus output tokens,
+    // so the response is already counted in it, and counting it again would
+    // compact a context whose real next request still fits. Histories
+    // without usage metadata fall back to the last assistant message as the
+    // boundary, which undercounts a legacy split batch but stays correct for
+    // the state machine's single-message representation.
     let unsent_start = messages
         .iter()
         .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())
@@ -267,7 +269,7 @@ pub(crate) async fn recount_context_tokens(
             0
         };
         total += tokens;
-        if index >= unsent_start {
+        if index >= unsent_start && message.role != Role::Assistant {
             unsent += tokens;
         }
     }
@@ -282,11 +284,11 @@ pub(crate) async fn recount_context_tokens(
 /// `recount_context` re-estimates the context from the conversation instead
 /// of trusting the session metadata alone: the metadata covers the preceding
 /// request (its system prompt and tool schemas included) but cannot see what
-/// landed after it, so the unsent growth — from the provider's latest
-/// response onward — is added to it and the whole conversation count is kept
-/// as a floor. Pass it at points where messages may have been appended since
-/// the last provider call — turn boundaries and mid-turn, after tool
-/// responses land.
+/// landed after it, so the unsent growth — what was appended after the
+/// provider's latest response — is added to it and the whole conversation
+/// count is kept as a floor. Pass it at points where messages may have been
+/// appended since the last provider call — turn boundaries and mid-turn,
+/// after tool responses land.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
@@ -884,11 +886,14 @@ mod tests {
 
         let counts = recount_context_tokens(&conversation).await.unwrap();
 
-        let batch = Conversation::new_unvalidated(conversation.messages()[1..].to_vec());
-        let batch_tokens = count_context_tokens(&batch).await.unwrap();
+        let results = Conversation::new_unvalidated(vec![
+            conversation.messages()[2].clone(),
+            conversation.messages()[4].clone(),
+        ]);
+        let results_tokens = count_context_tokens(&results).await.unwrap();
         assert_eq!(
-            counts.unsent, batch_tokens,
-            "the whole split batch is unsent growth"
+            counts.unsent, results_tokens,
+            "every result in the split batch is unsent growth"
         );
         let last_response = Conversation::new_unvalidated(vec![conversation.messages()[4].clone()]);
         let last_response_tokens = count_context_tokens(&last_response).await.unwrap();
@@ -942,10 +947,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn recount_counts_the_latest_response_itself_as_unsent() {
-        // Usage attaches to a text-only reply too, and the reply has not been
-        // part of any request yet, so it is growth alongside the messages
-        // appended after it.
+    async fn recount_excludes_the_latest_response_but_counts_what_lands_after_it() {
+        // Usage attaches to a text-only reply too, but the session baseline
+        // reports input plus output tokens, so the reply is already counted
+        // in it: counting it as growth again would compact a context whose
+        // real next request still fits. Only what lands after the reply —
+        // here a steer — is unsent.
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("x ".repeat(200)),
             Message::assistant()
@@ -959,11 +966,11 @@ mod tests {
 
         let counts = recount_context_tokens(&conversation).await.unwrap();
 
-        let suffix = Conversation::new_unvalidated(conversation.messages()[1..].to_vec());
+        let suffix = Conversation::new_unvalidated(vec![conversation.messages()[2].clone()]);
         assert_eq!(
             counts.unsent,
             count_context_tokens(&suffix).await.unwrap(),
-            "the reply and the steer behind it are both unsent"
+            "the reply is part of the reported baseline; the steer behind it is the growth"
         );
     }
 
