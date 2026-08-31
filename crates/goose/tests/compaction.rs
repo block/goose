@@ -1218,6 +1218,48 @@ async fn run_reply_approving_tools(agent: &Agent, session: &Session) -> Result<(
     Ok((history_replacements, final_text))
 }
 
+/// Runs a reply and returns the replacement count with every emitted
+/// message rendered as text, system notifications included, so a test can
+/// assert on what the client saw and in which order.
+async fn run_reply_collecting_texts(
+    agent: &Agent,
+    session: &Session,
+) -> Result<(usize, Vec<String>)> {
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("keep processing each result"),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    let mut texts = Vec::new();
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Message(message) => {
+                texts.push(
+                    message
+                        .content
+                        .iter()
+                        .map(|content| content.to_string())
+                        .collect::<String>(),
+                );
+            }
+            _ => {}
+        }
+    }
+    Ok((history_replacements, texts))
+}
+
 #[tokio::test]
 async fn test_mid_turn_compaction_during_tool_loop() -> Result<()> {
     let temp_dir = TempDir::new()?;
@@ -1594,6 +1636,66 @@ async fn test_mid_turn_compaction_failure_continues_the_turn() -> Result<()> {
         "the summarization attempt should have run"
     );
     assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_failed_compaction_still_announces_the_auto_compaction() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The turn-boundary compaction fails. The announcement and progress
+    // notice must still reach the client, because they are yielded before
+    // the summarization request starts: a client watching a slow request
+    // needs the progress indication, and a failed one must not swallow the
+    // events entirely — the state machine emits its notifications before
+    // awaiting the provider for the same reason.
+    let messages = vec![
+        Message::user().with_text("x ".repeat(10_000)),
+        Message::assistant().with_text("done"),
+    ];
+    let session =
+        setup_test_session(&agent, &temp_dir, "announce-on-failure-test", messages).await?;
+
+    let provider = Arc::new(MockCompactionProvider {
+        fail_summarizations: true,
+        ..MockCompactionProvider::conversational()
+    });
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, texts) = run_reply_collecting_texts(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 0,
+        "the failed compaction must not replace the history"
+    );
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization attempt should have run"
+    );
+    let announcement = texts
+        .iter()
+        .position(|text| text.contains("Performing auto-compaction"))
+        .expect("the failed compaction must still announce itself");
+    let progress = texts
+        .iter()
+        .position(|text| text.contains("goose is compacting the conversation"))
+        .expect("the failed compaction must still show its progress notice");
+    let error = texts
+        .iter()
+        .position(|text| text.contains("Ran into this error trying to compact"))
+        .expect("the failed compaction must still report its error");
+    assert!(
+        announcement < error && progress < error,
+        "the notices must precede the error report"
+    );
 
     Ok(())
 }

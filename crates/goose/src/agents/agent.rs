@@ -2127,6 +2127,9 @@ impl Agent {
 
             let mut final_conversation = conversation;
             if needs_auto_compact {
+                for event in super::reply_parts::auto_compaction_started_events() {
+                    yield event;
+                }
                 match self
                     .auto_compact(
                         "turn-boundary",
@@ -2383,6 +2386,9 @@ impl Agent {
                         // The turn continues with the steer either way: the
                         // request that follows may still fit, and the reactive
                         // path catches it if not.
+                        for event in super::reply_parts::auto_compaction_started_events() {
+                            yield event;
+                        }
                         match self
                             .auto_compact("steer", &session_manager, &session_config, &mut conversation)
                             .await
@@ -3407,6 +3413,9 @@ impl Agent {
                 {
                     // The turn can continue: the request that follows may
                     // still fit, and the reactive path catches it if not.
+                    for event in super::reply_parts::auto_compaction_started_events() {
+                        yield event;
+                    }
                     match self
                         .auto_compact("mid-turn", &session_manager, &session_config, &mut conversation)
                         .await

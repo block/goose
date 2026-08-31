@@ -191,8 +191,11 @@ fn is_mergeable_assistant_chunk(message: &Message) -> bool {
 }
 
 /// Client notice emitted when an automatic compaction starts, shared by the
-/// proactive compaction sites.
-fn auto_compaction_started_events() -> [AgentEvent; 2] {
+/// proactive compaction sites. Yield it before awaiting the compaction so a
+/// slow summarization request still shows progress — and a failed one still
+/// shows the announcement — matching the state machine, which emits its
+/// notifications before the request.
+pub(crate) fn auto_compaction_started_events() -> [AgentEvent; 2] {
     let threshold = Config::global()
         .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
         .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
@@ -839,9 +842,11 @@ impl Agent {
         .await
     }
 
-    /// Runs one proactive auto-compaction — announce, summarize, persist —
-    /// and returns the events for the caller to yield. `conversation`
-    /// becomes the compacted history. `trigger` labels the log line.
+    /// Runs one proactive auto-compaction — summarize, persist — and
+    /// returns the completion events for the caller to yield.
+    /// `conversation` becomes the compacted history. `trigger` labels the
+    /// log line. Yield `auto_compaction_started_events` before awaiting
+    /// this, so the client sees progress while the request runs.
     pub(crate) async fn auto_compact(
         &self,
         trigger: &str,
@@ -851,7 +856,6 @@ impl Agent {
     ) -> Result<Vec<AgentEvent>> {
         debug!(trigger, "auto-compaction threshold exceeded");
 
-        let mut events = auto_compaction_started_events().to_vec();
         let model_config = self.model_config_for_session(&session_config.id).await?;
         let compaction = compact_messages(
             self.provider().await?.as_ref(),
@@ -863,14 +867,13 @@ impl Agent {
         .await?;
         self.persist_compaction(session_manager, session_config, compaction, conversation)
             .await?;
-        events.push(AgentEvent::HistoryReplaced(conversation.clone()));
-        events.push(AgentEvent::Message(
-            Message::assistant().with_system_notification(
+        Ok(vec![
+            AgentEvent::HistoryReplaced(conversation.clone()),
+            AgentEvent::Message(Message::assistant().with_system_notification(
                 SystemNotificationType::InlineMessage,
                 "Compaction complete",
-            ),
-        ));
-        Ok(events)
+            )),
+        ])
     }
 
     fn resolve_chunk_cost(
