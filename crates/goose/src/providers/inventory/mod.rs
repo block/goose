@@ -908,11 +908,6 @@ pub fn default_inventory_configured(
     config: &Config,
     declaration_is_configuration: bool,
 ) -> bool {
-    if crate::config::get_provider_entry(config, provider_id).is_some_and(|entry| entry.configured)
-    {
-        return true;
-    }
-
     let has_value = |key: &ConfigKey| {
         if key.secret {
             config.get_secret::<serde_json::Value>(&key.name).is_ok()
@@ -924,8 +919,16 @@ pub fn default_inventory_configured(
     let required_keys_satisfied = config_keys
         .iter()
         .all(|key| !key.required || key.default.is_some() || has_value(key));
+    if !required_keys_satisfied {
+        return false;
+    }
 
-    required_keys_satisfied && (declaration_is_configuration || config_keys.iter().any(&has_value))
+    if crate::config::get_provider_entry(config, provider_id).is_some_and(|entry| entry.configured)
+    {
+        return true;
+    }
+
+    declaration_is_configuration || config_keys.iter().any(&has_value)
 }
 
 pub fn declarative_inventory_identity(
