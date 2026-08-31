@@ -166,6 +166,21 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         }
     };
     assert_eq!(calculator.total(), 0);
+    {
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_config.id, true)
+            .await?;
+        assert!(confirmation_ids(
+            session
+                .conversation
+                .as_ref()
+                .expect("session conversation")
+                .messages()
+        )
+        .contains(&confirmation_id));
+    }
 
     agent
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)

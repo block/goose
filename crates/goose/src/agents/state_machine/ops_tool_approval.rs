@@ -50,7 +50,7 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: &Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
         let goose_mode = *self.goose_mode.lock().await;
         if goose_mode == GooseMode::Chat {
@@ -130,7 +130,6 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                         security_message,
                     )
                     .user_only();
-                let action_required = emit.message(action_required).await;
                 effects.push(action_required.into());
 
                 if let Some(finding_id) =
