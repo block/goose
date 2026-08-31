@@ -259,10 +259,6 @@ fn stored_access_token(stored: &StoredCredentials) -> Option<&str> {
         .map(|token| token.access_token().secret().as_str())
 }
 
-fn stored_grant_changed(before: Option<&StoredCredentials>, after: &StoredCredentials) -> bool {
-    stored_access_token(after) != before.and_then(stored_access_token)
-}
-
 fn stored_grant_satisfies_challenge(
     stored: &StoredCredentials,
     challenge: &str,
@@ -280,7 +276,7 @@ fn stored_grant_satisfies_challenge(
 }
 
 fn challenge_can_reuse_stored_grant(
-    snapshot: Option<&StoredCredentials>,
+    rejected_access_token: Option<&str>,
     stored: Option<&StoredCredentials>,
     challenge: Option<&str>,
     mcp_server_url: &str,
@@ -289,7 +285,7 @@ fn challenge_can_reuse_stored_grant(
         return true;
     };
     stored.is_some_and(|stored| {
-        stored_grant_changed(snapshot, stored)
+        stored_access_token(stored) != rejected_access_token
             && stored_grant_satisfies_challenge(stored, challenge, mcp_server_url)
     })
 }
@@ -422,7 +418,7 @@ pub async fn oauth_flow(
     name: &String,
     static_client: Option<&StaticOAuthClientConfig>,
 ) -> Result<AuthorizationManager, anyhow::Error> {
-    oauth_flow_with_challenge(mcp_server_url, name, static_client, None).await
+    oauth_flow_with_challenge(mcp_server_url, name, static_client, None, None).await
 }
 
 pub async fn oauth_flow_with_challenge(
@@ -430,16 +426,12 @@ pub async fn oauth_flow_with_challenge(
     name: &String,
     static_client: Option<&StaticOAuthClientConfig>,
     challenge: Option<String>,
+    rejected_access_token: Option<&str>,
 ) -> Result<AuthorizationManager, anyhow::Error> {
     let env_client = env_static_oauth_client();
     let static_client = static_client.or(env_client.as_ref());
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
-    let snapshot = if challenge.is_some() {
-        credential_store.load().await?
-    } else {
-        None
-    };
     // Serialize refresh and browser auth per extension across processes so a
     // rotating refresh token cannot be spent twice and then wipe the winner.
     let _oauth_lock = acquire_oauth_flow_lock(name).await?;
@@ -454,10 +446,11 @@ pub async fn oauth_flow_with_challenge(
         .unwrap_or_default();
 
     // After the lock, reuse a stored grant only when another process wrote a
-    // new token that already covers this challenge. The token that triggered
-    // the 401/403 must not be reused.
+    // new token that already covers this challenge. Compare against the token
+    // the caller actually presented, not whatever the shared store currently
+    // holds (another in-process client may have already saved a successor).
     let challenge_already_satisfied = challenge_can_reuse_stored_grant(
-        snapshot.as_ref(),
+        rejected_access_token,
         stored_credentials.as_ref(),
         challenge.as_deref(),
         mcp_server_url,
@@ -1106,22 +1099,25 @@ mod tests {
 
         assert!(
             !challenge_can_reuse_stored_grant(
-                Some(&rejected),
+                Some("old-token"),
                 Some(&rejected),
                 Some(invalid_token),
                 "https://mcp.example",
             ),
             "the token that triggered the 401 must not be reused"
         );
-        assert!(challenge_can_reuse_stored_grant(
-            Some(&rejected),
-            Some(&refreshed),
-            Some(invalid_token),
-            "https://mcp.example",
-        ));
+        assert!(
+            challenge_can_reuse_stored_grant(
+                Some("old-token"),
+                Some(&refreshed),
+                Some(invalid_token),
+                "https://mcp.example",
+            ),
+            "a waiter that still holds the rejected token must reuse the successor grant"
+        );
         assert!(
             !challenge_can_reuse_stored_grant(
-                Some(&rejected),
+                Some("old-token"),
                 Some(&refreshed),
                 Some(extra_scope),
                 "https://mcp.example",
