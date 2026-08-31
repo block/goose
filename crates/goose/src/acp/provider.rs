@@ -1477,10 +1477,29 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
     line.clear();
 }
 
+/// On Windows, npm installs `.cmd` shims instead of `.exe` binaries.
+/// `CreateProcess` cannot execute `.cmd` files directly — they require `cmd.exe /c`.
+fn build_acp_command(command: &std::path::Path, args: &[String]) -> Command {
+    #[cfg(windows)]
+    {
+        let ext = command
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase());
+        if matches!(ext.as_deref(), Some("cmd") | Some("bat")) {
+            let mut c = Command::new("cmd.exe");
+            c.arg("/c").arg(command).args(args);
+            return c;
+        }
+    }
+    let mut c = Command::new(command);
+    c.args(args);
+    c
+}
+
 async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
-    let mut cmd = Command::new(&config.command);
-    cmd.args(&config.args)
-        .stdin(Stdio::piped())
+    let mut cmd = build_acp_command(&config.command, &config.args);
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
