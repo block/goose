@@ -1670,10 +1670,6 @@
           "type": "string",
           "description": "Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`."
         },
-        "category": {
-          "$ref": "#/$defs/ProviderSetupCategoryDto",
-          "description": "Whether this inventory entry represents an agent provider or a model provider."
-        },
         "acp": {
           "type": "boolean",
           "description": "Whether this provider communicates through ACP.",
@@ -1747,13 +1743,6 @@
         "stale": {
           "type": "boolean",
           "description": "Whether we believe this data may be outdated."
-        },
-        "modelSelectionHint": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "Guidance message shown when this provider manages its own model selection externally."
         }
       },
       "required": [
@@ -1764,7 +1753,6 @@
         "configured",
         "available",
         "providerType",
-        "category",
         "visibleInSetup",
         "deprecated",
         "configKeys",
@@ -1775,13 +1763,6 @@
         "stale"
       ],
       "description": "Provider inventory entry."
-    },
-    "ProviderSetupCategoryDto": {
-      "type": "string",
-      "enum": [
-        "agent",
-        "model"
-      ]
     },
     "ProviderConfigKey": {
       "type": "object",
@@ -2070,6 +2051,13 @@
         "supportsInstall",
         "supportsAuth",
         "supportsAuthStatus"
+      ]
+    },
+    "ProviderSetupCategoryDto": {
+      "type": "string",
+      "enum": [
+        "agent",
+        "model"
       ]
     },
     "ProviderSetupMethodDto": {

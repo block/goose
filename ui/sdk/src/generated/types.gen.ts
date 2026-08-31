@@ -838,10 +838,6 @@ export type ProviderInventoryEntryDto = {
      */
     providerType: string;
     /**
-     * Whether this inventory entry represents an agent provider or a model provider.
-     */
-    category: ProviderSetupCategoryDto;
-    /**
      * Whether this provider communicates through ACP.
      */
     acp?: boolean;
@@ -893,13 +889,7 @@ export type ProviderInventoryEntryDto = {
      * Whether we believe this data may be outdated.
      */
     stale: boolean;
-    /**
-     * Guidance message shown when this provider manages its own model selection externally.
-     */
-    modelSelectionHint?: string | null;
 };
-
-export type ProviderSetupCategoryDto = 'agent' | 'model';
 
 export type ProviderConfigKey = {
     name: string;
@@ -1006,6 +996,8 @@ export type ProviderSetupCatalogEntryDto = {
     supportsAuth: boolean;
     supportsAuthStatus: boolean;
 };
+
+export type ProviderSetupCategoryDto = 'agent' | 'model';
 
 export type ProviderSetupMethodDto = 'none' | 'single_api_key' | 'config_fields' | 'host_with_oauth_fallback' | 'oauth_browser' | 'oauth_device_code' | 'cloud_credentials' | 'local' | 'cli_auth';
 
