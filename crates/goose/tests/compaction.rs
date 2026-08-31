@@ -182,6 +182,17 @@ impl MockCompactionProvider {
         }
     }
 
+    /// Plain text-only replies against a 10k limit (8k threshold): no tool
+    /// calls, so growth can only come from the conversation itself —
+    /// preloaded history or a drained steer — never from this turn's
+    /// round-trips.
+    fn conversational() -> Self {
+        Self {
+            context_limit: 10_000,
+            ..Self::new()
+        }
+    }
+
     fn context_limit_rejections(&self) -> usize {
         self.context_limit_rejections.load(Ordering::SeqCst)
     }
@@ -1482,6 +1493,135 @@ async fn test_mid_turn_compaction_failure_continues_the_turn() -> Result<()> {
     assert!(
         provider.has_compacted.load(Ordering::SeqCst),
         "the summarization attempt should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_auto_compaction_floors_on_the_recounted_conversation() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The session metadata claims 1,000 tokens while the persisted history
+    // holds far more against the 8k threshold, and the bulk of it sits before
+    // the newest assistant message. Only a recount whose total covers the
+    // whole conversation can floor the stale metadata; one that stopped at
+    // the newest assistant message would send the oversized history on.
+    let messages = vec![
+        Message::user().with_text("x ".repeat(10_000)),
+        Message::assistant().with_text("done"),
+    ];
+    let session =
+        setup_test_session(&agent, &temp_dir, "auto-compact-floor-test", messages).await?;
+
+    let provider = Arc::new(MockCompactionProvider::conversational());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 1,
+        "the recounted conversation must floor the stale metadata"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_steer_after_a_text_only_reply_rechecks_the_threshold() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The kickoff gets a text-only reply (~6.2k reported tokens), so no tools
+    // were called and the mid-turn check never runs. The steer that revives
+    // the turn is large enough to push past the 8k threshold, so the turn
+    // must be re-checked once the steer is drained, before the request
+    // carries it to the provider.
+    let session = setup_test_session(&agent, &temp_dir, "steer-recheck-test", vec![]).await?;
+
+    let provider = Arc::new(MockCompactionProvider::conversational());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("answer without tools"),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    let mut final_text = String::new();
+    let mut steered = false;
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Message(message) => {
+                // The stream suspends at this yield before the turn-end
+                // handling runs, so queueing here guarantees the steer is
+                // pending when the loop decides whether the turn continues.
+                if !steered
+                    && message.role == rmcp::model::Role::Assistant
+                    && message
+                        .content
+                        .iter()
+                        .any(|content| matches!(content, MessageContent::Text(text) if !text.text.is_empty()))
+                {
+                    steered = true;
+                    agent
+                        .steer(&session.id, Message::user().with_text("x ".repeat(6_000)))
+                        .await;
+                }
+                if let Some(text) = message.content.iter().find_map(|content| match content {
+                    MessageContent::Text(text) if !text.text.is_empty() => Some(&text.text),
+                    _ => None,
+                }) {
+                    final_text = text.clone();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    assert!(
+        steered,
+        "the steer must be queued after the text-only reply lands"
+    );
+    assert_eq!(
+        history_replacements, 1,
+        "the drained steer must be re-checked against the threshold"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
     );
     assert_eq!(provider.context_limit_rejections(), 0);
 

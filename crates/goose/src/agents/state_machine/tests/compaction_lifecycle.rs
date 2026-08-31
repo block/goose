@@ -843,3 +843,119 @@ async fn a_failed_mid_turn_compaction_continues_the_turn() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn a_stale_token_count_floors_on_the_full_conversation() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The session metadata reports 1,000 tokens while the seeded history
+    // holds far more against the 19.2k threshold, and the bulk of it sits
+    // before the newest assistant message. Only a recount whose total covers
+    // the whole conversation can floor the stale metadata; one that stopped
+    // counting at the newest assistant message would send the oversized
+    // history on. gpt-4.1's ~1M canonical limit keeps the API's rejection
+    // wall far above every request.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+    pipeline
+        .seed([
+            Message::user().with_text("x ".repeat(22_000)),
+            Message::assistant().with_text("done"),
+        ])
+        .await?;
+    pipeline.set_total_tokens(1_000).await;
+
+    api.on(SUMMARIZE_HISTORY).reply("stale history summarized");
+    api.on("Your context was compacted")
+        .reply("continued past the stale count");
+
+    let run = pipeline.run(["continue the stale session"]).await?;
+
+    run.assert_message(-1, Agent, "continued past the stale count");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "the recounted conversation must floor the stale metadata"
+    );
+    assert_eq!(
+        api.call_count(),
+        2,
+        "compaction must precede the first inference"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The first reply is text-only and stays under the 19.2k threshold, so
+    // the steer is what pushes past it: the check that runs after the steer
+    // operation must recount and compact before the grown context is sent
+    // back. The steer is sized from the first request's reported usage so
+    // the crossing comes from the unsent growth added to the baseline.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+
+    let text_only = api
+        .on("reply without tools")
+        .hold_reply("a text-only answer");
+    api.on(SUMMARIZE_HISTORY).reply("steer growth summarized");
+    api.on("Your context was compacted")
+        .reply("continued after the steer");
+
+    let run = pipeline.run(["reply without tools"]);
+    let steer = async {
+        text_only.entered().await;
+        let first = api.calls().first().cloned().expect("text-only request");
+        let threshold = (pipeline.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
+        // Size the steer so the reported baseline plus its unsent growth
+        // crosses with ~1k to spare, while the steer alone stays far enough
+        // under the threshold that compaction (which preserves the most
+        // recent text-only user message verbatim) is not re-triggered by the
+        // retained steer afterwards.
+        let steer_tokens = threshold - first.input_tokens() + 1_000;
+        assert!(
+            steer_tokens > 5_000,
+            "first request unexpectedly large: {}",
+            first.input_tokens()
+        );
+        let padding = steer_tokens.min(9_000) as usize;
+        pipeline
+            .steer(Message::user().with_text(format!("redirect the work {}", "x ".repeat(padding))))
+            .await;
+        text_only.release();
+    };
+    let (result, ()) = tokio::join!(run, steer);
+    let result = result?;
+
+    result.assert_message(-1, Agent, "continued after the steer");
+    assert_eq!(
+        result.history_replacements(),
+        1,
+        "the drained steer must be re-checked against the threshold"
+    );
+    assert_eq!(
+        api.call_count(),
+        3,
+        "compaction must fire before the grown context is sent back to the provider"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains(SUMMARIZE_HISTORY))
+        .expect("summarization request");
+    assert!(
+        summarization.system_contains("redirect the work"),
+        "the summarization request must carry the drained steer"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}

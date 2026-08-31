@@ -2330,7 +2330,9 @@ impl Agent {
                 }
 
                 if can_drain_pending_steers {
+                    let mut steers_drained = 0usize;
                     for message in self.drain_pending_steers(&session_config.id).await {
+                        steers_drained += 1;
                         let message_text = agent_visible_message_text(&message);
                         if self
                             .hook_manager
@@ -2353,6 +2355,68 @@ impl Agent {
                         )
                         .await?;
                         yield AgentEvent::Message(message);
+                    }
+
+                    // A drained steer continues the turn without a provider
+                    // round-trip: after a text-only reply the mid-turn check
+                    // below never ran, and after a tool round-trip it ran
+                    // before the steer landed. Re-check now that the steer is
+                    // appended, before the request carries it to the
+                    // provider — mirroring the state machine, whose steer
+                    // operation appends the message ahead of its User-boundary
+                    // check. Skip when the client cancelled or the recipe
+                    // result is ready to deliver, for the same reasons as the
+                    // mid-turn check below.
+                    if steers_drained > 0
+                        && !is_token_cancelled(&cancel_token)
+                        && !self.has_collected_final_output().await
+                    {
+                        // Metadata only: the conversation is already in memory.
+                        let session_now = session_manager
+                            .get_session(&session_config.id, false)
+                            .await?;
+                        let over_threshold = check_if_compaction_needed(
+                            self.provider().await?.as_ref(),
+                            &conversation,
+                            None,
+                            &session_now,
+                            true,
+                        )
+                        .await?;
+
+                        if over_threshold {
+                            debug!(trigger = "steer", "auto-compaction threshold exceeded");
+                            for event in auto_compaction_started_events() {
+                                yield event;
+                            }
+                            let compact_model_config =
+                                self.model_config_for_session(&session_config.id).await?;
+                            match compact_messages(
+                                self.provider().await?.as_ref(),
+                                &compact_model_config,
+                                &session_config.id,
+                                &conversation,
+                                false,
+                            )
+                            .await
+                            {
+                                Ok(compaction) => {
+                                    self.persist_compaction(&session_manager, &session_config, compaction, &mut conversation).await?;
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_system_notification(
+                                            SystemNotificationType::InlineMessage,
+                                            "Compaction complete",
+                                        )
+                                    );
+                                }
+                                // The turn continues with the steer either
+                                // way: the request that follows may still
+                                // fit, and the reactive path catches it if
+                                // not.
+                                Err(e) => error!("Steer compaction failed: {}", e),
+                            }
+                        }
                     }
                 }
 

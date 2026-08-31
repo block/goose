@@ -239,6 +239,10 @@ pub(crate) async fn recount_context_tokens(
         .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
     let mut total: usize = 0;
     let mut unsent: usize = 0;
+    // Iterating in reverse, only the messages appended after the provider's
+    // last response — an assistant message — are unsent growth; the older
+    // messages still count toward the whole-conversation floor.
+    let mut past_last_response = false;
     for message in conversation.messages().iter().rev() {
         let tokens = if message.is_agent_visible() {
             counter.count_chat_tokens("", std::slice::from_ref(message), &[])
@@ -246,12 +250,14 @@ pub(crate) async fn recount_context_tokens(
             0
         };
         total += tokens;
-        // Iterating in reverse, everything before the last assistant message
-        // is appended after the provider's own response.
-        if message.role == Role::Assistant {
-            break;
+        if past_last_response {
+            continue;
         }
-        unsent += tokens;
+        if message.role == Role::Assistant {
+            past_last_response = true;
+        } else {
+            unsent += tokens;
+        }
     }
     Ok(ContextTokenCounts {
         total: total.try_into()?,
@@ -793,6 +799,35 @@ mod tests {
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    #[tokio::test]
+    async fn recount_totals_the_whole_conversation_but_only_the_suffix_is_unsent() {
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("x ".repeat(200)),
+            Message::assistant().with_text("older reply"),
+            Message::user().with_text("newer request"),
+            Message::assistant().with_text("latest reply"),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("x ".repeat(100)),
+                ])),
+            ),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let whole = count_context_tokens(&conversation).await.unwrap();
+        assert_eq!(
+            counts.total, whole,
+            "total must cover messages before the newest assistant message too"
+        );
+        assert!(counts.unsent > 0);
+        assert!(
+            counts.unsent < counts.total,
+            "unsent must stop at the newest assistant message"
+        );
     }
 
     #[tokio::test]
