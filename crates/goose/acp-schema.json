@@ -1512,28 +1512,6 @@
         "enabled"
       ]
     },
-    "GetAvailableExtensionsRequest_unstable": {
-      "type": "object",
-      "description": "List Goose-owned extension definitions available to configure or enable.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/extensions/available"
-    },
-    "GetAvailableExtensionsResponse_unstable": {
-      "type": "object",
-      "properties": {
-        "extensions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/GooseExtension"
-          }
-        }
-      },
-      "required": [
-        "extensions"
-      ],
-      "x-side": "agent",
-      "x-method": "_goose/unstable/extensions/available"
-    },
     "AddConfigExtensionRequest_unstable": {
       "type": "object",
       "properties": {
@@ -3161,21 +3139,6 @@
       "description": "Save allowlisted user preferences.",
       "x-side": "agent",
       "x-method": "_goose/unstable/preferences/save"
-    },
-    "PreferencesRemoveRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "keys": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PreferenceKey"
-          },
-          "default": []
-        }
-      },
-      "description": "Remove allowlisted user preferences.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/preferences/remove"
     },
     "ConfigReadRequest_unstable": {
       "type": "object",
@@ -5609,38 +5572,6 @@
         "description"
       ]
     },
-    "DictationSecretSaveRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "provider",
-        "value"
-      ],
-      "description": "Set a dictation provider secret value.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/dictation/secret/save"
-    },
-    "DictationSecretDeleteRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "provider"
-      ],
-      "description": "Remove a dictation provider secret value.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/dictation/secret/delete"
-    },
     "DictationModelsListRequest_unstable": {
       "type": "object",
       "description": "List available local Whisper models with their download status.",
@@ -5805,24 +5736,6 @@
       "description": "Delete a downloaded local Whisper model from disk.",
       "x-side": "agent",
       "x-method": "_goose/unstable/dictation/models/delete"
-    },
-    "DictationModelSelectRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string"
-        },
-        "modelId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "provider",
-        "modelId"
-      ],
-      "description": "Persist the user's model selection for a given provider.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/dictation/models/select"
     },
     "LocalInferenceModelsListRequest_unstable": {
       "type": "object",
@@ -7195,15 +7108,6 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetAvailableExtensionsRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/extensions/available",
-                  "title": "GetAvailableExtensionsRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
                       "$ref": "#/$defs/AddConfigExtensionRequest_unstable"
                     }
                   ],
@@ -7425,15 +7329,6 @@
                   ],
                   "description": "Params for _goose/unstable/preferences/save",
                   "title": "PreferencesSaveRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/PreferencesRemoveRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/preferences/remove",
-                  "title": "PreferencesRemoveRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -7870,24 +7765,6 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationSecretSaveRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/dictation/secret/save",
-                  "title": "DictationSecretSaveRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/DictationSecretDeleteRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/dictation/secret/delete",
-                  "title": "DictationSecretDeleteRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
                       "$ref": "#/$defs/DictationModelsListRequest_unstable"
                     }
                   ],
@@ -7929,15 +7806,6 @@
                   ],
                   "description": "Params for _goose/unstable/dictation/models/delete",
                   "title": "DictationModelDeleteRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/DictationModelSelectRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/dictation/models/select",
-                  "title": "DictationModelSelectRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -8187,14 +8055,6 @@
                         }
                       ],
                       "title": "GetConfigExtensionsResponse_unstable"
-                    },
-                    {
-                      "allOf": [
-                        {
-                          "$ref": "#/$defs/GetAvailableExtensionsResponse_unstable"
-                        }
-                      ],
-                      "title": "GetAvailableExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [

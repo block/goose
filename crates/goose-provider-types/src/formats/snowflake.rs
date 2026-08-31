@@ -74,9 +74,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip redacted thinking for now
                 }
                 MessageContentBlock::Image(_) => continue, // Snowflake doesn't support image content yet
-                MessageContentBlock::FrontendToolRequest(_tool_request) => {
-                    // Skip frontend tool requests
-                }
             }
         }
 

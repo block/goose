@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "タイプ"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE（未対応）"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "標準入出力（STDIO）"
   },
