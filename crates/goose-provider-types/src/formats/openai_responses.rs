@@ -476,7 +476,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                     } else {
                         text_items.push(json!({
                             "type": "input_text",
-                            "text": "[image omitted: model does not support vision]"
+                            "text": format!(
+                                "[image omitted: model does not support vision ({})]",
+                                image.mime_type
+                            )
                         }));
                     }
                 }
@@ -541,8 +544,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                                         ContentBlock::ResourceLink(_) => {
                                             "[Resource link]".into()
                                         }
-                                        ContentBlock::Image(_) =>
-                                            "[image omitted: model does not support vision]".into(),
+                                        ContentBlock::Image(image) => format!(
+                                            "[image omitted: model does not support vision ({})]",
+                                            image.mime_type
+                                        ),
                                         _ => "[Unsupported content]".into(),
                                     })
                                     .collect::<Vec<String>>()
@@ -638,7 +643,7 @@ pub fn create_responses_request_for_model(
     add_message_items(
         &mut input_items,
         messages,
-        model_config.supports_vision.unwrap_or_default(),
+        model_config.supports_vision.unwrap_or(true),
     );
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
@@ -2437,7 +2442,7 @@ mod tests {
 
         // Non-vision: explicit image content is replaced with a text placeholder
         // at format time — session history is untouched.
-        let model_config = ModelConfig::new("o3-mini");
+        let model_config = ModelConfig::new("o3-mini").with_vision_support(false);
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
         let input = result["input"].as_array().unwrap();
 
@@ -2450,7 +2455,7 @@ mod tests {
         assert_eq!(content[1]["type"], "input_text");
         assert_eq!(
             content[1]["text"],
-            "[image omitted: model does not support vision]"
+            "[image omitted: model does not support vision (image/png)]"
         );
 
         let serialized = serde_json::to_string(&result).unwrap();
@@ -2475,14 +2480,14 @@ mod tests {
 
         // Non-vision: images in tool results are omitted from the output
         // string (with a note) instead of being emitted as input_image items.
-        let model_config = ModelConfig::new("o3-mini");
+        let model_config = ModelConfig::new("o3-mini").with_vision_support(false);
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
         let input = result["input"].as_array().unwrap();
 
         assert_eq!(input[0]["type"], "function_call_output");
         let output = input[0]["output"].as_str().unwrap();
         assert!(output.contains("caption"));
-        assert!(output.contains("[image omitted: model does not support vision]"));
+        assert!(output.contains("[image omitted: model does not support vision (image/png)]"));
 
         let serialized = serde_json::to_string(&result).unwrap();
         assert!(!serialized.contains("input_image"));

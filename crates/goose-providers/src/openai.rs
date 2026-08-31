@@ -819,7 +819,7 @@ impl Provider for OpenAiProvider {
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context
                         || thinking_preservation_format.is_some(),
-                    supports_vision: model_config.supports_vision.unwrap_or_default(),
+                    supports_vision: model_config.supports_vision.unwrap_or(true),
                     thinking_preservation_format,
                 },
             )?;

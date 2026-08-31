@@ -607,7 +607,10 @@ impl SessionManager {
         }
 
         let model_config = match session.model_config.clone() {
-            Some(model_config) => model_config,
+            Some(model_config) => crate::model_config::rehydrate_canonical_defaults(
+                model_config,
+                Some(provider.get_name()),
+            ),
             None => {
                 let model_name =
                     crate::config::Config::global()

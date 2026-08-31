@@ -195,6 +195,23 @@ impl DatabricksProvider {
         Self::is_claude_model(model_name) || is_openai_responses_model(model_name)
     }
 
+    fn model_supports_vision(model_name: &str) -> Option<bool> {
+        ModelConfig::new(model_name)
+            .with_canonical_limits(DATABRICKS_PROVIDER_NAME)
+            .supports_vision
+    }
+
+    fn with_resolved_vision_support(
+        model_config: &ModelConfig,
+        effective_model_name: &str,
+    ) -> ModelConfig {
+        let mut config = model_config.clone();
+        if let Some(supports_vision) = Self::model_supports_vision(effective_model_name) {
+            config.supports_vision = Some(supports_vision);
+        }
+        config
+    }
+
     fn uses_responses_api(
         endpoint_info: Option<&DatabricksEndpointInfo>,
         model_names: &[&str],
@@ -597,17 +614,20 @@ impl Provider for DatabricksProvider {
         };
         let client_request_id = self.build_client_request_id(&session_id);
 
+        let effective_model_config =
+            Self::with_resolved_vision_support(model_config, effective_model_name);
+
         if is_responses_model {
             let responses_model_config;
             let request_model_config = if effective_model_name != model_config.model_name {
                 responses_model_config = {
-                    let mut config = model_config.clone();
+                    let mut config = effective_model_config.clone();
                     config.model_name = effective_model_name.to_string();
                     config
                 };
                 &responses_model_config
             } else {
-                model_config
+                &effective_model_config
             };
             let mut payload =
                 create_responses_request(request_model_config, system, messages, tools)?;
@@ -656,13 +676,13 @@ impl Provider for DatabricksProvider {
                 && !Self::is_claude_model(&model_config.model_name)
             {
                 format_model_config = {
-                    let mut config = model_config.clone();
+                    let mut config = effective_model_config.clone();
                     config.model_name = effective_model_name.to_string();
                     config
                 };
                 &format_model_config
             } else {
-                model_config
+                &effective_model_config
             };
 
             let mut payload = create_request_for_provider(
@@ -862,6 +882,60 @@ mod tests {
 
         assert!(cached.applies_to(EndpointMetadataLookup::ContextDiscovery));
         assert!(cached.applies_to(EndpointMetadataLookup::InferenceRouting));
+    }
+
+    #[test]
+    fn resolves_vision_support_from_upstream_model() {
+        // Image-capable upstream models resolved through endpoint aliases.
+        assert_eq!(
+            DatabricksProvider::model_supports_vision("gpt-4o"),
+            Some(true)
+        );
+        assert_eq!(
+            DatabricksProvider::model_supports_vision("claude-opus-4.6"),
+            Some(true)
+        );
+        // Text-only upstream stays text-only.
+        assert_eq!(
+            DatabricksProvider::model_supports_vision("llama-3.3-70b-instruct"),
+            Some(false)
+        );
+        // Unknown aliases stay None so the formatter gate fail-opens (images
+        // are still sent rather than silently stripped).
+        assert_eq!(DatabricksProvider::model_supports_vision("team-chat"), None);
+    }
+
+    #[test]
+    fn resolved_upstream_capability_takes_precedence_over_alias_canonicalization() {
+        let alias = ModelConfig::new("llama-3.3-70b-instruct").with_vision_support(false);
+        let config = DatabricksProvider::with_resolved_vision_support(&alias, "gpt-4o");
+        assert_eq!(config.supports_vision, Some(true));
+
+        let alias = ModelConfig::new("databricks-gpt-5").with_vision_support(true);
+        let config =
+            DatabricksProvider::with_resolved_vision_support(&alias, "llama-3.3-70b-instruct");
+        assert_eq!(config.supports_vision, Some(false));
+
+        let config = DatabricksProvider::with_resolved_vision_support(
+            &ModelConfig::new("team-chat"),
+            "team-chat",
+        );
+        assert_eq!(config.supports_vision, None);
+
+        let config =
+            DatabricksProvider::with_resolved_vision_support(&ModelConfig::new("gpt-4o"), "gpt-4o");
+        assert_eq!(config.supports_vision, Some(true));
+
+        let config = DatabricksProvider::with_resolved_vision_support(
+            &ModelConfig::new("custom-model").with_vision_support(false),
+            "custom-model",
+        );
+        assert_eq!(config.supports_vision, Some(false));
+
+        let alias = ModelConfig::new("team-chat").with_vision_support(false);
+        let config =
+            DatabricksProvider::with_resolved_vision_support(&alias, "some-unlisted-endpoint");
+        assert_eq!(config.supports_vision, Some(false));
     }
 
     #[test]

@@ -989,7 +989,10 @@ impl Agent {
             .await
         {
             if let Some(model_config) = session.model_config {
-                return Ok(model_config);
+                return Ok(crate::model_config::rehydrate_canonical_defaults(
+                    model_config,
+                    session.provider_name.as_deref(),
+                ));
             }
         }
 
@@ -1671,7 +1674,7 @@ impl Agent {
         let cancel = cancel_token.unwrap_or_default();
         let session_id = session_config.id.clone();
 
-        let entry_session = session_manager.get_session(&session_id, false).await?;
+        session_manager.get_session(&session_id, false).await?;
         if let Some(schedule_id) = session_config.schedule_id.clone() {
             session_manager
                 .update(&session_id)
@@ -1710,19 +1713,7 @@ impl Agent {
             });
         }
 
-        let model_config = match entry_session.model_config {
-            Some(model_config) => model_config,
-            None => {
-                let provider_name = Config::global()
-                    .get_goose_provider()
-                    .map_err(|_| anyhow!("Could not resolve model config: missing provider"))?;
-                let model_name = Config::global()
-                    .get_goose_model()
-                    .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
-                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
-                    .map_err(|error| anyhow!("Could not resolve model config: {error}"))?
-            }
-        };
+        let model_config = self.model_config_for_session(&session_id).await?;
 
         let context_limit =
             crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
@@ -4512,6 +4503,44 @@ mod tests {
             effort_test_agent(EffortOutcome::Applied).await;
 
         assert_eq!(provider.model_selections(), ["mock-model"]);
+    }
+
+    #[tokio::test]
+    async fn model_config_for_session_rehydrates_legacy_capabilities() {
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+
+        let legacy = goose_providers::model::ModelConfig::new("gpt-4o");
+        assert_eq!(legacy.supports_vision, None);
+
+        agent
+            .config
+            .session_manager
+            .clone()
+            .update(&session.id)
+            .provider_name("openai")
+            .model_config(legacy)
+            .apply()
+            .await
+            .unwrap();
+
+        let config = agent.model_config_for_session(&session.id).await.unwrap();
+        assert_eq!(config.supports_vision, Some(true));
+        assert_eq!(config.context_limit(), 128_000);
+
+        // Azure Foundry canonicalizes in its provider; skip rehydration.
+        agent
+            .config
+            .session_manager
+            .clone()
+            .update(&session.id)
+            .provider_name("azure_foundry")
+            .model_config(goose_providers::model::ModelConfig::new("gpt-4o"))
+            .apply()
+            .await
+            .unwrap();
+
+        let config = agent.model_config_for_session(&session.id).await.unwrap();
+        assert_eq!(config.supports_vision, None);
     }
 
     #[tokio::test]
