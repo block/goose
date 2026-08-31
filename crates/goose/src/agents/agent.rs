@@ -38,8 +38,8 @@ use crate::agents::state_machine::{
     GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
     Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
     SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
-    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation, MAX_TURNS_MESSAGE,
+    StopHookOperation, ToolApprovalOperation, ToolConfirmationDecision, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -1754,6 +1754,16 @@ impl Agent {
         }
 
         if state.contains_request(request_id) {
+            let decision = ToolConfirmationDecision {
+                request_id: request_id.to_string(),
+                permission: state_machine_permission.clone(),
+            };
+            persist_tool_confirmation_decisions(
+                self.config.session_manager.as_ref(),
+                session_id,
+                std::slice::from_ref(&decision),
+            )
+            .await?;
             state.record_answer(
                 request_id,
                 ConfirmationAnswer::StateMachine(state_machine_permission),
@@ -2027,12 +2037,6 @@ impl Agent {
                 if decisions.is_empty() {
                     return;
                 }
-                persist_tool_confirmation_decisions(
-                    self.config.session_manager.as_ref(),
-                    &session_config.id,
-                    &decisions,
-                )
-                .await?;
                 turn_guard.state().clear_confirmations();
                 stream = self
                     .stream_state_machine_session(

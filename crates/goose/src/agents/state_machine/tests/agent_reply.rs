@@ -169,6 +169,32 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
     agent
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;
+    {
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_config.id, true)
+            .await?;
+        assert!(session
+            .conversation
+            .as_ref()
+            .expect("session conversation")
+            .messages()
+            .iter()
+            .any(|message| {
+                message.content.iter().any(|content| {
+                    matches!(
+                        content,
+                        MessageContent::ActionRequired(action)
+                            if matches!(
+                                &action.data,
+                                ActionRequiredData::ToolConfirmationResponse { id, permission }
+                                    if id == &confirmation_id && permission == &Permission::AllowOnce
+                            )
+                    )
+                })
+            }));
+    }
     agent
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;

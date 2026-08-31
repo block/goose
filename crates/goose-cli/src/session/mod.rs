@@ -1621,6 +1621,23 @@ impl CliSession {
                                         selected_permission,
                                     )
                                     .await?;
+                                if cancelled_by_user {
+                                    let mut response_message = Message::user();
+                                    response_message.content.push(MessageContent::tool_response(
+                                        id,
+                                        Err(ErrorData {
+                                            code: ErrorCode::INVALID_REQUEST,
+                                            message: std::borrow::Cow::from(
+                                                "Tool call cancelled by user",
+                                            ),
+                                            data: None,
+                                        }),
+                                    ));
+                                    self.messages.push(response_message);
+                                    cancel_token_clone.cancel();
+                                    drop(stream);
+                                    break;
+                                }
                             } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 if !interactive {
                                     // Non-interactive/headless mode: cannot collect user input

@@ -45,6 +45,8 @@ struct PendingConfirmation {
     request_ids: VecDeque<String>,
 }
 
+type PerUserLocks = Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>;
+
 #[derive(Clone)]
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
@@ -54,7 +56,9 @@ pub struct GatewayHandler {
     /// Tracks users who have a tool-confirmation prompt awaiting their reply.
     pending_confirmations: Arc<Mutex<HashMap<PlatformUser, PendingConfirmation>>>,
     /// Serializes `relay_to_session` per user; confirmation replies bypass this lock.
-    turn_locks: Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>,
+    turn_locks: PerUserLocks,
+    /// Serializes confirmation replies without waiting for the active turn to finish.
+    confirmation_reply_locks: PerUserLocks,
 }
 
 impl GatewayHandler {
@@ -71,6 +75,7 @@ impl GatewayHandler {
             config,
             pending_confirmations: Arc::new(Mutex::new(HashMap::new())),
             turn_locks: Arc::new(Mutex::new(HashMap::new())),
+            confirmation_reply_locks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -93,8 +98,17 @@ impl GatewayHandler {
         }
     }
 
-    async fn prune_turn_lock(&self, user: &PlatformUser) {
-        let mut locks = self.turn_locks.lock().await;
+    async fn per_user_lock(locks: &PerUserLocks, user: &PlatformUser) -> Arc<Mutex<()>> {
+        let mut locks = locks.lock().await;
+        Arc::clone(
+            locks
+                .entry(user.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(()))),
+        )
+    }
+
+    async fn prune_per_user_lock(locks: &PerUserLocks, user: &PlatformUser) {
+        let mut locks = locks.lock().await;
         let in_use = locks
             .get(user)
             .is_some_and(|lock| Arc::strong_count(lock) > 1);
@@ -169,19 +183,12 @@ impl GatewayHandler {
                 {
                     self.handle_pending_confirmation(&message).await?;
                 } else {
-                    let turn_lock = {
-                        let mut locks = self.turn_locks.lock().await;
-                        Arc::clone(
-                            locks
-                                .entry(message.user.clone())
-                                .or_insert_with(|| Arc::new(Mutex::new(()))),
-                        )
-                    };
+                    let turn_lock = Self::per_user_lock(&self.turn_locks, &message.user).await;
                     let turn_guard = turn_lock.lock().await;
                     let result = self.relay_to_session(&message, &session_id).await;
                     drop(turn_guard);
                     drop(turn_lock);
-                    self.prune_turn_lock(&message.user).await;
+                    Self::prune_per_user_lock(&self.turn_locks, &message.user).await;
                     result?;
                 }
             }
@@ -213,6 +220,20 @@ impl GatewayHandler {
             return Ok(());
         };
 
+        let reply_lock = Self::per_user_lock(&self.confirmation_reply_locks, &message.user).await;
+        let reply_guard = reply_lock.lock().await;
+        let result = self.submit_pending_confirmation(message, permission).await;
+        drop(reply_guard);
+        drop(reply_lock);
+        Self::prune_per_user_lock(&self.confirmation_reply_locks, &message.user).await;
+        result
+    }
+
+    async fn submit_pending_confirmation(
+        &self,
+        message: &IncomingMessage,
+        permission: Permission,
+    ) -> anyhow::Result<()> {
         let pending_confirmations = self.pending_confirmations.lock().await;
         let Some(pending) = pending_confirmations.get(&message.user) else {
             return Ok(());
