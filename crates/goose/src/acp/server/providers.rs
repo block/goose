@@ -1,6 +1,8 @@
 use super::*;
 use crate::config::declarative_providers;
-use crate::providers::inventory::ensure_refresh_identity_current;
+use crate::providers::inventory::{
+    ensure_refresh_identity_current, fetch_models_with_context_limits,
+};
 use crate::providers::provider_secrets;
 use goose_providers::base::ModelInfo;
 use std::str::FromStr;
@@ -852,22 +854,24 @@ impl GooseAcpAgent {
                 .catch_unwind()
                 .await;
 
-                let fetch_result: Result<Vec<String>> =
+                let fetch_result: Result<(Vec<String>, std::collections::HashMap<String, usize>)> =
                     match provider_result {
                         Ok(Ok(provider)) => {
                             match ensure_refresh_identity_current(&provider_id, &identity).await {
-                                Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models(
-                                    crate::model_config::global_toolshim(),
-                                ))
-                                .catch_unwind()
-                                .await
-                                {
-                                    Ok(Ok(models)) => Ok(models),
-                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
-                                    Err(_) => Err(anyhow::anyhow!(
-                                        "provider inventory refresh task panicked"
-                                    )),
-                                },
+                                Ok(()) => {
+                                    match AssertUnwindSafe(fetch_models_with_context_limits(
+                                        &provider,
+                                    ))
+                                    .catch_unwind()
+                                    .await
+                                    {
+                                        Ok(Ok(pair)) => Ok(pair),
+                                        Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                        Err(_) => Err(anyhow::anyhow!(
+                                            "provider inventory refresh task panicked"
+                                        )),
+                                    }
+                                }
                                 Err(error) => Err(error),
                             }
                         }
@@ -876,8 +880,8 @@ impl GooseAcpAgent {
                     };
 
                 match fetch_result {
-                    Ok(models) => match provider_inventory
-                        .store_refreshed_models_for_identity(&identity, &models)
+                    Ok((models, context_limits)) => match provider_inventory
+                        .store_refreshed_models_for_identity(&identity, &models, &context_limits)
                         .await
                     {
                         Ok(()) => refresh_guard.complete(),

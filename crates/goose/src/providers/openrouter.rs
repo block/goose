@@ -515,6 +515,45 @@ impl Provider for OpenRouterProvider {
         Ok(models)
     }
 
+    async fn fetch_model_context_limits(
+        &self,
+    ) -> Result<std::collections::HashMap<String, usize>, ProviderError> {
+        let response = self
+            .api_client
+            .request("api/v1/models")
+            .response_get()
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!(
+                    "Failed to fetch models from OpenRouter API: {}",
+                    e
+                ))
+            })?;
+
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to parse OpenRouter API response as JSON: {}",
+                e
+            ))
+        })?;
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+
+        Ok(data
+            .iter()
+            .filter_map(|model| {
+                let id = model.get("id")?.as_str()?.to_string();
+                let context_length = model
+                    .get("context_length")
+                    .and_then(|v| v.as_u64())
+                    .filter(|len| *len > 0)?;
+                Some((id, usize::try_from(context_length).ok()?))
+            })
+            .collect())
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,

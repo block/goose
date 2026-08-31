@@ -204,10 +204,18 @@ impl GooseAcpAgent {
                                 .data(format!("Failed to resolve provider: {}", error))
                         })?;
                         let model_config = model_config_from_recipe_settings(&provider, model)?;
+                        let model_config = self
+                            .apply_inventory_context_limit(config, &provider, model_config)
+                            .await;
                         return Ok((provider, model_config));
                     }
 
-                    return super::resolve_default_provider_model_config(config);
+                    let (provider, model_config) =
+                        super::resolve_default_provider_model_config(config)?;
+                    let model_config = self
+                        .apply_inventory_context_limit(config, &provider, model_config)
+                        .await;
+                    return Ok((provider, model_config));
                 }
             },
         };
@@ -217,7 +225,43 @@ impl GooseAcpAgent {
             None => super::resolve_provider_default_model_config(&provider).await?,
         };
 
+        let model_config = self
+            .apply_inventory_context_limit(config, &provider, model_config)
+            .await;
+
         Ok((provider, model_config))
+    }
+
+    /// Applies a persisted provider-reported context window to a freshly
+    /// resolved session model config. Defers to an explicit
+    /// GOOSE_CONTEXT_LIMIT.
+    ///
+    /// Provenance note (load-bearing): every caller reaches this helper via
+    /// base_model_config_from_user_config, which hardcodes
+    /// `context_limit: None` before with_default_context_limit installs
+    /// GOOSE_CONTEXT_LIMIT and apply_canonical_limits applies the bundled
+    /// catalog. Past the explicit-override check below, any pre-existing
+    /// Some can therefore only have come from the canonical catalog - which
+    /// a fresher provider-reported window is allowed to outrank. If a
+    /// recipe/meta-level context_limit is ever introduced upstream of
+    /// canonical, that assumption breaks and this needs plumbing instead.
+    async fn apply_inventory_context_limit(
+        &self,
+        config: &Config,
+        provider: &str,
+        mut model_config: ModelConfig,
+    ) -> ModelConfig {
+        if config.get_goose_context_limit().ok().flatten().is_some() {
+            return model_config;
+        }
+        if let Some(limit) = self
+            .provider_inventory
+            .known_context_limit(provider, &model_config.model_name)
+            .await
+        {
+            model_config.context_limit = Some(limit);
+        }
+        model_config
     }
 
     async fn apply_initial_session_config(

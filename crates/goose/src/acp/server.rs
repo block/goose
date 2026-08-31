@@ -1008,6 +1008,83 @@ impl GooseAcpAgent {
     /// `session/new` critical path avoids stalling session creation on slow or
     /// blocking work such as a synchronous keychain read while resolving the
     /// provider's inventory identity.
+    /// Applies a persisted provider-reported context window to the session's
+    /// active model config when it has none yet and no explicit
+    /// GOOSE_CONTEXT_LIMIT override is set.
+    async fn apply_inventory_window_to_session(
+        inventory_service: &ProviderInventoryService,
+        session_id: &str,
+        captured_provider: &str,
+        agent: &Arc<Agent>,
+        override_existing: bool,
+    ) {
+        // The user may have switched providers since this task was spawned.
+        // Only apply a window for the provider the session actually used at
+        // capture time; otherwise we could recreate a stale provider and
+        // undo the user's switch.
+        let current_provider = match agent.provider().await {
+            Ok(provider) => provider,
+            Err(_) => return,
+        };
+        if current_provider.get_name() != captured_provider {
+            return;
+        }
+        if crate::config::Config::global()
+            .get_goose_context_limit()
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            return;
+        }
+        let Ok(current) = agent.model_config_for_session(session_id).await else {
+            return;
+        };
+        if current.context_limit.is_some() && !override_existing {
+            return;
+        }
+        let Some(limit) = inventory_service
+            .known_context_limit(captured_provider, &current.model_name)
+            .await
+        else {
+            return;
+        };
+        // Skip the rewrite when the new window matches what's already set;
+        // avoids unnecessary provider recreation churn on identical values.
+        if current.context_limit == Some(limit) {
+            return;
+        }
+        let Ok(rebuilt) = crate::model_config::model_config_from_user_config_with_session_settings(
+            captured_provider,
+            &current.model_name,
+            Some(&current),
+            None,
+            Some(limit),
+        ) else {
+            return;
+        };
+        // Compare-and-swap: only commit if the session's provider + model
+        // still match what we built against. A user reselection between the
+        // snapshot and the recreation would otherwise be silently undone.
+        let after = match agent.model_config_for_session(session_id).await {
+            Ok(cfg) => cfg,
+            Err(_) => return,
+        };
+        if after.model_name != current.model_name {
+            return;
+        }
+        let still_same_provider = match agent.provider().await {
+            Ok(provider) => provider.get_name() == captured_provider,
+            Err(_) => false,
+        };
+        if !still_same_provider {
+            return;
+        }
+        let _ = agent
+            .recreate_provider_for_session(session_id, captured_provider, rebuilt)
+            .await;
+    }
+
     fn spawn_provider_inventory_refresh(&self, goose_session: &Session, agent: &Arc<Agent>) {
         let Some(provider_name) = goose_session.provider_name.clone() else {
             return;
@@ -1016,6 +1093,18 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = goose_session.id.clone();
         tokio::spawn(async move {
+            // Pre-existing sessions created before provider-reported windows
+            // carry context_limit None; apply the cached value even when the
+            // snapshot is fresh enough that no refresh will run.
+            Self::apply_inventory_window_to_session(
+                &inventory_service,
+                &session_id,
+                &provider_name,
+                &agent,
+                false,
+            )
+            .await;
+
             let Some(mut inventory) = inventory_service
                 .find_entry_for_provider(&provider_name)
                 .await
@@ -1040,6 +1129,18 @@ impl GooseAcpAgent {
             inventory_service
                 .refresh_with_provider(&provider_name, &provider, &mut inventory, "session init")
                 .await;
+
+            // First-run case: the refresh above may have just persisted a
+            // fresh authoritative window that should override the catalog
+            // value the config started with.
+            Self::apply_inventory_window_to_session(
+                &inventory_service,
+                &session_id,
+                &provider_name,
+                &agent,
+                true,
+            )
+            .await;
         });
     }
 
@@ -2377,13 +2478,29 @@ impl GooseAcpAgent {
             .model_config_for_session(session_id)
             .await
             .internal_err_ctx("Failed to resolve model config")?;
+        // Prefer the provider-reported window persisted during inventory
+        // refresh, but never on top of an explicit GOOSE_CONTEXT_LIMIT
+        // override: passing Some here would replace the configured value via
+        // with_context_limit instead of letting with_default_context_limit
+        // install it. Stored rows already respect canonical precedence.
+        let global_override = crate::config::Config::global()
+            .get_goose_context_limit()
+            .ok()
+            .flatten();
+        let context_limit = if global_override.is_none() {
+            self.provider_inventory
+                .known_context_limit(&provider_name, model_id)
+                .await
+        } else {
+            None
+        };
         let model_config =
             crate::model_config::model_config_from_user_config_with_session_settings(
                 &provider_name,
                 model_id,
                 Some(&current_model_config),
                 None,
-                None,
+                context_limit,
             )
             .invalid_params_err_ctx("Invalid model config")?;
         agent

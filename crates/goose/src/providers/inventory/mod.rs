@@ -274,6 +274,33 @@ struct ProviderDescriptor {
     static_models: Vec<ModelInfo>,
 }
 
+/// Fetches the recommended model list together with provider-reported
+/// context windows in a panic-isolated way. The metadata fetch runs only
+/// after the model list succeeded and is best-effort: any failure
+/// degrades to an empty map so callers keep existing behavior.
+pub(crate) async fn fetch_models_with_context_limits(
+    provider: &Arc<dyn Provider>,
+) -> Result<(Vec<String>, HashMap<String, usize>)> {
+    let models = match AssertUnwindSafe(
+        provider.fetch_recommended_models(crate::model_config::global_toolshim()),
+    )
+    .catch_unwind()
+    .await
+    {
+        Ok(Ok(models)) => Ok(models),
+        Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+        Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
+    }?;
+    let context_limits = match AssertUnwindSafe(provider.fetch_model_context_limits())
+        .catch_unwind()
+        .await
+    {
+        Ok(Ok(limits)) => limits,
+        _ => HashMap::new(),
+    };
+    Ok((models, context_limits))
+}
+
 impl ProviderInventoryService {
     pub fn new(storage: Arc<SessionStorage>) -> ProviderInventoryService {
         ProviderInventoryService {
@@ -447,7 +474,7 @@ impl ProviderInventoryService {
         model_ids: &[String],
     ) -> Result<()> {
         let descriptor = self.require_provider(provider_id).await?;
-        self.store_refreshed_models_for_identity(&descriptor.identity, model_ids)
+        self.store_refreshed_models_for_identity(&descriptor.identity, model_ids, &HashMap::new())
             .await?;
         self.clear_refreshing_many(std::slice::from_ref(&descriptor.identity));
         Ok(())
@@ -457,10 +484,40 @@ impl ProviderInventoryService {
         &self,
         identity: &InventoryIdentity,
         model_ids: &[String],
+        context_limits: &HashMap<String, usize>,
     ) -> Result<()> {
-        let models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
-        let now = Utc::now();
         let pool = self.storage.pool().await?;
+        // Snapshot last-known limits before the delete/reinsert below so a
+        // refresh whose metadata fetch transiently failed cannot erase them.
+        let previous_limits: HashMap<String, Option<usize>> = sqlx::query(
+            "SELECT model_id, context_limit FROM provider_inventory_models WHERE inventory_key = ?",
+        )
+        .bind(&identity.inventory_key)
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .filter_map(|row| {
+            let id: String = row.try_get("model_id").ok()?;
+            let limit: Option<i64> = row.try_get("context_limit").ok()?;
+            Some((id, limit.and_then(|value| usize::try_from(value).ok())))
+        })
+        .collect();
+
+        let mut models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
+        // Precedence: provider-reported window > canonical catalog entry >
+        // last-known window > none. A provider that reports its own window is
+        // describing what it will accept right now; the canonical catalog is
+        // a build-time snapshot that can over- or under-state it.
+        for model in models.iter_mut() {
+            if let Some(limit) = context_limits.get(&model.id) {
+                model.context_limit = Some(*limit);
+            } else if model.context_limit.is_none() {
+                if let Some(Some(limit)) = previous_limits.get(&model.id) {
+                    model.context_limit = Some(*limit);
+                }
+            }
+        }
+        let now = Utc::now();
         let mut tx = pool.begin().await?;
 
         sqlx::query(
@@ -621,18 +678,16 @@ impl ProviderInventoryService {
                     .find(|job| job.provider_id == provider_id);
                 if let Some(refresh_job) = refresh_job {
                     let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
-                    let fetch_result: Result<Vec<String>> =
+                    let fetch_result =
                         match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
                             .await
                         {
                             Ok(()) => {
-                                match AssertUnwindSafe(provider.fetch_recommended_models(
-                                    crate::model_config::global_toolshim(),
-                                ))
-                                .catch_unwind()
-                                .await
+                                match AssertUnwindSafe(fetch_models_with_context_limits(provider))
+                                    .catch_unwind()
+                                    .await
                                 {
-                                    Ok(Ok(models)) => Ok(models),
+                                    Ok(Ok(pair)) => Ok(pair),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
                                     Err(_) => Err(anyhow::anyhow!(
                                         "provider inventory refresh task panicked"
@@ -642,9 +697,13 @@ impl ProviderInventoryService {
                             Err(error) => Err(error),
                         };
                     match fetch_result {
-                        Ok(models) => {
+                        Ok((models, context_limits)) => {
                             if let Err(error) = self
-                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .store_refreshed_models_for_identity(
+                                    &refresh_job.identity,
+                                    &models,
+                                    &context_limits,
+                                )
                                 .await
                             {
                                 warn!(
@@ -783,6 +842,29 @@ impl ProviderInventoryService {
         .await?;
 
         Ok(())
+    }
+
+    /// Returns the persisted context window for `model_id` under the given
+    /// provider's current inventory identity, if one is known. Stored values
+    /// already encode canonical-catalog precedence, so this never conflicts
+    /// with `with_canonical_limits`.
+    pub async fn known_context_limit(&self, provider_id: &str, model_id: &str) -> Option<usize> {
+        // Azure Foundry limits are deployment-derived: its provider resolves
+        // deployment metadata only while ModelConfig.context_limit is unset,
+        // and canonical-looking aliases can target far smaller custom
+        // deployments (see AzureFoundryProvider tests). Inventory rows here
+        // are canonical-enriched display data, so they must never override
+        // that resolution.
+        if provider_id == goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+            return None;
+        }
+        let descriptor = self.require_provider(provider_id).await.ok()?;
+        let snapshot = self.read_snapshot(&descriptor.identity).await.ok()??;
+        snapshot
+            .models
+            .into_iter()
+            .find(|model| model.id == model_id)?
+            .context_limit
     }
 
     async fn read_snapshot(
@@ -1280,6 +1362,7 @@ mod tests {
             .store_refreshed_models_for_identity(
                 &plan_time_identity,
                 std::slice::from_ref(&sentinel_model),
+                &HashMap::new(),
             )
             .await
             .unwrap();
@@ -1430,5 +1513,89 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "gpt-5.6");
+    }
+
+    #[tokio::test]
+    async fn known_context_limit_serves_stored_windows_and_survives_metadata_failure() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let service = ProviderInventoryService::new(Arc::new(SessionStorage::new(
+            temp_dir.path().to_path_buf(),
+        )));
+        let descriptor = service.require_provider("openrouter").await.unwrap();
+        let models = vec!["stealth/ox-alpha".to_string(), "openai/gpt-4o".to_string()];
+        let mut limits = HashMap::new();
+        limits.insert("stealth/ox-alpha".to_string(), 1_048_576usize);
+
+        service
+            .store_refreshed_models_for_identity(&descriptor.identity, &models, &limits)
+            .await
+            .unwrap();
+
+        // Noncanonical model: the provider-reported window is served back.
+        assert_eq!(
+            service
+                .known_context_limit("openrouter", "stealth/ox-alpha")
+                .await,
+            Some(1_048_576)
+        );
+
+        // A later refresh whose metadata fetch failed (empty map) must not
+        // wipe the previously persisted window.
+        service
+            .store_refreshed_models_for_identity(&descriptor.identity, &models, &HashMap::new())
+            .await
+            .unwrap();
+        assert_eq!(
+            service
+                .known_context_limit("openrouter", "stealth/ox-alpha")
+                .await,
+            Some(1_048_576)
+        );
+    }
+
+    #[tokio::test]
+    async fn store_refreshed_models_prefers_reported_windows_over_canonical() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let service = ProviderInventoryService::new(Arc::new(SessionStorage::new(
+            temp_dir.path().to_path_buf(),
+        )));
+        let descriptor = service.require_provider("openrouter").await.unwrap();
+        let models = vec!["anthropic/claude-sonnet-4.5".to_string()];
+        let id = "anthropic/claude-sonnet-4.5";
+
+        // Canonical-only refresh: the bundled catalog fills the window.
+        service
+            .store_refreshed_models_for_identity(&descriptor.identity, &models, &HashMap::new())
+            .await
+            .unwrap();
+        let canonical_limit = service
+            .known_context_limit("openrouter", id)
+            .await
+            .expect("canonical catalog should supply a context limit");
+
+        // Provider now reports its own window -> the fresh number wins even
+        // though it differs from the catalog.
+        let mut limits = HashMap::new();
+        limits.insert(id.to_string(), canonical_limit + 7);
+        service
+            .store_refreshed_models_for_identity(&descriptor.identity, &models, &limits)
+            .await
+            .unwrap();
+        assert_eq!(
+            service.known_context_limit("openrouter", id).await,
+            Some(canonical_limit + 7)
+        );
+
+        // Metadata fetch fails afterwards: with no report and no gap to fill
+        // (canonical still enriches), the ladder legitimately returns to the
+        // canonical value rather than pinning stale reported data.
+        service
+            .store_refreshed_models_for_identity(&descriptor.identity, &models, &HashMap::new())
+            .await
+            .unwrap();
+        assert_eq!(
+            service.known_context_limit("openrouter", id).await,
+            Some(canonical_limit)
+        );
     }
 }
