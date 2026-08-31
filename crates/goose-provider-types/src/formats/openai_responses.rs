@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::documents::{
     convert_document, document_media_type_is_supported, unsupported_document_text, DocumentFormat,
-    UNSUPPORTED_MEDIA_TYPE_REASON,
+    ASSISTANT_ROLE_REASON, UNSUPPORTED_MEDIA_TYPE_REASON,
 };
 use crate::errors::ProviderError;
 use crate::formats::openai::{
@@ -485,7 +485,13 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                     }
                 }
                 MessageContentBlock::Document(document) => {
-                    if document_media_type_is_supported(&document.mime_type) {
+                    if message.role != Role::User {
+                        text_items.push(json!({
+                            "type": "output_text",
+                            "text": unsupported_document_text(document, ASSISTANT_ROLE_REASON),
+                            "annotations": []
+                        }));
+                    } else if document_media_type_is_supported(&document.mime_type) {
                         let mut converted = convert_document(document, &DocumentFormat::OpenAi);
                         let mut file = converted["file"].take();
                         file["type"] = json!("input_file");
@@ -1208,6 +1214,55 @@ where
         } else if let Some(usage) = final_usage {
             yield (None, Some(usage));
         }
+    }
+}
+
+#[cfg(test)]
+mod document_tests {
+    use super::*;
+
+    fn format(messages: &[Message]) -> Vec<Value> {
+        let mut items = Vec::new();
+        add_message_items(&mut items, messages, true);
+        items
+    }
+
+    #[test]
+    fn user_document_becomes_an_input_file_item() {
+        let items = format(&[Message::user().with_document(
+            "cGRmLWJ5dGVz",
+            "application/pdf",
+            Some("q3-report.pdf".to_string()),
+        )]);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["role"], "user");
+        assert_eq!(
+            items[0]["content"][0],
+            json!({
+                "type": "input_file",
+                "filename": "q3-report.pdf",
+                "file_data": "data:application/pdf;base64,cGRmLWJ5dGVz",
+            })
+        );
+    }
+
+    #[test]
+    fn assistant_document_becomes_an_output_text_item() {
+        let items = format(&[Message::assistant().with_document(
+            "cGRmLWJ5dGVz",
+            "application/pdf",
+            Some("q3-report.pdf".to_string()),
+        )]);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["role"], "assistant");
+        let part = &items[0]["content"][0];
+        assert_eq!(part["type"], "output_text");
+        let text = part["text"].as_str().unwrap();
+        assert!(text.contains("q3-report.pdf"), "{text}");
+        assert!(text.contains("user messages"), "{text}");
+        assert!(!text.contains("cGRmLWJ5dGVz"), "{text}");
     }
 }
 

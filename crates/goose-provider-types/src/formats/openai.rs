@@ -3,7 +3,7 @@ use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadat
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::documents::{
     convert_document, document_media_type_is_supported, unsupported_document_text, DocumentFormat,
-    UNSUPPORTED_MEDIA_TYPE_REASON,
+    ASSISTANT_ROLE_REASON, UNSUPPORTED_MEDIA_TYPE_REASON,
 };
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
@@ -431,7 +431,12 @@ pub fn format_messages_with_options(
                     }
                 }
                 MessageContentBlock::Document(document) => {
-                    if document_media_type_is_supported(&document.mime_type) {
+                    if message.role != Role::User {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": unsupported_document_text(document, ASSISTANT_ROLE_REASON)
+                        }));
+                    } else if document_media_type_is_supported(&document.mime_type) {
                         has_non_text_content = true;
                         content_array.push(convert_document(document, &DocumentFormat::OpenAi));
                     } else {
@@ -1979,6 +1984,22 @@ mod document_tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn assistant_document_becomes_a_text_part() {
+        let spec = format(&[Message::assistant().with_document(
+            "cGRmLWJ5dGVz",
+            "application/pdf",
+            Some("q3-report.pdf".to_string()),
+        )]);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        let text = spec[0]["content"].as_str().unwrap();
+        assert!(text.contains("q3-report.pdf"), "{text}");
+        assert!(text.contains("user messages"), "{text}");
+        assert!(!text.contains("cGRmLWJ5dGVz"), "{text}");
     }
 
     #[test]

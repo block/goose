@@ -57,6 +57,7 @@ pub fn unsupported_document_text(document: &DocumentContent, reason: &str) -> St
 pub const UNSUPPORTED_MEDIA_TYPE_REASON: &str =
     "only application/pdf documents can be sent to this provider";
 pub const UNSUPPORTED_PROVIDER_REASON: &str = "this provider does not accept document input";
+pub const ASSISTANT_ROLE_REASON: &str = "documents can only be sent in user messages";
 
 #[cfg(test)]
 mod tests {
