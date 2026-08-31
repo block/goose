@@ -281,12 +281,16 @@ impl GooseAcpAgent {
             self.handle_tool_permission_request(
                 cx,
                 &session_id,
-                id,
-                tool_name,
-                arguments,
-                prompt,
-                agent.clone(),
-                session.id.clone(),
+                PendingToolPermission {
+                    request_id: id,
+                    tool_name,
+                    arguments,
+                    prompt,
+                },
+                SessionAgentTarget {
+                    agent: agent.clone(),
+                    session_id: session.id.clone(),
+                },
             )?;
         }
 

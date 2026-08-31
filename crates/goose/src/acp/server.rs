@@ -64,7 +64,7 @@ use agent_client_protocol::{
 use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::stream::{self, StreamExt};
 use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
@@ -741,6 +741,19 @@ fn prompt_stop_reason(was_cancelled: bool, output_token_limit_reached: bool) -> 
     }
 }
 
+#[derive(Clone)]
+struct SessionAgentTarget {
+    agent: Arc<Agent>,
+    session_id: String,
+}
+
+struct PendingToolPermission {
+    request_id: String,
+    tool_name: String,
+    arguments: serde_json::Map<String, serde_json::Value>,
+    prompt: Option<String>,
+}
+
 fn update_output_token_limit_reached(output_token_limit_reached: &mut bool, message: &Message) {
     if message.role == Role::Assistant {
         *output_token_limit_reached = message.metadata.output_token_limit_reached;
@@ -1347,10 +1360,9 @@ impl GooseAcpAgent {
         content_item: &MessageContent,
         message: &Message,
         session_id: &SessionId,
-        agent: &Arc<Agent>,
+        target: &SessionAgentTarget,
         tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
-        agent_session_id: &str,
     ) -> Result<(), agent_client_protocol::Error> {
         let role = &message.role;
 
@@ -1367,7 +1379,7 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(tool_request, message, session_id, agent, cx)
+                self.handle_tool_request(tool_request, message, session_id, &target.agent, cx)
                     .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
@@ -1398,12 +1410,13 @@ impl GooseAcpAgent {
                     self.handle_tool_permission_request(
                         cx,
                         session_id,
-                        id.clone(),
-                        tool_name.clone(),
-                        arguments.clone(),
-                        prompt.clone(),
-                        agent.clone(),
-                        agent_session_id.to_string(),
+                        PendingToolPermission {
+                            request_id: id.clone(),
+                            tool_name: tool_name.clone(),
+                            arguments: arguments.clone(),
+                            prompt: prompt.clone(),
+                        },
+                        target.clone(),
                     )?;
                 }
                 ActionRequiredData::Elicitation {
@@ -1549,18 +1562,18 @@ impl GooseAcpAgent {
         &self,
         cx: &ConnectionTo<Client>,
         session_id: &SessionId,
-        request_id: String,
-        tool_name: String,
-        arguments: serde_json::Map<String, serde_json::Value>,
-        prompt: Option<String>,
-        agent: Arc<Agent>,
-        agent_session_id: String,
+        request: PendingToolPermission,
+        target: SessionAgentTarget,
     ) -> Result<(), agent_client_protocol::Error> {
         let cx = cx.clone();
         let session_id = session_id.clone();
 
-        let tool_call_update =
-            build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
+        let tool_call_update = build_permission_tool_call_update(
+            &request.request_id,
+            &request.tool_name,
+            request.arguments,
+            request.prompt,
+        );
 
         fn option(kind: PermissionOptionKind) -> PermissionOption {
             let id = serde_json::to_value(kind)
@@ -1579,6 +1592,7 @@ impl GooseAcpAgent {
 
         let permission_request =
             RequestPermissionRequest::new(session_id, tool_call_update, options);
+        let request_id = request.request_id;
 
         cx.send_request(permission_request)
             .on_receiving_result(move |result| async move {
@@ -1590,12 +1604,13 @@ impl GooseAcpAgent {
                     }
                 };
 
-                if let Err(error) = agent
-                    .submit_tool_confirmation(&agent_session_id, &request_id, permission)
+                if let Err(error) = target
+                    .agent
+                    .submit_tool_confirmation(&target.session_id, &request_id, permission)
                     .await
                 {
                     error!(
-                        session_id = %agent_session_id,
+                        session_id = %target.session_id,
                         request_id = %request_id,
                         %error,
                         "failed to submit tool confirmation"
@@ -2143,6 +2158,10 @@ impl GooseAcpAgent {
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
+        let target = SessionAgentTarget {
+            agent: agent.clone(),
+            session_id: session_id.clone(),
+        };
 
         while let Some(event) = stream.next().await {
             if cancel_token.is_cancelled() {
@@ -2179,10 +2198,9 @@ impl GooseAcpAgent {
                                 content_item,
                                 &message,
                                 &args.session_id,
-                                &agent,
+                                &target,
                                 &tool_requests,
                                 cx,
-                                &session_id,
                             )
                             .await
                         {

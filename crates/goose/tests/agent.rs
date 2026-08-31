@@ -605,8 +605,9 @@ mod tests {
                 .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
                 .await?;
 
+            let session_id = session.id;
             let session_config = SessionConfig {
-                id: session.id,
+                id: session_id.clone(),
                 schedule_id: None,
                 max_turns: Some(1),
                 retry_config: None,
@@ -623,13 +624,13 @@ mod tests {
                             response.content.first()
                         {
                             if let goose::conversation::message::ActionRequiredData::ToolConfirmation { id, .. } = &action.data {
-                                agent.handle_confirmation(
-                                    id.clone(),
-                                    goose::permission::PermissionConfirmation {
-                                        principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
-                                        permission: goose::permission::Permission::AllowOnce,
-                                    }
-                                ).await;
+                                agent
+                                    .submit_tool_confirmation(
+                                        &session_id,
+                                        id,
+                                        goose::permission::Permission::AllowOnce,
+                                    )
+                                    .await?;
                             }
                         }
                         responses.push(response);
