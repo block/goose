@@ -110,6 +110,8 @@ impl HuggingFaceProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        api_client = api_client.with_nonce_header(config.nonce_header.as_deref())?;
+
         Ok(Self {
             inner: OpenAiCompatibleProvider::new(
                 config.name.clone(),
@@ -560,6 +562,7 @@ mod tests {
             preserves_thinking: true,
             emit_clear_thinking: false,
             setup: None,
+            nonce_header: None,
         }
     }
 }

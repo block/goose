@@ -967,6 +967,8 @@ pub fn from_declarative_config(
         api_client = api_client.with_headers(header_map)?;
     }
 
+    api_client = api_client.with_nonce_header(config.nonce_header.as_deref())?;
+
     Ok(OpenAiProviderBuilder::new(api_client)
         .base_path(base_path)
         .custom_headers(config.headers)
@@ -1392,6 +1394,7 @@ mod tests {
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,
+            nonce_header: None,
         }
     }
 
@@ -1903,5 +1906,64 @@ mod tests {
         assert_eq!(payload["stream"], json!(true));
         assert_eq!(payload["stream_options"], json!({"include_usage": true}));
         assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn nonce_header_absent_does_not_send_header() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::any())
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let config: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "t", "engine": "openai", "display_name": "T",
+            "base_url": server.uri(), "models": [{"name": "m", "context_limit": 4096}]
+        }))
+        .unwrap();
+        let provider =
+            from_declarative_config(config, None, crate::declarative::EnvKeyResolver::new())
+                .unwrap()
+                .build();
+        let _ = provider
+            .api_client
+            .request("v1/models")
+            .response_get()
+            .await;
+        let reqs = server.received_requests().await.unwrap();
+        assert!(reqs[0].headers.get("x-test-nonce").is_none());
+    }
+
+    #[tokio::test]
+    async fn nonce_header_present_generates_unique_values_per_request() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::any())
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let config: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "t", "engine": "openai", "display_name": "T",
+            "base_url": server.uri(),
+            "models": [{"name": "m", "context_limit": 4096}],
+            "nonce_header": "x-test-nonce"
+        }))
+        .unwrap();
+        let provider =
+            from_declarative_config(config, None, crate::declarative::EnvKeyResolver::new())
+                .unwrap()
+                .build();
+        let _ = provider
+            .api_client
+            .request("v1/models")
+            .response_get()
+            .await;
+        let _ = provider
+            .api_client
+            .request("v1/models")
+            .response_get()
+            .await;
+        let reqs = server.received_requests().await.unwrap();
+        let v1 = reqs[0].headers["x-test-nonce"].to_str().unwrap();
+        let v2 = reqs[1].headers["x-test-nonce"].to_str().unwrap();
+        assert_ne!(v1, v2);
     }
 }

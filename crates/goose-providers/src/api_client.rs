@@ -22,6 +22,12 @@ pub const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 30;
 pub type RequestBuilderDecorator =
     Arc<dyn Fn(reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> + Send + Sync>;
 
+/// Header names a nonce cannot use because a later request stage overwrites them:
+/// `session_id_request_builder` rewrites the session header, and `send_request`
+/// applies authentication after every decorator and after the nonce header.
+const RESERVED_NONCE_HEADER_NAMES: [&str; 3] =
+    ["agent-session-id", "authorization", "proxy-authorization"];
+
 pub struct ApiClient {
     client: Client,
     host: String,
@@ -30,7 +36,8 @@ pub struct ApiClient {
     default_query: Vec<(String, String)>,
     timeout: Duration,
     tls_config: Option<TlsConfig>,
-    request_builder: Option<RequestBuilderDecorator>,
+    request_builder: Vec<RequestBuilderDecorator>,
+    nonce_header: Option<HeaderName>,
     transport_policy: TransportPolicy,
 }
 
@@ -292,7 +299,8 @@ impl ApiClient {
             default_query: Vec::new(),
             timeout,
             tls_config,
-            request_builder: None,
+            request_builder: Vec::new(),
+            nonce_header: None,
             transport_policy: TransportPolicy::Default,
         })
     }
@@ -424,9 +432,58 @@ impl ApiClient {
         Ok(self)
     }
 
+    /// Append a request decorator. Decorators compose and run in installation
+    /// order; this does not replace previously installed ones.
     pub fn with_request_builder(mut self, request_builder: RequestBuilderDecorator) -> Self {
-        self.request_builder = Some(request_builder);
+        self.request_builder.push(request_builder);
         self
+    }
+
+    /// Configure a header that carries a fresh UUIDv4 on every request. `None` is a no-op,
+    /// so callers can pass a declarative config's optional `nonce_header` straight through.
+    ///
+    /// The header name is parsed and validated once, here, rather than on every request: a
+    /// typo should fail at config load with a name you can act on, not turn every subsequent
+    /// request into an opaque header-parse error.
+    ///
+    /// Validation covers two kinds of collision, both because `send_request` applies auth
+    /// *after* the nonce header:
+    /// - a fixed set of names owned by other request stages (`RESERVED_NONCE_HEADER_NAMES`),
+    ///   independent of how this client is configured;
+    /// - this client's own `AuthMethod::ApiKey` header name, checked dynamically against
+    ///   `self.auth` rather than a hardcoded list, since it varies per provider (Anthropic's
+    ///   `x-api-key`, Azure's `api-key`, etc). `AuthMethod::BearerToken` always uses
+    ///   `Authorization`, already in the fixed set. `AuthMethod::Custom` resolves its header
+    ///   name asynchronously at request time and can't be checked here.
+    pub fn with_nonce_header(mut self, header_name: Option<&str>) -> Result<Self> {
+        let Some(header_name) = header_name else {
+            return Ok(self);
+        };
+        let name = HeaderName::from_bytes(header_name.as_bytes())
+            .map_err(|e| anyhow::anyhow!("invalid nonce_header {header_name:?}: {e}"))?;
+        if RESERVED_NONCE_HEADER_NAMES.contains(&name.as_str()) {
+            return Err(anyhow::anyhow!(
+                "nonce_header {header_name:?} is reserved: it is overwritten by a later request \
+                 stage, so the nonce would not be sent. Choose a different header name."
+            ));
+        }
+        if let AuthMethod::ApiKey {
+            header_name: auth_header_name,
+            ..
+        } = &self.auth
+        {
+            if matches!(HeaderName::from_bytes(auth_header_name.as_bytes()), Ok(auth_name) if auth_name == name)
+            {
+                return Err(anyhow::anyhow!(
+                    "nonce_header {header_name:?} collides with this provider's configured \
+                     API-key auth header ({auth_header_name:?}): authentication is applied \
+                     after the nonce header, so the nonce would be silently overwritten and \
+                     never sent. Choose a different header name."
+                ));
+            }
+        }
+        self.nonce_header = Some(name);
+        Ok(self)
     }
 
     pub fn with_https_only(mut self) -> Result<Self> {
@@ -580,8 +637,18 @@ impl<'a> ApiRequestBuilder<'a> {
             request = request.timeout(self.client.timeout);
         }
 
-        if let Some(decorator) = &self.client.request_builder {
+        for decorator in &self.client.request_builder {
             request = decorator(request)?;
+        }
+
+        if let Some(name) = &self.client.nonce_header {
+            let (client, req) = request.build_split();
+            let mut req = req?;
+            req.headers_mut().insert(
+                name.clone(),
+                HeaderValue::from_str(&uuid::Uuid::new_v4().to_string())?,
+            );
+            request = reqwest::RequestBuilder::from_parts(client, req);
         }
 
         request = match &self.client.auth {
@@ -1075,5 +1142,62 @@ mod tests {
                 .and_then(|value| value.to_str().ok());
             assert_eq!(actual, Some("test-session_id-456"));
         });
+    }
+
+    #[test]
+    fn with_nonce_header_rejects_collision_with_configured_api_key_auth_header() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "x-api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        let err = client
+            .with_nonce_header(Some("x-api-key"))
+            .expect_err("nonce_header matching the configured auth header must be rejected");
+        assert!(
+            err.to_string().contains("collides"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn with_nonce_header_rejects_collision_case_insensitively() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        let err = client
+            .with_nonce_header(Some("Api-Key"))
+            .expect_err("header names must collide case-insensitively");
+        assert!(
+            err.to_string().contains("collides"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn with_nonce_header_allows_non_colliding_name_alongside_api_key_auth() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::ApiKey {
+                header_name: "x-api-key".to_string(),
+                key: "secret".to_string(),
+            },
+            None,
+        )
+        .unwrap();
+
+        assert!(client.with_nonce_header(Some("x-request-nonce")).is_ok());
     }
 }

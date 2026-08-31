@@ -339,6 +339,8 @@ pub fn from_declarative_config(
         api_client = api_client.with_headers(header_map)?;
     }
 
+    api_client = api_client.with_nonce_header(config.nonce_header.as_deref())?;
+
     let supports_streaming = config.supports_streaming.unwrap_or(true);
 
     if !supports_streaming {
@@ -589,6 +591,7 @@ mod tests {
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,
+            nonce_header: None,
         }
     }
 

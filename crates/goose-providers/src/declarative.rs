@@ -158,6 +158,24 @@ pub struct DeclarativeProviderConfig {
     pub emit_clear_thinking: bool,
     #[serde(default)]
     pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
+    /// Optional header name carrying a fresh per-request value (UUIDv4).
+    /// Absent means no nonce is attached and no code path is taken.
+    ///
+    /// Applied by [`crate::api_client::ApiClient::with_nonce_header`], which every
+    /// declarative engine's `from_declarative_config` (and constructors that build
+    /// their own `ApiClient`, such as `HuggingFaceProvider::from_custom_config`)
+    /// wires up from this field. The nonce is generated in `ApiClient::send_request`,
+    /// the single seam every provider request passes through, so no engine needs its
+    /// own nonce-generation logic.
+    ///
+    /// Names overwritten by a later request stage are rejected at config load: a fixed set
+    /// (`agent-session-id`, `authorization`, `proxy-authorization`) plus, checked dynamically
+    /// against this provider's actual configured auth header rather than a hardcoded list,
+    /// any name matching an `AuthMethod::ApiKey` header (e.g. Anthropic's `x-api-key`, Azure's
+    /// `api-key`) — authentication is applied after the nonce header, so a collision would
+    /// silently drop the nonce.
+    #[serde(default)]
+    pub nonce_header: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
