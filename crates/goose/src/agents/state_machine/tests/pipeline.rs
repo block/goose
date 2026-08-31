@@ -465,6 +465,13 @@ impl TestPipeline {
     }
 
     pub(super) async fn seed<const N: usize>(&self, messages: [Message; N]) -> Result<()> {
+        self.seed_messages(messages).await
+    }
+
+    pub(super) async fn seed_messages(
+        &self,
+        messages: impl IntoIterator<Item = Message>,
+    ) -> Result<()> {
         for message in messages {
             self.session_manager
                 .add_message(&self.session_id, &message)

@@ -9,7 +9,7 @@ use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
 use crate::context_mgmt::{compute_tool_call_cutoff, TOOLCALL_SUMMARIZATION_BATCH_SIZE};
-use crate::conversation::message::{Message, MessageErrorKind};
+use crate::conversation::message::{Message, MessageErrorKind, MessageMetadata, MessageUsage};
 use crate::conversation::Conversation;
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
@@ -447,6 +447,99 @@ async fn parallel_and_failed_tool_pairs_are_compacted_as_complete_messages() -> 
             .map(Message::is_agent_visible);
         assert_eq!(paired_visibility, Some(message.is_agent_visible()));
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // Tool-pair summarization hides ten old pairs and appends their
+    // summaries behind the provider's latest response. The session baseline
+    // still counts the hidden pairs, so adding the summaries to it would
+    // cross the 19.2k threshold and compact a context that just shrank far
+    // below it. The recount must recognize the replacement and stand on the
+    // visible conversation instead. gpt-4.1's ~1M canonical limit keeps the
+    // API's rejection wall far above every request.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+
+    let mut history = vec![Message::user().with_text("run the tools")];
+    let pairs = compute_tool_call_cutoff(pipeline.context_limit(), pipeline::COMPACTION_THRESHOLD)
+        + TOOLCALL_SUMMARIZATION_BATCH_SIZE
+        + 1;
+    for i in 0..pairs as u32 {
+        history.push(
+            Message::assistant()
+                .with_id(format!("req-{i}"))
+                .with_tool_request(
+                    format!("call-{i}"),
+                    Ok(CallToolRequestParams::new(ADD).with_arguments(serde_json::Map::new())),
+                ),
+        );
+        history.push(Message::user().with_tool_response(
+            format!("call-{i}"),
+            Ok(CallToolResult::success(vec![ContentBlock::text("1")])),
+        ));
+    }
+    history.push(
+        Message::assistant()
+            .with_id("final")
+            .with_text("all tools ran")
+            .with_metadata(MessageMetadata {
+                usage: Some(Box::new(MessageUsage::default())),
+                ..MessageMetadata::default()
+            }),
+    );
+    pipeline.seed_messages(history).await?;
+    pipeline.set_total_tokens(15_000).await;
+
+    // Ten summaries of ~1,250 tokens each: far over the threshold when
+    // charged to the baseline on top, well under it as part of the visible
+    // conversation.
+    api.on_system(SUMMARIZE_TOOL_PAIR).reply("x ".repeat(1_250));
+    api.on(SUMMARIZE_HISTORY).reply("history summarized");
+    api.on("Your context was compacted")
+        .reply("compacted anyway");
+    api.on("carry on").reply("carried on");
+
+    let run = pipeline.run(["carry on"]).await?;
+
+    run.assert_message(-1, Agent, "carried on");
+    assert_eq!(
+        run.history_replacements(),
+        0,
+        "a shrunk context must not be compacted on its stale baseline"
+    );
+    assert!(
+        !api.calls()
+            .into_iter()
+            .any(|call| call.input_contains(SUMMARIZE_HISTORY)),
+        "no summarization may run at the replacement boundary"
+    );
+    let summaries = run
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|message| message.is_agent_visible() && !message.is_user_visible())
+        .filter(|message| message.as_concat_text().contains("x x"))
+        .count();
+    assert_eq!(summaries, TOOLCALL_SUMMARIZATION_BATCH_SIZE);
+    let visible_tool_calls = run
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|message| message.is_agent_visible() && message.is_tool_call())
+        .count();
+    assert_eq!(
+        visible_tool_calls,
+        pairs - TOOLCALL_SUMMARIZATION_BATCH_SIZE,
+        "the replaced pairs must be hidden, the rest kept"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
 
     Ok(())
 }

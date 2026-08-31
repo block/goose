@@ -111,7 +111,7 @@ impl CompactionOperation {
                 // unsent growth is added to it and the conversation count is
                 // kept as a floor.
                 let counts = crate::context_mgmt::recount_context_tokens(conversation).await?;
-                Ok(tokens.saturating_add(counts.unsent).max(counts.total))
+                Ok(counts.estimate(tokens.max(0) as usize) as i32)
             }
             None => crate::context_mgmt::count_context_tokens(conversation).await,
         }
