@@ -456,10 +456,10 @@ async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Resul
     let (pipeline, api) = test_pipeline().await?;
     // Tool-pair summarization hides ten old pairs and appends their
     // summaries behind the provider's latest response. The session baseline
-    // still counts the hidden pairs, so adding the summaries to it would
-    // cross the 19.2k threshold and compact a context that just shrank far
-    // below it. The recount must recognize the replacement and stand on the
-    // visible conversation instead. gpt-4.1's ~1M canonical limit keeps the
+    // still counts the hidden pairs, so adding the summaries to it without
+    // subtracting the pairs would cross the 19.2k threshold and compact a
+    // context that just shrank far below it. The recount must subtract the
+    // pairs the summaries hid. gpt-4.1's ~1M canonical limit keeps the
     // API's rejection wall far above every request.
     let pipeline = pipeline
         .with_model_config(
@@ -472,6 +472,14 @@ async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Resul
         + TOOLCALL_SUMMARIZATION_BATCH_SIZE
         + 1;
     for i in 0..pairs as u32 {
+        // The ten summarized pairs are large and their summaries small, so
+        // the replacement genuinely shrinks the context: ~1.2k tokens of
+        // response hidden per pair against ~500 added back.
+        let result = if i < TOOLCALL_SUMMARIZATION_BATCH_SIZE as u32 {
+            "x ".repeat(1_200)
+        } else {
+            "1".to_string()
+        };
         history.push(
             Message::assistant()
                 .with_id(format!("req-{i}"))
@@ -482,7 +490,7 @@ async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Resul
         );
         history.push(Message::user().with_tool_response(
             format!("call-{i}"),
-            Ok(CallToolResult::success(vec![ContentBlock::text("1")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text(result)])),
         ));
     }
     history.push(
@@ -495,12 +503,13 @@ async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Resul
             }),
     );
     pipeline.seed_messages(history).await?;
-    pipeline.set_total_tokens(15_000).await;
+    pipeline.set_total_tokens(18_000).await;
 
-    // Ten summaries of ~1,250 tokens each: far over the threshold when
-    // charged to the baseline on top, well under it as part of the visible
-    // conversation.
-    api.on_system(SUMMARIZE_TOOL_PAIR).reply("x ".repeat(1_250));
+    // Charging the ten ~500-token summaries to the 18k baseline on top of
+    // the pairs it still counts would reach 23k, over the 19.2k threshold;
+    // subtracting the ~12k of hidden pairs leaves the estimate near 10.7k,
+    // under it.
+    api.on_system(SUMMARIZE_TOOL_PAIR).reply("x ".repeat(500));
     api.on(SUMMARIZE_HISTORY).reply("history summarized");
     api.on("Your context was compacted")
         .reply("compacted anyway");
@@ -538,6 +547,88 @@ async fn a_tool_pair_replacement_is_not_charged_to_the_stale_baseline() -> Resul
         visible_tool_calls,
         pairs - TOOLCALL_SUMMARIZATION_BATCH_SIZE,
         "the replaced pairs must be hidden, the rest kept"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_tool_pair_replacement_preserves_the_baseline_overhead() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The companion to the test above, with the sizes flipped: small pairs
+    // replaced by large summaries, so the replacement grows the visible
+    // conversation. The baseline (15k against a ~1.5k conversation) stands
+    // for a request whose bulk was system prompt and tool schemas —
+    // overhead the recount cannot see, counting messages alone. Standing
+    // on the visible conversation (13k, under the 19.2k threshold) would
+    // skip the compaction the real next request needs; subtracting the
+    // hidden pairs and keeping the baseline crosses it. gpt-4.1's ~1M
+    // canonical limit keeps the API's rejection wall far above every
+    // request.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(24_000)),
+        )
+        .await;
+
+    let mut history = vec![Message::user().with_text("run the tools")];
+    let pairs = compute_tool_call_cutoff(pipeline.context_limit(), pipeline::COMPACTION_THRESHOLD)
+        + TOOLCALL_SUMMARIZATION_BATCH_SIZE
+        + 1;
+    for i in 0..pairs as u32 {
+        history.push(
+            Message::assistant()
+                .with_id(format!("req-{i}"))
+                .with_tool_request(
+                    format!("call-{i}"),
+                    Ok(CallToolRequestParams::new(ADD).with_arguments(serde_json::Map::new())),
+                ),
+        );
+        history.push(Message::user().with_tool_response(
+            format!("call-{i}"),
+            Ok(CallToolResult::success(vec![ContentBlock::text("1")])),
+        ));
+    }
+    history.push(
+        Message::assistant()
+            .with_id("final")
+            .with_text("all tools ran")
+            .with_metadata(MessageMetadata {
+                usage: Some(Box::new(MessageUsage::default())),
+                ..MessageMetadata::default()
+            }),
+    );
+    pipeline.seed_messages(history).await?;
+    pipeline.set_total_tokens(15_000).await;
+
+    // Ten summaries of ~1,250 tokens each replace ten ~40-token pairs: the
+    // baseline minus the pairs plus the summaries reaches ~27k, over the
+    // 19.2k threshold, while the visible conversation alone stays at ~13k.
+    // The "carry on" rule covers the no-compaction regression path, where
+    // the run ends on the plain kickoff inference instead.
+    api.on("carry on").reply("carried on");
+    api.on_system(SUMMARIZE_TOOL_PAIR).reply("x ".repeat(1_250));
+    api.on(SUMMARIZE_HISTORY).reply("history summarized");
+    api.on("Your context was compacted")
+        .reply("compacted anyway");
+
+    let run = pipeline.run(["carry on"]).await?;
+
+    run.assert_message(-1, Agent, "compacted anyway");
+    run.assert_emitted("Performing auto-compaction");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "the baseline's overhead must survive the replacement"
+    );
+    assert_eq!(
+        api.calls()
+            .into_iter()
+            .filter(|call| call.input_contains(SUMMARIZE_HISTORY))
+            .count(),
+        1,
+        "the threshold crossing must trigger exactly one compaction"
     );
     assert_eq!(api.context_limit_rejections(), 0);
 

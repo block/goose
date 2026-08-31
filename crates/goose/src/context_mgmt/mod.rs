@@ -250,45 +250,79 @@ pub(crate) struct ContextTokenCounts {
     /// tool results, steers, and user messages appended after the
     /// provider's latest response.
     pub(crate) unsent: i32,
-    /// The unsent suffix contains tool-pair replacement summaries, so the
-    /// history changed twice since the provider's latest response: the pairs
-    /// were hidden and the summaries appended. The session baseline still
-    /// counts the hidden pairs, so adding the suffix to it would
-    /// double-count.
-    pub(crate) history_replaced: bool,
+    /// Tokens of the tool pairs hidden behind the replacement summaries in
+    /// the unsent suffix. The session baseline still counts those pairs, so
+    /// the estimate subtracts them rather than dropping the baseline —
+    /// which would also drop the system prompt and tool schemas that the
+    /// recount, counting messages alone, cannot see.
+    pub(crate) replaced_pairs: i32,
 }
 
 impl ContextTokenCounts {
     /// Estimate the next request's token count from the session baseline —
     /// the size of the last request, system prompt and tool schemas
-    /// included — plus the growth no request has carried yet, floored by
-    /// the recounted conversation.
+    /// included — plus the growth no request has carried yet, minus the
+    /// pairs that growth's replacement summaries hid, floored by the
+    /// recounted conversation.
     pub(crate) fn estimate(&self, baseline: usize) -> usize {
-        if self.history_replaced {
-            self.total as usize
-        } else {
-            baseline
-                .saturating_add(self.unsent as usize)
-                .max(self.total as usize)
-        }
+        baseline
+            .saturating_sub(self.replaced_pairs as usize)
+            .saturating_add(self.unsent as usize)
+            .max(self.total as usize)
     }
 }
 
-/// Operation note marking a message as a tool-pair replacement summary
-/// (see `summarize_tool_call`). Persisted, so a rebuilt pipeline and a
-/// reloaded session can still recognize it.
+/// Operation notes marking a message as a tool-pair replacement summary
+/// (see `summarize_tool_call`) and recording the tokens of the pair it
+/// hides. Persisted, so a rebuilt pipeline and a reloaded session can
+/// still recognize them.
 const TOOL_PAIR_SUMMARY_NOTE: (&str, &str) = ("tool_pair_compaction", "summary");
+const TOOL_PAIR_REPLACED_TOKENS_NOTE: (&str, &str) = ("tool_pair_compaction", "replaced_tokens");
 
-fn mark_tool_pair_summary(message: &mut Message) {
+fn mark_tool_pair_summary(message: &mut Message, replaced_tokens: usize) {
     let (operation, key) = TOOL_PAIR_SUMMARY_NOTE;
     message
         .metadata
         .set_operation_note(operation, key, serde_json::Value::Bool(true));
+    let (operation, key) = TOOL_PAIR_REPLACED_TOKENS_NOTE;
+    message.metadata.set_operation_note(
+        operation,
+        key,
+        serde_json::Value::from(replaced_tokens as u64),
+    );
 }
 
 fn is_tool_pair_summary(message: &Message) -> bool {
     let (operation, key) = TOOL_PAIR_SUMMARY_NOTE;
     message.metadata.operation_note(operation, key).is_some()
+}
+
+/// Tokens of the tool pair a replacement summary hides, recorded when the
+/// pair was summarized. Zero for a summary whose count is missing.
+fn tool_pair_replaced_tokens(message: &Message) -> usize {
+    if !is_tool_pair_summary(message) {
+        return 0;
+    }
+    let (operation, key) = TOOL_PAIR_REPLACED_TOKENS_NOTE;
+    message
+        .metadata
+        .operation_note(operation, key)
+        .and_then(serde_json::Value::as_u64)
+        .map(|tokens| tokens as usize)
+        .unwrap_or(0)
+}
+
+/// Tokens of the messages under the same per-message counter the recount
+/// uses, so the count a replacement summary records matches what the
+/// recount would have counted for the pair it hides.
+async fn count_replacement_tokens(messages: &[Message]) -> Result<usize> {
+    let counter = create_token_counter()
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
+    Ok(messages
+        .iter()
+        .map(|message| counter.count_chat_tokens("", std::slice::from_ref(message), &[]))
+        .sum())
 }
 
 /// Count the agent-visible conversation and its unsent suffix in one pass.
@@ -325,7 +359,7 @@ pub(crate) async fn recount_context_tokens(
         .unwrap_or(0);
     let mut total: usize = 0;
     let mut unsent: usize = 0;
-    let mut history_replaced = false;
+    let mut replaced_pairs: usize = 0;
     for (index, message) in messages.iter().enumerate() {
         let tokens = if message.is_agent_visible() {
             counter.count_chat_tokens("", std::slice::from_ref(message), &[])
@@ -335,13 +369,13 @@ pub(crate) async fn recount_context_tokens(
         total += tokens;
         if index >= unsent_start && message.role != Role::Assistant {
             unsent += tokens;
-            history_replaced |= is_tool_pair_summary(message);
+            replaced_pairs += tool_pair_replaced_tokens(message);
         }
     }
     Ok(ContextTokenCounts {
         total: total.try_into()?,
         unsent: unsent.try_into()?,
-        history_replaced,
+        replaced_pairs: replaced_pairs.try_into()?,
     })
 }
 
@@ -351,10 +385,11 @@ pub(crate) async fn recount_context_tokens(
 /// of trusting the session metadata alone: the metadata covers the preceding
 /// request (its system prompt and tool schemas included) but cannot see what
 /// landed after it, so the unsent growth — what was appended after the
-/// provider's latest response — is added to it and the whole conversation
-/// count is kept as a floor. Pass it at points where messages may have been
-/// appended since the last provider call — turn boundaries and mid-turn,
-/// after tool responses land.
+/// provider's latest response — is added to it, the tool pairs hidden
+/// behind any replacement summaries in that growth are subtracted, and the
+/// whole conversation count is kept as a floor. Pass it at points where
+/// messages may have been appended since the last provider call — turn
+/// boundaries and mid-turn, after tool responses land.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
@@ -591,6 +626,7 @@ pub async fn summarize_tool_call(
     tool_id: &str,
 ) -> Result<Message> {
     let matching_messages = agent_visible_tool_pair(conversation, tool_id)?;
+    let replaced_tokens = count_replacement_tokens(&matching_messages).await?;
 
     let formatted = matching_messages
         .iter()
@@ -627,7 +663,7 @@ pub async fn summarize_tool_call(
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
     response.metadata = MessageMetadata::agent_only();
-    mark_tool_pair_summary(&mut response);
+    mark_tool_pair_summary(&mut response, replaced_tokens);
 
     Ok(response.with_generated_id())
 }
@@ -1046,15 +1082,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_replacement_summary_in_the_suffix_stales_the_session_baseline() {
+    async fn a_replacement_summary_subtracts_its_pair_from_the_baseline() {
         // A tool-pair summary lands after the provider's latest response,
         // and the pair it stands for was hidden: the session baseline still
-        // counts the pair, so adding the summary to it would double-count
-        // and compact a context that just shrank. The estimate must fall
-        // back to the recounted conversation.
+        // counts the pair, so the estimate subtracts the recorded pair
+        // tokens and adds the summary with the rest of the unsent growth —
+        // keeping the baseline's system prompt and tool schemas, which the
+        // recount cannot see, rather than dropping them or charging the
+        // hidden pair a second time.
         let mut summary = Message::user().with_text("a call to the shell was made");
         summary.metadata = MessageMetadata::agent_only();
-        mark_tool_pair_summary(&mut summary);
+        mark_tool_pair_summary(&mut summary, 900);
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("x ".repeat(200)),
             Message::assistant()
@@ -1069,11 +1107,11 @@ mod tests {
 
         let counts = recount_context_tokens(&conversation).await.unwrap();
 
-        assert!(counts.history_replaced);
+        assert_eq!(counts.replaced_pairs, 900);
         assert_eq!(
             counts.estimate(1_000_000),
-            counts.total as usize,
-            "a replaced history must not be charged to the stale baseline"
+            1_000_000 - 900 + counts.unsent as usize,
+            "the hidden pair is subtracted, the summary added, the baseline kept"
         );
 
         let unmarked = Conversation::new_unvalidated(vec![
@@ -1083,11 +1121,50 @@ mod tests {
             Message::user().with_text("a call to the shell was made"),
         ]);
         let plain = recount_context_tokens(&unmarked).await.unwrap();
-        assert!(!plain.history_replaced);
+        assert_eq!(plain.replaced_pairs, 0);
         assert_eq!(
             plain.estimate(1_000_000),
             1_000_000 + plain.unsent as usize,
             "an ordinary suffix keeps the baseline-plus-growth estimate"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_tool_pair_summary_records_the_tokens_of_the_pair_it_hides() {
+        // The recount subtracts the recorded count from the session
+        // baseline, so it must match what the recount would have counted
+        // for the pair — the same counter, the same per-message pass.
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let request = Message::assistant()
+            .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file")));
+        let response = Message::user().with_tool_response(
+            "tool_0",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                ContentBlock::text("x ".repeat(100)),
+            ])),
+        );
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("start"),
+            request.clone(),
+            response.clone(),
+        ]);
+
+        let summary = summarize_tool_call(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            "tool_0",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            tool_pair_replaced_tokens(&summary),
+            count_replacement_tokens(&[request, response])
+                .await
+                .unwrap(),
+            "the recorded count must match the recount's measure of the pair"
         );
     }
 

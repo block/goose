@@ -139,8 +139,8 @@ impl CompactionOperation {
             Some(tokens) => {
                 // The metadata covers the preceding request, system prompt and
                 // tool schemas included, but not what landed after it; the
-                // unsent growth is added to it and the conversation count is
-                // kept as a floor.
+                // unsent growth is added to it, replaced tool pairs are
+                // subtracted, and the conversation count is kept as a floor.
                 let counts = crate::context_mgmt::recount_context_tokens(conversation).await?;
                 Ok(counts.estimate(tokens.max(0) as usize) as i32)
             }
