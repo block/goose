@@ -536,8 +536,6 @@ export const zListProvidersRequest_unstable = z.object({
     providerIds: z.array(z.string()).optional().default([])
 });
 
-export const zProviderSetupCategoryDto = z.enum(['agent', 'model']);
-
 export const zProviderConfigKey = z.object({
     name: z.string(),
     required: z.boolean(),
@@ -571,7 +569,6 @@ export const zProviderInventoryEntryDto = z.object({
     configured: z.boolean(),
     available: z.boolean(),
     providerType: z.string(),
-    category: zProviderSetupCategoryDto,
     acp: z.boolean().optional().default(false),
     visibleInSetup: z.boolean(),
     deprecated: z.boolean(),
@@ -584,8 +581,7 @@ export const zProviderInventoryEntryDto = z.object({
     lastUpdatedAt: z.string().nullish(),
     lastRefreshAttemptAt: z.string().nullish(),
     lastRefreshError: z.string().nullish(),
-    stale: z.boolean(),
-    modelSelectionHint: z.string().nullish()
+    stale: z.boolean()
 });
 
 /**
@@ -632,6 +628,8 @@ export const zProviderCatalogListResponse_unstable = z.object({
  * List provider setup catalog entries
  */
 export const zProviderSetupCatalogListRequest_unstable = z.record(z.string(), z.unknown());
+
+export const zProviderSetupCategoryDto = z.enum(['agent', 'model']);
 
 export const zProviderSetupMethodDto = z.enum([
     'none',

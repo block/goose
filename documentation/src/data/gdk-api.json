@@ -410,6 +410,18 @@
                   "type": "String",
                   "default": null,
                   "docs": ""
+                },
+                {
+                  "name": "provider_metadata_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "tool_error_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
                 }
               ]
             },
@@ -675,6 +687,12 @@
                   "type": "Option<i32>",
                   "default": null,
                   "docs": ""
+                },
+                {
+                  "name": "provider_metadata_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
                 }
               ]
             },
@@ -805,6 +823,12 @@
               "type": "String",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "content",
+              "type": "Vec<MessageContent>",
+              "default": null,
+              "docs": "The assistant turn as binding types, ready to append to history and replay on the next request without reparsing `message_json`."
             },
             {
               "name": "usage",

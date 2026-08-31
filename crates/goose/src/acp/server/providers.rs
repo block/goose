@@ -47,7 +47,6 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         configured: entry.configured,
         available: entry.available,
         provider_type: format!("{:?}", entry.provider_type),
-        category: provider_setup_category_to_dto(entry.category),
         acp: entry.acp,
         visible_in_setup: entry.visible_in_setup,
         deprecated: entry.deprecated,
@@ -76,7 +75,6 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         last_refresh_attempt_at: entry.last_refresh_attempt_at.map(|t| t.to_rfc3339()),
         last_refresh_error: entry.last_refresh_error,
         stale,
-        model_selection_hint: entry.model_selection_hint,
     }
 }
 

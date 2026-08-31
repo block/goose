@@ -45,6 +45,7 @@ macro_rules! string_enum {
 }
 
 string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabled => "disabled" });
+string_enum!(CacheTtl { FiveMinutes => "5m", OneHour => "1h" });
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AnthropicFormatOptions {
@@ -54,6 +55,7 @@ pub struct AnthropicFormatOptions {
     pub emit_clear_thinking: bool,
     pub current_model: Option<String>,
     pub prompt_cache_disabled: bool,
+    pub cache_ttl: Option<CacheTtl>,
 }
 
 impl AnthropicFormatOptions {
@@ -70,6 +72,10 @@ impl AnthropicFormatOptions {
         let emit_clear_thinking = model_config
             .request_param::<bool>("emit_clear_thinking")
             .unwrap_or(self.emit_clear_thinking);
+        let cache_ttl = model_config
+            .cache_ttl()
+            .and_then(|ttl| ttl.parse::<CacheTtl>().ok())
+            .or(self.cache_ttl);
 
         Self {
             preserve_unsigned_thinking,
@@ -80,6 +86,19 @@ impl AnthropicFormatOptions {
                 .current_model
                 .or_else(|| Some(model_config.model_name.clone())),
             prompt_cache_disabled: model_config.prompt_cache_disabled(),
+            cache_ttl,
+        }
+    }
+
+    /// `{"type":"ephemeral"}` selects Anthropic's default 5m TTL; the `ttl`
+    /// field is only sent for an explicit 1h opt-in, since a 1h write is
+    /// billed at 2x input instead of 1.25x.
+    fn cache_control(&self) -> Value {
+        match self.cache_ttl {
+            Some(CacheTtl::OneHour) => {
+                json!({ TYPE_FIELD: "ephemeral", "ttl": "1h" })
+            }
+            _ => json!({ TYPE_FIELD: "ephemeral" }),
         }
     }
 }
@@ -446,10 +465,7 @@ fn format_messages_with_options(
             .and_then(|content_array| content_array.last_mut())
             .and_then(|b| b.as_object_mut())
         {
-            block.insert(
-                CACHE_CONTROL_FIELD.to_string(),
-                json!({ TYPE_FIELD: "ephemeral" }),
-            );
+            block.insert(CACHE_CONTROL_FIELD.to_string(), options.cache_control());
             user_count += 1;
             if user_count >= 2 {
                 break;
@@ -491,10 +507,10 @@ pub fn format_tools(tools: &[Tool], options: &AnthropicFormatOptions) -> Vec<Val
     // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
     // will be cached as a single prefix.
     if let Some(last_tool) = tool_specs.last_mut() {
-        last_tool.as_object_mut().unwrap().insert(
-            CACHE_CONTROL_FIELD.to_string(),
-            json!({ TYPE_FIELD: "ephemeral" }),
-        );
+        last_tool
+            .as_object_mut()
+            .unwrap()
+            .insert(CACHE_CONTROL_FIELD.to_string(), options.cache_control());
     }
 
     tool_specs
@@ -511,7 +527,7 @@ pub fn format_system(system: &str, options: &AnthropicFormatOptions) -> Value {
     json!([{
         TYPE_FIELD: TEXT_TYPE,
         TEXT_TYPE: system,
-        CACHE_CONTROL_FIELD: { TYPE_FIELD: "ephemeral" }
+        CACHE_CONTROL_FIELD: options.cache_control()
     }])
 }
 
@@ -2891,6 +2907,115 @@ mod tests {
                 &config,
                 "You are a summarizer.",
                 &[Message::user().with_text("Summarize the conversation above.")],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            assert!(!req.to_string().contains(CACHE_CONTROL_FIELD));
+        }
+
+        fn cache_control_values(req: &Value) -> Vec<Value> {
+            let mut found = Vec::new();
+            let tools = req["tools"].as_array().unwrap();
+            let system = req["system"].as_array().unwrap();
+            let messages = req["messages"].as_array().unwrap();
+            for block in tools
+                .iter()
+                .chain(system.iter())
+                .chain(messages.iter().flat_map(|m| {
+                    m["content"]
+                        .as_array()
+                        .map(|c| c.iter())
+                        .unwrap_or_default()
+                }))
+            {
+                if let Some(cc) = block.get(CACHE_CONTROL_FIELD) {
+                    found.push(cc.clone());
+                }
+            }
+            found
+        }
+
+        #[test]
+        fn default_breakpoints_omit_ttl() {
+            let req = create_request_with_default_options(
+                &cfg("claude-sonnet-4-5"),
+                "You are a careful coding assistant.",
+                &[Message::user().with_text("Hello")],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            let values = cache_control_values(&req);
+            assert_eq!(values.len(), 3);
+            for cc in values {
+                assert_eq!(cc, json!({ "type": "ephemeral" }));
+            }
+        }
+
+        #[test]
+        fn one_hour_ttl_stamps_every_breakpoint() {
+            let config = cfg("claude-sonnet-4-5").with_cache_ttl("1h");
+            let req = create_request_with_default_options(
+                &config,
+                "You are a careful coding assistant.",
+                &[
+                    Message::user().with_text("Hello"),
+                    Message::assistant().with_text("Hi."),
+                    Message::user().with_text("Continue"),
+                ],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            let values = cache_control_values(&req);
+            assert_eq!(values.len(), 4);
+            for cc in values {
+                assert_eq!(cc, json!({ "type": "ephemeral", "ttl": "1h" }));
+            }
+        }
+
+        #[test]
+        fn explicit_five_minute_ttl_matches_default_wire_format() {
+            let config = cfg("claude-sonnet-4-5").with_cache_ttl("5m");
+            let req = create_request_with_default_options(
+                &config,
+                "You are a careful coding assistant.",
+                &[Message::user().with_text("Hello")],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            for cc in cache_control_values(&req) {
+                assert_eq!(cc, json!({ "type": "ephemeral" }));
+            }
+        }
+
+        #[test]
+        fn unrecognized_ttl_value_falls_back_to_default() {
+            let config = cfg("claude-sonnet-4-5").with_cache_ttl("2h");
+            let req = create_request_with_default_options(
+                &config,
+                "You are a careful coding assistant.",
+                &[Message::user().with_text("Hello")],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            for cc in cache_control_values(&req) {
+                assert_eq!(cc, json!({ "type": "ephemeral" }));
+            }
+        }
+
+        #[test]
+        fn disable_prompt_cache_wins_over_ttl() {
+            let config = cfg("claude-sonnet-4-5")
+                .with_cache_ttl("1h")
+                .with_prompt_cache_disabled();
+            let req = create_request_with_default_options(
+                &config,
+                "You are a summarizer.",
+                &[Message::user().with_text("Summarize.")],
                 &sample_tools(),
             )
             .unwrap();

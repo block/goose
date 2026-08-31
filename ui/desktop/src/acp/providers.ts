@@ -51,7 +51,6 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
     deprecated: entry.deprecated,
     replacement: entry.replacement ?? null,
     provider_type: entry.providerType as ProviderDetails['provider_type'],
-    setup_category: entry.category,
     uses_acp: entry.acp ?? false,
     metadata: {
       name: entry.providerId,
@@ -59,7 +58,6 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
       description: entry.description,
       default_model: entry.defaultModel,
       model_doc_link: '',
-      model_selection_hint: entry.modelSelectionHint ?? null,
       config_keys: entry.configKeys.map((key) => ({
         name: key.name,
         required: key.required,

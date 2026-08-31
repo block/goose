@@ -1764,8 +1764,6 @@ pub struct ProviderInventoryEntryDto {
     pub available: bool,
     /// Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
     pub provider_type: String,
-    /// Whether this inventory entry represents an agent provider or a model provider.
-    pub category: ProviderSetupCategoryDto,
     /// Whether this provider communicates through ACP.
     #[serde(default)]
     pub acp: bool,
@@ -1797,9 +1795,6 @@ pub struct ProviderInventoryEntryDto {
     pub last_refresh_error: Option<String>,
     /// Whether we believe this data may be outdated.
     pub stale: bool,
-    /// Guidance message shown when this provider manages its own model selection externally.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_selection_hint: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

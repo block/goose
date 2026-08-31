@@ -31,7 +31,6 @@ export type ProviderMetadata = {
   fast_model?: string | null;
   known_models: ModelInfo[];
   model_doc_link: string;
-  model_selection_hint?: string | null;
   name: string;
   setup_steps?: string[];
 };
@@ -48,7 +47,6 @@ export type ProviderDetails = {
   metadata: ProviderMetadata;
   name: string;
   provider_type: ProviderType;
-  setup_category: 'agent' | 'model';
   uses_acp: boolean;
   saved_model?: string | null;
 };

@@ -204,6 +204,10 @@ pub enum MessageContent {
         id: String,
         name: String,
         arguments_json: String,
+        #[uniffi(default = None)]
+        provider_metadata_json: Option<String>,
+        #[uniffi(default = None)]
+        tool_error_json: Option<String>,
     },
     ToolResult {
         id: String,
@@ -247,11 +251,24 @@ impl MessageContent {
                 id,
                 name,
                 arguments_json,
+                provider_metadata_json,
+                tool_error_json,
             } => {
-                let arguments = parse_json_object(arguments_json)?;
-                Ok(GooseMessageContent::tool_request(
+                let metadata = provider_metadata_json
+                    .as_deref()
+                    .map(parse_json_object)
+                    .transpose()?;
+                let tool_call = match tool_error_json {
+                    Some(error_json) => Err(serde_json::from_str(error_json)?),
+                    None => {
+                        let arguments = parse_json_object(arguments_json)?;
+                        Ok(CallToolRequestParams::new(name.clone()).with_arguments(arguments))
+                    }
+                };
+                Ok(GooseMessageContent::tool_request_with_metadata(
                     id.clone(),
-                    Ok(CallToolRequestParams::new(name.clone()).with_arguments(arguments)),
+                    tool_call,
+                    metadata.as_ref(),
                 ))
             }
             MessageContent::ToolResult {
@@ -281,6 +298,59 @@ impl MessageContent {
             MessageContent::RedactedThinking { data } => {
                 Ok(GooseMessageContent::redacted_thinking(data.clone()))
             }
+        }
+    }
+
+    /// Maps provider output back onto the binding surface so callers can replay
+    /// an assistant turn without reparsing `message_json`. Thinking signatures
+    /// and redacted payloads are carried through verbatim: providers reject
+    /// replayed thinking blocks whose signature was dropped or altered.
+    fn from_goose_content(content: &GooseMessageContent) -> Option<Self> {
+        match content {
+            GooseMessageContent::Text(text) => Some(MessageContent::Text {
+                text: text.text.clone(),
+            }),
+            GooseMessageContent::Image(image) => Some(MessageContent::Image {
+                mime_type: image.mime_type.clone(),
+                data: base64::engine::general_purpose::STANDARD
+                    .decode(&image.data)
+                    .ok()?,
+            }),
+            GooseMessageContent::ToolRequest(request) => {
+                let provider_metadata_json = request
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| serde_json::to_string(metadata).ok());
+                match &request.tool_call {
+                    Ok(tool_call) => Some(MessageContent::ToolRequest {
+                        id: request.id.clone(),
+                        name: tool_call.name.to_string(),
+                        arguments_json: serde_json::to_string(
+                            &tool_call.arguments.clone().unwrap_or_default(),
+                        )
+                        .ok()?,
+                        provider_metadata_json,
+                        tool_error_json: None,
+                    }),
+                    Err(error) => Some(MessageContent::ToolRequest {
+                        id: request.id.clone(),
+                        name: String::new(),
+                        arguments_json: "{}".to_string(),
+                        provider_metadata_json,
+                        tool_error_json: Some(serde_json::to_string(error).ok()?),
+                    }),
+                }
+            }
+            GooseMessageContent::Thinking(thinking) => Some(MessageContent::Thinking {
+                thinking: thinking.thinking.clone(),
+                signature: thinking.signature.clone(),
+            }),
+            GooseMessageContent::RedactedThinking(redacted) => {
+                Some(MessageContent::RedactedThinking {
+                    data: redacted.data.clone(),
+                })
+            }
+            _ => None,
         }
     }
 }
@@ -456,6 +526,8 @@ pub enum StreamChunk {
         name: String,
         arguments_json: String,
         index: Option<i32>,
+        #[uniffi(default = None)]
+        provider_metadata_json: Option<String>,
     },
     ThinkingChunk {
         thinking: String,
@@ -538,6 +610,9 @@ impl From<GooseError> for GooseStreamError {
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderCompletion {
     pub message_json: String,
+    /// The assistant turn as binding types, ready to append to history and
+    /// replay on the next request without reparsing `message_json`.
+    pub content: Vec<MessageContent>,
     pub usage: Option<Usage>,
 }
 
@@ -676,6 +751,11 @@ impl ProviderHandle {
 
         Ok(ProviderCompletion {
             message_json: serde_json::to_string(&message)?,
+            content: message
+                .content
+                .iter()
+                .filter_map(MessageContent::from_goose_content)
+                .collect(),
             usage: Some(Usage::from_provider_usage(&usage)?),
         })
     }
@@ -1100,6 +1180,10 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
             }
             GooseMessageContent::ToolRequest(request) => {
                 let index = request.provider_index();
+                let provider_metadata_json = request
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| serde_json::to_string(metadata).ok());
                 match request.tool_call {
                     Ok(tool_call) => Some(StreamChunk::ToolChunk {
                         index,
@@ -1109,6 +1193,7 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                             &tool_call.arguments.unwrap_or_default(),
                         )
                         .unwrap_or_else(|_| "{}".to_string()),
+                        provider_metadata_json,
                     }),
                     Err(error) => Some(StreamChunk::ErrorChunk {
                         error: GooseStreamError {
@@ -1281,5 +1366,271 @@ mod tests {
         let absent = Usage::from_provider_usage(&provider_usage_with_cache(None, None)).unwrap();
         assert_eq!(absent.cache_read_input_tokens, None);
         assert_eq!(absent.cache_creation_input_tokens, None);
+    }
+
+    #[test]
+    fn thinking_content_round_trips_with_signature() {
+        let original = MessageContent::Thinking {
+            thinking: "step one, then step two".to_string(),
+            signature: "ErUBCkYIBRgCIkAe0pAQ==".to_string(),
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::Thinking(thinking) = &goose else {
+            panic!("expected thinking content");
+        };
+        assert_eq!(thinking.thinking, "step one, then step two");
+        assert_eq!(thinking.signature, "ErUBCkYIBRgCIkAe0pAQ==");
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::Thinking {
+            thinking,
+            signature,
+        } = round_tripped
+        else {
+            panic!("expected thinking content");
+        };
+        assert_eq!(thinking, "step one, then step two");
+        assert_eq!(signature, "ErUBCkYIBRgCIkAe0pAQ==");
+    }
+
+    #[test]
+    fn redacted_thinking_content_round_trips_opaque_data() {
+        let original = MessageContent::RedactedThinking {
+            data: "EroBCkYIBRgCKkBb0pAQopaque".to_string(),
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::RedactedThinking(redacted) = &goose else {
+            panic!("expected redacted thinking content");
+        };
+        assert_eq!(redacted.data, "EroBCkYIBRgCKkBb0pAQopaque");
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::RedactedThinking { data } = round_tripped else {
+            panic!("expected redacted thinking content");
+        };
+        assert_eq!(data, "EroBCkYIBRgCKkBb0pAQopaque");
+    }
+
+    #[test]
+    fn tool_request_round_trips_provider_metadata() {
+        let original = MessageContent::ToolRequest {
+            id: "call_456".to_string(),
+            name: "test_tool".to_string(),
+            arguments_json: "{}".to_string(),
+            provider_metadata_json: Some(
+                r#"{"extra_content":{"google":{"thought_signature":"nested_sig_xyz789"}}}"#
+                    .to_string(),
+            ),
+            tool_error_json: None,
+        };
+
+        let goose = original.to_goose_content().unwrap();
+        let GooseMessageContent::ToolRequest(request) = &goose else {
+            panic!("expected tool request");
+        };
+        assert_eq!(
+            request.metadata.as_ref().unwrap()["extra_content"]["google"]["thought_signature"],
+            "nested_sig_xyz789"
+        );
+
+        let round_tripped = MessageContent::from_goose_content(&goose).unwrap();
+        let MessageContent::ToolRequest {
+            provider_metadata_json,
+            ..
+        } = &round_tripped
+        else {
+            panic!("expected tool request");
+        };
+        assert_eq!(
+            serde_json::from_str::<Value>(provider_metadata_json.as_ref().unwrap()).unwrap(),
+            serde_json::json!({"extra_content":{"google":{"thought_signature":"nested_sig_xyz789"}}})
+        );
+
+        let messages = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content: vec![round_tripped],
+        }])
+        .unwrap();
+        let spec = goose_providers::formats::openai::format_messages(
+            &messages,
+            &goose_providers::images::ImageFormat::OpenAi,
+        );
+        assert_eq!(
+            spec[0]["tool_calls"][0]["extra_content"]["google"]["thought_signature"],
+            "nested_sig_xyz789"
+        );
+    }
+
+    #[test]
+    fn completion_content_preserves_malformed_tool_requests() {
+        let error = rmcp::model::ErrorData {
+            code: rmcp::model::ErrorCode::INVALID_REQUEST,
+            message: std::borrow::Cow::from(
+                "The provided function name was empty; a tool call must name a tool".to_string(),
+            ),
+            data: None,
+        };
+        let message = Message::assistant()
+            .with_tool_request("call_bad_1", Err(error))
+            .with_text("done");
+
+        let content: Vec<MessageContent> = message
+            .content
+            .iter()
+            .filter_map(MessageContent::from_goose_content)
+            .collect();
+
+        assert_eq!(
+            content.len(),
+            2,
+            "the failed tool request must not be dropped"
+        );
+        let MessageContent::ToolRequest {
+            id,
+            tool_error_json,
+            ..
+        } = &content[0]
+        else {
+            panic!("expected tool request");
+        };
+        assert_eq!(id, "call_bad_1");
+        assert!(tool_error_json.is_some());
+
+        let replayed = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content,
+        }])
+        .unwrap();
+        let GooseMessageContent::ToolRequest(request) = &replayed[0].content[0] else {
+            panic!("expected tool request");
+        };
+        let replayed_error = request
+            .tool_call
+            .as_ref()
+            .expect_err("replayed request must stay a failed tool call");
+        assert_eq!(replayed_error.code, rmcp::model::ErrorCode::INVALID_REQUEST);
+        assert!(replayed_error.message.contains("must name a tool"));
+    }
+
+    #[test]
+    fn streaming_tool_chunks_carry_provider_metadata() {
+        let mut metadata = goose_providers::conversation::message::ProviderMetadata::new();
+        metadata.insert(
+            "extra_content".to_string(),
+            serde_json::json!({"google": {"thought_signature": "stream_sig_abc123"}}),
+        );
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "call_stream_1",
+            Ok(CallToolRequestParams::new("test_tool")),
+            Some(&metadata),
+            None,
+        );
+
+        let chunks = message_to_chunks(message);
+        let StreamChunk::ToolChunk {
+            provider_metadata_json,
+            ..
+        } = chunks
+            .iter()
+            .find(|chunk| matches!(chunk, StreamChunk::ToolChunk { .. }))
+            .expect("expected a tool chunk")
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(
+            serde_json::from_str::<Value>(provider_metadata_json.as_ref().unwrap()).unwrap(),
+            serde_json::json!({"extra_content":{"google":{"thought_signature":"stream_sig_abc123"}}})
+        );
+    }
+
+    #[test]
+    fn thinking_blocks_survive_multi_turn_replay() {
+        let assistant_turn = ProviderMessage {
+            role: MessageRole::Assistant,
+            content: vec![
+                MessageContent::Thinking {
+                    thinking: "the user wants the capital".to_string(),
+                    signature: "sig-abc123".to_string(),
+                },
+                MessageContent::RedactedThinking {
+                    data: "opaque-payload".to_string(),
+                },
+                MessageContent::Text {
+                    text: "Paris".to_string(),
+                },
+            ],
+        };
+
+        let history = vec![
+            ProviderMessage {
+                role: MessageRole::User,
+                content: vec![MessageContent::Text {
+                    text: "what is the capital of France?".to_string(),
+                }],
+            },
+            assistant_turn,
+            ProviderMessage {
+                role: MessageRole::User,
+                content: vec![MessageContent::Text {
+                    text: "and of Spain?".to_string(),
+                }],
+            },
+        ];
+
+        let messages = convert_messages(history).unwrap();
+        assert!(matches!(
+            messages[1].content[0],
+            GooseMessageContent::Thinking(_)
+        ));
+        assert!(matches!(
+            messages[1].content[1],
+            GooseMessageContent::RedactedThinking(_)
+        ));
+
+        let spec = goose_providers::formats::anthropic::format_messages(&messages);
+        let assistant = &spec[1]["content"];
+        assert_eq!(assistant[0]["type"], "thinking");
+        assert_eq!(assistant[0]["thinking"], "the user wants the capital");
+        assert_eq!(assistant[0]["signature"], "sig-abc123");
+        assert_eq!(assistant[1]["type"], "redacted_thinking");
+        assert_eq!(assistant[1]["data"], "opaque-payload");
+        assert!(assistant[1].get("thinking").is_none());
+        assert_eq!(assistant[2]["type"], "text");
+        assert_eq!(assistant[2]["text"], "Paris");
+    }
+
+    #[test]
+    fn completion_content_preserves_thinking_for_the_next_turn() {
+        let message = Message::assistant()
+            .with_thinking("reasoning to replay", "sig-xyz")
+            .with_redacted_thinking("opaque-payload")
+            .with_text("Madrid");
+
+        let content: Vec<MessageContent> = message
+            .content
+            .iter()
+            .filter_map(MessageContent::from_goose_content)
+            .collect();
+
+        assert!(matches!(
+            &content[0],
+            MessageContent::Thinking { thinking, signature }
+                if thinking == "reasoning to replay" && signature == "sig-xyz"
+        ));
+        assert!(matches!(
+            &content[1],
+            MessageContent::RedactedThinking { data } if data == "opaque-payload"
+        ));
+
+        let replayed = convert_messages(vec![ProviderMessage {
+            role: MessageRole::Assistant,
+            content,
+        }])
+        .unwrap();
+        assert_eq!(replayed[0].content, message.content);
     }
 }
