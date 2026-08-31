@@ -133,6 +133,7 @@ async fn stream_messages(
 async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<()> {
     let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (agent, api, session_id, calculator, _temp_dir) = agent_with_calculator().await?;
+    let agent = Arc::new(agent);
 
     api.on("add one").call(ADD, value(1));
     api.on("result: 1").reply("the result is one");
@@ -202,6 +203,11 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::DenyOnce)
         .await
         .is_err());
+    drop(stream);
+    let stream = agent
+        .resume_state_machine_turn(session_config.clone(), Some(CancellationToken::new()))
+        .await?
+        .expect("persisted confirmation response should resume the state-machine turn");
     messages.extend(stream_messages(stream).await?);
     assert!(messages.iter().any(|message| message
         .get_tool_response_ids()

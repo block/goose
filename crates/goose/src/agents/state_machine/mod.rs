@@ -43,8 +43,11 @@ pub use goose_agent::operation::{
     not_applicable, trailing_error, yielded, yielded_with, ConversationEffect, Emitter, Inference,
     InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
-pub(crate) use tool_confirmation::persist_tool_confirmation_decisions;
 pub(crate) use tool_confirmation::ToolConfirmationDecision;
+pub(crate) use tool_confirmation::{
+    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
+    persist_tool_confirmation_decisions,
+};
 
 pub(super) use inference_preparation::GooseInferenceRequestPreparer;
 pub(crate) use ops_bang_shell::bang_shell_command;

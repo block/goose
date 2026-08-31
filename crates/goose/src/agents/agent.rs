@@ -33,6 +33,7 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
+    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
     persist_tool_confirmation_decisions, run_goose, BangShellOperation, CompactionOperation,
     DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
     GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
@@ -1983,7 +1984,74 @@ impl Agent {
         let initial_stream = self
             .stream_state_machine_session(session_config.clone(), Some(cancel.clone()))
             .await?;
-        Ok(self.stream_state_machine_turn(session_config, cancel, turn_guard, initial_stream))
+        Ok(
+            self.stream_state_machine_turn(
+                session_config,
+                cancel,
+                turn_guard,
+                Some(initial_stream),
+            ),
+        )
+    }
+
+    pub(crate) async fn resume_state_machine_turn(
+        self: &Arc<Self>,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<Option<BoxStream<'static, Result<AgentEvent>>>> {
+        if !super::state_machine::enabled() {
+            return Ok(None);
+        }
+
+        let session = self
+            .config
+            .session_manager
+            .get_session(&session_config.id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .as_ref()
+            .ok_or_else(|| anyhow!("Session {} has no conversation", session_config.id))?;
+        let pending_confirmations = pending_tool_confirmations(conversation);
+        let resume_from_persisted_response = pending_confirmations.is_empty()
+            && has_unapplied_tool_confirmation_response(conversation);
+        if pending_confirmations.is_empty() && !resume_from_persisted_response {
+            return Ok(None);
+        }
+
+        let turn_guard = self
+            .tool_confirmation_coordinator
+            .session(&session_config.id)
+            .try_start_turn()?;
+        for request in pending_confirmations {
+            turn_guard.state().register_request(request.id);
+        }
+
+        let cancel = cancel_token.unwrap_or_default();
+        let agent = Arc::clone(self);
+        Ok(Some(Box::pin(async_stream::try_stream! {
+            let initial_stream = if resume_from_persisted_response {
+                Some(
+                    agent
+                        .stream_state_machine_session(
+                            session_config.clone(),
+                            Some(cancel.clone()),
+                        )
+                        .await?,
+                )
+            } else {
+                None
+            };
+            let mut stream = agent.stream_state_machine_turn(
+                session_config,
+                cancel,
+                turn_guard,
+                initial_stream,
+            );
+            while let Some(event) = stream.next().await {
+                yield event?;
+            }
+        })))
     }
 
     fn tool_confirmation_request_ids(event: &AgentEvent) -> Vec<String> {
@@ -2011,23 +2079,25 @@ impl Agent {
         session_config: SessionConfig,
         cancel: CancellationToken,
         turn_guard: ActiveTurnGuard,
-        initial_stream: BoxStream<'a, Result<AgentEvent>>,
+        initial_stream: Option<BoxStream<'a, Result<AgentEvent>>>,
     ) -> BoxStream<'a, Result<AgentEvent>> {
         Box::pin(async_stream::try_stream! {
             let mut stream = initial_stream;
             loop {
-                let mut has_confirmations = false;
-                while let Some(event) = stream.next().await {
-                    let event = event?;
-                    for request_id in Self::tool_confirmation_request_ids(&event) {
-                        turn_guard.state().register_request(request_id);
-                        has_confirmations = true;
+                if let Some(active_stream) = stream.as_mut() {
+                    let mut has_confirmations = false;
+                    while let Some(event) = active_stream.next().await {
+                        let event = event?;
+                        for request_id in Self::tool_confirmation_request_ids(&event) {
+                            turn_guard.state().register_request(request_id);
+                            has_confirmations = true;
+                        }
+                        yield event;
                     }
-                    yield event;
-                }
 
-                if !has_confirmations {
-                    return;
+                    if !has_confirmations {
+                        return;
+                    }
                 }
 
                 let decisions = turn_guard
@@ -2038,12 +2108,13 @@ impl Agent {
                     return;
                 }
                 turn_guard.state().clear_confirmations();
-                stream = self
-                    .stream_state_machine_session(
+                stream = Some(
+                    self.stream_state_machine_session(
                         session_config.clone(),
                         Some(cancel.clone()),
                     )
-                    .await?;
+                    .await?,
+                );
             }
         })
     }

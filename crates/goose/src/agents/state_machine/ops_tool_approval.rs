@@ -258,6 +258,14 @@ impl ApprovalState {
                 .any(|request| request.id == request_id)
     }
 
+    pub(super) fn has_unapplied_confirmation_response(&self) -> bool {
+        self.tool_requests.iter().any(|request| {
+            !self.answered.contains(&request.id)
+                && self.approval_requests.contains(&request.id)
+                && self.approval_responses.contains_key(&request.id)
+        })
+    }
+
     pub(super) fn confirmation_response(&self, request_id: &str) -> Option<&Permission> {
         self.approval_responses.get(request_id)
     }

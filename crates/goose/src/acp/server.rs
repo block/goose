@@ -12,6 +12,9 @@ use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
+use crate::agents::state_machine::{
+    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
+};
 use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
@@ -22,7 +25,7 @@ use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest, ToolResponse,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use crate::conversation::Conversation;
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
@@ -64,7 +67,7 @@ use agent_client_protocol::{
 use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, StreamExt};
+use futures::stream::{self, BoxStream, StreamExt};
 use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
@@ -243,6 +246,11 @@ pub struct ActivePromptRun {
     agent: Arc<Agent>,
 }
 
+struct AgentStreamOutcome {
+    was_cancelled: bool,
+    output_token_limit_reached: bool,
+}
+
 /// Per-session active-run registry, shared by every `GooseAcpAgent` created
 /// from one `AcpServer`. Roaming spawns a fresh agent per connection, so two
 /// paired clients loading the same session get distinct agents; sharing this
@@ -251,11 +259,11 @@ pub struct ActivePromptRun {
 /// one session.
 pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
-/// Releases a registry entry if the owning `on_prompt` future is dropped
+/// Releases a registry entry if the task consuming an agent stream is dropped
 /// without reaching its explicit `clear_active_run` — e.g. a roaming
-/// connection is revoked or lost mid-prompt and the transport drops the
-/// request future. Without this, the shared registry retains the run forever
-/// and every later connection gets "session already has active run".
+/// connection is revoked or lost mid-turn. Without this, the shared registry
+/// retains the run forever and every later connection gets "session already
+/// has active run".
 ///
 /// The explicit clear still runs on normal paths; this drop is then a no-op
 /// because the entry (matched by run id) is already gone.
@@ -2072,8 +2080,124 @@ impl GooseAcpAgent {
         )
     }
 
-    async fn on_load_session(
+    async fn forward_agent_stream(
         &self,
+        cx: &ConnectionTo<Client>,
+        acp_session_id: &SessionId,
+        session_id: &str,
+        agent: &Arc<Agent>,
+        cancel_token: &CancellationToken,
+        mut stream: BoxStream<'_, Result<crate::agents::AgentEvent>>,
+    ) -> Result<AgentStreamOutcome, agent_client_protocol::Error> {
+        let mut was_cancelled = false;
+        let mut output_token_limit_reached = false;
+        let mut tool_requests = HashMap::new();
+        let mut chain_tracker = ToolChainTracker::default();
+        let target = SessionAgentTarget {
+            agent: agent.clone(),
+            session_id: session_id.to_string(),
+        };
+
+        while let Some(event) = stream.next().await {
+            if cancel_token.is_cancelled() {
+                was_cancelled = true;
+                break;
+            }
+
+            match event {
+                Ok(crate::agents::AgentEvent::Message(mut message)) => {
+                    update_output_token_limit_reached(&mut output_token_limit_reached, &message);
+
+                    let sessions = self.sessions.lock().await;
+                    if !sessions.contains_key(session_id) {
+                        return Err(agent_client_protocol::Error::invalid_params()
+                            .data(format!("Session not found: {session_id}")));
+                    }
+                    drop(sessions);
+
+                    populate_output_token_limit_content(&mut message);
+                    for content_item in &message.content {
+                        if let Some(error) = prompt_error_from_message_content(content_item) {
+                            return Err(error);
+                        }
+
+                        if let MessageContent::ToolRequest(tool_request) = content_item {
+                            tool_requests.insert(tool_request.id.clone(), tool_request.clone());
+                        }
+
+                        self.handle_message_content(
+                            content_item,
+                            &message,
+                            acp_session_id,
+                            &target,
+                            &tool_requests,
+                            cx,
+                        )
+                        .await?;
+
+                        let ready_chain = match content_item {
+                            MessageContent::ToolRequest(tool_request) => {
+                                chain_tracker.record_request(tool_request.clone());
+                                None
+                            }
+                            MessageContent::ToolResponse(tool_response) => {
+                                chain_tracker.record_response(&tool_response.id)
+                            }
+                            content if breaks_consecutive_tool_calls(content) => {
+                                chain_tracker.close_current_chain()
+                            }
+                            _ => None,
+                        };
+
+                        if let Some(chain) = ready_chain {
+                            self.spawn_ready_chain_summary(chain, agent, acp_session_id, cx);
+                        }
+                    }
+                }
+                Ok(crate::agents::AgentEvent::McpNotification((request_id, notification))) => {
+                    if let Some(update) =
+                        tool_notifications::tool_notification_update(request_id, notification)
+                    {
+                        let tool_call_notifier = ToolCallNotifier::new(cx, acp_session_id);
+                        tool_call_notifier.send_update(update)?;
+                    }
+                }
+                Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.to_string(),
+                            update: GooseSessionUpdate::MessageUsage(message_usage_update(
+                                message_id, &usage,
+                            )),
+                        })?;
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    return Err(agent_client_protocol::Error::internal_error()
+                        .data(format!("Error in agent response stream: {error}")));
+                }
+            }
+        }
+
+        if cancel_token.is_cancelled() {
+            was_cancelled = true;
+        }
+
+        if !was_cancelled {
+            if let Some(chain) = chain_tracker.close_current_chain() {
+                self.spawn_ready_chain_summary(chain, agent, acp_session_id, cx);
+            }
+        }
+
+        Ok(AgentStreamOutcome {
+            was_cancelled,
+            output_token_limit_reached,
+        })
+    }
+
+    async fn on_load_session(
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
@@ -2141,7 +2265,7 @@ impl GooseAcpAgent {
             retry_config: None,
         };
 
-        let mut stream = match agent
+        let stream = match agent
             .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
         {
@@ -2153,127 +2277,19 @@ impl GooseAcpAgent {
                     .data(format!("Error getting agent reply: {error}")));
             }
         };
-        let mut was_cancelled = false;
-        let mut output_token_limit_reached = false;
-        let mut tool_requests = HashMap::new();
-        let mut chain_tracker = ToolChainTracker::default();
-        let mut stream_error = None;
-        let target = SessionAgentTarget {
-            agent: agent.clone(),
-            session_id: session_id.clone(),
-        };
-
-        while let Some(event) = stream.next().await {
-            if cancel_token.is_cancelled() {
-                was_cancelled = true;
-                break;
-            }
-
-            match event {
-                Ok(crate::agents::AgentEvent::Message(mut message)) => {
-                    update_output_token_limit_reached(&mut output_token_limit_reached, &message);
-
-                    let sessions = self.sessions.lock().await;
-                    if !sessions.contains_key(&session_id) {
-                        stream_error = Some(
-                            agent_client_protocol::Error::invalid_params()
-                                .data(format!("Session not found: {}", session_id)),
-                        );
-                        break;
-                    }
-
-                    populate_output_token_limit_content(&mut message);
-                    for content_item in &message.content {
-                        if let Some(error) = prompt_error_from_message_content(content_item) {
-                            stream_error = Some(error);
-                            break;
-                        }
-
-                        if let MessageContent::ToolRequest(tool_request) = content_item {
-                            tool_requests.insert(tool_request.id.clone(), tool_request.clone());
-                        }
-
-                        if let Err(error) = self
-                            .handle_message_content(
-                                content_item,
-                                &message,
-                                &args.session_id,
-                                &target,
-                                &tool_requests,
-                                cx,
-                            )
-                            .await
-                        {
-                            stream_error = Some(error);
-                            break;
-                        }
-
-                        let ready_chain = match content_item {
-                            MessageContent::ToolRequest(tool_request) => {
-                                chain_tracker.record_request(tool_request.clone());
-                                None
-                            }
-                            MessageContent::ToolResponse(tool_response) => {
-                                chain_tracker.record_response(&tool_response.id)
-                            }
-                            content if breaks_consecutive_tool_calls(content) => {
-                                chain_tracker.close_current_chain()
-                            }
-                            _ => None,
-                        };
-
-                        if let Some(chain) = ready_chain {
-                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
-                        }
-                    }
-
-                    if stream_error.is_some() {
-                        break;
-                    }
-                }
-                Ok(crate::agents::AgentEvent::McpNotification((request_id, notification))) => {
-                    if let Some(update) =
-                        tool_notifications::tool_notification_update(request_id, notification)
-                    {
-                        let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
-                        tool_call_notifier.send_update(update)?;
-                    }
-                }
-                Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
-                    if self.supports_goose_custom_notifications() {
-                        cx.send_notification(GooseSessionNotification {
-                            session_id: session_id.clone(),
-                            update: GooseSessionUpdate::MessageUsage(message_usage_update(
-                                message_id, &usage,
-                            )),
-                        })?;
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    stream_error = Some(
-                        agent_client_protocol::Error::internal_error()
-                            .data(format!("Error in agent response stream: {}", e)),
-                    );
-                    break;
-                }
-            }
-        }
-
-        if cancel_token.is_cancelled() {
-            was_cancelled = true;
-        }
-
-        if !was_cancelled && stream_error.is_none() {
-            if let Some(chain) = chain_tracker.close_current_chain() {
-                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
-            }
-        }
+        let stream_result = self
+            .forward_agent_stream(
+                cx,
+                &args.session_id,
+                &session_id,
+                &agent,
+                &cancel_token,
+                stream,
+            )
+            .await;
         self.clear_active_run(&session_id, &run_id).await;
         Self::send_active_run_update(cx, &args.session_id, None)?;
-        if let Some(error) = stream_error {
-            return Err(error);
-        }
+        let outcome = stream_result?;
 
         let session = self
             .session_manager
@@ -2305,7 +2321,8 @@ impl GooseAcpAgent {
             SessionUpdate::UsageUpdate(updates.standard),
         ))?;
 
-        let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
+        let stop_reason =
+            prompt_stop_reason(outcome.was_cancelled, outcome.output_token_limit_reached);
 
         let mut response = PromptResponse::new(stop_reason);
         if let Some(usage) = build_prompt_usage(&session) {
