@@ -65,6 +65,13 @@ fn awk_command() -> String {
     "awk 'BEGIN{for(i=0;i<60000;i++)printf \"x \"}'".to_string()
 }
 
+/// A command whose stdout (~2k characters, ≈1k tokens) lands whole — under
+/// the shell's truncation limits — so parallel calls grow the conversation
+/// by a bounded, sub-threshold amount each.
+fn small_output_command() -> String {
+    "awk 'BEGIN{for(i=0;i<1000;i++)printf \"x \"}'".to_string()
+}
+
 impl MockCompactionProvider {
     fn new() -> Self {
         Self {
@@ -121,6 +128,26 @@ impl MockCompactionProvider {
     /// dominates) and the conversation alone (~5.5k) each stay under the
     /// threshold, so only a check that adds the unsent tool result to the
     /// reported baseline can see the crossing.
+    /// One round-trip whose three `shell` calls each land ~1k tokens of real
+    /// output. Against the 8k threshold, the reported usage (~6.2k, dominated
+    /// by the 6k system overhead) plus any single result stays under, and so
+    /// does the conversation alone (~3.5k): only the sum of the parallel
+    /// results added to the baseline crosses. The legacy loop persists the
+    /// batch as alternating request/response pairs, so a recount that stops
+    /// at the newest assistant message — a synthetic split of the same
+    /// response — sees only the final result and misses the crossing.
+    fn parallel_baseline_growth() -> Self {
+        Self {
+            tool_loop_rounds: 1,
+            tool_result_padding: true,
+            tool_result_calls: 3,
+            tool_result_command: small_output_command(),
+            system_input_tokens: 500,
+            context_limit: 10_000,
+            ..Self::new()
+        }
+    }
+
     fn baseline_growth() -> Self {
         Self {
             tool_loop_rounds: 1,
@@ -1382,6 +1409,48 @@ async fn test_mid_turn_compaction_adds_tool_growth_to_the_provider_baseline() ->
     assert_eq!(
         history_replacements, 1,
         "the unsent tool growth must be added to the reported usage baseline"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mid_turn_compaction_counts_every_parallel_result() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // Three parallel `shell` calls each land ~1k tokens of real output. The
+    // reported baseline (~6.2k) plus any single result, and the recounted
+    // conversation alone (~3.5k), each stay under the 8k threshold — only
+    // the baseline plus the whole batch crosses. The legacy loop persists
+    // the batch as alternating request/response assistant/user pairs, so the
+    // recount must treat the usage-carrying first split as the boundary
+    // rather than the newest assistant message, which is a synthetic split
+    // of the same response and would hide the earlier results' growth.
+    let session =
+        setup_test_session(&agent, &temp_dir, "mid-turn-parallel-batch-test", vec![]).await?;
+    add_shell_extension(&agent, &session, &temp_dir).await?;
+
+    let provider = Arc::new(MockCompactionProvider::parallel_baseline_growth());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    let (history_replacements, final_text) = run_reply_approving_tools(&agent, &session).await?;
+
+    assert_eq!(
+        history_replacements, 1,
+        "every parallel result must count as unsent growth on the baseline"
     );
     assert_eq!(final_text, "done after the tool loop");
     assert!(

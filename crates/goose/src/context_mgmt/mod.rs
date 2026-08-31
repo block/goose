@@ -225,8 +225,9 @@ pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<
 pub(crate) struct ContextTokenCounts {
     /// Tokens of the whole agent-visible conversation.
     pub(crate) total: i32,
-    /// Tokens of the agent-visible messages appended after the provider's
-    /// last response — tool results and steers it has not received yet.
+    /// Tokens of the agent-visible messages the provider has not received
+    /// yet: its latest response — which no request has included — plus the
+    /// tool results, steers, and user messages appended after it.
     pub(crate) unsent: i32,
 }
 
@@ -237,25 +238,36 @@ pub(crate) async fn recount_context_tokens(
     let counter = create_token_counter()
         .await
         .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
+    let messages = conversation.messages();
+    // Both loops attach the turn's usage to the first persisted message of
+    // the provider's latest response, so the unsent suffix starts there: the
+    // legacy loop splits a parallel batch into per-request assistant
+    // messages, and only that marker distinguishes the batch's first split
+    // from an older response. The response itself counts as growth — no
+    // request has included it yet. Histories without usage metadata fall
+    // back to the last assistant message as the boundary, which undercounts
+    // a legacy split batch but stays correct for the state machine's
+    // single-message representation.
+    let unsent_start = messages
+        .iter()
+        .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())
+        .or_else(|| {
+            messages
+                .iter()
+                .rposition(|message| message.is_agent_visible() && message.role == Role::Assistant)
+                .map(|index| index + 1)
+        })
+        .unwrap_or(0);
     let mut total: usize = 0;
     let mut unsent: usize = 0;
-    // Iterating in reverse, only the messages appended after the provider's
-    // last response — an assistant message — are unsent growth; the older
-    // messages still count toward the whole-conversation floor.
-    let mut past_last_response = false;
-    for message in conversation.messages().iter().rev() {
+    for (index, message) in messages.iter().enumerate() {
         let tokens = if message.is_agent_visible() {
             counter.count_chat_tokens("", std::slice::from_ref(message), &[])
         } else {
             0
         };
         total += tokens;
-        if past_last_response {
-            continue;
-        }
-        if message.role == Role::Assistant {
-            past_last_response = true;
-        } else {
+        if index >= unsent_start {
             unsent += tokens;
         }
     }
@@ -270,10 +282,11 @@ pub(crate) async fn recount_context_tokens(
 /// `recount_context` re-estimates the context from the conversation instead
 /// of trusting the session metadata alone: the metadata covers the preceding
 /// request (its system prompt and tool schemas included) but cannot see what
-/// landed after it, so the unsent growth is added to it and the whole
-/// conversation count is kept as a floor. Pass it at points where messages
-/// may have been appended since the last provider call — turn boundaries and
-/// mid-turn, after tool responses land.
+/// landed after it, so the unsent growth — from the provider's latest
+/// response onward — is added to it and the whole conversation count is kept
+/// as a floor. Pass it at points where messages may have been appended since
+/// the last provider call — turn boundaries and mid-turn, after tool
+/// responses land.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
@@ -654,6 +667,7 @@ pub fn maybe_summarize_tool_pairs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::MessageUsage;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::Usage;
     use rmcp::model::{CallToolRequestParams, Tool};
@@ -827,6 +841,129 @@ mod tests {
         assert!(
             counts.unsent < counts.total,
             "unsent must stop at the newest assistant message"
+        );
+    }
+
+    #[tokio::test]
+    async fn recount_counts_every_parallel_split_result_as_unsent() {
+        // The legacy loop persists one provider response with parallel tool
+        // calls as alternating assistant-request/user-response pairs, with
+        // the turn's usage attached to the first split. The unsent suffix
+        // must span the whole batch: the metadata baseline plus only the
+        // final response — the split-naive boundary — would miss the growth
+        // of the earlier results.
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("run the batch"),
+            Message::assistant()
+                .with_id("response-1")
+                .with_tool_request(
+                    "call-1",
+                    Ok(CallToolRequestParams::new("shell".to_string())),
+                )
+                .with_metadata(MessageMetadata {
+                    usage: Some(Box::new(MessageUsage::default())),
+                    ..MessageMetadata::default()
+                }),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("x ".repeat(100)),
+                ])),
+            ),
+            Message::assistant().with_tool_request(
+                "call-2",
+                Ok(CallToolRequestParams::new("shell".to_string())),
+            ),
+            Message::user().with_tool_response(
+                "call-2",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("x ".repeat(100)),
+                ])),
+            ),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let batch = Conversation::new_unvalidated(conversation.messages()[1..].to_vec());
+        let batch_tokens = count_context_tokens(&batch).await.unwrap();
+        assert_eq!(
+            counts.unsent, batch_tokens,
+            "the whole split batch is unsent growth"
+        );
+        let last_response = Conversation::new_unvalidated(vec![conversation.messages()[4].clone()]);
+        let last_response_tokens = count_context_tokens(&last_response).await.unwrap();
+        assert!(
+            counts.unsent > last_response_tokens,
+            "the final result alone must not bound the unsent growth"
+        );
+        assert_eq!(
+            counts.total,
+            count_context_tokens(&conversation).await.unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn recount_falls_back_to_the_last_assistant_without_usage_metadata() {
+        // Histories whose messages carry no usage metadata keep the
+        // assistant-message boundary: correct for the state machine's
+        // single-message batches, conservative for legacy splits.
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("run the batch"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParams::new("shell".to_string())),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("x ".repeat(100)),
+                ])),
+            ),
+            Message::assistant().with_tool_request(
+                "call-2",
+                Ok(CallToolRequestParams::new("shell".to_string())),
+            ),
+            Message::user().with_tool_response(
+                "call-2",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("x ".repeat(100)),
+                ])),
+            ),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let last_response = Conversation::new_unvalidated(vec![conversation.messages()[4].clone()]);
+        assert_eq!(
+            counts.unsent,
+            count_context_tokens(&last_response).await.unwrap(),
+            "without usage metadata the suffix stops after the last assistant message"
+        );
+    }
+
+    #[tokio::test]
+    async fn recount_counts_the_latest_response_itself_as_unsent() {
+        // Usage attaches to a text-only reply too, and the reply has not been
+        // part of any request yet, so it is growth alongside the messages
+        // appended after it.
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("x ".repeat(200)),
+            Message::assistant()
+                .with_text("a long text-only reply")
+                .with_metadata(MessageMetadata {
+                    usage: Some(Box::new(MessageUsage::default())),
+                    ..MessageMetadata::default()
+                }),
+            Message::user().with_text("redirect the work"),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let suffix = Conversation::new_unvalidated(conversation.messages()[1..].to_vec());
+        assert_eq!(
+            counts.unsent,
+            count_context_tokens(&suffix).await.unwrap(),
+            "the reply and the steer behind it are both unsent"
         );
     }
 

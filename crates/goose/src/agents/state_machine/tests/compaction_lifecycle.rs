@@ -915,21 +915,37 @@ async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Resul
         text_only.entered().await;
         let first = api.calls().first().cloned().expect("text-only request");
         let threshold = (pipeline.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
-        // Size the steer so the reported baseline plus its unsent growth
-        // crosses with ~1k to spare, while the steer alone stays far enough
-        // under the threshold that compaction (which preserves the most
-        // recent text-only user message verbatim) is not re-triggered by the
-        // retained steer afterwards.
-        let steer_tokens = threshold - first.input_tokens() + 1_000;
+        // The recount adds the steer's measured tokens to the reported
+        // baseline, so the steer must be sized in tokens, not characters:
+        // the baseline is reported in serialized characters while the
+        // growth is counted in tokens, and machines whose first request
+        // differs slightly can leave a character-sized steer short of the
+        // crossing. Grow the text until the counter — the same one the
+        // check uses — reports enough tokens to cross with ~1k to spare,
+        // while the steer alone stays far enough under the threshold that
+        // compaction (which preserves the most recent text-only user
+        // message verbatim) is not re-triggered by the retained steer
+        // afterwards.
+        let target = threshold - first.input_tokens() + 1_000;
         assert!(
-            steer_tokens > 5_000,
+            target > 5_000,
             "first request unexpectedly large: {}",
             first.input_tokens()
         );
-        let padding = steer_tokens.min(9_000) as usize;
-        pipeline
-            .steer(Message::user().with_text(format!("redirect the work {}", "x ".repeat(padding))))
-            .await;
+        let counter = crate::token_counter::create_token_counter()
+            .await
+            .expect("token counter");
+        let mut pairs = target.max(1) as usize;
+        let message = loop {
+            let candidate =
+                Message::user().with_text(format!("redirect the work {}", "x ".repeat(pairs)));
+            let tokens = counter.count_chat_tokens("", std::slice::from_ref(&candidate), &[]);
+            if tokens as i32 >= target {
+                break candidate;
+            }
+            pairs += (target.saturating_sub(tokens as i32)).max(1) as usize;
+        };
+        pipeline.steer(message).await;
         text_only.release();
     };
     let (result, ()) = tokio::join!(run, steer);
