@@ -12,7 +12,6 @@ use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
-use crate::agents::state_machine::{self, ToolConfirmationDecision};
 use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
@@ -748,88 +747,6 @@ fn update_output_token_limit_reached(output_token_limit_reached: &mut bool, mess
     }
 }
 
-fn coordinate_tool_confirmation_stream<'a>(
-    agent: &'a Agent,
-    session_config: SessionConfig,
-    uses_state_machine: bool,
-    cancel_token: CancellationToken,
-    initial_stream: BoxStream<'a, anyhow::Result<crate::agents::AgentEvent>>,
-    mut confirmation_decision_rx: mpsc::UnboundedReceiver<ToolConfirmationDecision>,
-) -> BoxStream<'a, anyhow::Result<crate::agents::AgentEvent>> {
-    Box::pin(async_stream::try_stream! {
-        let mut stream = initial_stream;
-        loop {
-            let mut stream_finished = false;
-            let mut pending_confirmation_ids = HashSet::new();
-            let mut confirmation_decisions = Vec::new();
-
-            while !stream_finished || !pending_confirmation_ids.is_empty() {
-                tokio::select! {
-                    event = stream.next(), if !stream_finished => {
-                        let Some(event) = event else {
-                            stream_finished = true;
-                            continue;
-                        };
-                        let event = event?;
-                        if let crate::agents::AgentEvent::Message(message) = &event {
-                            pending_confirmation_ids.extend(message.content.iter().filter_map(|content| {
-                                let MessageContent::ActionRequired(action) = content else {
-                                    return None;
-                                };
-                                let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
-                                    return None;
-                                };
-                                Some(id.clone())
-                            }));
-                        }
-                        yield event;
-                    }
-                    decision = confirmation_decision_rx.recv(), if !pending_confirmation_ids.is_empty() => {
-                        let Some(mut decision) = decision else {
-                            return;
-                        };
-                        if !pending_confirmation_ids.remove(&decision.request_id) {
-                            continue;
-                        }
-
-                        let confirmation = PermissionConfirmation {
-                            principal_type: PrincipalType::Tool,
-                            permission: decision.permission.clone(),
-                        };
-                        if uses_state_machine {
-                            if !agent
-                                .try_route_tool_confirmation_to_provider(&decision.request_id, &confirmation)
-                                .await
-                            {
-                                if decision.permission == Permission::Cancel {
-                                    decision.permission = Permission::DenyOnce;
-                                }
-                                confirmation_decisions.push(decision);
-                            }
-                        } else {
-                            agent
-                                .handle_confirmation(decision.request_id, confirmation)
-                                .await;
-                        }
-                    }
-                    _ = cancel_token.cancelled() => return,
-                }
-            }
-
-            if !uses_state_machine || confirmation_decisions.is_empty() {
-                return;
-            }
-            stream = agent
-                .submit_tool_confirmations(
-                    session_config.clone(),
-                    confirmation_decisions,
-                    Some(cancel_token.clone()),
-                )
-                .await?;
-        }
-    })
-}
-
 pub(super) struct UsageUpdates {
     pub(super) custom: GooseSessionNotification,
     pub(super) standard: UsageUpdate,
@@ -1433,7 +1350,7 @@ impl GooseAcpAgent {
         agent: &Arc<Agent>,
         tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
-        confirmation_decision_tx: &mpsc::UnboundedSender<ToolConfirmationDecision>,
+        agent_session_id: &str,
     ) -> Result<(), agent_client_protocol::Error> {
         let role = &message.role;
 
@@ -1485,7 +1402,8 @@ impl GooseAcpAgent {
                         tool_name.clone(),
                         arguments.clone(),
                         prompt.clone(),
-                        confirmation_decision_tx.clone(),
+                        agent.clone(),
+                        agent_session_id.to_string(),
                     )?;
                 }
                 ActionRequiredData::Elicitation {
@@ -1635,7 +1553,8 @@ impl GooseAcpAgent {
         tool_name: String,
         arguments: serde_json::Map<String, serde_json::Value>,
         prompt: Option<String>,
-        confirmation_decision_tx: mpsc::UnboundedSender<ToolConfirmationDecision>,
+        agent: Arc<Agent>,
+        agent_session_id: String,
     ) -> Result<(), agent_client_protocol::Error> {
         let cx = cx.clone();
         let session_id = session_id.clone();
@@ -1671,10 +1590,17 @@ impl GooseAcpAgent {
                     }
                 };
 
-                let _ = confirmation_decision_tx.send(ToolConfirmationDecision {
-                    request_id,
-                    permission,
-                });
+                if let Err(error) = agent
+                    .submit_tool_confirmation(&agent_session_id, &request_id, permission)
+                    .await
+                {
+                    error!(
+                        session_id = %agent_session_id,
+                        request_id = %request_id,
+                        %error,
+                        "failed to submit tool confirmation"
+                    );
+                }
                 Ok(())
             })?;
 
@@ -2193,10 +2119,6 @@ impl GooseAcpAgent {
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
-        let user_message_text = user_message.user_visible_content().as_concat_text();
-        let uses_state_machine = state_machine::enabled()
-            || state_machine::bang_shell_command(&user_message_text).is_some();
-
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
@@ -2204,12 +2126,8 @@ impl GooseAcpAgent {
             retry_config: None,
         };
 
-        let initial_stream = match agent
-            .reply(
-                user_message,
-                session_config.clone(),
-                Some(cancel_token.clone()),
-            )
+        let mut stream = match agent
+            .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
         {
             Ok(stream) => stream,
@@ -2220,17 +2138,6 @@ impl GooseAcpAgent {
                     .data(format!("Error getting agent reply: {error}")));
             }
         };
-        let (confirmation_decision_tx, confirmation_decision_rx) =
-            mpsc::unbounded_channel::<ToolConfirmationDecision>();
-        let mut stream = coordinate_tool_confirmation_stream(
-            agent.as_ref(),
-            session_config,
-            uses_state_machine,
-            cancel_token.clone(),
-            initial_stream,
-            confirmation_decision_rx,
-        );
-
         let mut was_cancelled = false;
         let mut output_token_limit_reached = false;
         let mut tool_requests = HashMap::new();
@@ -2275,7 +2182,7 @@ impl GooseAcpAgent {
                                 &agent,
                                 &tool_requests,
                                 cx,
-                                &confirmation_decision_tx,
+                                &session_id,
                             )
                             .await
                         {

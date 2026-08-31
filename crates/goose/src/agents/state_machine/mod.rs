@@ -44,7 +44,7 @@ pub use goose_agent::operation::{
     InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
 pub(crate) use tool_confirmation::persist_tool_confirmation_decisions;
-pub use tool_confirmation::ToolConfirmationDecision;
+pub(crate) use tool_confirmation::ToolConfirmationDecision;
 
 pub(super) use inference_preparation::GooseInferenceRequestPreparer;
 pub(crate) use ops_bang_shell::bang_shell_command;

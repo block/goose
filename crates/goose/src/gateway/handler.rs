@@ -3,19 +3,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{stream::BoxStream, StreamExt};
-use tokio::sync::{Mutex, Notify};
+use futures::StreamExt;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::state_machine::{self, ToolConfirmationDecision};
 use crate::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::execution::manager::AgentManager;
-use crate::permission::permission_confirmation::PrincipalType;
-use crate::permission::{Permission, PermissionConfirmation};
+use crate::permission::Permission;
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
@@ -43,10 +41,8 @@ fn resolve_gateway_max_turns(gateway_override: Option<u32>, global_max_turns: Op
 
 struct PendingConfirmation {
     agent: Arc<Agent>,
+    session_id: String,
     request_ids: VecDeque<String>,
-    confirmation_decisions: Vec<ToolConfirmationDecision>,
-    session_config: SessionConfig,
-    uses_state_machine: bool,
 }
 
 #[derive(Clone)]
@@ -57,7 +53,6 @@ pub struct GatewayHandler {
     config: GatewayConfig,
     /// Tracks users who have a tool-confirmation prompt awaiting their reply.
     pending_confirmations: Arc<Mutex<HashMap<PlatformUser, PendingConfirmation>>>,
-    confirmation_updates: Arc<Notify>,
     /// Serializes `relay_to_session` per user; confirmation replies bypass this lock.
     turn_locks: Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>,
 }
@@ -75,74 +70,26 @@ impl GatewayHandler {
             gateway,
             config,
             pending_confirmations: Arc::new(Mutex::new(HashMap::new())),
-            confirmation_updates: Arc::new(Notify::new()),
             turn_locks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     pub async fn deny_pending_confirmations(&self) {
         let pending: Vec<_> = self.pending_confirmations.lock().await.drain().collect();
-        self.confirmation_updates.notify_waiters();
-        for (user, pending) in pending {
+        for (_, pending) in pending {
             let PendingConfirmation {
                 agent,
+                session_id,
                 request_ids,
-                mut confirmation_decisions,
-                session_config,
-                uses_state_machine,
             } = pending;
-            if !uses_state_machine {
-                for request_id in request_ids {
-                    agent
-                        .handle_confirmation(
-                            request_id,
-                            PermissionConfirmation {
-                                principal_type: PrincipalType::Tool,
-                                permission: Permission::DenyOnce,
-                            },
-                        )
-                        .await;
-                }
-                continue;
-            }
-
             for request_id in request_ids {
-                let confirmation = PermissionConfirmation {
-                    principal_type: PrincipalType::Tool,
-                    permission: Permission::DenyOnce,
-                };
-                if !agent
-                    .try_route_tool_confirmation_to_provider(&request_id, &confirmation)
+                if let Err(error) = agent
+                    .submit_tool_confirmation(&session_id, &request_id, Permission::DenyOnce)
                     .await
                 {
-                    confirmation_decisions.push(ToolConfirmationDecision {
-                        request_id,
-                        permission: Permission::DenyOnce,
-                    });
+                    tracing::error!(%error, %request_id, "failed to deny pending gateway confirmation");
                 }
             }
-            if confirmation_decisions.is_empty() {
-                continue;
-            }
-
-            let turn_lock = {
-                let mut locks = self.turn_locks.lock().await;
-                Arc::clone(
-                    locks
-                        .entry(user.clone())
-                        .or_insert_with(|| Arc::new(Mutex::new(()))),
-                )
-            };
-            let turn_guard = turn_lock.lock().await;
-            if let Err(error) = agent
-                .submit_tool_confirmations(session_config, confirmation_decisions, None)
-                .await
-            {
-                tracing::error!(%error, "failed to deny pending gateway confirmation");
-            }
-            drop(turn_guard);
-            drop(turn_lock);
-            self.prune_turn_lock(&user).await;
         }
     }
 
@@ -266,46 +213,31 @@ impl GatewayHandler {
             return Ok(());
         };
 
-        let mut pending_confirmations = self.pending_confirmations.lock().await;
-        let Some(pending) = pending_confirmations.get_mut(&message.user) else {
+        let pending_confirmations = self.pending_confirmations.lock().await;
+        let Some(pending) = pending_confirmations.get(&message.user) else {
             return Ok(());
         };
-        let Some(request_id) = pending.request_ids.pop_front() else {
+        let Some(request_id) = pending.request_ids.front().cloned() else {
             return Ok(());
         };
         let agent = pending.agent.clone();
-        let uses_state_machine = pending.uses_state_machine;
+        let session_id = pending.session_id.clone();
+        drop(pending_confirmations);
+        agent
+            .submit_tool_confirmation(&session_id, &request_id, permission)
+            .await?;
 
-        let permission_confirmation = PermissionConfirmation {
-            principal_type: PrincipalType::Tool,
-            permission: permission.clone(),
-        };
-        if uses_state_machine {
-            let routed_to_provider = agent
-                .try_route_tool_confirmation_to_provider(&request_id, &permission_confirmation)
-                .await;
-            if !routed_to_provider {
-                pending
-                    .confirmation_decisions
-                    .push(ToolConfirmationDecision {
-                        request_id,
-                        permission,
-                    });
-            }
-            let all_confirmations_answered = pending.request_ids.is_empty();
-            if all_confirmations_answered && pending.confirmation_decisions.is_empty() {
-                pending_confirmations.remove(&message.user);
-            }
-            drop(pending_confirmations);
-            if all_confirmations_answered {
-                self.confirmation_updates.notify_waiters();
-            }
-        } else {
+        let mut pending_confirmations = self.pending_confirmations.lock().await;
+        let remove_pending = pending_confirmations
+            .get_mut(&message.user)
+            .is_some_and(|pending| {
+                if pending.request_ids.front() == Some(&request_id) {
+                    pending.request_ids.pop_front();
+                }
+                pending.request_ids.is_empty()
+            });
+        if remove_pending {
             pending_confirmations.remove(&message.user);
-            drop(pending_confirmations);
-            agent
-                .handle_confirmation(request_id, permission_confirmation)
-                .await;
         }
 
         Ok(())
@@ -475,53 +407,6 @@ impl GatewayHandler {
         Ok(extensions_changed)
     }
 
-    fn coordinate_tool_confirmation_stream<'a>(
-        &'a self,
-        user: PlatformUser,
-        agent: &'a Agent,
-        session_config: SessionConfig,
-        uses_state_machine: bool,
-        initial_stream: BoxStream<'a, anyhow::Result<AgentEvent>>,
-    ) -> BoxStream<'a, anyhow::Result<AgentEvent>> {
-        Box::pin(async_stream::try_stream! {
-            let mut stream = initial_stream;
-            loop {
-                while let Some(event) = stream.next().await {
-                    yield event?;
-                }
-
-                if !uses_state_machine {
-                    return;
-                }
-                let pending = loop {
-                    let update = self.confirmation_updates.notified();
-                    tokio::pin!(update);
-                    update.as_mut().enable();
-                    let mut pending_confirmations = self.pending_confirmations.lock().await;
-                    let Some(pending) = pending_confirmations.get(&user) else {
-                        return;
-                    };
-                    if pending.request_ids.is_empty()
-                        && !pending.confirmation_decisions.is_empty()
-                    {
-                        break pending_confirmations
-                            .remove(&user)
-                            .expect("pending confirmation was just checked");
-                    }
-                    drop(pending_confirmations);
-                    update.await;
-                };
-                stream = agent
-                    .submit_tool_confirmations(
-                        session_config.clone(),
-                        pending.confirmation_decisions,
-                        None,
-                    )
-                    .await?;
-            }
-        })
-    }
-
     async fn relay_to_session(
         &self,
         message: &IncomingMessage,
@@ -614,10 +499,8 @@ impl GatewayHandler {
             retry_config: None,
         };
 
-        let uses_state_machine =
-            state_machine::enabled() || state_machine::bang_shell_command(&message.text).is_some();
-        let initial_stream = match agent
-            .reply(user_message, session_config.clone(), Some(cancel))
+        let mut stream = match agent
+            .reply(user_message, session_config, Some(cancel))
             .await
         {
             Ok(s) => s,
@@ -633,14 +516,6 @@ impl GatewayHandler {
                 return Ok(());
             }
         };
-        let mut stream = self.coordinate_tool_confirmation_stream(
-            message.user.clone(),
-            agent.as_ref(),
-            session_config.clone(),
-            uses_state_machine,
-            initial_stream,
-        );
-
         // Telegram stops showing "typing…" after ~5 seconds.  Re-send the
         // indicator every 4 s so the user always sees activity while the
         // agent is working (tool calls, LLM round-trips, etc.).
@@ -778,10 +653,8 @@ impl GatewayHandler {
                                             })
                                             .or_insert_with(|| PendingConfirmation {
                                                 agent: agent.clone(),
+                                                session_id: session_id.to_string(),
                                                 request_ids: VecDeque::from([id.clone()]),
-                                                confirmation_decisions: Vec::new(),
-                                                session_config: session_config.clone(),
-                                                uses_state_machine,
                                             });
 
                                         let send_result = self
@@ -800,50 +673,34 @@ impl GatewayHandler {
                                                 error = %e,
                                                 "failed to deliver tool approval prompt; denying tool call"
                                             );
-                                            let confirmation = PermissionConfirmation {
-                                                principal_type: PrincipalType::Tool,
-                                                permission: Permission::DenyOnce,
-                                            };
-                                            if uses_state_machine {
-                                                let routed_to_provider = agent
-                                                    .try_route_tool_confirmation_to_provider(
-                                                        id,
-                                                        &confirmation,
-                                                    )
-                                                    .await;
-                                                let mut pending_confirmations =
-                                                    self.pending_confirmations.lock().await;
-                                                let mut remove_pending = false;
-                                                if let Some(pending) =
-                                                    pending_confirmations.get_mut(&message.user)
-                                                {
+                                            let mut pending =
+                                                self.pending_confirmations.lock().await;
+                                            let remove_pending = pending
+                                                .get_mut(&message.user)
+                                                .is_some_and(|pending| {
                                                     pending
                                                         .request_ids
                                                         .retain(|request_id| request_id != id);
-                                                    if !routed_to_provider {
-                                                        pending.confirmation_decisions.push(
-                                                            ToolConfirmationDecision {
-                                                                request_id: id.clone(),
-                                                                permission: Permission::DenyOnce,
-                                                            },
-                                                        );
-                                                    }
-                                                    remove_pending = pending.request_ids.is_empty()
-                                                        && pending
-                                                            .confirmation_decisions
-                                                            .is_empty();
-                                                }
-                                                if remove_pending {
-                                                    pending_confirmations.remove(&message.user);
-                                                }
-                                            } else {
-                                                self.pending_confirmations
-                                                    .lock()
-                                                    .await
-                                                    .remove(&message.user);
-                                                agent
-                                                    .handle_confirmation(id.clone(), confirmation)
-                                                    .await;
+                                                    pending.request_ids.is_empty()
+                                                });
+                                            if remove_pending {
+                                                pending.remove(&message.user);
+                                            }
+                                            drop(pending);
+                                            if let Err(error) = agent
+                                                .submit_tool_confirmation(
+                                                    session_id,
+                                                    id,
+                                                    Permission::DenyOnce,
+                                                )
+                                                .await
+                                            {
+                                                tracing::error!(
+                                                    session_id,
+                                                    request_id = %id,
+                                                    %error,
+                                                    "failed to deny undeliverable tool approval"
+                                                );
                                             }
                                             sent_any = true;
                                         } else {

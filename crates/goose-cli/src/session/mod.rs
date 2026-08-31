@@ -24,12 +24,9 @@ use console::Color;
 use goose::agents::platform_extensions::developer::shell::{
     parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
 };
-use goose::agents::state_machine::{self, ToolConfirmationDecision};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
-use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
-use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 use goose::providers::base::ProviderUsage;
 use goose::utils::safe_truncate;
@@ -1554,13 +1551,6 @@ impl CliSession {
             .messages
             .last()
             .ok_or_else(|| anyhow::anyhow!("No user message"))?;
-        let user_message_text = user_message.user_visible_content().as_concat_text();
-        let uses_state_machine = state_machine::enabled()
-            || user_message_text
-                .trim_start()
-                .strip_prefix('!')
-                .is_some_and(|command| !command.trim_start().is_empty());
-
         let cancel_token_interrupt = cancel_token.clone();
         let handle = tokio::spawn(async move {
             if ctrl_c().await.is_ok() {
@@ -1586,7 +1576,6 @@ impl CliSession {
         let run_started = Instant::now();
         let mut first_token_at: Option<Instant> = None;
         let mut last_usage: Option<ProviderUsage> = None;
-        let mut confirmation_decisions = Vec::new();
 
         use futures::StreamExt;
         loop {
@@ -1625,46 +1614,13 @@ impl CliSession {
                                 if cancelled_by_user {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
                                 }
-                                let provider_confirmation = PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission: selected_permission.clone(),
-                                };
-
-                                if uses_state_machine {
-                                    if !self.agent.try_route_tool_confirmation_to_provider(&id, &provider_confirmation).await {
-                                        confirmation_decisions.push(ToolConfirmationDecision {
-                                            request_id: id,
-                                            permission: if cancelled_by_user {
-                                                Permission::DenyOnce
-                                            } else {
-                                                selected_permission
-                                            },
-                                        });
-                                    }
-                                } else if cancelled_by_user {
-                                    self.agent.handle_confirmation(
-                                        id.clone(),
-                                        PermissionConfirmation {
-                                            principal_type: PrincipalType::Tool,
-                                            permission: Permission::DenyOnce,
-                                        },
-                                    ).await;
-                                    let mut response_message = Message::user();
-                                    response_message.content.push(MessageContent::tool_response(
-                                        id,
-                                        Err(ErrorData {
-                                            code: ErrorCode::INVALID_REQUEST,
-                                            message: std::borrow::Cow::from("Tool call cancelled by user"),
-                                            data: None,
-                                        }),
-                                    ));
-                                    self.messages.push(response_message);
-                                    cancel_token_clone.cancel();
-                                    drop(stream);
-                                    break;
-                                } else {
-                                    self.agent.handle_confirmation(id, provider_confirmation).await;
-                                }
+                                self.agent
+                                    .submit_tool_confirmation(
+                                        &self.session_id,
+                                        &id,
+                                        selected_permission,
+                                    )
+                                    .await?;
                             } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 if !interactive {
                                     // Non-interactive/headless mode: cannot collect user input
@@ -1775,17 +1731,7 @@ impl CliSession {
                             }
                             break;
                         }
-                        None => {
-                            if uses_state_machine && !confirmation_decisions.is_empty() {
-                                stream = self.agent.submit_tool_confirmations(
-                                    session_config.clone(),
-                                    std::mem::take(&mut confirmation_decisions),
-                                    Some(cancel_token.clone()),
-                                ).await?;
-                                continue;
-                            }
-                            break;
-                        }
+                        None => break,
                     }
                 }
                 _ = cancel_token_clone.cancelled() => {

@@ -9,7 +9,7 @@ use crate::permission::Permission;
 use crate::session::SessionManager;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ToolConfirmationDecision {
+pub(crate) struct ToolConfirmationDecision {
     pub request_id: String,
     pub permission: Permission,
 }

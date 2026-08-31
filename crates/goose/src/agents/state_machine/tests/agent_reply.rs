@@ -18,7 +18,6 @@ use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::acp::server::GooseAcpAgent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::McpClientTrait;
-use crate::agents::state_machine::ToolConfirmationDecision;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
@@ -144,74 +143,54 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         max_turns: Some(2),
         retry_config: None,
     };
-    let messages = reply_messages(
-        &agent,
-        session_config.id.clone(),
-        Message::user().with_text("add one"),
-    )
-    .await?;
-    let confirmation_id = confirmation_ids(&messages)
-        .pop()
-        .expect("state machine should request confirmation");
+    let mut stream = agent
+        .reply(
+            Message::user().with_text("add one"),
+            session_config.clone(),
+            Some(CancellationToken::new()),
+        )
+        .await?;
+    let mut messages = Vec::new();
+    let confirmation_id = loop {
+        let event = stream
+            .next()
+            .await
+            .expect("state machine should request confirmation")?;
+        if let AgentEvent::Message(message) = event {
+            let confirmation_id = confirmation_ids(std::slice::from_ref(&message)).pop();
+            messages.push(message);
+            if let Some(confirmation_id) = confirmation_id {
+                break confirmation_id;
+            }
+        }
+    };
     assert_eq!(calculator.total(), 0);
 
-    let resumed = stream_messages(
-        agent
-            .submit_tool_confirmations(
-                session_config.clone(),
-                vec![ToolConfirmationDecision {
-                    request_id: confirmation_id.clone(),
-                    permission: Permission::AllowOnce,
-                }],
-                Some(CancellationToken::new()),
-            )
-            .await?,
-    )
-    .await?;
-    assert!(resumed.iter().any(|message| message
+    agent
+        .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
+        .await?;
+    agent
+        .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
+        .await?;
+    assert!(agent
+        .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::DenyOnce)
+        .await
+        .is_err());
+    messages.extend(stream_messages(stream).await?);
+    assert!(messages.iter().any(|message| message
         .get_tool_response_ids()
         .contains(&confirmation_id.as_str())));
     assert_eq!(calculator.total(), 1);
     assert_eq!(api.call_count(), 2);
 
-    let replay = stream_messages(
-        agent
-            .submit_tool_confirmations(
-                session_config.clone(),
-                vec![ToolConfirmationDecision {
-                    request_id: confirmation_id.clone(),
-                    permission: Permission::AllowOnce,
-                }],
-                Some(CancellationToken::new()),
-            )
-            .await?,
-    )
-    .await?;
-    assert!(!replay.iter().any(|message| message
-        .get_tool_response_ids()
-        .contains(&confirmation_id.as_str())));
+    assert!(agent
+        .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
+        .await
+        .is_err());
     assert_eq!(calculator.total(), 1);
 
     assert!(agent
-        .submit_tool_confirmations(
-            session_config.clone(),
-            vec![ToolConfirmationDecision {
-                request_id: confirmation_id.clone(),
-                permission: Permission::DenyOnce,
-            }],
-            Some(CancellationToken::new()),
-        )
-        .await
-        .is_err());
-    assert!(agent
-        .submit_tool_confirmations(
-            session_config.clone(),
-            vec![ToolConfirmationDecision {
-                request_id: "stale-request".to_string(),
-                permission: Permission::AllowOnce,
-            }],
-            Some(CancellationToken::new()),
-        )
+        .submit_tool_confirmation(&session_config.id, "stale-request", Permission::AllowOnce)
         .await
         .is_err());
 

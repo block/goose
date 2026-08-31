@@ -274,23 +274,6 @@ impl GooseAcpAgent {
             }
         }
 
-        let (confirmation_decision_tx, mut confirmation_decision_rx) =
-            mpsc::unbounded_channel::<ToolConfirmationDecision>();
-        let agent = agent.clone();
-        drop(tokio::spawn(async move {
-            while let Some(decision) = confirmation_decision_rx.recv().await {
-                agent
-                    .handle_confirmation(
-                        decision.request_id,
-                        PermissionConfirmation {
-                            principal_type: PrincipalType::Tool,
-                            permission: decision.permission,
-                        },
-                    )
-                    .await;
-            }
-        }));
-
         for (id, tool_name, arguments, prompt) in requests {
             if answered.contains(&id) || responses.contains(&id) {
                 continue;
@@ -302,7 +285,8 @@ impl GooseAcpAgent {
                 tool_name,
                 arguments,
                 prompt,
-                confirmation_decision_tx.clone(),
+                agent.clone(),
+                session.id.clone(),
             )?;
         }
 
