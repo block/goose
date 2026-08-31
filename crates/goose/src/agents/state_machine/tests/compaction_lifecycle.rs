@@ -1302,3 +1302,81 @@ async fn a_large_steer_after_a_text_only_reply_rechecks_the_threshold() -> Resul
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_kickoff_preserved_by_compaction_is_not_recompacted() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    // The replacement installs a session baseline that already covers the
+    // whole compacted history — summary plus the kickoff preserved verbatim —
+    // but that history has no usage marker, so a recount would fall back to
+    // the summary boundary and count the preserved kickoff as unsent growth
+    // on top of a baseline that already contains it. The kickoff is sized so
+    // the retained history stays under the 192k threshold while counting the
+    // kickoff twice crosses it: without a boundary the re-check after
+    // replacement re-compacts on every pass and never reaches inference.
+    let pipeline = pipeline
+        .with_model_config(
+            goose_providers::model::ModelConfig::new("gpt-4.1").with_context_limit(Some(240_000)),
+        )
+        .await;
+    // The kickoff's serialized size approaches the threshold while the
+    // compaction check measures tokens, so pin the API's rejection wall far
+    // above everything: only the operation's own threshold may stop a pass.
+    api.set_context_limit(2_000_000);
+    api.on("reply briefly").reply("acknowledged");
+    api.on("grow the context").reply("grew");
+    api.on(SUMMARIZE_HISTORY).reply("history summarized");
+    api.on("Your context was compacted")
+        .reply("continued after compaction");
+
+    pipeline.run(["reply briefly"]).await?;
+    // Lift the baseline so the large kickoff crosses the threshold when it
+    // lands: the recount adds its measured tokens to the baseline.
+    pipeline.set_total_tokens(95_000).await;
+
+    let threshold = (pipeline.context_limit() as f64 * pipeline::COMPACTION_THRESHOLD) as i32;
+    // Size the kickoff in tokens — the same counter the check uses — to a
+    // bit past half the threshold: the retained history (kickoff plus a
+    // small summary) stays under it while the kickoff counted twice crosses
+    // it on any machine.
+    let target = (threshold as f64 * 0.55) as usize;
+    let counter = crate::token_counter::create_token_counter()
+        .await
+        .expect("token counter");
+    let mut pairs = target;
+    let kickoff = loop {
+        let candidate = format!("grow the context {}", "x ".repeat(pairs));
+        let message = Message::user().with_text(&candidate);
+        let tokens = counter.count_chat_tokens("", std::slice::from_ref(&message), &[]);
+        if tokens >= target {
+            break candidate;
+        }
+        pairs += (target.saturating_sub(tokens)).max(1);
+    };
+
+    let run = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        pipeline.run([kickoff.as_str()]),
+    )
+    .await
+    .expect("the run must reach inference instead of re-compacting every pass")?;
+
+    run.assert_message(-1, Agent, "continued after compaction");
+    run.assert_emitted("Performing auto-compaction");
+    assert_eq!(
+        run.history_replacements(),
+        1,
+        "the replaced kickoff is already counted by the replacement baseline"
+    );
+    assert_eq!(
+        api.calls()
+            .iter()
+            .filter(|call| call.input_contains(SUMMARIZE_HISTORY))
+            .count(),
+        1,
+        "the preserved kickoff must not be re-added to the baseline as unsent growth"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}

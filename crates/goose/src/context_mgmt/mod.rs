@@ -1,7 +1,7 @@
 pub use goose_context_management::structured;
 
 use crate::conversation::message::MessageMetadata;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent, MessageUsage};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::providers::base::Provider;
 #[cfg(test)]
@@ -190,7 +190,7 @@ pub async fn compact_messages(
         }
     }
 
-    let conversation = Conversation::new_unvalidated(final_messages);
+    let mut conversation = Conversation::new_unvalidated(final_messages);
     let retained_context_tokens = match count_context_tokens(&conversation).await {
         Ok(tokens) => tokens,
         Err(error) => {
@@ -198,6 +198,26 @@ pub async fn compact_messages(
             summarization_usage.usage.output_tokens.unwrap_or(0)
         }
     };
+    // Both loops install a session baseline that already covers the whole
+    // replacement history, but that history carries no usage marker, so a
+    // recount would fall back to the summary boundary and treat the
+    // preserved kickoff as unsent growth — adding it on top of the baseline
+    // re-crosses the threshold and compacts again on every pass. Marking the
+    // newest agent-visible message preserves the boundary the baseline
+    // covers; the next provider response supersedes the marker.
+    if let Some(boundary) = conversation
+        .messages_mut()
+        .iter_mut()
+        .rev()
+        .find(|message| message.is_agent_visible())
+    {
+        boundary.metadata.usage = Some(Box::new(MessageUsage {
+            input_tokens: Some(retained_context_tokens),
+            total_tokens: Some(retained_context_tokens),
+            is_compaction: true,
+            ..MessageUsage::default()
+        }));
+    }
 
     Ok(CompactionResult {
         conversation,
@@ -250,10 +270,13 @@ pub(crate) async fn recount_context_tokens(
     // response's own content is excluded from the growth — the session
     // baseline reports input plus output tokens, so the response is already
     // counted in it, and counting it again would compact a context whose
-    // real next request still fits. Histories without usage metadata fall
-    // back to the last assistant message as the boundary, which
-    // undercounts a legacy split batch but stays correct for the state
-    // machine's single-message representation.
+    // real next request still fits. Compaction marks the newest
+    // agent-visible message of its replacement history the same way, so the
+    // baseline it installs — the token count of that whole history — is not
+    // re-added as growth. Histories without usage metadata fall back to the
+    // last assistant message as the boundary, which undercounts a legacy
+    // split batch but stays correct for the state machine's single-message
+    // representation.
     let unsent_start = messages
         .iter()
         .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())
@@ -1091,6 +1114,48 @@ mod tests {
             long > short,
             "the preserved user message must be part of the retained context ({short} vs {long})"
         );
+    }
+
+    #[tokio::test]
+    async fn compaction_marks_the_boundary_the_replacement_baseline_covers() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 100_000);
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("start"),
+            Message::assistant().with_text("ok"),
+            Message::user().with_text("keep going"),
+        ]);
+        let compaction = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // The baseline both loops install after replacement is the token
+        // count of the whole compacted history; the recount must not add any
+        // part of that history back on top of it.
+        let boundary = compaction
+            .conversation
+            .messages()
+            .iter()
+            .rev()
+            .find(|message| message.is_agent_visible())
+            .and_then(|message| message.metadata.usage.as_deref())
+            .expect("the replacement history must carry a boundary marker");
+        assert!(boundary.is_compaction);
+        assert_eq!(
+            boundary.total_tokens,
+            Some(compaction.retained_context_tokens)
+        );
+
+        let counts = recount_context_tokens(&compaction.conversation)
+            .await
+            .unwrap();
+        assert_eq!(counts.unsent, 0, "nothing behind the boundary is unsent");
+        assert_eq!(counts.total, compaction.retained_context_tokens);
     }
 
     #[tokio::test]
