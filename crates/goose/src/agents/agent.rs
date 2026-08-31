@@ -30,12 +30,13 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
-    run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    persist_tool_confirmation_decisions, run_goose, BangShellOperation, CompactionOperation,
+    DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
+    GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
+    SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
+    StopHookOperation, ToolApprovalOperation, ToolConfirmationDecision, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -1693,15 +1694,11 @@ impl Agent {
         request_id: String,
         confirmation: PermissionConfirmation,
     ) {
-        let provider = self.provider.lock().await.clone();
-        if let Some(provider) = provider.as_ref() {
-            if provider.permission_routing() == PermissionRouting::ActionRequired
-                && provider
-                    .handle_permission_confirmation(&request_id, &confirmation)
-                    .await
-            {
-                return;
-            }
+        if self
+            .try_route_tool_confirmation_to_provider(&request_id, &confirmation)
+            .await
+        {
+            return;
         }
         if !self
             .tool_confirmation_router
@@ -1710,6 +1707,24 @@ impl Agent {
         {
             error!("Failed to deliver confirmation");
         }
+    }
+
+    pub async fn try_route_tool_confirmation_to_provider(
+        &self,
+        request_id: &str,
+        confirmation: &PermissionConfirmation,
+    ) -> bool {
+        let provider = self.provider.lock().await.clone();
+        if let Some(provider) = provider.as_ref() {
+            if provider.permission_routing() == PermissionRouting::ActionRequired
+                && provider
+                    .handle_permission_confirmation(request_id, confirmation)
+                    .await
+            {
+                return true;
+            }
+        }
+        false
     }
 
     pub async fn supports_action_required_permissions(&self) -> bool {
@@ -1854,10 +1869,8 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
-        let cancel = cancel_token.unwrap_or_default();
         let session_id = session_config.id.clone();
 
-        let entry_session = session_manager.get_session(&session_id, false).await?;
         if let Some(schedule_id) = session_config.schedule_id.clone() {
             session_manager
                 .update(&session_id)
@@ -1869,14 +1882,13 @@ impl Agent {
             .add_message(&session_config.id, &user_message)
             .await?;
 
-        let provider = self
-            .provider
-            .lock()
-            .await
-            .clone()
-            .ok_or_else(|| anyhow!("Provider not set"))?;
-
         if !self.config.disable_session_naming {
+            let provider = self
+                .provider
+                .lock()
+                .await
+                .clone()
+                .ok_or_else(|| anyhow!("Provider not set"))?;
             let manager = session_manager.clone();
             let tx = self.config.session_name_update_tx.clone();
             let id = session_id.clone();
@@ -1896,6 +1908,43 @@ impl Agent {
             });
         }
 
+        self.stream_state_machine_session(session_config, cancel_token)
+            .await
+    }
+
+    pub async fn submit_tool_confirmations(
+        &self,
+        session_config: SessionConfig,
+        confirmation_decisions: Vec<ToolConfirmationDecision>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        persist_tool_confirmation_decisions(
+            self.config.session_manager.as_ref(),
+            &session_config.id,
+            &confirmation_decisions,
+        )
+        .await?;
+        let events = self
+            .stream_state_machine_session(session_config, cancel_token)
+            .await?;
+        Ok(Box::pin(events.map_ok(ensure_message_event_id)))
+    }
+
+    async fn stream_state_machine_session(
+        &self,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let session_manager = self.config.session_manager.clone();
+        let cancel = cancel_token.unwrap_or_default();
+        let session_id = session_config.id.clone();
+        let entry_session = session_manager.get_session(&session_id, false).await?;
+        let provider = self
+            .provider
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow!("Provider not set"))?;
         let model_config = match entry_session.model_config {
             Some(model_config) => model_config,
             None => {

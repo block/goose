@@ -162,7 +162,7 @@ struct PendingResponse {
     executable: Option<bool>,
 }
 
-struct ApprovalState {
+pub(super) struct ApprovalState {
     answered: HashSet<String>,
     approval_requests: HashSet<String>,
     approval_responses: HashMap<String, Permission>,
@@ -170,7 +170,7 @@ struct ApprovalState {
 }
 
 impl ApprovalState {
-    fn from_messages(messages: &[Message]) -> Self {
+    pub(super) fn from_messages(messages: &[Message]) -> Self {
         let mut answered = HashSet::new();
         let mut approval_requests = HashSet::new();
         let mut approval_responses = HashMap::new();
@@ -248,6 +248,22 @@ impl ApprovalState {
                 Some(request.clone())
             })
             .collect()
+    }
+
+    pub(super) fn has_confirmation_request(&self, request_id: &str) -> bool {
+        self.approval_requests.contains(request_id)
+            && self
+                .tool_requests
+                .iter()
+                .any(|request| request.id == request_id)
+    }
+
+    pub(super) fn confirmation_response(&self, request_id: &str) -> Option<&Permission> {
+        self.approval_responses.get(request_id)
+    }
+
+    pub(super) fn has_tool_response(&self, request_id: &str) -> bool {
+        self.answered.contains(request_id)
     }
 }
 
