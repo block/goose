@@ -5,7 +5,6 @@ use anyhow::{anyhow, Result};
 use tokio::sync::{Mutex, Notify, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::state_machine::ToolConfirmationDecision;
 use crate::permission::Permission;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,7 +87,7 @@ impl SessionToolConfirmationState {
     pub(super) async fn wait_for_all_confirmation_answers(
         &self,
         cancel: &CancellationToken,
-    ) -> Result<Vec<ToolConfirmationDecision>> {
+    ) -> Result<bool> {
         loop {
             let answer_received = self.confirmation_answered.notified();
             tokio::pin!(answer_received);
@@ -101,25 +100,14 @@ impl SessionToolConfirmationState {
                     .expect("tool confirmation state unavailable");
                 (!confirmations.is_empty() && confirmations.values().all(Option::is_some)).then(
                     || {
-                        let mut decisions: Vec<_> = confirmations
-                            .iter()
-                            .filter_map(|(request_id, answer)| match answer {
-                                None | Some(ConfirmationAnswer::LiveHandled) => None,
-                                Some(ConfirmationAnswer::StateMachine(permission)) => {
-                                    Some(ToolConfirmationDecision {
-                                        request_id: request_id.clone(),
-                                        permission: permission.clone(),
-                                    })
-                                }
-                            })
-                            .collect();
-                        decisions.sort_by(|left, right| left.request_id.cmp(&right.request_id));
-                        decisions
+                        confirmations.values().any(|answer| {
+                            matches!(answer, Some(ConfirmationAnswer::StateMachine(_)))
+                        })
                     },
                 )
             };
-            if let Some(decisions) = completed {
-                return Ok(decisions);
+            if let Some(has_state_machine_answer) = completed {
+                return Ok(has_state_machine_answer);
             }
 
             tokio::select! {
@@ -208,18 +196,12 @@ mod tests {
             .record_answer("request-2", ConfirmationAnswer::LiveHandled)
             .unwrap();
 
-        let decisions = session
+        let has_state_machine_answer = session
             .wait_for_all_confirmation_answers(&CancellationToken::new())
             .await
             .unwrap();
 
-        assert_eq!(
-            decisions,
-            vec![ToolConfirmationDecision {
-                request_id: "request-1".to_string(),
-                permission: Permission::AllowOnce,
-            }]
-        );
+        assert!(has_state_machine_answer);
     }
 
     #[test]

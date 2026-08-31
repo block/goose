@@ -2084,6 +2084,46 @@ impl GooseAcpAgent {
         )
     }
 
+    async fn send_session_usage_updates(
+        &self,
+        cx: &ConnectionTo<Client>,
+        acp_session_id: &SessionId,
+        session_id: &str,
+        agent: &Arc<Agent>,
+    ) -> Result<Session, agent_client_protocol::Error> {
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to load session")?;
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(session_id)
+            .await
+            .unwrap_or_default();
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to resolve session provider")?;
+        let model = session.model_config.as_ref().ok_or_else(|| {
+            agent_client_protocol::Error::internal_error().data("Session has no model")
+        })?;
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
+                .await
+                .internal_err_ctx("Failed to resolve context limit")?;
+        let updates = build_usage_updates(&session, &totals, context_limit);
+        if self.supports_goose_custom_notifications() {
+            cx.send_notification(updates.custom)?;
+        }
+        cx.send_notification(SessionNotification::new(
+            acp_session_id.clone(),
+            SessionUpdate::UsageUpdate(updates.standard),
+        ))?;
+
+        Ok(session)
+    }
+
     async fn forward_agent_stream(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2297,34 +2337,8 @@ impl GooseAcpAgent {
         let outcome = stream_result?;
 
         let session = self
-            .session_manager
-            .get_session(&session_id, false)
-            .await
-            .internal_err_ctx("Failed to load session")?;
-        let totals = self
-            .session_manager
-            .get_session_usage_totals(&session_id)
-            .await
-            .unwrap_or_default();
-        let provider = agent
-            .provider()
-            .await
-            .internal_err_ctx("Failed to resolve session provider")?;
-        let model = session.model_config.as_ref().ok_or_else(|| {
-            agent_client_protocol::Error::internal_error().data("Session has no model")
-        })?;
-        let context_limit =
-            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
-                .await
-                .internal_err_ctx("Failed to resolve context limit")?;
-        let updates = build_usage_updates(&session, &totals, context_limit);
-        if self.supports_goose_custom_notifications() {
-            cx.send_notification(updates.custom)?;
-        }
-        cx.send_notification(SessionNotification::new(
-            args.session_id.clone(),
-            SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+            .send_session_usage_updates(cx, &args.session_id, &session_id, &agent)
+            .await?;
 
         let stop_reason =
             prompt_stop_reason(outcome.was_cancelled, outcome.output_token_limit_reached);

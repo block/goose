@@ -5,18 +5,18 @@ use tracing::warn;
 
 use crate::permission::PermissionConfirmation;
 
-pub struct ToolConfirmationRouter {
+pub(super) struct ToolConfirmationRouter {
     pending: Mutex<HashMap<(String, String), oneshot::Sender<PermissionConfirmation>>>,
 }
 
 impl ToolConfirmationRouter {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
         }
     }
 
-    pub async fn register(
+    pub(super) async fn register(
         &self,
         session_id: String,
         request_id: String,
@@ -28,7 +28,7 @@ impl ToolConfirmationRouter {
         rx
     }
 
-    pub async fn deliver(
+    pub(super) async fn deliver(
         &self,
         session_id: &str,
         request_id: &str,

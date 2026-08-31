@@ -34,13 +34,13 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
-    persist_tool_confirmation_decisions, run_goose, BangShellOperation, CompactionOperation,
+    persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
     DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
     GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
     Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
     SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
-    StopHookOperation, ToolApprovalOperation, ToolConfirmationDecision, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -1755,14 +1755,11 @@ impl Agent {
         }
 
         if state.contains_request(request_id) {
-            let decision = ToolConfirmationDecision {
-                request_id: request_id.to_string(),
-                permission: state_machine_permission.clone(),
-            };
-            persist_tool_confirmation_decisions(
+            persist_tool_confirmation_decision(
                 self.config.session_manager.as_ref(),
                 session_id,
-                std::slice::from_ref(&decision),
+                request_id,
+                &state_machine_permission,
             )
             .await?;
             state.record_answer(
@@ -1982,7 +1979,7 @@ impl Agent {
 
         let cancel = cancel_token.unwrap_or_default();
         let initial_stream = self
-            .stream_state_machine_session(session_config.clone(), Some(cancel.clone()))
+            .stream_state_machine_session(session_config.clone(), cancel.clone())
             .await?;
         Ok(
             self.stream_state_machine_turn(
@@ -1997,7 +1994,7 @@ impl Agent {
     pub(crate) async fn resume_state_machine_turn(
         self: &Arc<Self>,
         session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
+        cancel: CancellationToken,
     ) -> Result<Option<BoxStream<'static, Result<AgentEvent>>>> {
         if !super::state_machine::enabled() {
             return Ok(None);
@@ -2027,7 +2024,6 @@ impl Agent {
             turn_guard.state().register_request(request.id);
         }
 
-        let cancel = cancel_token.unwrap_or_default();
         let agent = Arc::clone(self);
         Ok(Some(Box::pin(async_stream::try_stream! {
             let initial_stream = if resume_from_persisted_response {
@@ -2035,7 +2031,7 @@ impl Agent {
                     agent
                         .stream_state_machine_session(
                             session_config.clone(),
-                            Some(cancel.clone()),
+                            cancel.clone(),
                         )
                         .await?,
                 )
@@ -2100,18 +2096,18 @@ impl Agent {
                     }
                 }
 
-                let decisions = turn_guard
+                let has_state_machine_answer = turn_guard
                     .state()
                     .wait_for_all_confirmation_answers(&cancel)
                     .await?;
-                if decisions.is_empty() {
+                if !has_state_machine_answer {
                     return;
                 }
                 turn_guard.state().clear_confirmations();
                 stream = Some(
                     self.stream_state_machine_session(
                         session_config.clone(),
-                        Some(cancel.clone()),
+                        cancel.clone(),
                     )
                     .await?,
                 );
@@ -2122,10 +2118,9 @@ impl Agent {
     async fn stream_state_machine_session(
         &self,
         session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
+        cancel: CancellationToken,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
-        let cancel = cancel_token.unwrap_or_default();
         let session_id = session_config.id.clone();
         let entry_session = session_manager.get_session(&session_id, false).await?;
         let provider = self

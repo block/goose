@@ -205,7 +205,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .is_err());
     drop(stream);
     let stream = agent
-        .resume_state_machine_turn(session_config.clone(), Some(CancellationToken::new()))
+        .resume_state_machine_turn(session_config.clone(), CancellationToken::new())
         .await?
         .expect("persisted confirmation response should resume the state-machine turn");
     messages.extend(stream_messages(stream).await?);

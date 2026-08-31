@@ -278,7 +278,7 @@ impl GooseAcpAgent {
             retry_config: None,
         };
         let stream = match agent
-            .resume_state_machine_turn(session_config, Some(cancel_token.clone()))
+            .resume_state_machine_turn(session_config, cancel_token.clone())
             .await
         {
             Ok(Some(stream)) => stream,
@@ -296,25 +296,13 @@ impl GooseAcpAgent {
             }
         };
 
-        if let Err(error) = self.resend_pending_tool_permissions(
-            cx,
-            agent,
-            session_id,
-            requests,
-            Some(cancel_token.clone()),
-        ) {
-            cancel_token.cancel();
-            self.clear_active_run(session_id, &run_id).await;
-            let _ = Self::send_active_run_update(cx, &acp_session_id, None);
-            return Err(error);
-        }
-
         let server = Arc::clone(self);
         let task_cx = cx.clone();
         let task_agent = agent.clone();
         let task_session_id = session_id.to_string();
         let task_run_id = run_id.clone();
         let task_cancel_token = cancel_token.clone();
+        let task_acp_session_id = acp_session_id.clone();
         if let Err(error) = cx.spawn(async move {
             let _run_guard = ActiveRunDropGuard {
                 registry: server.active_prompt_runs.clone(),
@@ -325,17 +313,34 @@ impl GooseAcpAgent {
             let result = server
                 .forward_agent_stream(
                     &task_cx,
-                    &acp_session_id,
+                    &task_acp_session_id,
                     &task_session_id,
                     &task_agent,
                     &task_cancel_token,
                     stream,
                 )
                 .await;
+            if result.is_ok() {
+                if let Err(error) = server
+                    .send_session_usage_updates(
+                        &task_cx,
+                        &task_acp_session_id,
+                        &task_session_id,
+                        &task_agent,
+                    )
+                    .await
+                {
+                    warn!(
+                        session_id = task_session_id,
+                        ?error,
+                        "Failed to update usage after resumed ACP turn"
+                    );
+                }
+            }
             server
                 .clear_active_run(&task_session_id, &task_run_id)
                 .await;
-            if let Err(error) = Self::send_active_run_update(&task_cx, &acp_session_id, None) {
+            if let Err(error) = Self::send_active_run_update(&task_cx, &task_acp_session_id, None) {
                 warn!(
                     session_id = task_session_id,
                     ?error,
@@ -351,8 +356,22 @@ impl GooseAcpAgent {
             }
             Ok(())
         }) {
+            cancel_token.cancel();
             self.clear_active_run(session_id, &run_id).await;
             let _ = Self::send_active_run_update(cx, &SessionId::new(session_id), None);
+            return Err(error);
+        }
+
+        if let Err(error) = self.resend_pending_tool_permissions(
+            cx,
+            agent,
+            session_id,
+            requests,
+            Some(cancel_token.clone()),
+        ) {
+            cancel_token.cancel();
+            self.clear_active_run(session_id, &run_id).await;
+            let _ = Self::send_active_run_update(cx, &acp_session_id, None);
             return Err(error);
         }
 
@@ -400,35 +419,6 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider while loading ACP session")?;
         resume_saved_provider_session(&provider, session.conversation.as_ref()).await;
-        let pending_confirmations = session
-            .conversation
-            .as_ref()
-            .map(pending_tool_confirmations)
-            .unwrap_or_default();
-        let should_resume_state_machine = crate::agents::state_machine::enabled()
-            && (!pending_confirmations.is_empty()
-                || session
-                    .conversation
-                    .as_ref()
-                    .is_some_and(has_unapplied_tool_confirmation_response));
-        if should_resume_state_machine {
-            self.start_resumed_state_machine_turn(
-                cx,
-                &agent,
-                &session_id_str,
-                &pending_confirmations,
-            )
-            .await?;
-        } else {
-            self.resend_pending_tool_permissions(
-                cx,
-                &agent,
-                &session_id_str,
-                &pending_confirmations,
-                None,
-            )?;
-        }
-
         session = self
             .session_manager
             .get_session(&session_id_str, false)
@@ -460,6 +450,35 @@ impl GooseAcpAgent {
             );
         }
         response = response.meta(meta);
+
+        let pending_confirmations = session
+            .conversation
+            .as_ref()
+            .map(pending_tool_confirmations)
+            .unwrap_or_default();
+        let should_resume_state_machine = crate::agents::state_machine::enabled()
+            && (!pending_confirmations.is_empty()
+                || session
+                    .conversation
+                    .as_ref()
+                    .is_some_and(has_unapplied_tool_confirmation_response));
+        if should_resume_state_machine {
+            self.start_resumed_state_machine_turn(
+                cx,
+                &agent,
+                &session_id_str,
+                &pending_confirmations,
+            )
+            .await?;
+        } else {
+            self.resend_pending_tool_permissions(
+                cx,
+                &agent,
+                &session_id_str,
+                &pending_confirmations,
+                None,
+            )?;
+        }
 
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)

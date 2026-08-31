@@ -43,6 +43,7 @@ struct PendingConfirmation {
     agent: Arc<Agent>,
     session_id: String,
     request_ids: VecDeque<String>,
+    cancel_token: CancellationToken,
 }
 
 type PerUserLocks = Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>;
@@ -86,6 +87,7 @@ impl GatewayHandler {
                 agent,
                 session_id,
                 request_ids,
+                cancel_token,
             } = pending;
             for request_id in request_ids {
                 if let Err(error) = agent
@@ -93,6 +95,7 @@ impl GatewayHandler {
                     .await
                 {
                     tracing::error!(%error, %request_id, "failed to deny pending gateway confirmation");
+                    cancel_token.cancel();
                 }
             }
         }
@@ -243,10 +246,19 @@ impl GatewayHandler {
         };
         let agent = pending.agent.clone();
         let session_id = pending.session_id.clone();
+        let cancel_token = pending.cancel_token.clone();
         drop(pending_confirmations);
-        agent
+        if let Err(error) = agent
             .submit_tool_confirmation(&session_id, &request_id, permission)
-            .await?;
+            .await
+        {
+            cancel_token.cancel();
+            self.pending_confirmations
+                .lock()
+                .await
+                .remove(&message.user);
+            return Err(error);
+        }
 
         let mut pending_confirmations = self.pending_confirmations.lock().await;
         let remove_pending = pending_confirmations
@@ -521,7 +533,7 @@ impl GatewayHandler {
         };
 
         let mut stream = match agent
-            .reply(user_message, session_config, Some(cancel))
+            .reply(user_message, session_config, Some(cancel.clone()))
             .await
         {
             Ok(s) => s,
@@ -676,6 +688,7 @@ impl GatewayHandler {
                                                 agent: agent.clone(),
                                                 session_id: session_id.to_string(),
                                                 request_ids: VecDeque::from([id.clone()]),
+                                                cancel_token: cancel.clone(),
                                             });
 
                                         let send_result = self
@@ -722,6 +735,11 @@ impl GatewayHandler {
                                                     %error,
                                                     "failed to deny undeliverable tool approval"
                                                 );
+                                                cancel.cancel();
+                                                self.pending_confirmations
+                                                    .lock()
+                                                    .await
+                                                    .remove(&message.user);
                                             }
                                             sent_any = true;
                                         } else {
