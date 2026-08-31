@@ -41,6 +41,11 @@ impl CommandAuthProvider {
         header_name: impl Into<String>,
         header_value_prefix: impl Into<String>,
     ) -> Self {
+        // Made absolute up front: `cwd` doubles as both `current_dir` for the
+        // spawned process and the join base in `resolve_program`, and a
+        // relative value would otherwise be applied twice (once by us, once
+        // by the OS resolving a relative program path against the process's
+        // now-`current_dir`-ed working directory).
         let cwd = auth_config
             .cwd
             .as_ref()
@@ -63,6 +68,7 @@ impl CommandAuthProvider {
                 .timeout_seconds
                 .map(Duration::from_secs)
                 .unwrap_or(DEFAULT_AUTH_COMMAND_TIMEOUT),
+            cwd,
             header_name: header_name.into(),
             header_value_prefix: header_value_prefix.into(),
             cached: Arc::new(RwLock::new(None)),
@@ -79,7 +85,12 @@ impl CommandAuthProvider {
             .args(&self.args)
             .current_dir(&self.cwd)
             // No stdin, so a script that unexpectedly tries to prompt fails
-            // fast instead of hanging on the parent's stdin.
+            // fast instead of hanging on the parent's stdin. `kill_on_drop`
+            // is a fallback for exit paths other than the timeout below,
+            // which kills the whole process group explicitly — the direct
+            // child alone wouldn't take a shell pipeline's descendants with
+            // it, since `configure_subprocess` puts the child in its own
+            // new process group.
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
