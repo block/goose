@@ -28,6 +28,59 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::{ErrorData, Tool};
 use tracing::warn;
 
+/// Default wall-clock cap on a single provider stream response, in seconds.
+///
+/// Byte-level timeouts (reqwest `read_timeout`) are reset by SSE keepalive
+/// comments, so a wedged upstream behind a gateway that emits heartbeats
+/// (e.g. `: OPENROUTER PROCESSING`) can hang a turn forever (#11679). A
+/// wall-clock cap is deliberately coarse: it cannot mistake legitimate
+/// upstream queueing or slow generation for a stall (any finite heartbeat
+/// phase still completes well inside it), but it guarantees every stream —
+/// including headless `goose run` — terminates.
+const DEFAULT_STREAM_MAX_DURATION_SECS: u64 = 1800;
+
+/// Wall-clock cap per stream response: `GOOSE_STREAM_MAX_DURATION` (seconds,
+/// `0` disables) or the 30-minute default.
+fn stream_max_duration() -> Option<std::time::Duration> {
+    let secs = std::env::var("GOOSE_STREAM_MAX_DURATION")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(DEFAULT_STREAM_MAX_DURATION_SECS);
+    (secs > 0).then(|| std::time::Duration::from_secs(secs))
+}
+
+/// Caps the total lifetime of a provider stream at `stream_max_duration()`.
+///
+/// The deadline covers the whole response (first token through completion)
+/// and the resulting error is a `RequestFailed`, which the pre-first-item
+/// retry loop treats as non-transient — a capped stream fails the turn
+/// instead of silently re-queueing.
+fn cap_stream_duration(stream: MessageStream) -> MessageStream {
+    let Some(max_duration) = stream_max_duration() else {
+        return stream;
+    };
+    Box::pin(try_stream! {
+        let deadline = tokio::time::Instant::now() + max_duration;
+        let mut stream = stream;
+        loop {
+            match tokio::time::timeout_at(deadline, stream.next()).await {
+                Ok(Some(item)) => yield item?,
+                Ok(None) => break,
+                Err(_) => {
+                    Err(ProviderError::RequestFailed(format!(
+                        "Provider stream exceeded the maximum duration of {}s without \
+                         completing. The upstream model or gateway may have wedged \
+                         mid-response behind SSE keepalives. Increase \
+                         GOOSE_STREAM_MAX_DURATION (seconds, 0 to disable) if your \
+                         responses legitimately run this long.",
+                        max_duration.as_secs()
+                    )))?;
+                }
+            }
+        }
+    })
+}
+
 async fn enhance_model_error(
     error: ProviderError,
     provider: &Arc<dyn Provider>,
@@ -388,7 +441,7 @@ pub(crate) async fn stream_response_from_provider(
 
     // If there was an error creating the stream, return a stream that yields that error
     let mut stream = match stream_result {
-        Ok(s) => s,
+        Ok(s) => cap_stream_duration(s),
         Err(e) => {
             let enhanced_error = enhance_model_error(e, &provider, config.toolshim).await;
             // Return a stream that immediately yields the error
@@ -449,7 +502,7 @@ pub(crate) async fn stream_response_from_provider(
                         )
                         .await
                         {
-                            Ok(stream) => stream,
+                            Ok(stream) => cap_stream_duration(stream),
                             Err(error) => {
                                 Err(enhance_model_error(error, &provider, config.toolshim).await)?
                             }
@@ -2107,5 +2160,69 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn stream_max_duration_parses_env() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", None::<&str>)]);
+        assert_eq!(
+            stream_max_duration(),
+            Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
+        );
+
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("90"))]);
+        assert_eq!(stream_max_duration(), Some(Duration::from_secs(90)));
+
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
+        assert_eq!(stream_max_duration(), None);
+
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("bogus"))]);
+        assert_eq!(
+            stream_max_duration(),
+            Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn capped_stream_passes_items_through() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+        let inner: MessageStream = Box::pin(futures::stream::iter(vec![
+            Ok((Some(Message::assistant().with_text("a")), None)),
+            Ok((Some(Message::assistant().with_text("b")), None)),
+        ]));
+
+        let items: Vec<_> = cap_stream_duration(inner).collect().await;
+
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|item| item.is_ok()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn wedged_stream_errors_at_cap() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+        let inner: MessageStream = Box::pin(
+            futures::stream::once(async { Ok((Some(Message::assistant().with_text("a")), None)) })
+                .chain(futures::stream::pending()),
+        );
+
+        let mut stream = cap_stream_duration(inner);
+        assert!(stream.next().await.unwrap().is_ok());
+
+        let error = stream.next().await.unwrap().unwrap_err();
+        let retry_config = goose_providers::retry::RetryConfig::default().transient_only();
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+        assert!(!goose_providers::retry::should_retry(&error, &retry_config));
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cap_disabled_with_zero() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
+        let inner: MessageStream = Box::pin(futures::stream::pending());
+
+        let mut stream = cap_stream_duration(inner);
+        let result = tokio::time::timeout(Duration::from_secs(86_400), stream.next()).await;
+
+        assert!(result.is_err(), "disabled cap must never fire");
     }
 }
