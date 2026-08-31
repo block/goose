@@ -1477,8 +1477,7 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
     line.clear();
 }
 
-/// On Windows, npm installs `.cmd` shims instead of `.exe` binaries.
-/// `CreateProcess` cannot execute `.cmd` files directly — they require `cmd.exe /c`.
+// npm on Windows installs .cmd shims; CreateProcess cannot run them directly.
 fn build_acp_command(command: &std::path::Path, args: &[String]) -> Command {
     #[cfg(windows)]
     {
@@ -1487,8 +1486,11 @@ fn build_acp_command(command: &std::path::Path, args: &[String]) -> Command {
             .and_then(|e| e.to_str())
             .map(|e| e.to_ascii_lowercase());
         if matches!(ext.as_deref(), Some("cmd") | Some("bat")) {
-            let mut c = Command::new("cmd.exe");
-            c.arg("/c").arg(command).args(args);
+            // COMSPEC avoids CWD-based hijacking; /d disables AutoRun.
+            let comspec = std::env::var_os("COMSPEC")
+                .unwrap_or_else(|| std::ffi::OsString::from("C:\\Windows\\System32\\cmd.exe"));
+            let mut c = Command::new(comspec);
+            c.arg("/d").arg("/c").arg(command).args(args);
             return c;
         }
     }
