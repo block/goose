@@ -65,6 +65,37 @@ fn compaction_part(
     ))
 }
 
+/// The boundary a proactive threshold check runs from. The mid-run
+/// boundaries share one failure policy: log and continue, leaving an
+/// oversized request to the reactive path, so a failed summarization never
+/// ends an in-flight turn.
+enum ProactiveTrigger {
+    /// A user-visible kickoff started a new run.
+    TurnBoundary,
+    /// Tool responses landed mid-run.
+    MidTurn,
+    /// A steer drained after tool responses.
+    Steer,
+    /// An agent-only continuation appended its message: a stop-hook
+    /// denial, or a goal/grind nudge.
+    Continuation,
+}
+
+impl ProactiveTrigger {
+    fn label(&self) -> &'static str {
+        match self {
+            ProactiveTrigger::TurnBoundary => "turn-boundary",
+            ProactiveTrigger::MidTurn => "mid-turn",
+            ProactiveTrigger::Steer => "steer",
+            ProactiveTrigger::Continuation => "continuation",
+        }
+    }
+
+    fn continues_run(&self) -> bool {
+        !matches!(self, ProactiveTrigger::TurnBoundary)
+    }
+}
+
 pub struct CompactionOperation {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
@@ -266,10 +297,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
-        let mut mid_turn = false;
-        let mut steer_boundary = false;
-        let mut internal_boundary = false;
-        let mut trigger = "reactive";
+        let mut proactive_trigger: Option<ProactiveTrigger> = None;
         if reactive_context_error {
             let context_errors = messages
                 .iter()
@@ -298,22 +326,24 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if !matches!(role, EffectiveRole::User | EffectiveRole::Tool) {
                 return not_applicable();
             }
-            mid_turn = role == EffectiveRole::Tool;
             // A steer drained after tool responses appends a `User` message,
             // so it reaches this check as a turn boundary even though the
             // run is mid-flight — matching the legacy loop's dedicated steer
-            // re-check site.
-            steer_boundary = !mid_turn && messages.iter().any(|message| message.metadata.steer);
-            // Agent-only `User` continuations — a stop-hook denial, a
-            // goal/grind nudge — never start a run, so a `User` boundary the
-            // user cannot see is an in-flight continuation: the legacy loop
-            // appends the same nudges after its checks and proceeds straight
-            // to inference, so a failure here must not end the run either.
-            internal_boundary = !mid_turn
-                && !steer_boundary
-                && messages
-                    .last()
-                    .is_some_and(|message| !message.is_user_visible());
+            // re-check site. Agent-only `User` continuations — a stop-hook
+            // denial, a goal/grind nudge — never start a run, so a `User`
+            // boundary the user cannot see is also an in-flight continuation.
+            let trigger = if role == EffectiveRole::Tool {
+                ProactiveTrigger::MidTurn
+            } else if messages.iter().any(|message| message.metadata.steer) {
+                ProactiveTrigger::Steer
+            } else if messages
+                .last()
+                .is_some_and(|message| !message.is_user_visible())
+            {
+                ProactiveTrigger::Continuation
+            } else {
+                ProactiveTrigger::TurnBoundary
+            };
             // Steers redefine `messages_since_kickoff`, so both guards below
             // scan back to the run's own kickoff.
             let run_messages = messages_since_run_start(conversation)?;
@@ -345,22 +375,14 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             if tokens <= 0 || !self.over_threshold(tokens as usize) {
                 return not_applicable();
             }
-            trigger = if mid_turn {
-                "mid-turn"
-            } else if steer_boundary {
-                "steer"
-            } else if internal_boundary {
-                "continuation"
-            } else {
-                "turn-boundary"
-            };
             debug!(
-                trigger,
+                trigger = trigger.label(),
                 tokens,
                 context_limit = self.context_limit,
                 threshold = self.threshold,
                 "auto-compaction threshold exceeded"
             );
+            proactive_trigger = Some(trigger);
         }
 
         let conversation_with_hidden_error;
@@ -423,23 +445,25 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                if mid_turn || steer_boundary || internal_boundary {
+                match proactive_trigger {
                     // The run can continue: the request that follows may
                     // still fit, and the reactive path owns the outcome if
                     // not. Ending the run here would discard an
                     // already-completed tool round-trip, drop a drained
-                    // steer, or terminate behind an internal nudge — all
-                    // continuations the legacy loop carries into the next
-                    // inference.
-                    error!(trigger, "compaction failed: {e}");
-                    return not_applicable();
+                    // steer, or terminate behind an internal nudge.
+                    Some(trigger) if trigger.continues_run() => {
+                        error!(trigger = trigger.label(), "compaction failed: {e}");
+                        return not_applicable();
+                    }
+                    _ => {
+                        emit.message(Message::assistant().with_text(format!(
+                            "Ran into this error trying to compact: {e}.\n\n\
+                             Please try again or create a new session"
+                        )))
+                        .await;
+                        yielded()
+                    }
                 }
-                emit.message(Message::assistant().with_text(format!(
-                    "Ran into this error trying to compact: {e}.\n\n\
-                     Please try again or create a new session"
-                )))
-                .await;
-                yielded()
             }
         }
     }

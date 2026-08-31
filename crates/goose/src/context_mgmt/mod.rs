@@ -30,6 +30,8 @@ pub(crate) fn tool_pair_summarization_enabled() -> bool {
         .unwrap_or(true)
 }
 
+pub(crate) const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
+
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
@@ -198,13 +200,12 @@ pub async fn compact_messages(
             summarization_usage.usage.output_tokens.unwrap_or(0)
         }
     };
-    // Both loops install a session baseline that already covers the whole
-    // replacement history, but that history carries no usage marker, so a
-    // recount would fall back to the summary boundary and treat the
-    // preserved kickoff as unsent growth — adding it on top of the baseline
-    // re-crosses the threshold and compacts again on every pass. Marking the
-    // newest agent-visible message preserves the boundary the baseline
-    // covers; the next provider response supersedes the marker.
+    // The session baseline both loops install after replacement covers the
+    // whole replacement history, but the recount only trusts a baseline
+    // paired with a usage marker: without one it falls back to the summary
+    // boundary and counts the preserved messages as unsent growth,
+    // re-crossing the threshold on every pass. The next provider response
+    // supersedes the marker.
     if let Some(boundary) = conversation
         .messages_mut()
         .iter_mut()
@@ -298,24 +299,19 @@ pub(crate) async fn recount_context_tokens(
         .await
         .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
     let messages = conversation.messages();
-    // Both loops attach the turn's usage to the first persisted message of
-    // the provider's latest response, so the unsent suffix starts there: the
-    // legacy loop splits a parallel batch into per-request assistant
-    // messages, and only that marker distinguishes the batch's first split
-    // from an older response. The marker can also sit on a user message —
-    // the legacy loop drops an empty response but preserves its boundary by
-    // marking the newest message the request already carried — so the
-    // suffix starts after the marked message rather than at it. The
-    // response's own content is excluded from the growth — the session
-    // baseline reports input plus output tokens, so the response is already
-    // counted in it, and counting it again would compact a context whose
-    // real next request still fits. Compaction marks the newest
-    // agent-visible message of its replacement history the same way, so the
-    // baseline it installs — the token count of that whole history — is not
-    // re-added as growth. Histories without usage metadata fall back to the
-    // last assistant message as the boundary, which undercounts a legacy
-    // split batch but stays correct for the state machine's single-message
-    // representation.
+    // The unsent suffix starts after the turn-usage marker, which both loops
+    // attach to the first persisted message of the provider's latest
+    // response: the legacy loop splits a parallel batch into per-request
+    // assistant messages, and only that marker distinguishes the batch's
+    // first split from an older response. The marker can sit on a user
+    // message — a dropped empty response preserves its boundary this way —
+    // and compaction marks its replacement history the same way, so in both
+    // cases the suffix starts after the marked message. The response's own
+    // content stays out of the growth: the baseline reports input plus
+    // output tokens, so the response is already counted in it. Histories
+    // without usage metadata fall back to the last assistant message, which
+    // undercounts a legacy split batch but stays correct for the state
+    // machine's single-message representation.
     let unsent_start = messages
         .iter()
         .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())

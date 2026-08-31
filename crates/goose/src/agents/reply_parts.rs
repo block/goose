@@ -8,15 +8,19 @@ use futures::stream::StreamExt;
 use serde_json::{json, Value};
 use tracing::debug;
 
-use super::super::agents::Agent;
 use super::gen_ai_telemetry;
 use crate::agents::extension_manager::{get_tool_owner, recover_mangled_tool_name};
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::agents::types::SessionConfig;
+use crate::agents::{Agent, AgentEvent};
 use crate::config::{Config, GooseMode};
-use crate::context_mgmt::CompactionResult;
-use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
+use crate::context_mgmt::{
+    compact_messages, CompactionResult, COMPACTION_PROGRESS_TEXT, DEFAULT_COMPACTION_THRESHOLD,
+};
+use crate::conversation::message::{
+    Message, MessageContent, MessageUsage, SystemNotificationType, ToolRequest,
+};
 use crate::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
@@ -184,6 +188,27 @@ fn is_mergeable_assistant_chunk(message: &Message) -> bool {
                     | MessageContent::RedactedThinking(_)
             )
         })
+}
+
+/// Client notice emitted when an automatic compaction starts, shared by the
+/// proactive compaction sites.
+fn auto_compaction_started_events() -> [AgentEvent; 2] {
+    let threshold = Config::global()
+        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+    [
+        AgentEvent::Message(Message::assistant().with_system_notification(
+            SystemNotificationType::InlineMessage,
+            format!(
+                "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                (threshold * 100.0) as u32
+            ),
+        )),
+        AgentEvent::Message(Message::assistant().with_system_notification(
+            SystemNotificationType::ProgressMessage,
+            COMPACTION_PROGRESS_TEXT,
+        )),
+    ]
 }
 
 impl Agent {
@@ -790,6 +815,62 @@ impl Agent {
         .await?;
         *conversation = compaction.conversation;
         Ok(())
+    }
+
+    /// Whether the recounted conversation exceeds the auto-compaction
+    /// threshold. Fetches the session for its usage metadata only: the
+    /// caller already holds the conversation in memory.
+    pub(crate) async fn over_compaction_threshold(
+        &self,
+        session_manager: &SessionManager,
+        session_config: &SessionConfig,
+        conversation: &Conversation,
+    ) -> Result<bool> {
+        let session = session_manager
+            .get_session(&session_config.id, false)
+            .await?;
+        crate::context_mgmt::check_if_compaction_needed(
+            self.provider().await?.as_ref(),
+            conversation,
+            None,
+            &session,
+            true,
+        )
+        .await
+    }
+
+    /// Runs one proactive auto-compaction — announce, summarize, persist —
+    /// and returns the events for the caller to yield. `conversation`
+    /// becomes the compacted history. `trigger` labels the log line.
+    pub(crate) async fn auto_compact(
+        &self,
+        trigger: &str,
+        session_manager: &SessionManager,
+        session_config: &SessionConfig,
+        conversation: &mut Conversation,
+    ) -> Result<Vec<AgentEvent>> {
+        debug!(trigger, "auto-compaction threshold exceeded");
+
+        let mut events = auto_compaction_started_events().to_vec();
+        let model_config = self.model_config_for_session(&session_config.id).await?;
+        let compaction = compact_messages(
+            self.provider().await?.as_ref(),
+            &model_config,
+            &session_config.id,
+            conversation,
+            false,
+        )
+        .await?;
+        self.persist_compaction(session_manager, session_config, compaction, conversation)
+            .await?;
+        events.push(AgentEvent::HistoryReplaced(conversation.clone()));
+        events.push(AgentEvent::Message(
+            Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                "Compaction complete",
+            ),
+        ));
+        Ok(events)
     }
 
     fn resolve_chunk_cost(

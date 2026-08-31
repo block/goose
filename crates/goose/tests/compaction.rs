@@ -128,11 +128,6 @@ impl MockCompactionProvider {
         }
     }
 
-    /// One round-trip with a single `shell` call, against a 10k limit whose
-    /// threshold sits at 8k. Reported usage (~6.5k: the 6k system overhead
-    /// dominates) and the conversation alone (~5.5k) each stay under the
-    /// threshold, so only a check that adds the unsent tool result to the
-    /// reported baseline can see the crossing.
     /// One round-trip whose three `shell` calls each land ~1k tokens of real
     /// output. Against the 8k threshold, the reported usage (~6.2k, dominated
     /// by the 6k system overhead) plus any single result stays under, and so
@@ -153,6 +148,11 @@ impl MockCompactionProvider {
         }
     }
 
+    /// One round-trip with a single `shell` call, against a 10k limit whose
+    /// threshold sits at 8k. Reported usage (~6.5k: the 6k system overhead
+    /// dominates) and the conversation alone (~5.5k) each stay under the
+    /// threshold, so only a check that adds the unsent tool result to the
+    /// reported baseline can see the crossing.
     fn baseline_growth() -> Self {
         Self {
             tool_loop_rounds: 1,
