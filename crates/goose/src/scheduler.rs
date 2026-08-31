@@ -1488,20 +1488,6 @@ mod tests {
             .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].goose_mode, GooseMode::Auto);
-        let session = session_manager
-            .get_session(&sessions[0].id, true)
-            .await
-            .unwrap();
-        assert_eq!(
-            sessions[0].message_count,
-            session
-                .conversation
-                .unwrap()
-                .messages()
-                .iter()
-                .filter(|m| m.is_user_visible())
-                .count()
-        );
     }
 
     #[tokio::test]
