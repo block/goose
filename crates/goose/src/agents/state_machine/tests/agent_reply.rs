@@ -97,7 +97,6 @@ async fn agent_with_calculator() -> Result<(
             },
             calculator.clone(),
             calculator.get_info().cloned(),
-            None,
         )
         .await;
     Ok((agent, api, session_id, calculator, temp_dir))
