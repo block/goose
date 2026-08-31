@@ -1628,35 +1628,38 @@ impl GooseAcpAgent {
         let permission_request =
             RequestPermissionRequest::new(session_id, tool_call_update, options);
 
-        let sent =
-            cx.send_request(permission_request)
-                .on_receiving_result(move |result| async move {
-                    callback_pending_request.spawn_response_resolution(async move {
-                        match result {
-                            Ok(response) => {
-                                agent
-                                    .handle_confirmation(
-                                        request_id,
-                                        outcome_to_confirmation(&response.outcome),
-                                    )
-                                    .await;
-                            }
-                            Err(e) => {
-                                error!(error = ?e, "permission request failed");
-                                agent
-                                    .handle_confirmation(
-                                        request_id,
-                                        PermissionConfirmation {
-                                            principal_type: PrincipalType::Tool,
-                                            permission: Permission::Cancel,
-                                        },
-                                    )
-                                    .await;
-                            }
+        let sent = cx
+            .send_request(permission_request)
+            .on_receiving_result(move |result| {
+                // Claim completion here, synchronously, before the resolution is
+                // handed to its own task: the transport-termination fallback must
+                // not be able to turn a client's answer into a cancellation.
+                callback_pending_request.claim_then_spawn_resolution(async move {
+                    match result {
+                        Ok(response) => {
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    outcome_to_confirmation(&response.outcome),
+                                )
+                                .await;
                         }
-                    });
-                    Ok(())
+                        Err(e) => {
+                            error!(error = ?e, "permission request failed");
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::Cancel,
+                                    },
+                                )
+                                .await;
+                        }
+                    }
                 });
+                std::future::ready(Ok(()))
+            });
 
         if let Err(e) = sent {
             // The connection is gone (e.g. the client dropped mid-turn), so no
@@ -1905,16 +1908,23 @@ impl PendingClientRequest {
         }
     }
 
-    fn spawn_response_resolution<F>(&self, resolution: F)
+    /// Claim completion for the response side, then run `resolution` on a task
+    /// the connection does not own.
+    ///
+    /// Callers must invoke this synchronously from the response callback: the
+    /// claim has to happen the moment the answer arrives, or a concurrent
+    /// transport termination could take the claim first and discard a decision
+    /// the user actually made. Once the claim succeeds the resolution runs on an
+    /// independent Tokio task, so a connection that dies while the resolution is
+    /// in flight cannot strand the run either.
+    fn claim_then_spawn_resolution<F>(&self, resolution: F)
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        let pending_request = self.clone();
-        tokio::spawn(async move {
-            if pending_request.try_complete() {
-                resolution.await;
-            }
-        });
+        if !self.try_complete() {
+            return;
+        }
+        tokio::spawn(resolution);
     }
 
     async fn complete_on_transport_termination(
@@ -3631,7 +3641,7 @@ print(\"hello, world\")
         let (resolution_started_tx, resolution_started_rx) = tokio::sync::oneshot::channel();
         let (finish_resolution_tx, finish_resolution_rx) = tokio::sync::oneshot::channel();
         let (resolution_finished_tx, resolution_finished_rx) = tokio::sync::oneshot::channel();
-        pending.spawn_response_resolution(async move {
+        pending.claim_then_spawn_resolution(async move {
             resolution_started_tx.send(()).unwrap();
             finish_resolution_rx.await.unwrap();
             resolution_finished_tx.send(()).unwrap();
@@ -3646,6 +3656,50 @@ print(\"hello, world\")
         assert!(
             !pending.try_complete(),
             "fallback must not complete it again"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_client_response_wins_over_concurrent_transport_termination() {
+        let pending = PendingClientRequest::new();
+        // The transport is already gone, so the fallback would claim completion
+        // the instant it gets a chance to.
+        let transport_terminated = CancellationToken::new();
+        transport_terminated.cancel();
+
+        let resolutions = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let response_resolutions = Arc::clone(&resolutions);
+        let (resolved_tx, resolved_rx) = tokio::sync::oneshot::channel();
+        pending.claim_then_spawn_resolution(async move {
+            response_resolutions.lock().unwrap().push("response");
+            let _ = resolved_tx.send(());
+        });
+
+        // The response side claims completion synchronously, inside the
+        // callback, so nothing is left for the fallback to claim.
+        assert!(
+            !pending.try_complete(),
+            "the response callback must claim completion before it returns"
+        );
+
+        if pending
+            .complete_on_transport_termination(&transport_terminated)
+            .await
+        {
+            resolutions.lock().unwrap().push("cancel");
+        }
+
+        // The resolution runs on a task the connection does not own, so it still
+        // completes.
+        resolved_rx
+            .await
+            .expect("the received response must still be resolved");
+
+        assert_eq!(
+            *resolutions.lock().unwrap(),
+            vec!["response"],
+            "a received response must resolve the request exactly once, and the \
+             transport-termination fallback must not cancel it"
         );
     }
 

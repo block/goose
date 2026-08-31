@@ -111,8 +111,11 @@ impl super::GooseAcpAgent {
         let callback_pending_request = pending_request.clone();
         let sent = cx
             .send_request(CreateElicitationRequestMessage(request))
-            .on_receiving_result(move |result| async move {
-                callback_pending_request.spawn_response_resolution(async move {
+            .on_receiving_result(move |result| {
+                // Claim completion here, synchronously, before the resolution is
+                // handed to its own task: the transport-termination fallback must
+                // not be able to turn a client's answer into a cancellation.
+                callback_pending_request.claim_then_spawn_resolution(async move {
                     let response = match result {
                         Ok(response) => elicitation_response_from_acp(response.0),
                         Err(error) => {
@@ -135,7 +138,7 @@ impl super::GooseAcpAgent {
                     .await;
                 });
 
-                Ok(())
+                std::future::ready(Ok(()))
             });
 
         if let Err(error) = sent {
