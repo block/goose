@@ -114,12 +114,13 @@ crates-publish dry_run="true":
                 --user-agent 'goose-gdk-release (https://github.com/aaif-goose/goose)' \
                 "https://crates.io/api/v1/crates/$crate/$version"); \
             case "$status" in \
-                200) echo "$crate $version is already published; skipping"; continue ;; \
-                404) ;; \
+                200) echo "$crate $version is already published; skipping upload" ;; \
+                404) cargo publish -p "$crate" --allow-dirty ;; \
                 *) echo "crates.io returned HTTP $status while checking $crate $version" >&2; exit 1 ;; \
             esac; \
+        else \
+            cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
         fi; \
-        cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
         if [ "{{dry_run}}" = "false" ]; then \
             for attempt in $(seq 1 60); do \
                 if cargo info "$crate@$version" --registry crates-io >/dev/null 2>&1; then \

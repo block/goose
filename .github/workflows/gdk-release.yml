@@ -39,7 +39,9 @@ jobs:
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
 
       - name: Validate package versions
-        run: just --justfile crates/goose-sdk/justfile check-version "${{ steps.version.outputs.value }}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: just --justfile crates/goose-sdk/justfile check-version "$RELEASE_VERSION"
 
   crates-io:
     name: Publish Rust crates
@@ -55,6 +57,8 @@ jobs:
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache: false
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
