@@ -16,6 +16,8 @@ pub mod local_inference;
 pub mod ollama;
 pub mod openai;
 pub mod openai_compatible;
+pub mod openrouter;
+pub mod openrouter_format;
 
 pub use declarative::declarative_providers::*;
 

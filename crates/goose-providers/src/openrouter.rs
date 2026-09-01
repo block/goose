@@ -1,22 +1,23 @@
-use anyhow::{bail, Result};
+use crate::images::ImageFormat;
+use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::openai_compatible::{handle_status, stream_openai_compat};
-use super::retry::ProviderRetry;
+use crate::api_client::ApiClient;
+
+pub type OpenRouterSessionIdProvider = Box<dyn Fn() -> Option<String> + Send + Sync>;
+use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
+use crate::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use crate::conversation::message::Message;
-use crate::providers::formats::openrouter as openrouter_format;
-use goose_providers::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
-use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::create_request;
-use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use crate::errors::ProviderError;
+use crate::formats::openai::create_request;
+use crate::model::ModelConfig;
+use crate::openai_compatible::{handle_status, stream_openai_compat};
+use crate::openrouter_format;
+use crate::request_log::{start_log, LoggerHandleExt};
+use crate::retry::ProviderRetry;
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -51,33 +52,23 @@ pub struct OpenRouterProvider {
     name: String,
     #[serde(skip)]
     configured_parameters: Option<HashMap<String, Value>>,
+    #[serde(skip)]
+    session_id_provider: Option<OpenRouterSessionIdProvider>,
 }
 
 impl OpenRouterProvider {
-    pub async fn from_env(
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
-        let host: String = config
-            .get_param("OPENROUTER_HOST")
-            .unwrap_or_else(|_| "https://openrouter.ai".to_string());
-
-        let configured_parameters = configured_openrouter_parameters()?;
-
-        let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
-            .with_request_builder(crate::session_context::session_id_request_builder())
-            .with_header("HTTP-Referer", "https://goose-docs.ai")?
-            .with_header("X-Title", "goose")?
-            .with_header("X-OpenRouter-Categories", "cli-agent,productivity")?;
-
-        Ok(Self {
+    pub fn new(
+        api_client: ApiClient,
+        configured_parameters: Option<HashMap<String, Value>>,
+        session_id_provider: Option<OpenRouterSessionIdProvider>,
+    ) -> Self {
+        Self {
             api_client,
             supports_streaming: true,
             name: OPENROUTER_PROVIDER_NAME.to_string(),
             configured_parameters,
-        })
+            session_id_provider,
+        }
     }
 
     async fn post_chat_completions(
@@ -368,26 +359,6 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
     escaped
 }
 
-fn parse_openrouter_parameters(raw: Value) -> Result<HashMap<String, Value>> {
-    match raw {
-        Value::Object(params) => Ok(params.into_iter().collect()),
-        Value::String(raw_json) => match serde_json::from_str::<Value>(&raw_json)? {
-            Value::Object(params) => Ok(params.into_iter().collect()),
-            _ => bail!("{OPENROUTER_PARAMETERS_CONFIG_KEY} must be a JSON object"),
-        },
-        _ => bail!("{OPENROUTER_PARAMETERS_CONFIG_KEY} must be a JSON object"),
-    }
-}
-
-fn configured_openrouter_parameters() -> Result<Option<HashMap<String, Value>>> {
-    let config = crate::config::Config::global();
-    match config.get_param::<Value>(OPENROUTER_PARAMETERS_CONFIG_KEY) {
-        Ok(raw) => parse_openrouter_parameters(raw).map(Some),
-        Err(crate::config::ConfigError::NotFound(_)) => Ok(None),
-        Err(err) => Err(err.into()),
-    }
-}
-
 fn merge_request_params(
     request_params: &mut Option<HashMap<String, Value>>,
     params: HashMap<String, Value>,
@@ -401,7 +372,7 @@ fn merge_openrouter_parameters(model: &mut ModelConfig, params: HashMap<String, 
     merge_request_params(&mut model.request_params, params);
 }
 
-impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
+impl crate::base::ProviderDescriptor for OpenRouterProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             OPENROUTER_PROVIDER_NAME,
@@ -422,29 +393,7 @@ impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
                 ConfigKey::new(OPENROUTER_PARAMETERS_CONFIG_KEY, false, false, None, false),
             ],
         )
-        .with_setup(
-            crate::providers::catalog::ProviderSetupMetadata::api_key(
-                crate::providers::catalog::ProviderSetupGroup::Default,
-            )
-            .with_docs_url("https://openrouter.ai/keys"),
-        )
-        .with_setup_steps(vec![
-            "Go to https://openrouter.ai/settings/keys",
-            "Click 'Create' or use an existing API key",
-            "Copy the key and paste it above",
-        ])
         .with_fast_model(OPENROUTER_DEFAULT_FAST_MODEL)
-    }
-}
-
-impl ProviderDef for OpenRouterProvider {
-    type Provider = Self;
-
-    fn from_env(
-        _extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -522,7 +471,11 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = crate::session_context::current_session_id().unwrap_or_default();
+        let session_id = self
+            .session_id_provider
+            .as_ref()
+            .and_then(|provider| provider())
+            .unwrap_or_default();
 
         let mut merged_model;
         let model_config = if let Some(params) = &self.configured_parameters {
@@ -592,7 +545,7 @@ impl Provider for OpenRouterProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose_providers::base::ProviderDescriptor;
+    use crate::base::ProviderDescriptor;
 
     fn model_config(model_name: &str) -> ModelConfig {
         ModelConfig {
@@ -620,47 +573,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_openrouter_parameters_accepts_object_value() {
-        let params = parse_openrouter_parameters(json!({
-            "verbosity": "xhigh",
-            "reasoning": { "effort": "high" }
-        }))
-        .unwrap();
-
-        assert_eq!(params["verbosity"], json!("xhigh"));
-        assert_eq!(params["reasoning"], json!({ "effort": "high" }));
-    }
-
-    #[test]
-    fn parse_openrouter_parameters_accepts_json_string_value() {
-        let params = parse_openrouter_parameters(json!(
-            r#"{"plugins":[{"id":"web"}],"reasoning":{"max_tokens":2000}}"#
-        ))
-        .unwrap();
-
-        assert_eq!(params["plugins"], json!([{ "id": "web" }]));
-        assert_eq!(params["reasoning"], json!({ "max_tokens": 2000 }));
-    }
-
-    #[test]
-    fn parse_openrouter_parameters_rejects_non_object_json_string() {
-        let err = parse_openrouter_parameters(json!(r#"["web"]"#)).unwrap_err();
-
-        assert!(err
-            .to_string()
-            .contains("OPENROUTER_PARAMETERS must be a JSON object"));
-    }
-
-    #[test]
     fn merge_openrouter_parameters_updates_model_request_params() {
         let mut model = model_config("anthropic/claude-sonnet-4");
         model.request_params = Some(HashMap::from([("verbosity".to_string(), json!("low"))]));
-
-        let params = parse_openrouter_parameters(json!({
-            "plugins": [{ "id": "web" }],
-            "verbosity": "xhigh"
-        }))
-        .unwrap();
+        let params = HashMap::from([
+            ("plugins".to_string(), json!([{ "id": "web" }])),
+            ("verbosity".to_string(), json!("xhigh")),
+        ]);
 
         merge_openrouter_parameters(&mut model, params);
 
@@ -700,17 +619,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let provider = OpenRouterProvider {
-            api_client: ApiClient::new_with_tls(
+        let provider = OpenRouterProvider::new(
+            ApiClient::new_with_tls(
                 server.uri(),
-                AuthMethod::BearerToken("test-key".to_string()),
+                crate::api_client::AuthMethod::BearerToken("test-key".to_string()),
                 None,
             )
             .unwrap(),
-            supports_streaming: true,
-            name: OPENROUTER_PROVIDER_NAME.to_string(),
-            configured_parameters: None,
-        };
+            None,
+            None,
+        );
 
         let mut config = model_config("google/gemini-3.5-flash");
         config.reasoning = Some(true);
