@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gdk-release
+  group: gdk-release-${{ github.event_name == 'workflow_dispatch' && format('gdk-v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
