@@ -1,4 +1,6 @@
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
+pub use goose_agent::prompt::build_gitignore;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -23,72 +25,10 @@ pub fn get_context_filenames() -> Vec<String> {
         })
 }
 
-fn find_git_root(start_dir: &Path) -> Option<&Path> {
-    let mut check_dir = start_dir;
-
-    loop {
-        if check_dir.join(".git").exists() {
-            return Some(check_dir);
-        }
-        if let Some(parent) = check_dir.parent() {
-            check_dir = parent;
-        } else {
-            break;
-        }
-    }
-
-    None
-}
-
-fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
-    match git_root {
-        Some(git_root) => {
-            let mut directories = Vec::new();
-            let mut current_dir = cwd;
-
-            loop {
-                directories.push(current_dir.to_path_buf());
-                if current_dir == git_root {
-                    break;
-                }
-                if let Some(parent) = current_dir.parent() {
-                    current_dir = parent;
-                } else {
-                    break;
-                }
-            }
-            directories.reverse();
-            directories
-        }
-        None => vec![cwd.to_path_buf()],
-    }
-}
-
-/// Build a `Gitignore` that includes `.gitignore` files from the git root
-/// down to `cwd`, matching git's hierarchical ignore semantics. When there
-/// is no git root, only `cwd/.gitignore` is loaded.
-pub fn build_gitignore(cwd: &Path) -> Gitignore {
-    let git_root = find_git_root(cwd);
-    let directories = get_local_directories(git_root, cwd);
-
-    let mut builder = GitignoreBuilder::new(cwd);
-    for dir in &directories {
-        let gitignore_path = dir.join(".gitignore");
-        if gitignore_path.is_file() {
-            builder.add(&gitignore_path);
-        }
-    }
-    builder.build().unwrap_or_else(|_| {
-        GitignoreBuilder::new(cwd)
-            .build()
-            .expect("Failed to build default gitignore")
-    })
-}
-
 pub fn load_hint_files(
     cwd: &Path,
     hints_filenames: &[String],
-    ignore_patterns: &Gitignore,
+    _ignore_patterns: &Gitignore,
 ) -> String {
     let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
@@ -123,29 +63,21 @@ pub fn load_hint_files(
             }
         }
     }
-    let git_root = find_git_root(cwd);
-    let local_directories = get_local_directories(git_root, cwd);
-
-    let import_boundary = git_root.unwrap_or(cwd);
-
-    for directory in &local_directories {
-        for hints_filename in hints_filenames {
-            let hints_path = directory.join(hints_filename);
-            if hints_path.is_file() {
-                let mut visited = HashSet::new();
-                let expanded_content = read_referenced_files(
-                    &hints_path,
-                    import_boundary,
-                    &mut visited,
-                    0,
-                    ignore_patterns,
-                );
-                if !expanded_content.is_empty() {
-                    local_hints_contents.push(expanded_content);
-                }
-            }
-        }
-    }
+    let discovery = goose_agent::prompt::InstructionDiscovery::new(
+        goose_agent::prompt::InstructionDiscoveryOptions {
+            filenames: hints_filenames.to_vec(),
+            respect_gitignore: true,
+            include_patterns: Vec::new(),
+            exclude_patterns: vec![".git".into()],
+        },
+    );
+    local_hints_contents.extend(
+        discovery
+            .discover_root(cwd)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|instruction| instruction.content),
+    );
 
     let mut hints = String::new();
     if !global_hints_contents.is_empty() {

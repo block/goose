@@ -3095,7 +3095,7 @@ impl Agent {
                         .prompt_manager
                         .lock()
                         .await
-                        .load_subdirectory_hints(&working_dir);
+                        .load_subdirectory_hints(&working_dir)?;
                     if has_new_hints && !tools_updated {
                         (tools, toolshim_tools, system_prompt, _) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;

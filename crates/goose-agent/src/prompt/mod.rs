@@ -142,7 +142,20 @@ impl InstructionDiscovery {
     }
 
     pub fn discover_root(&self, working_dir: &Path) -> Result<Vec<Instruction>> {
-        self.discover_directories(working_dir, &[working_dir.to_path_buf()], "instructions")
+        let directories = match find_git_root(working_dir) {
+            Some(root) => {
+                let mut directories: Vec<_> = working_dir
+                    .ancestors()
+                    .take_while(|directory| directory.starts_with(root))
+                    .map(Path::to_path_buf)
+                    .collect();
+                directories.reverse();
+                directories
+            }
+            None => vec![working_dir.to_path_buf()],
+        };
+        let boundary = find_git_root(working_dir).unwrap_or(working_dir);
+        self.discover_directories(boundary, &directories, "instructions")
     }
 
     pub fn record_tool_arguments(
@@ -222,7 +235,7 @@ impl InstructionDiscovery {
         let root = working_dir.canonicalize()?;
         let import_boundary = find_git_root(&root).unwrap_or(&root);
         let ignore = if self.options.respect_gitignore {
-            build_gitignore(&root)
+            build_gitignore(directories.last().map(PathBuf::as_path).unwrap_or(&root))
         } else {
             Gitignore::empty()
         };
@@ -272,13 +285,13 @@ fn resolve_parent(value: &str, working_dir: &Path) -> Option<PathBuf> {
     resolved.parent().map(Path::to_path_buf)
 }
 
-fn find_git_root(start: &Path) -> Option<&Path> {
+pub fn find_git_root(start: &Path) -> Option<&Path> {
     start
         .ancestors()
         .find(|directory| directory.join(".git").exists())
 }
 
-fn build_gitignore(cwd: &Path) -> Gitignore {
+pub fn build_gitignore(cwd: &Path) -> Gitignore {
     let mut directories: Vec<_> = match find_git_root(cwd) {
         Some(root) => cwd
             .ancestors()
@@ -314,5 +327,174 @@ fn ignored(
                 .include_patterns
                 .iter()
                 .any(|pattern| relative.contains(pattern)))
-        || ignore.matched(path, false).is_ignore()
+        || path
+            .ancestors()
+            .take_while(|ancestor| ancestor.starts_with(root))
+            .any(|ancestor| ignore.matched(ancestor, ancestor.is_dir()).is_ignore())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn options() -> InstructionDiscoveryOptions {
+        InstructionDiscoveryOptions {
+            filenames: vec!["AGENTS.md".into()],
+            ..Default::default()
+        }
+    }
+
+    fn arguments(key: &str, value: &str) -> Option<Map<String, Value>> {
+        Some(serde_json::from_value(json!({ key: value })).unwrap())
+    }
+
+    #[test]
+    fn discovers_root_and_parent_instructions_in_order() {
+        let root = TempDir::new().unwrap();
+        fs::create_dir(root.path().join(".git")).unwrap();
+        fs::write(root.path().join("AGENTS.md"), "root").unwrap();
+        let nested = root.path().join("one/two");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(root.path().join("one/AGENTS.md"), "one").unwrap();
+        fs::write(nested.join("AGENTS.md"), "two").unwrap();
+
+        let found = InstructionDiscovery::new(options())
+            .discover_root(&nested)
+            .unwrap();
+        assert_eq!(
+            found
+                .into_iter()
+                .map(|item| item.content)
+                .collect::<Vec<_>>(),
+            ["root", "one", "two"]
+        );
+    }
+
+    #[test]
+    fn tracks_path_and_command_arguments_and_deduplicates() {
+        let root = TempDir::new().unwrap();
+        let nested = root.path().join("src/deep");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(root.path().join("src/AGENTS.md"), "src").unwrap();
+        fs::write(nested.join("AGENTS.md"), "deep").unwrap();
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "src/deep/file.rs"), root.path());
+        discovery.record_tool_arguments(&arguments("command", "cat src/deep/file.rs"), root.path());
+        let found = discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap();
+        assert_eq!(found.len(), 1);
+        assert!(found[0].content.contains("src"));
+        assert!(found[0].content.contains("deep"));
+        discovery.record_tool_arguments(&arguments("path", "src/deep/other.rs"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn sibling_transitions_load_each_directory_once() {
+        let root = TempDir::new().unwrap();
+        for name in ["left", "right"] {
+            fs::create_dir(root.path().join(name)).unwrap();
+            fs::write(root.path().join(name).join("AGENTS.md"), name).unwrap();
+        }
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "left/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()[0]
+            .content
+            .contains("left"));
+        discovery.record_tool_arguments(&arguments("path", "right/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()[0]
+            .content
+            .contains("right"));
+    }
+
+    #[test]
+    fn retries_after_missing_directory_is_created() {
+        let root = TempDir::new().unwrap();
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "later/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()
+            .is_empty());
+        fs::create_dir(root.path().join("later")).unwrap();
+        fs::write(root.path().join("later/AGENTS.md"), "later").unwrap();
+        discovery.record_tool_arguments(&arguments("path", "later/file"), root.path());
+        assert_eq!(
+            discovery
+                .discover_new_subdirectory_instructions(root.path())
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn rejects_traversal_and_escaping_symlinks() {
+        let root = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        fs::write(outside.path().join("AGENTS.md"), "secret").unwrap();
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "../outside/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()
+            .is_empty());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.path(), root.path().join("escape")).unwrap();
+            discovery.record_tool_arguments(&arguments("path", "escape/file"), root.path());
+            assert!(discovery
+                .discover_new_subdirectory_instructions(root.path())
+                .unwrap()
+                .is_empty());
+        }
+    }
+
+    #[test]
+    fn respects_gitignore_for_instruction_files() {
+        let root = TempDir::new().unwrap();
+        fs::create_dir(root.path().join("ignored")).unwrap();
+        fs::write(root.path().join(".gitignore"), "ignored/\n").unwrap();
+        fs::write(root.path().join("ignored/AGENTS.md"), "secret").unwrap();
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "ignored/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()
+            .is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn in_boundary_symlink_alias_is_loaded_once() {
+        let root = TempDir::new().unwrap();
+        fs::create_dir(root.path().join("real")).unwrap();
+        fs::write(root.path().join("real/AGENTS.md"), "real").unwrap();
+        std::os::unix::fs::symlink(root.path().join("real"), root.path().join("alias")).unwrap();
+        let mut discovery = InstructionDiscovery::new(options());
+        discovery.record_tool_arguments(&arguments("path", "alias/file"), root.path());
+        assert_eq!(
+            discovery
+                .discover_new_subdirectory_instructions(root.path())
+                .unwrap()
+                .len(),
+            1
+        );
+        discovery.record_tool_arguments(&arguments("path", "real/file"), root.path());
+        assert!(discovery
+            .discover_new_subdirectory_instructions(root.path())
+            .unwrap()
+            .is_empty());
+    }
 }

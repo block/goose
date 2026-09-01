@@ -129,30 +129,7 @@ pub fn loaded_skill_context_with_args(skill: &SourceEntry, args: Option<&str>) -
     Ok(resolve_docs_root_placeholder(skill, &rendered, &docs_root))
 }
 
-pub fn skill_argument_hint(skill: &SourceEntry) -> Option<String> {
-    skill
-        .properties
-        .get("argument-hint")
-        .and_then(|value| value.as_str())
-        .filter(|hint| !hint.is_empty())
-        .map(str::to_string)
-}
-
-pub fn skill_argument_names(skill: &SourceEntry) -> Vec<String> {
-    skill
-        .properties
-        .get("arguments")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str())
-                .filter(|name| !name.is_empty())
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
+pub use goose_agent::skills::{skill_argument_hint, skill_argument_names};
 
 fn canonicalize_or_original(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())

@@ -225,17 +225,16 @@ impl PromptManager {
             .record_tool_arguments(arguments, working_dir);
     }
 
-    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
+    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> anyhow::Result<bool> {
         let new_hints = self
             .instruction_discovery
-            .discover_new_subdirectory_instructions(working_dir)
-            .unwrap_or_default();
+            .discover_new_subdirectory_instructions(working_dir)?;
         let has_new = !new_hints.is_empty();
         for instruction in new_hints {
             self.prompt_composer
                 .add_extra(instruction.key, instruction.content);
         }
-        has_new
+        Ok(has_new)
     }
 
     pub fn build_system_prompt(
@@ -244,7 +243,7 @@ impl PromptManager {
         prompt_parts: Vec<(String, String)>,
         goose_mode: GooseMode,
     ) -> String {
-        self.load_subdirectory_hints(working_dir);
+        let _ = self.load_subdirectory_hints(working_dir);
         self.builder()
             .with_prompt_extras(prompt_parts)
             .with_hints(working_dir)
