@@ -6,9 +6,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::events::AgentEvent;
-use goose_provider_types::conversation::message::{
-    Message, MessageContent, MessageErrorKind, OperationNotes,
-};
+use goose_provider_types::conversation::message::{Message, MessageContent, MessageErrorKind};
 use goose_provider_types::conversation::{effective_role, Conversation, EffectiveRole};
 use rmcp::model::Tool;
 
@@ -114,9 +112,8 @@ pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
         &self,
         _session: &S,
         _conversation: &Conversation,
-        _emit: &Emitter,
-    ) -> Result<InferenceTools> {
-        Ok(InferenceTools::default())
+    ) -> Result<Vec<Tool>> {
+        Ok(Vec::new())
     }
 
     async fn prompt_parts(
@@ -141,16 +138,9 @@ pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct InferenceTools {
-    pub tools: Vec<Tool>,
-    pub message_notes: serde_json::Map<String, serde_json::Value>,
-}
-
 #[derive(Default)]
 pub struct InferenceInput {
     pub tools: Vec<Tool>,
-    pub message_notes: OperationNotes,
     pub prompt_parts: Vec<(String, String)>,
     pub moim_parts: Vec<String>,
 }

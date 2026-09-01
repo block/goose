@@ -285,12 +285,8 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         &self,
         _session: &Session,
         _conversation: &Conversation,
-        _emit: &Emitter,
-    ) -> Result<goose_agent::operation::InferenceTools> {
-        Ok(goose_agent::operation::InferenceTools {
-            tools: vec![skill_tool()?],
-            ..Default::default()
-        })
+    ) -> Result<Vec<Tool>> {
+        Ok(vec![skill_tool()?])
     }
 
     async fn prompt_parts(

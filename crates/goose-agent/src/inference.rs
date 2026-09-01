@@ -25,7 +25,6 @@ pub struct PreparedInferenceRequest {
     pub system_prompt: String,
     pub tools: Vec<rmcp::model::Tool>,
     pub additional_messages: Vec<Message>,
-    pub message_notes: goose_provider_types::conversation::message::OperationNotes,
 }
 
 #[async_trait]
@@ -57,7 +56,6 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
                 .join("\n\n"),
             tools: input.tools,
             additional_messages: Vec::new(),
-            message_notes: input.message_notes,
         })
     }
 }
@@ -372,7 +370,6 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                 system_prompt,
                 tools,
                 additional_messages,
-                message_notes,
             } = self
                 .request_preparer
                 .prepare(session, conversation, input)
@@ -472,20 +469,6 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                                 }
                                 _ => true,
                             });
-                            if chunk.role == rmcp::model::Role::Assistant
-                                && chunk
-                                    .content
-                                    .iter()
-                                    .any(|content| matches!(content, MessageContent::ToolRequest(_)))
-                            {
-                                for (operation, notes) in &message_notes {
-                                    chunk
-                                        .metadata
-                                        .operations
-                                        .get_or_insert_with(Box::default)
-                                        .insert(operation.clone(), notes.clone());
-                                }
-                            }
                             normalize_tool_call_thinking(&mut accumulator, &mut chunk);
                             if chunk.content.is_empty() {
                                 if chunk.metadata.output_token_limit_reached {

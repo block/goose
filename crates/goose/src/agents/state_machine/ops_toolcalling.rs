@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
-use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorData, Role};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorData, Role, Tool};
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -757,17 +757,13 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
         &self,
         session: &Session,
         _conversation: &Conversation,
-        _emit: &Emitter,
-    ) -> Result<goose_agent::operation::InferenceTools> {
+    ) -> Result<Vec<Tool>> {
         let tools = self
             .extension_manager
             .get_prefixed_tools_excluding(&session.id, crate::skills::EXTENSION_NAME)
             .await
             .unwrap_or_default();
-        Ok(goose_agent::operation::InferenceTools {
-            tools,
-            ..Default::default()
-        })
+        Ok(tools)
     }
 
     async fn moim_parts(

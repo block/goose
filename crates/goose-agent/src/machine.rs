@@ -53,22 +53,13 @@ pub struct StateMachine<'a, S, E = ConversationEffect> {
 fn add_inference_tools(
     input: &mut InferenceInput,
     tool_names: &mut HashSet<String>,
-    operation_name: &str,
-    inference_tools: crate::operation::InferenceTools,
+    tools: Vec<rmcp::model::Tool>,
 ) -> Result<()> {
-    for tool in inference_tools.tools {
+    for tool in tools {
         if !tool_names.insert(tool.name.to_string()) {
             anyhow::bail!("multiple operations registered tool '{}'", tool.name);
         }
         input.tools.push(tool);
-    }
-    if !inference_tools.message_notes.is_empty()
-        && input
-            .message_notes
-            .insert(operation_name.to_string(), inference_tools.message_notes)
-            .is_some()
-    {
-        anyhow::bail!("multiple operations named '{operation_name}' produced inference notes");
     }
     Ok(())
 }
@@ -104,10 +95,7 @@ where
                             add_inference_tools(
                                 &mut input,
                                 &mut tool_names,
-                                operation.name(),
-                                operation
-                                    .inference_tools(session, conversation, emit)
-                                    .await?,
+                                operation.inference_tools(session, conversation).await?,
                             )?;
                             input
                                 .prompt_parts
@@ -197,21 +185,13 @@ mod tests {
         add_inference_tools(
             &mut input,
             &mut names,
-            "first",
-            crate::operation::InferenceTools {
-                tools: vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
-                ..Default::default()
-            },
+            vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
         )
         .unwrap();
         let error = add_inference_tools(
             &mut input,
             &mut names,
-            "second",
-            crate::operation::InferenceTools {
-                tools: vec![rmcp::model::Tool::new("duplicate", "second", schema)],
-                ..Default::default()
-            },
+            vec![rmcp::model::Tool::new("duplicate", "second", schema)],
         )
         .unwrap_err();
 

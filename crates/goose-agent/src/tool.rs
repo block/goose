@@ -13,7 +13,7 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use crate::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, InferenceTools, Operation,
+    applied, ends_turn, messages_since_kickoff, not_applicable, Emitter, Operation,
     OperationFuture, OperationResult,
 };
 
@@ -270,6 +270,27 @@ where
         }
         Ok(available)
     }
+
+    fn advertisement(
+        available: &[(Tool, &dyn ToolProvider<S>)],
+        providers: &[(String, Arc<dyn ToolProvider<S>>)],
+    ) -> Result<Value> {
+        let tools = available.iter().map(|(tool, _)| tool).collect::<Vec<_>>();
+        let routes = available
+            .iter()
+            .map(|(tool, provider)| {
+                let provider_id = providers
+                    .iter()
+                    .find(|(_, candidate)| std::ptr::eq(candidate.as_ref(), *provider))
+                    .map_or("registered", |(id, _)| id.as_str());
+                (
+                    tool.name.to_string(),
+                    Value::String(provider_id.to_string()),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+        Ok(json!({ "tools": tools, "routes": routes }))
+    }
 }
 
 impl<S> Default for ToolOperation<S>
@@ -293,29 +314,19 @@ where
 
     async fn inference_tools(
         &self,
-        session: &S,
-        _conversation: &Conversation,
-        emit: &Emitter,
-    ) -> Result<InferenceTools> {
-        let available = self.available_tools(session, emit).await?;
-        let routes = available
+        _session: &S,
+        conversation: &Conversation,
+    ) -> Result<Vec<Tool>> {
+        messages_since_kickoff(conversation)?
             .iter()
-            .map(|(tool, provider)| {
-                let provider_id = self
-                    .providers
-                    .iter()
-                    .find(|(_, candidate)| std::ptr::eq(candidate.as_ref(), *provider))
-                    .map_or("registered", |(id, _)| id.as_str());
-                (tool.name.to_string(), serde_json::json!(provider_id))
-            })
-            .collect();
-        Ok(InferenceTools {
-            tools: available.into_iter().map(|(tool, _)| tool).collect(),
-            message_notes: serde_json::Map::from_iter([(
-                "routes".to_string(),
-                Value::Object(routes),
-            )]),
-        })
+            .rev()
+            .find_map(|message| message.metadata.operation_note("tools", "advertisement"))
+            .and_then(|advertisement| advertisement.get("tools"))
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .map(|tools| tools.unwrap_or_default())
+            .map_err(Into::into)
     }
 
     async fn run(
@@ -329,13 +340,58 @@ where
             .iter()
             .flat_map(Message::get_tool_response_ids)
             .collect();
+        let has_unresolved_request = turn.iter().any(|message| {
+            message.content.iter().any(|content| {
+                content.as_tool_request().is_some_and(|request| {
+                    !request.was_executed_externally() && !answered.contains(request.id.as_str())
+                })
+            })
+        });
+        let latest_assistant = turn
+            .iter()
+            .rposition(|message| message.role == rmcp::model::Role::Assistant);
+        let has_current_advertisement = turn
+            .iter()
+            .skip(latest_assistant.map_or(0, |index| index + 1))
+            .any(|message| {
+                message
+                    .metadata
+                    .operation_note("tools", "advertisement")
+                    .is_some()
+            });
+        let follows_provider_input = turn
+            .last()
+            .is_some_and(|message| message.role == rmcp::model::Role::User);
+        if !has_unresolved_request
+            && follows_provider_input
+            && !ends_turn(turn)
+            && !has_current_advertisement
+        {
+            let available = self.available_tools(session, emit).await?;
+            let mut message = Message::user().with_visibility(false, false);
+            message.metadata.set_operation_note(
+                "tools",
+                "advertisement",
+                Self::advertisement(&available, &self.providers)?,
+            );
+            return applied([E::from(message)]);
+        }
+
+        let answered: HashSet<&str> = turn
+            .iter()
+            .flat_map(Message::get_tool_response_ids)
+            .collect();
         let mut routed = Vec::new();
         let mut unrouted = Vec::new();
+        let mut routes = None;
         for message in turn {
-            let routes = message
+            if let Some(advertisement) = message
                 .metadata
-                .operation_note("tools", "routes")
-                .and_then(Value::as_object);
+                .operation_note("tools", "advertisement")
+                .and_then(Value::as_object)
+            {
+                routes = advertisement.get("routes").and_then(Value::as_object);
+            }
             for request in message
                 .content
                 .iter()
