@@ -5,6 +5,12 @@
   "description": "300+ chat models from many creators behind one OpenAI-compatible API key.",
   "api_key_env": "AIMLAPI_API_KEY",
   "base_url": "https://api.aimlapi.com/v1",
+  "headers": {
+    "x-aimlapi-source": "agent/goose",
+    "x-aimlapi-partner-id": "part_R2KG8QMDBjtWAubVMgG0GF9L",
+    "http-referer": "https://goose-docs.ai",
+    "x-title": "goose"
+  },
   "catalog_provider_id": "aimlapi",
   "dynamic_models": true,
   "models": [
