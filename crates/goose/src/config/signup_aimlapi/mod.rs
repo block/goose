@@ -1,5 +1,8 @@
 pub mod server;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{distr::Alphanumeric, RngExt};
@@ -21,11 +24,17 @@ const AIMLAPI_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-5";
 /// non-production environment for testing; the default is production and no
 /// user ever needs to set it.
 const AIMLAPI_APP_URL_ENV: &str = "AIMLAPI_APP_URL";
-const AIMLAPI_APP_URL_DEFAULT: &str = "https://app.aimlapi.com";
+pub(crate) const AIMLAPI_APP_URL_DEFAULT: &str = "https://app.aimlapi.com";
 
 /// Where the browser consent screen lives (the page the user actually sees).
+///
+/// This is sent as `verificationBaseUrl`, and the server hands it straight back
+/// with `/agent/authorize` appended. The web app is served under an `/app/`
+/// base path, so the base has to carry it: dropping the `/app` yields
+/// `https://aimlapi.com/agent/authorize`, which is a 404 and strands the user
+/// on the very first step of the flow.
 const AIMLAPI_WEB_URL_ENV: &str = "AIMLAPI_WEB_URL";
-const AIMLAPI_WEB_URL_DEFAULT: &str = "https://aimlapi.com";
+pub(crate) const AIMLAPI_WEB_URL_DEFAULT: &str = "https://aimlapi.com/app";
 
 /// Partner attribution. AI/ML API expects a registered partner id on the
 /// authorization request; it identifies goose as the integration that brought
@@ -35,7 +44,7 @@ const AIMLAPI_WEB_URL_DEFAULT: &str = "https://aimlapi.com";
 /// configuration. The environment variable exists to point a build at another
 /// AI/ML API environment during testing, alongside the two URLs above.
 const AIMLAPI_PARTNER_ID_ENV: &str = "AIMLAPI_PARTNER_ID";
-const AIMLAPI_PARTNER_ID_DEFAULT: &str = "part_R2KG8QMDBjtWAubVMgG0GF9L";
+pub(crate) const AIMLAPI_PARTNER_ID_DEFAULT: &str = "part_R2KG8QMDBjtWAubVMgG0GF9L";
 
 /// Loopback port the consent screen redirects back to. Chosen from the
 /// ephemeral range and fixed, because it has to be registered with the

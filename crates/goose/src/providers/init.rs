@@ -8,7 +8,6 @@ use super::local_inference::LocalInferenceProvider;
 #[cfg(feature = "aws-providers")]
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
-    aimlapi::AimlapiProvider,
     amp_acp::AmpAcpProvider,
     avian::AvianProvider,
     azure::AzureProvider,
@@ -70,7 +69,6 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::anthropic_inventory()),
         );
-        registry.register::<AimlapiProvider>(false);
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         registry.register_with_inventory::<AzureFoundryProviderDef>(
