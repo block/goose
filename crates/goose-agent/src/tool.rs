@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -53,26 +50,6 @@ fn definition<T: ToolBase>() -> Tool {
         tool = tool.with_meta(meta);
     }
     tool
-}
-
-fn unresolved_requests(messages: &[Message]) -> Vec<ToolRequest> {
-    let answered: HashSet<&str> = messages
-        .iter()
-        .flat_map(Message::get_tool_response_ids)
-        .collect();
-    messages
-        .iter()
-        .flat_map(|message| &message.content)
-        .filter_map(|content| match content {
-            MessageContent::ToolRequest(request)
-                if !request.was_executed_externally()
-                    && !answered.contains(request.id.as_str()) =>
-            {
-                Some(request.clone())
-            }
-            _ => None,
-        })
-        .collect()
 }
 
 fn pending_requests(requests: Vec<ToolRequest>, tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
@@ -348,56 +325,93 @@ where
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
         let turn = messages_since_kickoff(conversation)?;
-        let unresolved = unresolved_requests(turn);
-        if unresolved.is_empty() {
+        let answered: HashSet<&str> = turn
+            .iter()
+            .flat_map(Message::get_tool_response_ids)
+            .collect();
+        let mut routed = Vec::new();
+        let mut unrouted = Vec::new();
+        for message in turn {
+            let routes = message
+                .metadata
+                .operation_note("tools", "routes")
+                .and_then(Value::as_object);
+            for request in message
+                .content
+                .iter()
+                .filter_map(MessageContent::as_tool_request)
+            {
+                if request.was_executed_externally() || answered.contains(request.id.as_str()) {
+                    continue;
+                }
+                match (&request.tool_call, routes) {
+                    (Ok(call), Some(routes)) => {
+                        if let Some(provider_id) = routes.get(call.name.as_ref()) {
+                            let provider_id = provider_id.as_str().ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "invalid persisted provider route for '{}'",
+                                    call.name
+                                )
+                            })?;
+                            routed.push((request.clone(), provider_id.to_string()));
+                        }
+                    }
+                    (Err(_), Some(_)) => routed.push((request.clone(), "registered".to_string())),
+                    (_, None) => unrouted.push(request.clone()),
+                }
+            }
+        }
+        if routed.is_empty() && unrouted.is_empty() {
             return not_applicable();
         }
 
-        let advertised = turn
-            .iter()
-            .rev()
-            .find_map(|message| {
-                (message.role == rmcp::model::Role::Assistant)
-                    .then(|| message.metadata.operation_note("tools", "routes"))
-                    .flatten()
-            })
-            .and_then(Value::as_object)
-            .map(|routes| {
-                routes
-                    .iter()
-                    .map(|(name, provider_id)| {
-                        let provider_id = provider_id.as_str().ok_or_else(|| {
-                            anyhow::anyhow!("invalid persisted provider route for '{name}'")
-                        })?;
-                        Ok((name.clone(), provider_id.to_string()))
-                    })
-                    .collect::<Result<HashMap<_, _>>>()
-            })
-            .transpose()?;
-        let available = if advertised.is_none() {
-            Some(self.available_tools(session, emit).await?)
+        let available = if unrouted.is_empty() {
+            Vec::new()
         } else {
-            None
+            self.available_tools(session, emit).await?
         };
-        let tool_names = advertised
-            .as_ref()
-            .map(|providers| providers.keys().map(String::as_str).collect())
-            .unwrap_or_else(|| {
-                available
-                    .as_ref()
-                    .expect("tools are discovered when no advertised set exists")
-                    .iter()
-                    .map(|(tool, _)| tool.name.as_ref())
-                    .collect()
-            });
-        let requests = pending_requests(unresolved, &tool_names);
-        if requests.is_empty() {
+        let available_names = available
+            .iter()
+            .map(|(tool, _)| tool.name.as_ref())
+            .collect();
+        let unrouted = pending_requests(unrouted, &available_names);
+        if routed.is_empty() && unrouted.is_empty() {
             return not_applicable();
+        }
+
+        let mut requests = Vec::with_capacity(routed.len() + unrouted.len());
+        for (request, provider_id) in routed {
+            let provider = if provider_id == "registered" {
+                &self.registered as &dyn ToolProvider<S>
+            } else {
+                self.providers
+                    .iter()
+                    .find(|(id, _)| id == &provider_id)
+                    .map(|(_, provider)| provider.as_ref())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "persisted provider '{provider_id}' for request '{}' is unavailable",
+                            request.id
+                        )
+                    })?
+            };
+            requests.push((request, provider));
+        }
+        for request in unrouted {
+            let provider = match request.tool_call.as_ref() {
+                Ok(call) => available
+                    .iter()
+                    .find(|(tool, _)| tool.name == call.name)
+                    .map(|(_, provider)| *provider)
+                    .expect("unrouted requests were filtered by available tools"),
+                Err(_) => &self.registered as &dyn ToolProvider<S>,
+            };
+            requests.push((request, provider));
         }
 
         let mut message = Message::user();
         let mut cancelled = false;
-        for request in requests {
+        for (request, provider) in requests {
             let tool_result = if cancelled || emit.cancel_token().is_cancelled() {
                 cancelled = true;
                 interrupted_result()
@@ -405,33 +419,6 @@ where
                 match request.tool_call.as_ref() {
                     Err(error) => Err(error.clone()),
                     Ok(call) => {
-                        let provider = advertised
-                            .as_ref()
-                            .and_then(|providers| providers.get(call.name.as_ref()))
-                            .map(|provider_id| {
-                                if provider_id == "registered" {
-                                    Ok(&self.registered as &dyn ToolProvider<S>)
-                                } else {
-                                    self.providers
-                                        .iter()
-                                        .find(|(id, _)| id == provider_id)
-                                        .map(|(_, provider)| provider.as_ref())
-                                        .ok_or_else(|| anyhow::anyhow!(
-                                            "persisted provider '{provider_id}' for '{}' is unavailable",
-                                            call.name
-                                        ))
-                                }
-                            })
-                            .transpose()?
-                            .or_else(|| {
-                                available
-                                    .as_ref()
-                                    .and_then(|tools| {
-                                        tools.iter().find(|(tool, _)| tool.name == call.name)
-                                    })
-                                    .map(|(_, provider)| *provider)
-                            })
-                            .expect("matched requests reference an advertised tool");
                         tokio::select! {
                             biased;
                             _ = emit.cancelled() => {

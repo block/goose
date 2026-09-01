@@ -95,6 +95,9 @@ where
                 let step_fut: OperationFuture<'_, Result<OperationResult<E>>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
+                        if !inference.applies(conversation) {
+                            continue;
+                        }
                         let mut input = InferenceInput::default();
                         let mut tool_names = HashSet::new();
                         for operation in self.steps.iter().map(|step| step.operation()) {
