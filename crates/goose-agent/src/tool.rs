@@ -55,27 +55,34 @@ fn definition<T: ToolBase>() -> Tool {
     tool
 }
 
-fn pending_requests(messages: &[Message], tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
+fn unresolved_requests(messages: &[Message]) -> Vec<ToolRequest> {
     let answered: HashSet<&str> = messages
         .iter()
         .flat_map(Message::get_tool_response_ids)
         .collect();
-
     messages
         .iter()
         .flat_map(|message| &message.content)
         .filter_map(|content| match content {
             MessageContent::ToolRequest(request)
                 if !request.was_executed_externally()
-                    && !answered.contains(request.id.as_str())
-                    && request
-                        .tool_call
-                        .as_ref()
-                        .map_or(true, |call| tool_names.contains(call.name.as_ref())) =>
+                    && !answered.contains(request.id.as_str()) =>
             {
                 Some(request.clone())
             }
             _ => None,
+        })
+        .collect()
+}
+
+fn pending_requests(requests: Vec<ToolRequest>, tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
+    requests
+        .into_iter()
+        .filter(|request| {
+            request
+                .tool_call
+                .as_ref()
+                .map_or(true, |call| tool_names.contains(call.name.as_ref()))
         })
         .collect()
 }
@@ -340,7 +347,13 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let advertised = messages_since_kickoff(conversation)?
+        let turn = messages_since_kickoff(conversation)?;
+        let unresolved = unresolved_requests(turn);
+        if unresolved.is_empty() {
+            return not_applicable();
+        }
+
+        let advertised = turn
             .iter()
             .rev()
             .find_map(|message| {
@@ -356,13 +369,6 @@ where
                         let provider_id = provider_id.as_str().ok_or_else(|| {
                             anyhow::anyhow!("invalid persisted provider route for '{name}'")
                         })?;
-                        if provider_id != "registered"
-                            && !self.providers.iter().any(|(id, _)| id == provider_id)
-                        {
-                            anyhow::bail!(
-                                "persisted provider '{provider_id}' for '{name}' is unavailable"
-                            );
-                        }
                         Ok((name.clone(), provider_id.to_string()))
                     })
                     .collect::<Result<HashMap<_, _>>>()
@@ -384,7 +390,7 @@ where
                     .map(|(tool, _)| tool.name.as_ref())
                     .collect()
             });
-        let requests = pending_requests(messages_since_kickoff(conversation)?, &tool_names);
+        let requests = pending_requests(unresolved, &tool_names);
         if requests.is_empty() {
             return not_applicable();
         }
@@ -404,16 +410,19 @@ where
                             .and_then(|providers| providers.get(call.name.as_ref()))
                             .map(|provider_id| {
                                 if provider_id == "registered" {
-                                    &self.registered as &dyn ToolProvider<S>
+                                    Ok(&self.registered as &dyn ToolProvider<S>)
                                 } else {
                                     self.providers
                                         .iter()
                                         .find(|(id, _)| id == provider_id)
-                                        .expect("persisted provider route was validated")
-                                        .1
-                                        .as_ref()
+                                        .map(|(_, provider)| provider.as_ref())
+                                        .ok_or_else(|| anyhow::anyhow!(
+                                            "persisted provider '{provider_id}' for '{}' is unavailable",
+                                            call.name
+                                        ))
                                 }
                             })
+                            .transpose()?
                             .or_else(|| {
                                 available
                                     .as_ref()

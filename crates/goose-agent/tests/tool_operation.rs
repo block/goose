@@ -231,11 +231,13 @@ impl ToolProvider<bool> for DynamicTools {
 
 struct ChangesAfterAdvertising {
     advertised: AtomicBool,
+    discoveries: AtomicUsize,
 }
 
 #[async_trait]
 impl ToolProvider<()> for ChangesAfterAdvertising {
     async fn tools(&self, _session: &()) -> Result<Vec<Tool>> {
+        self.discoveries.fetch_add(1, Ordering::SeqCst);
         Ok(if self.advertised.swap(true, Ordering::SeqCst) {
             Vec::new()
         } else {
@@ -281,6 +283,7 @@ impl ToolProvider<()> for NeverAdvertises {
 async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
     let provider = Arc::new(ChangesAfterAdvertising {
         advertised: AtomicBool::new(false),
+        discoveries: AtomicUsize::new(0),
     });
     let operation = ToolOperation::new().with_provider("transient", provider.clone());
     let conversation = Conversation::new_unvalidated([
@@ -288,7 +291,18 @@ async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
         Message::assistant()
             .with_tool_request("call-1", Ok(CallToolRequestParams::new("transient"))),
     ]);
-    let inference_tools =
+    let kickoff_result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+        &operation,
+        &(),
+        &Conversation::new_unvalidated([Message::user().with_text("call it")]),
+        &emitter(),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(kickoff_result, OperationResult::NotApplicable));
+    assert_eq!(provider.discoveries.load(Ordering::SeqCst), 0);
+
+    let mut inference_tools =
         <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(
             &operation,
             &(),
@@ -298,6 +312,12 @@ async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
         .await
         .unwrap();
     assert_eq!(inference_tools.tools[0].name, "transient");
+    inference_tools
+        .message_notes
+        .get_mut("routes")
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap()
+        .insert("unused".to_string(), json!("removed-provider"));
 
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call it"),
