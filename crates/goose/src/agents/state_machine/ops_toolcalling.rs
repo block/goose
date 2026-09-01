@@ -757,6 +757,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
         &self,
         session: &Session,
         _conversation: &Conversation,
+        _emit: &Emitter,
     ) -> Result<goose_agent::operation::InferenceTools> {
         let tools = self
             .extension_manager

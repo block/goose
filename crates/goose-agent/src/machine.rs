@@ -102,7 +102,9 @@ where
                                 &mut input,
                                 &mut tool_names,
                                 operation.name(),
-                                operation.inference_tools(session, conversation).await?,
+                                operation
+                                    .inference_tools(session, conversation, emit)
+                                    .await?,
                             )?;
                             input
                                 .prompt_parts

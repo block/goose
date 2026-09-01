@@ -66,7 +66,8 @@ fn pending_requests(messages: &[Message], tool_names: &HashSet<&str>) -> Vec<Too
         .flat_map(|message| &message.content)
         .filter_map(|content| match content {
             MessageContent::ToolRequest(request)
-                if !answered.contains(request.id.as_str())
+                if !request.was_executed_externally()
+                    && !answered.contains(request.id.as_str())
                     && request
                         .tool_call
                         .as_ref()
@@ -242,7 +243,11 @@ where
         self
     }
 
-    async fn available_tools(&self, session: &S) -> Result<Vec<(Tool, &dyn ToolProvider<S>)>> {
+    async fn available_tools(
+        &self,
+        session: &S,
+        emit: &Emitter,
+    ) -> Result<Vec<(Tool, &dyn ToolProvider<S>)>> {
         let mut available = self
             .registered
             .tools(session)
@@ -251,7 +256,12 @@ where
             .map(|tool| (tool, &self.registered as &dyn ToolProvider<S>))
             .collect::<Vec<_>>();
         for provider in &self.providers {
-            for tool in provider.tools(session).await? {
+            let tools = tokio::select! {
+                biased;
+                _ = emit.cancelled() => return Ok(Vec::new()),
+                tools = provider.tools(session) => tools?,
+            };
+            for tool in tools {
                 if available
                     .iter()
                     .any(|(available, _)| available.name == tool.name)
@@ -288,8 +298,9 @@ where
         &self,
         session: &S,
         _conversation: &Conversation,
+        emit: &Emitter,
     ) -> Result<InferenceTools> {
-        let available = self.available_tools(session).await?;
+        let available = self.available_tools(session, emit).await?;
         let routes = available
             .iter()
             .map(|(tool, provider)| {
@@ -342,7 +353,7 @@ where
             })
             .transpose()?;
         let available = if advertised.is_none() {
-            Some(self.available_tools(session).await?)
+            Some(self.available_tools(session, emit).await?)
         } else {
             None
         };

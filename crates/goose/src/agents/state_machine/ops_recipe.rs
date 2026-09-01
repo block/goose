@@ -263,6 +263,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         &self,
         session: &Session,
         _conversation: &Conversation,
+        _emit: &Emitter,
     ) -> Result<goose_agent::operation::InferenceTools> {
         Ok(goose_agent::operation::InferenceTools {
             tools: Self::final_output(session)?

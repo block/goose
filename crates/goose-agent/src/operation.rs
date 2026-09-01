@@ -114,6 +114,7 @@ pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
         &self,
         _session: &S,
         _conversation: &Conversation,
+        _emit: &Emitter,
     ) -> Result<InferenceTools> {
         Ok(InferenceTools::default())
     }

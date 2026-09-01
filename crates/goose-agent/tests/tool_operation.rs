@@ -124,6 +124,7 @@ async fn advertises_user_defined_tools() {
         &operation,
         &(),
         &conversation,
+        &emitter(),
     )
     .await
     .unwrap()
@@ -273,6 +274,7 @@ async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
             &operation,
             &(),
             &conversation,
+            &emitter(),
         )
         .await
         .unwrap();
@@ -374,6 +376,7 @@ async fn advertised_routes_are_isolated_by_turn() {
             &operation,
             &false,
             &false_conversation,
+            &emitter(),
         )
         .await
         .unwrap();
@@ -381,6 +384,7 @@ async fn advertised_routes_are_isolated_by_turn() {
         &operation,
         &true,
         &true_conversation,
+        &emitter(),
     )
     .await
     .unwrap();
@@ -436,6 +440,7 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
             &operation,
             &true,
             &conversation,
+            &emitter(),
         )
         .await
         .unwrap()
@@ -445,6 +450,7 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
             &operation,
             &false,
             &disabled_conversation,
+            &emitter(),
         )
         .await
         .unwrap()
@@ -514,6 +520,7 @@ async fn rejects_duplicate_dynamic_tool_names() {
         &operation,
         &true,
         &conversation,
+        &emitter(),
     )
     .await
     .unwrap_err();
@@ -721,6 +728,73 @@ async fn ignores_unregistered_and_answered_requests() {
         Message::user().with_tool_response(
             "call-1",
             Ok(rmcp::model::CallToolResult::structured(json!({"sum": 5}))),
+        ),
+    ]);
+
+    let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+        &operation,
+        &(),
+        &conversation,
+        &emitter(),
+    )
+    .await
+    .unwrap();
+
+    assert!(matches!(result, OperationResult::NotApplicable));
+}
+
+struct BlockingDiscovery;
+
+#[async_trait]
+impl ToolProvider<()> for BlockingDiscovery {
+    async fn tools(&self, _session: &()) -> Result<Vec<Tool>> {
+        std::future::pending().await
+    }
+
+    async fn call(
+        &self,
+        _session: &(),
+        _request_id: &str,
+        _call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        unreachable!()
+    }
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_dynamic_tool_discovery() {
+    let operation = ToolOperation::new().with_provider(Arc::new(BlockingDiscovery));
+    let conversation = Conversation::new_unvalidated([Message::user().with_text("use tools")]);
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let tools = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(
+            &operation,
+            &(),
+            &conversation,
+            &emitter_with_token(cancel),
+        ),
+    )
+    .await
+    .expect("tool discovery should observe cancellation")
+    .unwrap();
+
+    assert!(tools.tools.is_empty());
+}
+
+#[tokio::test]
+async fn skips_externally_dispatched_tool_requests() {
+    let operation = operation();
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call a tool"),
+        Message::assistant().with_tool_request_with_metadata(
+            "external-call",
+            Ok(CallToolRequestParams::new("add")),
+            None,
+            Some(json!({"goose.external_dispatch": true})),
         ),
     ]);
 
