@@ -1,7 +1,9 @@
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::Utc;
-use goose_agent::prompt::{PromptComposer, PromptContext, PromptSource};
+use goose_agent::prompt::{
+    InstructionDiscovery, InstructionDiscoveryOptions, PromptComposer, PromptContext, PromptSource,
+};
 use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
@@ -9,7 +11,7 @@ use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
 use crate::hints::load_hints::build_gitignore;
-use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
+use crate::hints::{get_context_filenames, load_hint_files};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -21,7 +23,7 @@ pub struct PromptManager {
     system_prompt_override: Option<String>,
     prompt_composer: PromptComposer,
     current_date_timestamp: String,
-    subdirectory_hint_tracker: SubdirectoryHintTracker,
+    instruction_discovery: InstructionDiscovery,
 }
 
 impl Default for PromptManager {
@@ -184,7 +186,10 @@ impl PromptManager {
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00 %:z").to_string(),
-            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
+            instruction_discovery: InstructionDiscovery::new(InstructionDiscoveryOptions {
+                filenames: get_context_filenames(),
+                ..Default::default()
+            }),
         }
     }
 
@@ -194,7 +199,10 @@ impl PromptManager {
             system_prompt_override: None,
             prompt_composer: PromptComposer::new(PromptSource::Literal(String::new())),
             current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S %:z").to_string(),
-            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
+            instruction_discovery: InstructionDiscovery::new(InstructionDiscoveryOptions {
+                filenames: get_context_filenames(),
+                ..Default::default()
+            }),
         }
     }
 
@@ -213,15 +221,19 @@ impl PromptManager {
         arguments: &Option<serde_json::Map<String, serde_json::Value>>,
         working_dir: &Path,
     ) {
-        self.subdirectory_hint_tracker
+        self.instruction_discovery
             .record_tool_arguments(arguments, working_dir);
     }
 
     pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
-        let new_hints = self.subdirectory_hint_tracker.load_new_hints(working_dir);
+        let new_hints = self
+            .instruction_discovery
+            .discover_new_subdirectory_instructions(working_dir)
+            .unwrap_or_default();
         let has_new = !new_hints.is_empty();
-        for (key, content) in new_hints {
-            self.prompt_composer.add_extra(key, content);
+        for instruction in new_hints {
+            self.prompt_composer
+                .add_extra(instruction.key, instruction.content);
         }
         has_new
     }

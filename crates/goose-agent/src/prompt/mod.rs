@@ -1,5 +1,7 @@
 //! Deterministic, application-independent prompt composition and instruction discovery.
 
+pub mod import_files;
+
 use anyhow::{bail, Result};
 use goose_provider_types::goose_mode::GooseMode;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
@@ -139,65 +141,8 @@ impl InstructionDiscovery {
         }
     }
 
-    fn ignore(&self, root: &Path) -> Gitignore {
-        if !self.options.respect_gitignore {
-            return Gitignore::empty();
-        }
-        let mut builder = GitignoreBuilder::new(root);
-        let mut dirs: Vec<_> = root.ancestors().collect();
-        dirs.reverse();
-        for dir in dirs {
-            let file = dir.join(".gitignore");
-            if file.is_file() {
-                builder.add(file);
-            }
-        }
-        builder.build().unwrap_or_else(|_| Gitignore::empty())
-    }
-
-    fn allowed(&self, root: &Path, path: &Path, ignore: &Gitignore) -> bool {
-        let relative = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
-        !relative.split('/').any(|part| part == ".git")
-            && !self
-                .options
-                .exclude_patterns
-                .iter()
-                .any(|pattern| relative.contains(pattern))
-            && (self.options.include_patterns.is_empty()
-                || self
-                    .options
-                    .include_patterns
-                    .iter()
-                    .any(|pattern| relative.contains(pattern)))
-            && !ignore.matched(path, path.is_dir()).is_ignore()
-    }
-
-    fn read_directory(&self, root: &Path, directory: &Path) -> Result<Vec<Instruction>> {
-        let root = root.canonicalize()?;
-        let directory = directory.canonicalize()?;
-        if !directory.starts_with(&root) {
-            bail!("instruction directory is outside the session root");
-        }
-        let ignore = self.ignore(&root);
-        let mut result = Vec::new();
-        for filename in &self.options.filenames {
-            let path = directory.join(filename);
-            if path.is_file() && self.allowed(&root, &path, &ignore) {
-                let canonical = path.canonicalize()?;
-                if canonical.starts_with(&root) {
-                    result.push(Instruction {
-                        key: format!("instructions:{}", canonical.display()),
-                        path: canonical,
-                        content: std::fs::read_to_string(path)?,
-                    });
-                }
-            }
-        }
-        Ok(result)
-    }
-
     pub fn discover_root(&self, working_dir: &Path) -> Result<Vec<Instruction>> {
-        self.read_directory(working_dir, working_dir)
+        self.discover_directories(working_dir, &[working_dir.to_path_buf()], "instructions")
     }
 
     pub fn record_tool_arguments(
@@ -207,30 +152,21 @@ impl InstructionDiscovery {
     ) {
         let Some(arguments) = arguments else { return };
         if let Some(path) = arguments.get("path").and_then(Value::as_str) {
-            self.record_path(path, working_dir);
-        }
-        if let Some(command) = arguments.get("command").and_then(Value::as_str) {
-            for token in command.split_whitespace().filter(|token| {
-                !token.starts_with('-') && (token.contains('/') || token.contains('.'))
-            }) {
-                self.record_path(token.trim_matches(|c| c == '\'' || c == '"'), working_dir);
+            if let Some(directory) = resolve_parent(path, working_dir) {
+                self.pending.push(directory);
             }
         }
-    }
-
-    fn record_path(&mut self, path: &str, root: &Path) {
-        let path = Path::new(path);
-        let joined = if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            root.join(path)
-        };
-        let directory = if joined.is_dir() {
-            joined
-        } else {
-            joined.parent().unwrap_or(root).to_path_buf()
-        };
-        self.pending.push(directory);
+        if let Some(command) = arguments.get("command").and_then(Value::as_str) {
+            for token in shell_words::split(command).unwrap_or_default() {
+                if !token.starts_with('-')
+                    && (token.contains(std::path::MAIN_SEPARATOR) || token.contains('.'))
+                {
+                    if let Some(directory) = resolve_parent(&token, working_dir) {
+                        self.pending.push(directory);
+                    }
+                }
+            }
+        }
     }
 
     pub fn discover_new_subdirectory_instructions(
@@ -238,15 +174,16 @@ impl InstructionDiscovery {
         working_dir: &Path,
     ) -> Result<Vec<Instruction>> {
         let root = working_dir.canonicalize()?;
-        let mut pending = std::mem::take(&mut self.pending);
-        pending.sort();
-        pending.dedup();
+        let pending = std::mem::take(&mut self.pending);
         let mut result = Vec::new();
         for directory in pending {
             let Ok(directory) = directory.canonicalize() else {
                 continue;
             };
-            if directory == root || !directory.starts_with(&root) {
+            if directory == root
+                || !directory.starts_with(&root)
+                || !self.loaded.insert(directory.clone())
+            {
                 continue;
             }
             let mut chain: Vec<_> = directory
@@ -255,12 +192,127 @@ impl InstructionDiscovery {
                 .map(Path::to_path_buf)
                 .collect();
             chain.reverse();
-            for dir in chain {
-                if self.loaded.insert(dir.clone()) {
-                    result.extend(self.read_directory(&root, &dir)?);
+            let mut discovered = self.discover_directories(&root, &chain, "subdir_hints")?;
+            if !discovered.is_empty() {
+                let content = discovered
+                    .drain(..)
+                    .map(|instruction| instruction.content)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                result.push(Instruction {
+                    key: format!("subdir_hints:{}", directory.display()),
+                    path: directory.clone(),
+                    content: format!(
+                        "### Subdirectory Hints ({})\n{}",
+                        directory.display(),
+                        content
+                    ),
+                });
+            }
+        }
+        Ok(result)
+    }
+
+    fn discover_directories(
+        &self,
+        working_dir: &Path,
+        directories: &[PathBuf],
+        prefix: &str,
+    ) -> Result<Vec<Instruction>> {
+        let root = working_dir.canonicalize()?;
+        let import_boundary = find_git_root(&root).unwrap_or(&root);
+        let ignore = if self.options.respect_gitignore {
+            build_gitignore(&root)
+        } else {
+            Gitignore::empty()
+        };
+        let mut result = Vec::new();
+        for directory in directories {
+            let canonical_directory = directory.canonicalize()?;
+            if !canonical_directory.starts_with(&root) {
+                bail!("instruction directory is outside the session root");
+            }
+            for filename in &self.options.filenames {
+                let path = canonical_directory.join(filename);
+                if !path.is_file() || ignored(&root, &path, &ignore, &self.options) {
+                    continue;
+                }
+                let canonical = path.canonicalize()?;
+                if !canonical.starts_with(import_boundary) {
+                    continue;
+                }
+                let mut visited = HashSet::new();
+                let content = import_files::read_referenced_files(
+                    &path,
+                    import_boundary,
+                    &mut visited,
+                    0,
+                    &ignore,
+                );
+                if !content.is_empty() {
+                    result.push(Instruction {
+                        key: format!("{prefix}:{}", canonical.display()),
+                        path: canonical,
+                        content,
+                    });
                 }
             }
         }
         Ok(result)
     }
+}
+
+fn resolve_parent(value: &str, working_dir: &Path) -> Option<PathBuf> {
+    let path = Path::new(value);
+    let resolved = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        working_dir.join(path)
+    };
+    resolved.parent().map(Path::to_path_buf)
+}
+
+fn find_git_root(start: &Path) -> Option<&Path> {
+    start
+        .ancestors()
+        .find(|directory| directory.join(".git").exists())
+}
+
+fn build_gitignore(cwd: &Path) -> Gitignore {
+    let mut directories: Vec<_> = match find_git_root(cwd) {
+        Some(root) => cwd
+            .ancestors()
+            .take_while(|dir| dir.starts_with(root))
+            .collect(),
+        None => vec![cwd],
+    };
+    directories.reverse();
+    let mut builder = GitignoreBuilder::new(cwd);
+    for directory in directories {
+        let path = directory.join(".gitignore");
+        if path.is_file() {
+            builder.add(path);
+        }
+    }
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
+fn ignored(
+    root: &Path,
+    path: &Path,
+    ignore: &Gitignore,
+    options: &InstructionDiscoveryOptions,
+) -> bool {
+    let relative = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
+    relative.split('/').any(|part| part == ".git")
+        || options
+            .exclude_patterns
+            .iter()
+            .any(|pattern| relative.contains(pattern))
+        || (!options.include_patterns.is_empty()
+            && !options
+                .include_patterns
+                .iter()
+                .any(|pattern| relative.contains(pattern)))
+        || ignore.matched(path, false).is_ignore()
 }

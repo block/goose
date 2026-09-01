@@ -32,3 +32,8 @@ minijinja = { version = "2.18", features = ["serde", "builtins"] }
 unicode-normalization = { version = "0.1.22", features = ["std"] }
 ignore.workspace = true
 shell-words = "1"
+once_cell.workspace = true
+libc = "0.2.189"
+
+[dev-dependencies]
+tempfile.workspace = true
