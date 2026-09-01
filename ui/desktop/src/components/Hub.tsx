@@ -51,7 +51,7 @@ export default function Hub({
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   /** Unsent input of this screen, kept above the route outlet across the unmount. */
-  draftRef?: RefObject<string>;
+  draftRef: RefObject<string>;
 }) {
   const intl = useIntl();
   const { extensionsList } = useConfig();
@@ -107,7 +107,7 @@ export default function Hub({
     const { msg: userMessage, images } = input;
     if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
 
-    const draftAtSubmit = draftRef?.current;
+    const draftAtSubmit = draftRef.current;
     setIsCreatingSession(true);
 
     try {
@@ -135,7 +135,7 @@ export default function Hub({
       // The draft is this screen's own, so it is dropped once the session exists.
       // Comparing it against the value at submit leaves an edit made while the
       // session was starting alone, including one that emptied the input.
-      if (draftRef && draftRef.current === draftAtSubmit) {
+      if (draftRef.current === draftAtSubmit) {
         draftRef.current = '';
       }
 
