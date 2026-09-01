@@ -67,13 +67,19 @@ fn pending_requests(messages: &[Message], tool_names: &HashSet<&str>) -> Vec<Too
                     && request
                         .tool_call
                         .as_ref()
-                        .is_ok_and(|call| tool_names.contains(call.name.as_ref())) =>
+                        .map_or(true, |call| tool_names.contains(call.name.as_ref())) =>
             {
                 Some(request.clone())
             }
             _ => None,
         })
         .collect()
+}
+
+fn interrupted_result() -> Result<CallToolResult, ErrorData> {
+    Ok(CallToolResult::error(vec![
+        rmcp::model::ContentBlock::text("Tool call was interrupted before completing"),
+    ]))
 }
 
 fn parameters<T: ToolBase>(arguments: Option<JsonObject>) -> Result<T::Parameter, ErrorData> {
@@ -290,22 +296,30 @@ where
         }
 
         let mut message = Message::user();
+        let mut cancelled = false;
         for request in requests {
-            let call = request
-                .tool_call
-                .as_ref()
-                .expect("matched requests have parsed tool calls");
-            let provider = available
-                .iter()
-                .find(|(tool, _)| tool.name == call.name)
-                .map(|(_, provider)| *provider)
-                .expect("matched requests reference available tools");
-            let tool_result = tokio::select! {
-                result = provider.call(session, &request.id, call.clone(), emit) => result,
-                _ = emit.cancelled() => Err(ErrorData::internal_error(
-                    "tool call cancelled".to_string(),
-                    None,
-                )),
+            let tool_result = if cancelled || emit.cancel_token().is_cancelled() {
+                cancelled = true;
+                interrupted_result()
+            } else {
+                match request.tool_call.as_ref() {
+                    Err(error) => Err(error.clone()),
+                    Ok(call) => {
+                        let provider = available
+                            .iter()
+                            .find(|(tool, _)| tool.name == call.name)
+                            .map(|(_, provider)| *provider)
+                            .expect("matched requests reference available tools");
+                        tokio::select! {
+                            biased;
+                            _ = emit.cancelled() => {
+                                cancelled = true;
+                                interrupted_result()
+                            },
+                            result = provider.call(session, &request.id, call.clone(), emit) => result,
+                        }
+                    }
+                }
             };
             message.add_tool_response_with_metadata(
                 request.id,

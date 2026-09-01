@@ -1,4 +1,10 @@
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -87,8 +93,12 @@ impl AsyncTool<()> for Greet {
 }
 
 fn emitter() -> Emitter {
+    emitter_with_token(CancellationToken::new())
+}
+
+fn emitter_with_token(cancel: CancellationToken) -> Emitter {
     let (tx, _rx) = mpsc::channel(1);
-    Emitter::new(tx, CancellationToken::new())
+    Emitter::new(tx, cancel)
 }
 
 fn operation() -> ToolOperation<()> {
@@ -290,6 +300,117 @@ async fn rejects_duplicate_dynamic_tool_names() {
         error.to_string(),
         "multiple tool providers registered 'dynamic'"
     );
+}
+
+#[tokio::test]
+async fn responds_to_unparseable_tool_requests() {
+    let operation = operation();
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call a tool"),
+        Message::assistant().with_tool_request(
+            "invalid-call",
+            Err(ErrorData::invalid_params("malformed arguments", None)),
+        ),
+    ]);
+
+    let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+        &operation,
+        &(),
+        &conversation,
+        &emitter(),
+    )
+    .await
+    .unwrap();
+
+    let OperationResult::Applied(result) = result else {
+        panic!("tool operation should apply");
+    };
+    let ConversationEffect::AppendMessage(message) = &result.effects[0] else {
+        panic!("tool operation should append a response");
+    };
+    let response = message.content[0].as_tool_response().unwrap();
+    assert_eq!(response.id, "invalid-call");
+    assert_eq!(
+        response.tool_result.as_ref().unwrap_err().message,
+        "malformed arguments"
+    );
+}
+
+struct BlockingTools {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl ToolProvider<()> for BlockingTools {
+    async fn tools(&self, _session: &()) -> Result<Vec<Tool>> {
+        Ok(vec![Tool::new(
+            "blocking",
+            "A tool that never finishes",
+            Arc::new(serde_json::from_value(json!({"type": "object"}))?),
+        )])
+    }
+
+    async fn call(
+        &self,
+        _session: &(),
+        _request_id: &str,
+        _call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_current_and_remaining_calls() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let operation = ToolOperation::new().with_provider(Arc::new(BlockingTools {
+        calls: calls.clone(),
+    }));
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call twice"),
+        Message::assistant()
+            .with_tool_request("call-1", Ok(CallToolRequestParams::new("blocking")))
+            .with_tool_request("call-2", Ok(CallToolRequestParams::new("blocking"))),
+    ]);
+    let cancel = CancellationToken::new();
+    let run_cancel = cancel.clone();
+    let run = tokio::spawn(async move {
+        <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+            &operation,
+            &(),
+            &conversation,
+            &emitter_with_token(run_cancel),
+        )
+        .await
+    });
+    while calls.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    cancel.cancel();
+    let result = run.await.unwrap().unwrap();
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let OperationResult::Applied(result) = result else {
+        panic!("tool operation should apply");
+    };
+    let ConversationEffect::AppendMessage(message) = &result.effects[0] else {
+        panic!("tool operation should append a response");
+    };
+    assert_eq!(
+        message.get_tool_response_ids(),
+        ["call-1", "call-2"].into_iter().collect()
+    );
+    for content in &message.content {
+        let response = content.as_tool_response().unwrap();
+        let result = response.tool_result.as_ref().unwrap();
+        assert!(result.is_error.is_some_and(|is_error| is_error));
+        assert_eq!(
+            result.content[0].as_text().unwrap().text,
+            "Tool call was interrupted before completing"
+        );
+    }
 }
 
 #[tokio::test]
