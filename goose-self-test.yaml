@@ -175,6 +175,11 @@ prompt: |
   1. Run `cargo test -p goose test_gondola_provider_registry_wiring` to verify Gondola is registered with the correct name, default model (`deepseek-v4-flash`), and a secret `GONDOLA_API_KEY` config key.
   If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
 
+  ### Muse Code Provider Validation
+  When running from a goose source checkout:
+  1. Run `cargo test -p goose --lib muse_code` to verify the Muse Code provider metadata, device-code login, mint, and CLI-token reuse.
+  If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
+
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
   {% endif %}
 
