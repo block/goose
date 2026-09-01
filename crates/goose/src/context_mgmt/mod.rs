@@ -247,8 +247,9 @@ pub(crate) struct ContextTokenCounts {
     /// Tokens of the whole agent-visible conversation.
     pub(crate) total: i32,
     /// Tokens of the agent-visible messages no request has carried yet: the
-    /// tool results, steers, and user messages appended after the
-    /// provider's latest response.
+    /// tool results, steers, user messages, and locally synthesized
+    /// final-output deliveries appended after the provider's latest
+    /// response.
     pub(crate) unsent: i32,
     /// Tokens of the tool pairs hidden behind the replacement summaries in
     /// the unsent suffix. The session baseline still counts those pairs, so
@@ -278,6 +279,23 @@ impl ContextTokenCounts {
 /// still recognize them.
 const TOOL_PAIR_SUMMARY_NOTE: (&str, &str) = ("tool_pair_compaction", "summary");
 const TOOL_PAIR_REPLACED_TOKENS_NOTE: (&str, &str) = ("tool_pair_compaction", "replaced_tokens");
+
+/// Operation note marking an assistant message as synthesized locally — the
+/// recipe final-output delivery — rather than arriving inside a provider
+/// response. Persisted, so a reloaded session's recount still recognizes it.
+const FINAL_OUTPUT_DELIVERY_NOTE: (&str, &str) = ("final_output", "delivered");
+
+pub(crate) fn mark_final_output_delivery(message: &mut Message) {
+    let (operation, key) = FINAL_OUTPUT_DELIVERY_NOTE;
+    message
+        .metadata
+        .set_operation_note(operation, key, serde_json::Value::Bool(true));
+}
+
+fn is_final_output_delivery(message: &Message) -> bool {
+    let (operation, key) = FINAL_OUTPUT_DELIVERY_NOTE;
+    message.metadata.operation_note(operation, key).is_some()
+}
 
 fn mark_tool_pair_summary(message: &mut Message, replaced_tokens: usize) {
     let (operation, key) = TOOL_PAIR_SUMMARY_NOTE;
@@ -342,10 +360,13 @@ pub(crate) async fn recount_context_tokens(
     // and compaction marks its replacement history the same way, so in both
     // cases the suffix starts after the marked message. The response's own
     // content stays out of the growth: the baseline reports input plus
-    // output tokens, so the response is already counted in it. Histories
-    // without usage metadata fall back to the last assistant message, which
-    // undercounts a legacy split batch but stays correct for the state
-    // machine's single-message representation.
+    // output tokens, so the response is already counted in it — except an
+    // assistant message synthesized locally (the final-output delivery),
+    // which the baseline never saw and which carries its delivery note so
+    // the recount can tell it from the response's own assistant messages.
+    // Histories without usage metadata fall back to the last assistant
+    // message, which undercounts a legacy split batch but stays correct for
+    // the state machine's single-message representation.
     let unsent_start = messages
         .iter()
         .rposition(|message| message.is_agent_visible() && message.metadata.usage.is_some())
@@ -367,7 +388,9 @@ pub(crate) async fn recount_context_tokens(
             0
         };
         total += tokens;
-        if index >= unsent_start && message.role != Role::Assistant {
+        if index >= unsent_start
+            && (message.role != Role::Assistant || is_final_output_delivery(message))
+        {
             unsent += tokens;
             replaced_pairs += tool_pair_replaced_tokens(message);
         }
@@ -1193,6 +1216,76 @@ mod tests {
             counts.unsent,
             count_context_tokens(&suffix).await.unwrap(),
             "the reply is part of the reported baseline; the steer behind it is the growth"
+        );
+    }
+
+    #[tokio::test]
+    async fn recount_counts_a_delivered_final_output_as_unsent_growth() {
+        // A stop-hook denial of a delivered recipe result leaves the
+        // synthesized delivery between the usage marker and the denial: the
+        // baseline never carried that copy of the structured output, so the
+        // recount must count it — unlike the response's own assistant
+        // content, which the baseline already reports as output tokens.
+        let mut delivery =
+            Message::assistant().with_text(format!(r#"{{"result":"{}"}}"#, "x ".repeat(200)));
+        super::mark_final_output_delivery(&mut delivery);
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("produce the structured result"),
+            Message::assistant()
+                .with_tool_request(
+                    "final_output_call",
+                    Ok(CallToolRequestParams::new(
+                        "recipe__final_output".to_string(),
+                    )),
+                )
+                .with_metadata(MessageMetadata {
+                    usage: Some(Box::new(MessageUsage::default())),
+                    ..MessageMetadata::default()
+                }),
+            Message::user().with_tool_response(
+                "final_output_call",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("Final output successfully collected."),
+                ])),
+            ),
+            delivery,
+            Message::user().with_text("Stop hook blocked ending this turn"),
+        ]);
+
+        let counts = recount_context_tokens(&conversation).await.unwrap();
+
+        let suffix = Conversation::new_unvalidated(vec![
+            conversation.messages()[2].clone(),
+            conversation.messages()[3].clone(),
+            conversation.messages()[4].clone(),
+        ]);
+        assert_eq!(
+            counts.unsent,
+            count_context_tokens(&suffix).await.unwrap(),
+            "the delivery is locally synthesized, so it is growth the baseline never carried"
+        );
+
+        // Without its delivery note the same assistant message is
+        // indistinguishable from the response's own content, which the
+        // baseline already counts — the exclusion the note lifts.
+        let unmarked = Conversation::new_unvalidated(
+            conversation
+                .messages()
+                .iter()
+                .cloned()
+                .enumerate()
+                .map(|(index, mut message)| {
+                    if index == 3 {
+                        message.metadata.operations = None;
+                    }
+                    message
+                })
+                .collect::<Vec<_>>(),
+        );
+        let plain = recount_context_tokens(&unmarked).await.unwrap();
+        assert!(
+            plain.unsent < counts.unsent,
+            "an unmarked assistant message after the marker stays excluded from the growth"
         );
     }
 

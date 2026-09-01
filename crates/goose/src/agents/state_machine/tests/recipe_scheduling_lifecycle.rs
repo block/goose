@@ -365,6 +365,69 @@ async fn a_denial_after_a_delivered_final_output_resumes_proactive_compaction() 
 }
 
 #[tokio::test]
+async fn a_denial_boundary_check_counts_the_delivered_result_itself() -> Result<()> {
+    let blocked_once = super::hooks_lifecycle::HookTestEnv::new(
+        "Stop",
+        "#!/bin/sh\nif [ -f \"$PLUGIN_ROOT/denied\" ]; then exit 0; fi\ntouch \"$PLUGIN_ROOT/denied\"\necho \"not done yet\" >&2\nexit 2\n",
+    );
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(blocked_once.hook_manager());
+    // The structured result is large, so the locally synthesized delivery
+    // doubles it: the request that collected it reports the tool-call
+    // arguments as output tokens, and the delivered assistant message adds
+    // the same content again as growth no request has carried. With the
+    // baseline and the conversation-only floor each under the threshold —
+    // the prompt and schema overhead is what combines with the delivery to
+    // cross — only a recount that counts the delivered message sees the
+    // denial boundary over the threshold; one that excludes every
+    // assistant message lets the resumed run leave over the limit.
+    api.set_context_limit(1_000_000);
+    let huge_result = "x ".repeat(38_000);
+    api.on("deliver the structured result")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": huge_result }));
+    api.on("Please summarize the conversation history")
+        .reply("summarized after the denial");
+    api.on("not done yet").reply("done after the denial");
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .prompt("deliver the structured result")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    let completed = pipeline.run(["deliver the structured result"]).await?;
+
+    let delivered = format!(r#"{{"result":"{}"}}"#, "x ".repeat(38_000));
+    completed.assert_emitted(&delivered);
+    completed.assert_message(-1, Agent, "done after the denial");
+    assert_eq!(
+        completed.history_replacements(),
+        1,
+        "the delivered result must count as growth at the denial boundary"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains("Please summarize the conversation history"))
+        .expect("summarization request after the denial");
+    assert!(
+        summarization.system_contains("blocked ending this turn"),
+        "the summarization must run after the stop-hook denial resumed the run"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("do the thing").reply("attempt");

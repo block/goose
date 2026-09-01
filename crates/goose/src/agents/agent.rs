@@ -2416,9 +2416,10 @@ impl Agent {
                 };
                 if let Some(output) = final_output {
                     last_assistant_text = output.clone();
-                    let message = Message::assistant()
+                    let mut message = Message::assistant()
                         .with_text(output)
                         .with_generated_id_if_missing();
+                    crate::context_mgmt::mark_final_output_delivery(&mut message);
                     yield AgentEvent::Message(message.clone());
                     session_manager.add_message(&session_config.id, &message).await?;
                     conversation.push(message);
@@ -3386,10 +3387,9 @@ impl Agent {
                 if let Some(output) = pending_final_output.take() {
                     preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
-                    let message = push_message_with_id(
-                        &mut messages_to_add,
-                        Message::assistant().with_text(output),
-                    );
+                    let mut message = Message::assistant().with_text(output);
+                    crate::context_mgmt::mark_final_output_delivery(&mut message);
+                    let message = push_message_with_id(&mut messages_to_add, message);
                     yield AgentEvent::Message(message);
                 }
 

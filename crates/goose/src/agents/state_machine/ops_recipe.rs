@@ -421,7 +421,8 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
 
         if let Some(output) = Self::successful_final_output(messages) {
             if last_effective_role(messages)? == EffectiveRole::Tool {
-                let message = Message::assistant().with_text(output);
+                let mut message = Message::assistant().with_text(output);
+                crate::context_mgmt::mark_final_output_delivery(&mut message);
                 let message = emit.message(message).await;
                 return applied([message.into()]);
             }
