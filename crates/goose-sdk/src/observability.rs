@@ -349,6 +349,7 @@ mod tests {
             reasoning_tokens: None,
             model: "claude-sonnet-4".to_string(),
             provider_metadata_json: None,
+            additional_data_json: None,
         }
     }
 
