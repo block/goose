@@ -2452,6 +2452,7 @@ impl Agent {
                             )
                             .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            continuation_appended = true;
                             retrying_after_stop_hook_denial = true;
                             continue;
                         }
@@ -5001,10 +5002,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     /// Drives a denied final-output delivery: the kickoff collects the recipe
-    /// result with reported usage past the 8k threshold of the 10k limit,
-    /// and once the stop-hook denial has resumed the run, the next request
-    /// makes an ordinary tool call so the mid-turn check after its response
-    /// is the one that must fire. The re-collected result after the
+    /// result with reported usage under the 8k threshold of the 10k limit, so
+    /// the re-check the denial queues passes without compacting. The next
+    /// request makes an ordinary tool call reporting usage past the
+    /// threshold, so the mid-turn check after its response is the one that
+    /// must fire — the successful final-output response earlier in the
+    /// history must not suppress it. The re-collected result after the
     /// compaction ends the run.
     struct DeniedDeliveryProvider {
         call_count: AtomicUsize,
@@ -5064,7 +5067,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                         Ok(CallToolRequestParams::new("recipe__final_output")
                             .with_arguments(arguments)),
                     ),
-                    9_000,
+                    7_000,
                 )
             };
             let usage = ProviderUsage::new(
@@ -5080,6 +5083,83 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         fn get_name(&self) -> &str {
             "denied-delivery"
+        }
+    }
+
+    /// Drives a denied delivery whose denial alone crosses the threshold:
+    /// the kickoff collects the recipe result, and the stop hook denies its
+    /// delivery with a reason large enough that the appended denial message
+    /// is the turn's only growth past the 8k threshold of the 10k limit. The
+    /// re-check after the denial must compact before the next request
+    /// leaves; after the compaction the recipe result is collected again and
+    /// delivered with the hook allowing.
+    struct DeniedDeliveryRecheckProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl Default for DeniedDeliveryRecheckProvider {
+        fn default() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl DeniedDeliveryRecheckProvider {
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for DeniedDeliveryRecheckProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let _ = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let text = messages
+                .iter()
+                .map(Message::as_concat_text)
+                .collect::<String>()
+                .to_lowercase();
+            let (message, total_tokens) =
+                if text.contains("please summarize the conversation history") {
+                    (
+                        Message::assistant().with_text("<mock summary of conversation>"),
+                        200,
+                    )
+                } else {
+                    let mut arguments = serde_json::Map::new();
+                    arguments.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("42".to_string()),
+                    );
+                    (
+                        Message::assistant().with_tool_request(
+                            "final_output_call",
+                            Ok(CallToolRequestParams::new("recipe__final_output")
+                                .with_arguments(arguments)),
+                        ),
+                        9_000,
+                    )
+                };
+            let usage = ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(total_tokens - 100), Some(100), Some(total_tokens)),
+            );
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        async fn get_context_limit(&self, _model: &str, _override_limit: Option<usize>) -> usize {
+            10_000
+        }
+
+        fn get_name(&self) -> &str {
+            "denied-delivery-recheck"
         }
     }
 
@@ -5778,6 +5858,84 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             provider.call_count(),
             4,
             "kickoff, resumed tool call, summarization, re-collected result"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            2,
+            "deny the delivery, allow the end"
+        );
+        assert!(texts.iter().any(|text| text == r#"{"result":"42"}"#));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_denial_after_a_delivered_final_output_rechecks_before_the_next_request() -> Result<()>
+    {
+        let env = StopHookTestEnv::new(BLOCK_ONCE_LARGE_REASON_SCRIPT)?;
+        let provider = Arc::new(DeniedDeliveryRecheckProvider::default());
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_stop_hook_block_cap_for_test(5);
+        agent
+            .apply_recipe_components(
+                Some(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } },
+                        "required": ["result"]
+                    })),
+                }),
+                true,
+            )
+            .await?;
+
+        // The kickoff collects the recipe result and the loop delivers it,
+        // but the stop hook denies with a reason large enough that the
+        // appended denial message alone crosses the 8k threshold. The
+        // delivery branch must queue the pre-inference re-check — the early
+        // final-output branch used to continue without it, so the retried
+        // request left over the threshold and only reactive recovery could
+        // save it. After the compaction the result is re-collected and the
+        // second Stop invocation allows the end.
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("produce the structured result"),
+                session_config,
+                None,
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut history_replacements = 0;
+        let mut texts = Vec::new();
+        while let Some(event_result) = reply_stream.next().await {
+            match event_result? {
+                AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+                AgentEvent::Message(message) => {
+                    let text = message.as_concat_text();
+                    if !text.is_empty() {
+                        texts.push(text);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert_eq!(
+            history_replacements, 1,
+            "the denial the delivered result's stop hook appended must be re-checked against the threshold"
+        );
+        assert_eq!(
+            provider.call_count(),
+            3,
+            "kickoff, the compaction summarization, then the re-collected result"
         );
         assert_eq!(
             env.hook_invocations(),
