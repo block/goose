@@ -3,30 +3,30 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
 use goose_providers::anthropic::{
-    ANTHROPIC_API_VERSION, AnthropicProvider, AnthropicProviderBuilder,
+    AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION,
 };
 use goose_providers::api_client::{ApiClient, AuthMethod, AuthProvider, TlsConfig};
 use goose_providers::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDescriptor, ProviderMetadata,
-    model_info_for_provider_model,
+    model_info_for_provider_model, ConfigKey, MessageStream, ModelInfo, Provider,
+    ProviderDescriptor, ProviderMetadata,
 };
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, USER_AGENT};
 use reqwest::Client;
-use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, USER_AGENT};
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
-use crate::config::Config;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::providers::base::ProviderDef;
 use crate::providers::oauth_device_flow::{
-    DeviceFlowConfig, DeviceFlowTokenRefreshError, DeviceFlowTokens, RequestEncoding,
-    refresh_device_flow_token, run_device_flow,
+    refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokenRefreshError,
+    DeviceFlowTokens, RequestEncoding,
 };
 use crate::providers::private_file::write_private_file;
 
