@@ -53,13 +53,22 @@ pub struct StateMachine<'a, S, E = ConversationEffect> {
 fn add_inference_tools(
     input: &mut InferenceInput,
     tool_names: &mut HashSet<String>,
-    tools: Vec<rmcp::model::Tool>,
+    operation_name: &str,
+    inference_tools: crate::operation::InferenceTools,
 ) -> Result<()> {
-    for tool in tools {
+    for tool in inference_tools.tools {
         if !tool_names.insert(tool.name.to_string()) {
             anyhow::bail!("multiple operations registered tool '{}'", tool.name);
         }
         input.tools.push(tool);
+    }
+    if !inference_tools.message_notes.is_empty()
+        && input
+            .message_notes
+            .insert(operation_name.to_string(), inference_tools.message_notes)
+            .is_some()
+    {
+        anyhow::bail!("multiple operations named '{operation_name}' produced inference notes");
     }
     Ok(())
 }
@@ -92,6 +101,7 @@ where
                             add_inference_tools(
                                 &mut input,
                                 &mut tool_names,
+                                operation.name(),
                                 operation.inference_tools(session, conversation).await?,
                             )?;
                             input
@@ -182,13 +192,21 @@ mod tests {
         add_inference_tools(
             &mut input,
             &mut names,
-            vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
+            "first",
+            crate::operation::InferenceTools {
+                tools: vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
+                ..Default::default()
+            },
         )
         .unwrap();
         let error = add_inference_tools(
             &mut input,
             &mut names,
-            vec![rmcp::model::Tool::new("duplicate", "second", schema)],
+            "second",
+            crate::operation::InferenceTools {
+                tools: vec![rmcp::model::Tool::new("duplicate", "second", schema)],
+                ..Default::default()
+            },
         )
         .unwrap_err();
 

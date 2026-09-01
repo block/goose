@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, ContentBlock, Tool};
+use rmcp::model::{CallToolResult, ContentBlock};
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
@@ -259,12 +259,19 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         ])
     }
 
-    async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
-        Ok(Self::final_output(session)?
-            .as_ref()
-            .map(FinalOutputTool::tool)
-            .into_iter()
-            .collect())
+    async fn inference_tools(
+        &self,
+        session: &Session,
+        _conversation: &Conversation,
+    ) -> Result<goose_agent::operation::InferenceTools> {
+        Ok(goose_agent::operation::InferenceTools {
+            tools: Self::final_output(session)?
+                .as_ref()
+                .map(FinalOutputTool::tool)
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        })
     }
 
     async fn prompt_parts(

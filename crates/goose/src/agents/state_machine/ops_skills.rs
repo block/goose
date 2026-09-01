@@ -281,8 +281,15 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         ])
     }
 
-    async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
-        Ok(vec![skill_tool()?])
+    async fn inference_tools(
+        &self,
+        _session: &Session,
+        _conversation: &Conversation,
+    ) -> Result<goose_agent::operation::InferenceTools> {
+        Ok(goose_agent::operation::InferenceTools {
+            tools: vec![skill_tool()?],
+            ..Default::default()
+        })
     }
 
     async fn prompt_parts(

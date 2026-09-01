@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use anyhow::Result;
@@ -16,8 +16,8 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use crate::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
-    OperationResult,
+    applied, messages_since_kickoff, not_applicable, Emitter, InferenceTools, Operation,
+    OperationFuture, OperationResult,
 };
 
 fn empty_input_schema() -> Arc<JsonObject> {
@@ -83,17 +83,6 @@ fn interrupted_result() -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::error(vec![
         rmcp::model::ContentBlock::text("Tool call was interrupted before completing"),
     ]))
-}
-
-fn turn_key(conversation: &Conversation) -> Result<String> {
-    let kickoff = messages_since_kickoff(conversation)?
-        .first()
-        .expect("messages since kickoff includes the kickoff message");
-    kickoff
-        .id
-        .clone()
-        .map(Ok)
-        .unwrap_or_else(|| serde_json::to_string(kickoff).map_err(Into::into))
 }
 
 fn parameters<T: ToolBase>(arguments: Option<JsonObject>) -> Result<T::Parameter, ErrorData> {
@@ -179,7 +168,6 @@ where
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
     providers: Vec<Arc<dyn ToolProvider<S>>>,
-    advertised: Mutex<HashMap<String, HashMap<String, usize>>>,
 }
 
 impl<S> ToolOperation<S>
@@ -190,7 +178,6 @@ where
         Self {
             registered: RegisteredToolProvider { tools: Vec::new() },
             providers: Vec::new(),
-            advertised: Mutex::new(HashMap::new()),
         }
     }
 
@@ -297,9 +284,13 @@ where
         "tools"
     }
 
-    async fn inference_tools(&self, session: &S, conversation: &Conversation) -> Result<Vec<Tool>> {
+    async fn inference_tools(
+        &self,
+        session: &S,
+        _conversation: &Conversation,
+    ) -> Result<InferenceTools> {
         let available = self.available_tools(session).await?;
-        let provider_indexes = available
+        let routes = available
             .iter()
             .map(|(tool, provider)| {
                 let provider_index = self
@@ -307,14 +298,16 @@ where
                     .iter()
                     .position(|candidate| std::ptr::eq(candidate.as_ref(), *provider))
                     .map_or(0, |index| index + 1);
-                (tool.name.to_string(), provider_index)
+                (tool.name.to_string(), serde_json::json!(provider_index))
             })
             .collect();
-        self.advertised
-            .lock()
-            .expect("advertised tool lock poisoned")
-            .insert(turn_key(conversation)?, provider_indexes);
-        Ok(available.into_iter().map(|(tool, _)| tool).collect())
+        Ok(InferenceTools {
+            tools: available.into_iter().map(|(tool, _)| tool).collect(),
+            message_notes: serde_json::Map::from_iter([(
+                "routes".to_string(),
+                Value::Object(routes),
+            )]),
+        })
     }
 
     async fn run(
@@ -323,11 +316,31 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let advertised = self
-            .advertised
-            .lock()
-            .expect("advertised tool lock poisoned")
-            .remove(&turn_key(conversation)?);
+        let advertised = messages_since_kickoff(conversation)?
+            .iter()
+            .rev()
+            .find_map(|message| {
+                (message.role == rmcp::model::Role::Assistant)
+                    .then(|| message.metadata.operation_note("tools", "routes"))
+                    .flatten()
+            })
+            .and_then(Value::as_object)
+            .map(|routes| {
+                routes
+                    .iter()
+                    .map(|(name, index)| {
+                        let index = index.as_u64().ok_or_else(|| {
+                            anyhow::anyhow!("invalid persisted provider route for '{name}'")
+                        })?;
+                        let index = usize::try_from(index)?;
+                        if index > self.providers.len() {
+                            anyhow::bail!("persisted provider route for '{name}' is unavailable");
+                        }
+                        Ok((name.clone(), index))
+                    })
+                    .collect::<Result<HashMap<_, _>>>()
+            })
+            .transpose()?;
         let available = if advertised.is_none() {
             Some(self.available_tools(session).await?)
         } else {

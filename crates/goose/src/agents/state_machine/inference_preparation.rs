@@ -86,6 +86,7 @@ impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
             system_prompt,
             tools,
             additional_messages,
+            message_notes: input.message_notes,
         })
     }
 }

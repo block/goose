@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use goose_agent::{
-    operation::{ConversationEffect, Emitter, Operation, OperationResult},
+    operation::{ConversationEffect, Emitter, InferenceTools, Operation, OperationResult},
     tool::{ToolOperation, ToolProvider},
 };
 use goose_provider_types::conversation::{
@@ -107,6 +107,14 @@ fn operation() -> ToolOperation<()> {
         .with_async_tool::<Greet>()
 }
 
+fn with_tool_routes(mut message: Message, inference_tools: InferenceTools) -> Message {
+    message.metadata.operations = Some(Box::new(std::collections::BTreeMap::from([(
+        "tools".to_string(),
+        inference_tools.message_notes,
+    )])));
+    message
+}
+
 #[tokio::test]
 async fn advertises_user_defined_tools() {
     let operation = operation();
@@ -118,7 +126,8 @@ async fn advertises_user_defined_tools() {
         &conversation,
     )
     .await
-    .unwrap();
+    .unwrap()
+    .tools;
 
     assert_eq!(tools.len(), 2);
     assert_eq!(tools[0].name, "add");
@@ -249,31 +258,37 @@ impl ToolProvider<()> for ChangesAfterAdvertising {
 }
 
 #[tokio::test]
-async fn dispatches_from_the_advertised_dynamic_tool_set() {
-    let operation = ToolOperation::new().with_provider(Arc::new(ChangesAfterAdvertising {
+async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
+    let provider = Arc::new(ChangesAfterAdvertising {
         advertised: AtomicBool::new(false),
-    }));
+    });
+    let operation = ToolOperation::new().with_provider(provider.clone());
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call it"),
         Message::assistant()
             .with_tool_request("call-1", Ok(CallToolRequestParams::new("transient"))),
     ]);
-    let tools = <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(
-        &operation,
-        &(),
-        &conversation,
-    )
-    .await
-    .unwrap();
-    assert_eq!(tools[0].name, "transient");
+    let inference_tools =
+        <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(
+            &operation,
+            &(),
+            &conversation,
+        )
+        .await
+        .unwrap();
+    assert_eq!(inference_tools.tools[0].name, "transient");
 
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call it"),
-        Message::assistant()
-            .with_tool_request("call-1", Ok(CallToolRequestParams::new("transient"))),
+        with_tool_routes(
+            Message::assistant()
+                .with_tool_request("call-1", Ok(CallToolRequestParams::new("transient"))),
+            inference_tools,
+        ),
     ]);
+    let reconstructed = ToolOperation::new().with_provider(provider);
     let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
-        &operation,
+        &reconstructed,
         &(),
         &conversation,
         &emitter(),
@@ -354,20 +369,37 @@ async fn advertised_routes_are_isolated_by_turn() {
             .with_tool_request("true-call", Ok(CallToolRequestParams::new("routed"))),
     ]);
 
-    <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
-        &operation,
-        &false,
-        &false_conversation,
-    )
-    .await
-    .unwrap();
-    <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+    let false_tools =
+        <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+            &operation,
+            &false,
+            &false_conversation,
+        )
+        .await
+        .unwrap();
+    let true_tools = <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
         &operation,
         &true,
         &true_conversation,
     )
     .await
     .unwrap();
+    let false_conversation = Conversation::new_unvalidated([
+        Message::user().with_text("false session"),
+        with_tool_routes(
+            Message::assistant()
+                .with_tool_request("false-call", Ok(CallToolRequestParams::new("routed"))),
+            false_tools,
+        ),
+    ]);
+    let true_conversation = Conversation::new_unvalidated([
+        Message::user().with_text("true session"),
+        with_tool_routes(
+            Message::assistant()
+                .with_tool_request("true-call", Ok(CallToolRequestParams::new("routed"))),
+            true_tools,
+        ),
+    ]);
     <ToolOperation<bool> as Operation<bool, ConversationEffect>>::run(
         &operation,
         &false,
@@ -406,7 +438,8 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
             &conversation,
         )
         .await
-        .unwrap();
+        .unwrap()
+        .tools;
     let disabled_tools =
         <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
             &operation,
@@ -414,7 +447,8 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
             &disabled_conversation,
         )
         .await
-        .unwrap();
+        .unwrap()
+        .tools;
     assert_eq!(enabled_tools[0].name, "dynamic");
     assert!(disabled_tools.is_empty());
 
