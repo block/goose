@@ -1875,9 +1875,6 @@ pub fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpS
                         .env(env_vars),
                 ));
             }
-            ExtensionConfig::Sse { name, .. } => {
-                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
-            }
             _ => {}
         }
     }
@@ -4274,17 +4271,6 @@ mod tests {
                 _ => panic!("server type mismatch"),
             }
         }
-    }
-
-    #[test]
-    fn test_sse_skips() {
-        let config = ExtensionConfig::Sse {
-            name: "test-sse".into(),
-            description: String::new(),
-            uri: Some("https://example.com/sse".into()),
-        };
-        let result = extension_configs_to_mcp_servers(&[config]);
-        assert!(result.is_empty());
     }
 
     #[test]

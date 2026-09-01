@@ -244,7 +244,7 @@ impl ProviderRegistry {
             let mut config_keys = base_metadata.config_keys.clone();
 
             if let Some(api_key_index) = config_keys.iter().position(|key| key.secret) {
-                if !config.requires_auth {
+                if !config.requires_auth || config.auth.is_some() {
                     config_keys.remove(api_key_index);
                 } else if !config.api_key_env.is_empty() {
                     config_keys[api_key_index] =
@@ -281,7 +281,6 @@ impl ProviderRegistry {
                 .unwrap_or(base_metadata.model_doc_link),
             config_keys,
             setup_steps: config.setup_steps.clone(),
-            model_selection_hint: None,
             fast_model: config.fast_model.clone(),
             setup: config.setup.clone(),
             deprecated: None,
@@ -376,6 +375,7 @@ mod tests {
             catalog_provider_id: Some("huggingface".to_string()),
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             model_doc_link: None,

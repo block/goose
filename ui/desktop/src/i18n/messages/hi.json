@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "प्रकार"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (असमर्थित)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "मानक आईओ (एसटीडीआईओ)"
   },

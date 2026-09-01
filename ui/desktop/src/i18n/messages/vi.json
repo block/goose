@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Loại"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (không được hỗ trợ)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standard IO (STDIO)"
   },

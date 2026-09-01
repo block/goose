@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "유형"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (미지원)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "표준 IO(STDIO)"
   },

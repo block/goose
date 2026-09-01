@@ -800,7 +800,6 @@ mod tests {
                 },
                 Arc::new(VisibilityClient),
                 None,
-                None,
             )
             .await;
 

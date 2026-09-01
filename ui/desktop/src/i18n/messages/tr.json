@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Tür"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (desteklenmiyor)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standart IO (STDIO)"
   },

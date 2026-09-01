@@ -41,9 +41,6 @@ pub struct ProviderMetadata {
     /// step-by-step instructions for set up providers eg: api key
     #[serde(default)]
     pub setup_steps: Vec<String>,
-    /// Hint shown in the model picker when this provider manages its own model selection.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_selection_hint: Option<String>,
     /// The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
     /// compaction). When set, fast-path callers prefer this model over the main model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -83,7 +80,6 @@ impl ProviderMetadata {
             model_doc_link: model_doc_link.to_string(),
             config_keys,
             setup_steps: vec![],
-            model_selection_hint: None,
             fast_model: None,
             setup: None,
             deprecated: None,
@@ -108,7 +104,6 @@ impl ProviderMetadata {
             model_doc_link: model_doc_link.to_string(),
             config_keys,
             setup_steps: vec![],
-            model_selection_hint: None,
             fast_model: None,
             setup: None,
             deprecated: None,
@@ -125,7 +120,6 @@ impl ProviderMetadata {
             model_doc_link: "".to_string(),
             config_keys: vec![],
             setup_steps: vec![],
-            model_selection_hint: None,
             fast_model: None,
             setup: None,
             deprecated: None,
@@ -134,11 +128,6 @@ impl ProviderMetadata {
 
     pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
         self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
-        self
-    }
-
-    pub fn with_model_selection_hint(mut self, hint: &str) -> Self {
-        self.model_selection_hint = Some(hint.to_string());
         self
     }
 
