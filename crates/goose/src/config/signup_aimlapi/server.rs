@@ -12,8 +12,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use tokio::sync::oneshot;
 
-static TEMPLATES_DIR: Dir =
-    include_dir!("$CARGO_MANIFEST_DIR/src/config/signup_aimlapi/templates");
+static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/config/signup_aimlapi/templates");
 
 #[derive(Debug, Deserialize)]
 struct CallbackQuery {
@@ -108,6 +107,7 @@ mod tests {
         let response = handle_callback(
             Query(CallbackQuery {
                 code: None,
+                state: None,
                 error: Some(error.to_string()),
             }),
             axum::extract::State(state),
