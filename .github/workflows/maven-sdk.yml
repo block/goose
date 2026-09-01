@@ -76,6 +76,8 @@ jobs:
     name: Package Maven artifact
     needs: build-native
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -115,12 +117,20 @@ jobs:
         working-directory: crates/goose-sdk/maven
         run: gradle --no-daemon publishToMavenLocal
 
-      - name: Stage Maven local artifacts
+      - name: Resolve Maven version
+        id: version
         shell: bash
         run: |
           version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Stage Maven local artifacts
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
           mkdir -p maven-artifacts
-          cp -R "$HOME/.m2/repository/io/github/aaif-goose/gdk/$version" maven-artifacts/
+          cp -R "$HOME/.m2/repository/io/github/aaif-goose/gdk/$VERSION" maven-artifacts/
 
       - name: Upload Maven artifact bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -136,7 +146,7 @@ jobs:
     if: inputs.publish
     environment: maven-central
     concurrency:
-      group: gdk-maven-release
+      group: gdk-maven-release-${{ needs.package.outputs.version }}
       cancel-in-progress: false
     steps:
       - name: Checkout code
@@ -173,24 +183,39 @@ jobs:
         shell: bash
         run: cp -R native-artifacts/* crates/goose-sdk/maven/src/main/resources/
 
-      - name: Check Maven Central
+      - name: Check Maven Central deployments
         id: central
         shell: bash
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_TOKEN_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_TOKEN_PASSWORD }}
+          VERSION: ${{ needs.package.outputs.version }}
         run: |
-          version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
-          url="https://repo.maven.apache.org/maven2/io/github/aaif-goose/gdk/$version/gdk-$version.pom"
-          status=$(curl --silent --output /dev/null --write-out '%{http_code}' "$url")
-          case "$status" in
-            200)
-              echo "io.github.aaif-goose:gdk:$version is already published; skipping"
-              echo "published=true" >> "$GITHUB_OUTPUT"
-              ;;
-            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
-            *) echo "Maven Central returned HTTP $status while checking $url" >&2; exit 1 ;;
-          esac
+          purl="pkg:maven/io.github.aaif-goose/gdk@$VERSION"
+          page=0
+          while true; do
+            response=$(curl --fail-with-body --silent --show-error \
+              --user "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_PASSWORD" \
+              --get \
+              --data-urlencode "namespace=io.github.aaif-goose" \
+              --data-urlencode "page=$page" \
+              --data-urlencode "size=100" \
+              "https://central.sonatype.com/api/v1/publisher/deployments")
+            if jq --exit-status --arg purl "$purl" \
+              'any(.deployments[]; .deploymentState != "FAILED" and any(.deploymentComponents[]?; .purl == $purl))' \
+              <<< "$response" > /dev/null; then
+              echo "io.github.aaif-goose:gdk:$VERSION already has a Central deployment; skipping"
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            page_count=$(jq --exit-status '.pageCount' <<< "$response")
+            page=$((page + 1))
+            ((page < page_count)) || break
+          done
+          echo "exists=false" >> "$GITHUB_OUTPUT"
 
       - name: Publish to Maven Central
-        if: steps.central.outputs.published == 'false'
+        if: steps.central.outputs.exists == 'false'
         working-directory: crates/goose-sdk/maven
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_TOKEN_USERNAME }}
