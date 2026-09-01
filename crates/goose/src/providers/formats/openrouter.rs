@@ -12,7 +12,6 @@ fn has_assistant_content(message: &Message) -> bool {
         MessageContent::Text(t) => !t.text.is_empty(),
         MessageContent::Image(_) => true,
         MessageContent::ToolRequest(req) => req.tool_call.is_ok(),
-        MessageContent::FrontendToolRequest(req) => req.tool_call.is_ok(),
         _ => false,
     })
 }

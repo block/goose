@@ -412,20 +412,6 @@ pub struct SessionExtensionEntry {
     pub extension_key: String,
 }
 
-/// List Goose-owned extension definitions available to configure or enable.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(
-    method = "_goose/unstable/extensions/available",
-    response = GetAvailableExtensionsResponse
-)]
-pub struct GetAvailableExtensionsRequest {}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct GetAvailableExtensionsResponse {
-    pub extensions: Vec<GooseExtension>,
-}
-
 /// List configured extensions and any warnings.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -503,15 +489,6 @@ pub struct PreferencesReadRequest {
 pub struct PreferencesSaveRequest {
     #[serde(default)]
     pub values: Vec<PreferenceValue>,
-}
-
-/// Remove allowlisted user preferences.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/preferences/remove", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct PreferencesRemoveRequest {
-    #[serde(default)]
-    pub keys: Vec<PreferenceKey>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
@@ -688,23 +665,6 @@ pub struct OnboardingImportApplyResponse {
     pub warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_defaults: Option<DefaultsReadResponse>,
-}
-
-/// Set a dictation provider secret value.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/secret/save", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationSecretSaveRequest {
-    pub provider: String,
-    pub value: String,
-}
-
-/// Remove a dictation provider secret value.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/secret/delete", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationSecretDeleteRequest {
-    pub provider: String,
 }
 
 /// Return list-style metadata for a single session without loading the conversation.
@@ -1804,8 +1764,6 @@ pub struct ProviderInventoryEntryDto {
     pub available: bool,
     /// Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
     pub provider_type: String,
-    /// Whether this inventory entry represents an agent provider or a model provider.
-    pub category: ProviderSetupCategoryDto,
     /// Whether this provider communicates through ACP.
     #[serde(default)]
     pub acp: bool,
@@ -1837,9 +1795,6 @@ pub struct ProviderInventoryEntryDto {
     pub last_refresh_error: Option<String>,
     /// Whether we believe this data may be outdated.
     pub stale: bool,
-    /// Guidance message shown when this provider manages its own model selection externally.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_selection_hint: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -2280,15 +2235,6 @@ pub struct DictationModelCancelRequest {
 #[request(method = "_goose/unstable/dictation/models/delete", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct DictationModelDeleteRequest {
-    pub model_id: String,
-}
-
-/// Persist the user's model selection for a given provider.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/dictation/models/select", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DictationModelSelectRequest {
-    pub provider: String,
     pub model_id: String,
 }
 

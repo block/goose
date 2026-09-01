@@ -6,7 +6,7 @@ use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::declarative_providers::{
-    create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
+    create_custom_provider, remove_custom_provider, AuthConfig, CreateCustomProviderParams,
 };
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
@@ -249,6 +249,10 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
             "Sign in with Tetrate Agent Router Service to automatically configure models",
         )
         .item(
+            "aimlapi",
+            "AI/ML API Login",
+            "Sign in with AI/ML API to automatically configure models",
+        )        .item(
             "manual",
             "Manual Configuration",
             "Choose a provider and enter credentials manually",
@@ -271,6 +275,18 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
                 let _ = config.clear();
                 println!(
                     "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
+                    style("Error").red().italic(),
+                    e,
+                );
+            }
+        }
+        "aimlapi" => {
+            if let Err(e) = handle_aimlapi_auth().await {
+                let _ = config.clear();
+                println!(
+                    "
+  {} AI/ML API sign-in failed: {} 
+  Please try again or use manual configuration",
                     style("Error").red().italic(),
                     e,
                 );
@@ -1949,6 +1965,26 @@ pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Handle AI/ML API authentication (authorization code + PKCE)
+pub async fn handle_aimlapi_auth() -> anyhow::Result<()> {
+    use goose::config::{configure_aimlapi, signup_aimlapi::AimlapiAuth};
+
+    let mut auth_flow = AimlapiAuth::new()?;
+    let api_key = auth_flow.complete_flow().await?;
+    println!("
+Sign-in complete!");
+
+    let config = Config::global();
+
+    println!("
+Configuring AI/ML API...");
+    configure_aimlapi(config, api_key)?;
+
+    println!("AI/ML API configuration complete");
+
+    Ok(())
+}
+
 /// Handle OpenRouter authentication
 pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     use goose::config::{configure_openrouter, signup_openrouter::OpenRouterAuth};
@@ -2198,11 +2234,68 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
-    let api_key: String = if requires_auth {
-        cliclack::password("API key:").mask('▪').interact()?
-    } else {
-        String::new()
-    };
+    let mut api_key = String::new();
+    let mut auth: Option<AuthConfig> = None;
+
+    if requires_auth {
+        let auth_mode = cliclack::select("How should goose obtain credentials for this provider?")
+            .item("static", "Static API key", "Enter a fixed API key now")
+            .item(
+                "command",
+                "Command (refreshable)",
+                "Run a command to fetch/refresh a short-lived credential",
+            )
+            .interact()?;
+
+        if auth_mode == "command" {
+            let command: String = cliclack::input("Command to run for the credential:")
+                .placeholder("/path/to/get-token.sh")
+                .validate(|input: &String| {
+                    if input.trim().is_empty() {
+                        Err("Please enter a command")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let args_input: String =
+                cliclack::input("Command arguments (comma-separated, optional):")
+                    .placeholder("--flag, value")
+                    .required(false)
+                    .interact()?;
+            let args: Vec<String> = args_input
+                .split(',')
+                .map(str::trim)
+                .filter(|arg| !arg.is_empty())
+                .map(str::to_string)
+                .collect();
+
+            let refresh_interval_input: String = cliclack::input(
+                "Refresh interval in seconds (0 to only refresh after an auth failure):",
+            )
+            .default_input("3600")
+            .validate(|input: &String| {
+                input
+                    .trim()
+                    .parse::<u64>()
+                    .map(|_| ())
+                    .map_err(|_| "Please enter a whole number of seconds")
+            })
+            .interact()?;
+            let refresh_interval: u64 = refresh_interval_input.trim().parse().unwrap_or(3600);
+
+            auth = Some(AuthConfig {
+                command,
+                args,
+                refresh_interval,
+                timeout_seconds: None,
+                cwd: None,
+            });
+        } else {
+            api_key = cliclack::password("API key:").mask('▪').interact()?;
+        }
+    }
 
     let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
@@ -2251,6 +2344,7 @@ fn add_provider() -> anyhow::Result<()> {
         catalog_provider_id: None,
         base_path,
         preserves_thinking: None,
+        auth,
     })?;
 
     if !provider_config.models.is_empty() {

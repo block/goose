@@ -1054,9 +1054,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Тип"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (не поддерживается)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Стандартный ввод-вывод (STDIO)"
   },

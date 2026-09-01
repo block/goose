@@ -51,11 +51,8 @@ import type {
   DictationModelDownloadProgressRequest_unstable,
   DictationModelDownloadProgressResponse_unstable,
   DictationModelDownloadRequest_unstable,
-  DictationModelSelectRequest_unstable,
   DictationModelsListRequest_unstable,
   DictationModelsListResponse_unstable,
-  DictationSecretDeleteRequest_unstable,
-  DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
   EncodeRecipeRequest_unstable,
@@ -64,8 +61,6 @@ import type {
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
-  GetAvailableExtensionsRequest_unstable,
-  GetAvailableExtensionsResponse_unstable,
   GetConfigExtensionsRequest_unstable,
   GetConfigExtensionsResponse_unstable,
   GetPromptRequest_unstable,
@@ -130,7 +125,6 @@ import type {
   PauseScheduleRequest_unstable,
   PreferencesReadRequest_unstable,
   PreferencesReadResponse_unstable,
-  PreferencesRemoveRequest_unstable,
   PreferencesSaveRequest_unstable,
   PromptOperationResponse_unstable,
   ProviderCatalogListRequest_unstable,
@@ -215,7 +209,6 @@ import {
   zEncodeRecipeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
-  zGetAvailableExtensionsResponse_unstable,
   zGetConfigExtensionsResponse_unstable,
   zGetPromptResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
@@ -459,18 +452,6 @@ export class GooseExtClient {
     return zGetConfigExtensionsResponse_unstable.parse(
       raw,
     ) as GetConfigExtensionsResponse_unstable;
-  }
-
-  async extensionsAvailable_unstable(
-    params: GetAvailableExtensionsRequest_unstable,
-  ): Promise<GetAvailableExtensionsResponse_unstable> {
-    const raw = await this.conn.request(
-      "_goose/unstable/extensions/available",
-      params,
-    );
-    return zGetAvailableExtensionsResponse_unstable.parse(
-      raw,
-    ) as GetAvailableExtensionsResponse_unstable;
   }
 
   async configExtensionsAdd_unstable(
@@ -744,12 +725,6 @@ export class GooseExtClient {
     params: PreferencesSaveRequest_unstable,
   ): Promise<void> {
     await this.conn.request("_goose/unstable/preferences/save", params);
-  }
-
-  async preferencesRemove_unstable(
-    params: PreferencesRemoveRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/preferences/remove", params);
   }
 
   async configRead_unstable(
@@ -1229,18 +1204,6 @@ export class GooseExtClient {
     ) as DictationConfigResponse_unstable;
   }
 
-  async dictationSecretSave_unstable(
-    params: DictationSecretSaveRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/secret/save", params);
-  }
-
-  async dictationSecretDelete_unstable(
-    params: DictationSecretDeleteRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/secret/delete", params);
-  }
-
   async dictationModelsList_unstable(
     params: DictationModelsListRequest_unstable,
   ): Promise<DictationModelsListResponse_unstable> {
@@ -1284,12 +1247,6 @@ export class GooseExtClient {
     params: DictationModelDeleteRequest_unstable,
   ): Promise<void> {
     await this.conn.request("_goose/unstable/dictation/models/delete", params);
-  }
-
-  async dictationModelsSelect_unstable(
-    params: DictationModelSelectRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/dictation/models/select", params);
   }
 
   async localInferenceModelsList_unstable(

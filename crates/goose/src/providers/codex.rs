@@ -623,9 +623,6 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Result<Vec<Stri
                     ));
                 }
             }
-            ExtensionConfig::Sse { name, .. } => {
-                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
-            }
             _ => {}
         }
     }

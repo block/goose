@@ -244,17 +244,6 @@ fn format_messages(
                         }));
                     }
                 }
-                MessageContentBlock::FrontendToolRequest(req) => {
-                    let text = match &req.tool_call {
-                        Ok(tool_call) => format!(
-                            "Frontend tool request: {} ({})",
-                            tool_call.name,
-                            serde_json::to_string_pretty(&tool_call.arguments).unwrap()
-                        ),
-                        Err(e) => format!("Frontend tool request error: {}", e),
-                    };
-                    content_array.push(json!({"type": "text", "text": text}));
-                }
                 MessageContentBlock::SystemNotification(_)
                 | MessageContentBlock::Error(_)
                 | MessageContentBlock::ToolConfirmationRequest(_)

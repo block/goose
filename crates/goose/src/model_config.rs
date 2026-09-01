@@ -68,6 +68,12 @@ fn materialize_model_config_inner(
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
     }
 
+    if model.cache_ttl().is_none() {
+        if let Some(ttl) = get_goose_cache_ttl(config)? {
+            model = model.with_cache_ttl(&ttl);
+        }
+    }
+
     if provider_name == goose_providers::openai::OPEN_AI_PROVIDER_NAME {
         model = apply_openai_request_params(model);
     }
@@ -227,6 +233,34 @@ fn base_model_config_from_user_config(
     Ok(model)
 }
 
+/// Re-derive the prompt-cache TTL from the current configuration, discarding
+/// any value stored on the model config. The TTL is configuration state, not
+/// session state: a resumed session must reflect the user's current opt-in,
+/// not a value persisted by an earlier (possibly clamped) run.
+pub fn with_rederived_cache_ttl(model: ModelConfig) -> Result<ModelConfig> {
+    let mut model = model.without_cache_ttl();
+    if let Some(ttl) = get_goose_cache_ttl(Config::global())? {
+        model = model.with_cache_ttl(&ttl);
+    }
+    Ok(model)
+}
+
+fn get_goose_cache_ttl(config: &Config) -> Result<Option<String>> {
+    match config.get_param::<String>("GOOSE_CACHE_TTL") {
+        Ok(ttl) => {
+            let ttl = ttl.trim().to_lowercase();
+            match ttl.as_str() {
+                "5m" | "1h" => Ok(Some(ttl)),
+                other => Err(anyhow!(
+                    "GOOSE_CACHE_TTL must be '5m' or '1h', got '{other}'"
+                )),
+            }
+        }
+        Err(ConfigError::NotFound(_)) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
 fn get_goose_temperature(config: &Config) -> Result<Option<f32>> {
     match config.get_param::<f32>("GOOSE_TEMPERATURE") {
         Ok(temp) if temp < 0.0 => Err(anyhow!(
@@ -296,6 +330,76 @@ mod one_shot_tests {
     #[test]
     fn prompt_cache_is_disabled() {
         assert!(one_shot_model_config(ModelConfig::new("claude-haiku-4-5")).prompt_cache_disabled());
+    }
+}
+
+#[cfg(test)]
+mod cache_ttl_tests {
+    use super::*;
+
+    #[test]
+    fn env_var_populates_cache_ttl() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", Some("1h"))]);
+        let model = materialize_model_config_inner(
+            ModelConfig::new("claude-sonnet-4-5"),
+            "anthropic",
+            false,
+        )
+        .unwrap();
+        assert_eq!(model.cache_ttl().as_deref(), Some("1h"));
+    }
+
+    #[test]
+    fn absent_env_var_leaves_cache_ttl_unset() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", None::<&str>)]);
+        let model = materialize_model_config_inner(
+            ModelConfig::new("claude-sonnet-4-5"),
+            "anthropic",
+            false,
+        )
+        .unwrap();
+        assert!(model.cache_ttl().is_none());
+    }
+
+    #[test]
+    fn invalid_env_var_is_rejected() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", Some("2h"))]);
+        let result = materialize_model_config_inner(
+            ModelConfig::new("claude-sonnet-4-5"),
+            "anthropic",
+            false,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rederive_replaces_stored_ttl_with_configured_value() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", Some("1h"))]);
+        let model =
+            with_rederived_cache_ttl(ModelConfig::new("claude-sonnet-4-5").with_cache_ttl("5m"))
+                .unwrap();
+        assert_eq!(model.cache_ttl().as_deref(), Some("1h"));
+    }
+
+    #[test]
+    fn rederive_drops_stored_ttl_when_config_absent() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", None::<&str>)]);
+        let model =
+            with_rederived_cache_ttl(ModelConfig::new("claude-sonnet-4-5").with_cache_ttl("1h"))
+                .unwrap();
+        assert!(model.cache_ttl().is_none());
+    }
+
+    #[test]
+    fn explicit_model_ttl_wins_over_env_var() {
+        let _guard = env_lock::lock_env([("GOOSE_CACHE_TTL", Some("1h"))]);
+        let model = materialize_model_config_inner(
+            ModelConfig::new("claude-sonnet-4-5").with_cache_ttl("5m"),
+            "anthropic",
+            false,
+        )
+        .unwrap();
+        assert_eq!(model.cache_ttl().as_deref(), Some("5m"));
     }
 }
 

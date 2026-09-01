@@ -420,50 +420,6 @@ fn test_custom_session_extensions_add_list_remove() {
 
 #[test]
 #[serial]
-fn test_custom_get_available_extensions() {
-    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
-    run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
-
-        let result = send_custom(
-            conn.cx(),
-            "_goose/unstable/extensions/available",
-            serde_json::json!({}),
-        )
-        .await;
-        assert!(result.is_ok(), "expected ok, got: {:?}", result);
-
-        let response = result.unwrap();
-        let extensions = response
-            .get("extensions")
-            .and_then(|extensions| extensions.as_array())
-            .expect("extensions should be an array");
-        assert!(!extensions.is_empty(), "extensions should not be empty");
-        assert!(
-            extensions.iter().all(|extension| matches!(
-                extension["type"].as_str(),
-                Some("builtin" | "platform")
-            )),
-            "available extensions should only include builtin and platform entries"
-        );
-        assert!(
-            extensions.iter().any(|extension| {
-                extension["type"] == "platform" && extension["name"] == "developer"
-            }),
-            "developer platform extension should be available"
-        );
-        assert!(
-            !extensions.iter().any(|extension| {
-                extension["type"] == "platform" && extension["name"] == "orchestrator"
-            }),
-            "hidden orchestrator platform extension should not be available"
-        );
-    });
-}
-
-#[test]
-#[serial]
 fn test_custom_prompt_methods() {
     let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
@@ -742,7 +698,7 @@ fn test_custom_provider_inventory_includes_metadata() {
 
 #[test]
 #[serial]
-fn test_custom_preferences_read_save_remove() {
+fn test_custom_preferences_read_save() {
     let config_dir = write_acp_global_config(
         "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
     );
@@ -793,16 +749,6 @@ fn test_custom_preferences_read_save_remove() {
         .await
         .expect("preferences save should succeed");
 
-        send_custom(
-            conn.cx(),
-            "_goose/unstable/preferences/remove",
-            serde_json::json!({
-                "keys": ["voiceDictationProvider"],
-            }),
-        )
-        .await
-        .expect("preferences remove should succeed");
-
         let response = send_custom(
             conn.cx(),
             "_goose/unstable/preferences/read",
@@ -811,12 +757,12 @@ fn test_custom_preferences_read_save_remove() {
             }),
         )
         .await
-        .expect("preferences read after remove should succeed");
+        .expect("preferences read after save should succeed");
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "gooseThinkingEffort", "value": "off" },
-                { "key": "voiceDictationProvider", "value": null },
+                { "key": "voiceDictationProvider", "value": "__disabled__" },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
         );
@@ -960,104 +906,6 @@ fn test_custom_defaults_save_allows_unlisted_model() {
                 "providerId": "anthropic",
                 "modelId": "custom-unlisted-model",
             })
-        );
-    });
-}
-
-#[test]
-#[serial]
-fn test_custom_dictation_secret_save_delete() {
-    let _env = env_lock::lock_env([
-        ("GOOSE_DISABLE_KEYRING", Some("1")),
-        ("GROQ_API_KEY", None::<&str>),
-    ]);
-    let config_dir = write_acp_global_config(
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\n",
-    );
-
-    run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let config = TestConnectionConfig {
-            data_root: config_dir.clone(),
-            ..Default::default()
-        };
-        let conn = AcpServerConnection::new(config, openai).await;
-
-        send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/secret/save",
-            serde_json::json!({
-                "provider": "groq",
-                "value": "groq-key",
-            }),
-        )
-        .await
-        .expect("dictation secret save should succeed");
-
-        let config = send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/config",
-            serde_json::json!({}),
-        )
-        .await
-        .expect("dictation config should succeed");
-        assert_eq!(
-            config
-                .pointer("/providers/groq/configured")
-                .and_then(|value| value.as_bool()),
-            Some(true)
-        );
-
-        let provider_config_result = send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/secret/save",
-            serde_json::json!({
-                "provider": "openai",
-                "value": "openai-key",
-            }),
-        )
-        .await;
-        assert!(
-            provider_config_result.is_err(),
-            "provider-config dictation providers should be rejected"
-        );
-
-        let unknown_result = send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/secret/save",
-            serde_json::json!({
-                "provider": "unknown",
-                "value": "key",
-            }),
-        )
-        .await;
-        assert!(
-            unknown_result.is_err(),
-            "unknown provider should be rejected"
-        );
-
-        send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/secret/delete",
-            serde_json::json!({
-                "provider": "groq",
-            }),
-        )
-        .await
-        .expect("dictation secret delete should succeed");
-
-        let config = send_custom(
-            conn.cx(),
-            "_goose/unstable/dictation/config",
-            serde_json::json!({}),
-        )
-        .await
-        .expect("dictation config should succeed");
-        assert_eq!(
-            config
-                .pointer("/providers/groq/configured")
-                .and_then(|value| value.as_bool()),
-            Some(false)
         );
     });
 }

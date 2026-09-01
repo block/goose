@@ -410,6 +410,18 @@
                   "type": "String",
                   "default": null,
                   "docs": ""
+                },
+                {
+                  "name": "provider_metadata_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "tool_error_json",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
                 }
               ]
             },
@@ -627,6 +639,12 @@
               "type": "Option<String>",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "additional_data_json",
+              "type": "Option<String>",
+              "default": null,
+              "docs": "Provider-specific response fields as a JSON object, present only when the provider reported fields with no canonical `Usage` equivalent."
             }
           ],
           "variants": [],
@@ -667,6 +685,18 @@
                 {
                   "name": "arguments_json",
                   "type": "String",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "index",
+                  "type": "Option<i32>",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "provider_metadata_json",
+                  "type": "Option<String>",
                   "default": null,
                   "docs": ""
                 }
@@ -799,6 +829,12 @@
               "type": "String",
               "default": null,
               "docs": ""
+            },
+            {
+              "name": "content",
+              "type": "Vec<MessageContent>",
+              "default": null,
+              "docs": "The assistant turn as binding types, ready to append to history and replay on the next request without reparsing `message_json`."
             },
             {
               "name": "usage",
@@ -1039,6 +1075,18 @@
             },
             {
               "name": "total_tokens",
+              "type": "Option<i32>",
+              "default": null,
+              "docs": ""
+            },
+            {
+              "name": "cache_read_input_tokens",
+              "type": "Option<i32>",
+              "default": null,
+              "docs": ""
+            },
+            {
+              "name": "cache_creation_input_tokens",
               "type": "Option<i32>",
               "default": null,
               "docs": ""
