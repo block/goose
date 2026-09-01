@@ -13,5 +13,6 @@ pub mod model;
 pub mod permission;
 pub mod request_log;
 pub mod retry;
+pub mod stream_cap;
 pub mod thinking;
 pub mod utils;

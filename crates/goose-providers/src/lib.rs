@@ -7,7 +7,7 @@ pub mod databricks_v2;
 pub mod google;
 pub use goose_provider_types::{
     base, cache_semantics, canonical, context_limit, conversation, errors, formats, goose_mode,
-    images, json, model, permission, request_log, retry, thinking, utils,
+    images, json, model, permission, request_log, retry, stream_cap, thinking, utils,
 };
 pub mod declarative;
 pub mod http_status;

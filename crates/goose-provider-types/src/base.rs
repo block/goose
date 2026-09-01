@@ -502,7 +502,11 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let stream = self.stream(model_config, system, messages, tools).await?;
-        collect_stream(stream).await
+        collect_stream(crate::stream_cap::cap_stream_duration(
+            stream,
+            self.manages_own_context(),
+        ))
+        .await
     }
 
     /// Resolve the effective context limit for a model.
@@ -1118,5 +1122,86 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    /// A provider whose stream wedges after the first item, like an upstream
+    /// that stalls behind SSE keepalives.
+    struct WedgingProvider {
+        manages_own_context: bool,
+    }
+
+    #[async_trait]
+    impl Provider for WedgingProvider {
+        fn get_name(&self) -> &str {
+            "wedging"
+        }
+
+        fn manages_own_context(&self) -> bool {
+            self.manages_own_context
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            use futures::StreamExt;
+            Ok(Box::pin(
+                futures::stream::once(async {
+                    Ok((Some(Message::assistant().with_text("a")), None))
+                })
+                .chain(futures::stream::pending()),
+            ))
+        }
+    }
+
+    async fn complete_wedging(manages_own_context: bool) -> Result<(), ProviderError> {
+        let provider = WedgingProvider {
+            manages_own_context,
+        };
+        provider
+            .complete(&ModelConfig::new("m"), "system", &[], &[])
+            .await
+            .map(|_| ())
+    }
+
+    /// `Provider::complete` is what compaction and other non-reply completions
+    /// call; it must be capped too, not only the agent reply path (#11679).
+    #[tokio::test(start_paused = true)]
+    async fn complete_is_capped_when_the_stream_wedges() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+
+        // The outer bound keeps an uncapped `complete` from hanging the suite:
+        // without the cap there is no timer for the paused clock to advance to.
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(3_600),
+            complete_wedging(false),
+        )
+        .await
+        .expect("complete must not run past the cap")
+        .expect_err("must be capped");
+
+        assert!(
+            matches!(error, ProviderError::RequestFailed(ref m) if m.contains("maximum duration")),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn complete_is_not_capped_for_context_managing_providers() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(86_400),
+            complete_wedging(true),
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "managed-context complete must not be capped"
+        );
     }
 }

@@ -28,68 +28,13 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::{ErrorData, Tool};
 use tracing::warn;
 
-/// Default wall-clock cap on a single provider stream response, in seconds.
+/// Applies the shared provider-response wall-clock cap (#11679).
 ///
-/// Byte-level timeouts (reqwest `read_timeout`) are reset by SSE keepalive
-/// comments, so a wedged upstream behind a gateway that emits heartbeats
-/// (e.g. `: OPENROUTER PROCESSING`) can hang a turn forever (#11679). A
-/// wall-clock cap is deliberately coarse: it cannot mistake legitimate
-/// upstream queueing or slow generation for a stall (any finite heartbeat
-/// phase still completes well inside it), but it guarantees every stream —
-/// including headless `goose run` — terminates.
-const DEFAULT_STREAM_MAX_DURATION_SECS: u64 = 1800;
-
-/// Wall-clock cap per stream response: `GOOSE_STREAM_MAX_DURATION` (seconds,
-/// `0` disables) or the 30-minute default.
-fn stream_max_duration() -> Option<std::time::Duration> {
-    let secs = std::env::var("GOOSE_STREAM_MAX_DURATION")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(DEFAULT_STREAM_MAX_DURATION_SECS);
-    (secs > 0).then(|| std::time::Duration::from_secs(secs))
-}
-
-/// Caps the total lifetime of a provider stream at `stream_max_duration()`.
-///
-/// The deadline covers the whole response (first token through completion)
-/// and the resulting error is a `RequestFailed`, which the pre-first-item
-/// retry loop treats as non-transient — a capped stream fails the turn
-/// instead of silently re-queueing.
-///
-/// Providers that manage their own context (ACP, Claude Code, Gemini CLI)
-/// are never capped: their "stream" is an entire nested agent run that can
-/// legitimately run for hours and block on human permission prompts, and as
-/// subprocess-based providers they cannot hit the SSE keepalive stall this
-/// cap exists to catch.
+/// The cap lives in `goose_providers::stream_cap` so it also covers
+/// `Provider::complete`, which compaction and other non-reply completions use
+/// without going through this module.
 fn cap_stream_duration(stream: MessageStream, provider: &Arc<dyn Provider>) -> MessageStream {
-    if provider.manages_own_context() {
-        return stream;
-    }
-    let Some(max_duration) = stream_max_duration() else {
-        return stream;
-    };
-    let Some(deadline) = tokio::time::Instant::now().checked_add(max_duration) else {
-        return stream;
-    };
-    Box::pin(try_stream! {
-        let mut stream = stream;
-        loop {
-            match tokio::time::timeout_at(deadline, stream.next()).await {
-                Ok(Some(item)) => yield item?,
-                Ok(None) => break,
-                Err(_) => {
-                    Err(ProviderError::RequestFailed(format!(
-                        "Provider stream exceeded the maximum duration of {}s without \
-                         completing. The upstream model or gateway may have wedged \
-                         mid-response behind SSE keepalives. Increase \
-                         GOOSE_STREAM_MAX_DURATION (seconds, 0 to disable) if your \
-                         responses legitimately run this long.",
-                        max_duration.as_secs()
-                    )))?;
-                }
-            }
-        }
-    })
+    goose_providers::stream_cap::cap_stream_duration(stream, provider.manages_own_context())
 }
 
 async fn enhance_model_error(
@@ -2173,81 +2118,24 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn stream_max_duration_parses_env() {
-        // Each case gets its own scope: env_lock's ENV_MUTEX is non-reentrant,
-        // so a shadowed `_guard` (which lives to end of scope) would deadlock.
-        {
-            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", None::<&str>)]);
-            assert_eq!(
-                stream_max_duration(),
-                Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
-            );
-        }
-        {
-            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("90"))]);
-            assert_eq!(stream_max_duration(), Some(Duration::from_secs(90)));
-        }
-        {
-            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
-            assert_eq!(stream_max_duration(), None);
-        }
-        {
-            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("bogus"))]);
-            assert_eq!(
-                stream_max_duration(),
-                Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
-            );
-        }
-    }
-
-    fn plain_provider() -> Arc<dyn Provider> {
-        Arc::new(SequencedProvider::new(vec![]))
-    }
-
     #[tokio::test(start_paused = true)]
-    async fn capped_stream_passes_items_through() {
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
-        let inner: MessageStream = Box::pin(futures::stream::iter(vec![
-            Ok((Some(Message::assistant().with_text("a")), None)),
-            Ok((Some(Message::assistant().with_text("b")), None)),
-        ]));
-
-        let items: Vec<_> = cap_stream_duration(inner, &plain_provider())
-            .collect()
-            .await;
-
-        assert_eq!(items.len(), 2);
-        assert!(items.iter().all(|item| item.is_ok()));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn wedged_stream_errors_at_cap() {
+    async fn wedged_stream_is_capped_and_not_retried() {
         let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
         let inner: MessageStream = Box::pin(
             futures::stream::once(async { Ok((Some(Message::assistant().with_text("a")), None)) })
                 .chain(futures::stream::pending()),
         );
+        let provider: Arc<dyn Provider> = Arc::new(SequencedProvider::new(vec![]));
 
-        let mut stream = cap_stream_duration(inner, &plain_provider());
+        let mut stream = cap_stream_duration(inner, &provider);
         assert!(stream.next().await.unwrap().is_ok());
 
         let error = stream.next().await.unwrap().unwrap_err();
-        let retry_config = goose_providers::retry::RetryConfig::default().transient_only();
         assert!(matches!(error, ProviderError::RequestFailed(_)));
-        assert!(!goose_providers::retry::should_retry(&error, &retry_config));
-        assert!(stream.next().await.is_none());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn cap_disabled_with_zero() {
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
-        let inner: MessageStream = Box::pin(futures::stream::pending());
-
-        let mut stream = cap_stream_duration(inner, &plain_provider());
-        let result = tokio::time::timeout(Duration::from_secs(86_400), stream.next()).await;
-
-        assert!(result.is_err(), "disabled cap must never fire");
+        assert!(!goose_providers::retry::should_retry(
+            &error,
+            &goose_providers::retry::RetryConfig::default().transient_only()
+        ));
     }
 
     #[tokio::test(start_paused = true)]
@@ -2264,27 +2152,5 @@ mod tests {
             result.is_err(),
             "cap must never fire for managed-context providers"
         );
-    }
-
-    #[test]
-    fn huge_duration_does_not_panic() {
-        let _guard =
-            env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("18446744073709551615"))]);
-        assert_eq!(stream_max_duration(), Some(Duration::from_secs(u64::MAX)));
-
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .unwrap();
-        rt.block_on(async {
-            let inner: MessageStream = Box::pin(futures::stream::iter(vec![Ok((
-                Some(Message::assistant().with_text("a")),
-                None,
-            ))]));
-            let items: Vec<_> = cap_stream_duration(inner, &plain_provider())
-                .collect()
-                .await;
-            assert_eq!(items.len(), 1);
-        });
     }
 }

@@ -627,7 +627,12 @@ impl Provider for GithubCopilotProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         IS_AGENT_CALL
             .scope(true, async {
-                collect_stream(self.stream(model_config, system, messages, tools).await?).await
+                let stream = self.stream(model_config, system, messages, tools).await?;
+                collect_stream(goose_providers::stream_cap::cap_stream_duration(
+                    stream,
+                    self.manages_own_context(),
+                ))
+                .await
             })
             .await
     }
