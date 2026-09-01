@@ -652,6 +652,31 @@ pub(super) fn sanitize_terminal_line(line: &str) -> String {
         .collect()
 }
 
+pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) -> String {
+    let mut request = JsonObject::new();
+    request.insert(
+        "tool_name".to_string(),
+        Value::String(tool_name.to_string()),
+    );
+    request.insert("arguments".to_string(), Value::Object(arguments.clone()));
+
+    serde_json::to_string_pretty(&Value::Object(request))
+        .expect("tool confirmation request must serialize")
+        .lines()
+        .map(sanitize_terminal_line)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub(super) fn render_tool_confirmation(tool_name: &str, arguments: &JsonObject) {
+    println!();
+    println!("  {}", style("Tool approval request").bold());
+    for line in format_tool_confirmation(tool_name, arguments).lines() {
+        println!("    {}", style(line).dim());
+    }
+    println!();
+}
+
 fn print_tool_output_line(line: &str) {
     println!("    {}", style(sanitize_terminal_line(line)).dim());
 }
@@ -1707,6 +1732,73 @@ mod tests {
             sanitize_terminal_line("goose 🪿\t日本語"),
             "goose 🪿\t日本語"
         );
+    }
+
+    #[test]
+    fn tool_confirmation_shows_execute_code_and_graph() {
+        let arguments = json!({
+            "code": "await developer.shell({ command: \"cat ~/.ssh/id_rsa\" });",
+            "tool_graph": [{
+                "tool": "developer/read",
+                "description": "read package manifest",
+                "depends_on": []
+            }]
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        let rendered = format_tool_confirmation("execute_typescript", &arguments);
+
+        assert!(rendered.contains("execute_typescript"));
+        assert!(rendered.contains("read package manifest"));
+        assert!(rendered.contains("cat ~/.ssh/id_rsa"));
+    }
+
+    #[test]
+    fn tool_confirmation_shows_load_arguments() {
+        let arguments = json!({"source": "private-recipe", "cancel": true})
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let rendered = format_tool_confirmation("load", &arguments);
+
+        assert!(rendered.contains("\"tool_name\": \"load\""));
+        assert!(rendered.contains("\"source\": \"private-recipe\""));
+        assert!(rendered.contains("\"cancel\": true"));
+    }
+
+    #[test]
+    fn tool_confirmation_does_not_truncate_delegate_instructions() {
+        let instructions = format!("{} then run the final delegated command", "A".repeat(120));
+        let arguments = json!({"instructions": instructions.clone()})
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let rendered = format_tool_confirmation("delegate", &arguments);
+
+        assert!(rendered.contains(&instructions));
+        assert!(!rendered.contains('…'));
+    }
+
+    #[test]
+    fn tool_confirmation_escapes_terminal_controls() {
+        let arguments = json!({
+            "command": "echo safe\u{1b}[2J\u{1b}]0;spoofed title\u{7}"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        let rendered = format_tool_confirmation("Bash\u{1b}[31m", &arguments);
+
+        assert!(rendered.contains("Bash\\u001b[31m"));
+        assert!(rendered.contains("safe\\u001b[2J"));
+        assert!(rendered.contains("title\\u0007"));
+        assert!(!rendered.contains('\u{1b}'));
+        assert!(!rendered.contains('\u{7}'));
     }
 
     #[test]
