@@ -304,6 +304,67 @@ async fn a_steer_after_final_output_still_skips_the_compaction() -> Result<()> {
 }
 
 #[tokio::test]
+async fn a_denial_after_a_delivered_final_output_resumes_proactive_compaction() -> Result<()> {
+    let blocked_once = super::hooks_lifecycle::HookTestEnv::new(
+        "Stop",
+        "#!/bin/sh\nif [ -f \"$PLUGIN_ROOT/denied\" ]; then exit 0; fi\ntouch \"$PLUGIN_ROOT/denied\"\necho \"not done yet\" >&2\nexit 2\n",
+    );
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(blocked_once.hook_manager());
+    // The kickoff padding keeps the turn-boundary count under the threshold
+    // while the first request reports usage past it, so the first check that
+    // can fire is the one after the final-output response lands — and that
+    // one must skip so the delivery happens. The stop hook then denies the
+    // delivered result, resuming the run with the successful final-output
+    // response still in its history: the check at the denial boundary must
+    // not stay suppressed by it, or the resumed run grows unchecked until a
+    // provider context-length error.
+    api.set_context_limit(1_000_000);
+    let kickoff = format!("deliver the structured result {}", "x ".repeat(48_000));
+    api.on("deliver the structured result")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    api.on("not done yet").reply("done after the denial");
+    api.on("Please summarize the conversation history")
+        .reply("summarized after the denial");
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .prompt("deliver the structured result")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    let completed = pipeline.run([kickoff.as_str()]).await?;
+
+    completed.assert_emitted(r#"{"result":"42"}"#);
+    completed.assert_message(-1, Agent, "done after the denial");
+    assert_eq!(
+        completed.history_replacements(),
+        1,
+        "a delivered result must not suppress the checks of the resumed run"
+    );
+    let summarization = api
+        .calls()
+        .into_iter()
+        .find(|call| call.input_contains("Please summarize the conversation history"))
+        .expect("summarization request after the denial");
+    assert!(
+        summarization.system_contains("blocked ending this turn"),
+        "the summarization must run after the stop-hook denial resumed the run"
+    );
+    assert_eq!(api.context_limit_rejections(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("do the thing").reply("attempt");

@@ -351,10 +351,12 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             // operation delivers it later in this same pass. Summarizing
             // between the response and its delivery wastes a request and, on
             // failure, can end the run without the already-completed result.
-            // The guard holds at every boundary — including one a steer
-            // created — because the result is still pending delivery. The
-            // next turn boundary re-checks the threshold.
-            if RecipeOperation::successful_final_output(run_messages).is_some() {
+            // The guard holds at every boundary while the result is still
+            // awaiting that delivery — including one a steer created — but
+            // not once an assistant message follows the response: a
+            // delivered result must not disable the remaining proactive
+            // checks of a run a stop-hook denial resumed.
+            if RecipeOperation::final_output_awaiting_delivery(run_messages) {
                 return not_applicable();
             }
             // A `Tool` boundary means responses have landed, but not

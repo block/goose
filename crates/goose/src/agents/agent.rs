@@ -2310,11 +2310,10 @@ impl Agent {
             // A continuation appended mid-turn — a goal/grind nudge, a
             // stop-hook denial, a final-output reminder — adds a user
             // message no threshold check has seen, so it queues the
-            // pre-inference re-check below. A delivered final output instead
-            // suppresses that re-check: the state machine skips proactive
-            // compaction once the recipe result has landed.
+            // pre-inference re-check below. A collected final output instead
+            // suppresses that re-check until it is delivered, matching the
+            // state machine's guard for a result awaiting its delivery.
             let mut continuation_appended = false;
-            let mut final_output_delivered = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2416,7 +2415,6 @@ impl Agent {
                     guard.as_mut().and_then(|fot| fot.final_output.take())
                 };
                 if let Some(output) = final_output {
-                    final_output_delivered = true;
                     last_assistant_text = output.clone();
                     let message = Message::assistant()
                         .with_text(output)
@@ -2477,13 +2475,14 @@ impl Agent {
                 // a final-output reminder, a stop-hook denial — were never
                 // seen by a threshold check, and the mid-turn check below
                 // skips tool-free iterations, so re-check before this request
-                // leaves over the threshold. A delivered final output skips
-                // the re-check: the state machine suppresses proactive
-                // compaction once the recipe result has landed. Compaction
-                // failure logs and continues — the reactive path owns the
-                // outcome if the request still does not fit.
+                // leaves over the threshold. A collected final output skips
+                // the re-check until it is delivered — summarizing between
+                // the response and its delivery can end the run without the
+                // already-completed result. Compaction failure logs and
+                // continues — the reactive path owns the outcome if the
+                // request still does not fit.
                 if continuation_appended
-                    && !final_output_delivered
+                    && !self.has_collected_final_output().await
                     && !is_token_cancelled(&cancel_token)
                 {
                     continuation_appended = false;
@@ -3384,7 +3383,6 @@ impl Agent {
                 }
 
                 if let Some(output) = pending_final_output.take() {
-                    final_output_delivered = true;
                     preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
                     let message = push_message_with_id(
@@ -5002,6 +5000,89 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
+    /// Drives a denied final-output delivery: the kickoff collects the recipe
+    /// result with reported usage past the 8k threshold of the 10k limit,
+    /// and once the stop-hook denial has resumed the run, the next request
+    /// makes an ordinary tool call so the mid-turn check after its response
+    /// is the one that must fire. The re-collected result after the
+    /// compaction ends the run.
+    struct DeniedDeliveryProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl Default for DeniedDeliveryProvider {
+        fn default() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl DeniedDeliveryProvider {
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for DeniedDeliveryProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let text = messages
+                .iter()
+                .map(Message::as_concat_text)
+                .collect::<String>()
+                .to_lowercase();
+            let (message, total_tokens) = if text.contains("summarize") {
+                (
+                    Message::assistant().with_text("<mock summary of conversation>"),
+                    200,
+                )
+            } else if call == 1 {
+                (
+                    Message::assistant().with_tool_request(
+                        "followup_call",
+                        Ok(CallToolRequestParams::new("echo_tool")),
+                    ),
+                    9_000,
+                )
+            } else {
+                let mut arguments = serde_json::Map::new();
+                arguments.insert(
+                    "result".to_string(),
+                    serde_json::Value::String("42".to_string()),
+                );
+                (
+                    Message::assistant().with_tool_request(
+                        "final_output_call",
+                        Ok(CallToolRequestParams::new("recipe__final_output")
+                            .with_arguments(arguments)),
+                    ),
+                    9_000,
+                )
+            };
+            let usage = ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(total_tokens - 100), Some(100), Some(total_tokens)),
+            );
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        async fn get_context_limit(&self, _model: &str, _override_limit: Option<usize>) -> usize {
+            10_000
+        }
+
+        fn get_name(&self) -> &str {
+            "denied-delivery"
+        }
+    }
+
     struct CountingTextProvider {
         call_count: AtomicUsize,
     }
@@ -5629,6 +5710,81 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         );
         assert!(texts.iter().any(|text| text == "provider response 0"));
         assert!(texts.iter().any(|text| text == "done after compaction"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_denial_after_a_delivered_final_output_resumes_mid_turn_compaction() -> Result<()> {
+        let env = StopHookTestEnv::new(ALTERNATE_BLOCK_ALLOW_SCRIPT)?;
+        let provider = Arc::new(DeniedDeliveryProvider::default());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent
+            .apply_recipe_components(
+                Some(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } },
+                        "required": ["result"]
+                    })),
+                }),
+                true,
+            )
+            .await?;
+
+        // The first round-trip collects the recipe result with reported
+        // usage past the 8k threshold, so the mid-turn check after its
+        // response must skip for the delivery — which the stop hook then
+        // denies. The resumed run's next tool round-trip must be checked
+        // again even though the successful final-output response remains in
+        // the history, or the turn only recovers after a provider
+        // context-length error.
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("produce the structured result"),
+                session_config,
+                None,
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut history_replacements = 0;
+        let mut texts = Vec::new();
+        while let Some(event_result) = reply_stream.next().await {
+            match event_result? {
+                AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+                AgentEvent::Message(message) => {
+                    let text = message.as_concat_text();
+                    if !text.is_empty() {
+                        texts.push(text);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert_eq!(
+            history_replacements, 1,
+            "a delivered result must not suppress the mid-turn check of the resumed run"
+        );
+        assert_eq!(
+            provider.call_count(),
+            4,
+            "kickoff, resumed tool call, summarization, re-collected result"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            2,
+            "deny the delivery, allow the end"
+        );
+        assert!(texts.iter().any(|text| text == r#"{"result":"42"}"#));
 
         Ok(())
     }

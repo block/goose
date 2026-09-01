@@ -106,6 +106,13 @@ impl RecipeOperation {
     }
 
     pub(super) fn successful_final_output(messages: &[Message]) -> Option<String> {
+        Self::successful_final_output_batch(messages).map(|(output, _)| output)
+    }
+
+    /// The newest successful final-output response and the end of the
+    /// assistant block that requested it, when every request of the block
+    /// has been answered.
+    fn successful_final_output_batch(messages: &[Message]) -> Option<(String, usize)> {
         let answered_responses: HashSet<&str> = messages
             .iter()
             .flat_map(|message| &message.content)
@@ -166,10 +173,31 @@ impl RecipeOperation {
                         }
                         _ => true,
                     });
-                return siblings_answered.then_some(output).flatten();
+                return if siblings_answered {
+                    output.map(|output| (output, block_end))
+                } else {
+                    None
+                };
             }
         }
         None
+    }
+
+    /// A completed recipe result that is still waiting for its first
+    /// delivery: no assistant message follows the response's block, so the
+    /// recipe operation delivers it later in this pass — a drained steer may
+    /// sit between the response and the delivery. An assistant message after
+    /// the block means the run has moved past the response: the delivery
+    /// landed, or a steer drove a new inference. Such a run — for example
+    /// one a stop-hook denial resumed after a delivered result — must keep
+    /// its proactive compaction checks.
+    pub(super) fn final_output_awaiting_delivery(messages: &[Message]) -> bool {
+        let Some((_, block_end)) = Self::successful_final_output_batch(messages) else {
+            return false;
+        };
+        messages[block_end..]
+            .iter()
+            .all(|message| message.role != rmcp::model::Role::Assistant)
     }
 
     async fn command_error(
