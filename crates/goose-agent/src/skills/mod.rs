@@ -24,6 +24,9 @@ pub struct SkillRoot {
     /// Lower values win duplicate-name resolution.
     pub precedence: u32,
     pub writable: bool,
+    /// Preserve the supplied root path rather than canonicalizing discovered
+    /// skill directories. Hosts use this for plugin paths with stable identity.
+    pub preserve_path: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -128,18 +131,24 @@ pub fn discover_skills(options: &SkillDiscoveryOptions) -> Result<SkillDiscovery
                 if !valid_name(&name) {
                     bail!("invalid skill name '{name}'");
                 }
-                let skill_dir = skill_file
-                    .parent()
-                    .context("SKILL.md has no parent")?
-                    .canonicalize()?;
+                let discovered_dir = skill_file.parent().context("SKILL.md has no parent")?;
+                let canonical_skill_dir = discovered_dir.canonicalize()?;
+                let skill_dir = if root.preserve_path {
+                    let relative = discovered_dir.strip_prefix(&root.path)?;
+                    root.path.join(relative)
+                } else {
+                    canonical_skill_dir.clone()
+                };
                 let mut supporting = Vec::new();
                 let mut all_files = Vec::new();
-                walk(&skill_dir, &mut all_files, &mut HashSet::new());
+                walk(discovered_dir, &mut all_files, &mut HashSet::new());
                 for file in all_files {
                     if file.file_name().and_then(|n| n.to_str()) != Some("SKILL.md") {
                         if let Ok(canonical) = file.canonicalize() {
-                            if canonical.starts_with(&skill_dir) {
-                                supporting.push(canonical.to_string_lossy().into_owned());
+                            if canonical.starts_with(&canonical_skill_dir) {
+                                let relative = canonical.strip_prefix(&canonical_skill_dir)?;
+                                supporting
+                                    .push(skill_dir.join(relative).to_string_lossy().into_owned());
                             }
                         }
                     }
@@ -198,7 +207,9 @@ pub fn skill_argument_names(skill: &SourceEntry) -> Vec<String> {
 
 pub fn loaded_skill_context_with_args(skill: &SourceEntry, args: Option<&str>) -> Result<String> {
     let content = match args {
-        Some(args) => arguments::apply(&skill.content, args, &skill_argument_names(skill))?,
+        Some(args) => {
+            arguments::apply_skill_arguments(&skill.content, args, &skill_argument_names(skill))?
+        }
         None => skill.content.clone(),
     };
     let mut output = format!(

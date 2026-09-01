@@ -55,6 +55,10 @@ impl PromptComposer {
         self.extras.shift_remove(key);
     }
 
+    pub fn extras(&self) -> &IndexMap<String, String> {
+        &self.extras
+    }
+
     /// Renders persistent extras followed by ephemeral round contributions.
     pub fn render(
         &self,

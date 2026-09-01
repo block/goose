@@ -5345,6 +5345,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "shell-words",
  "tokio",
  "tokio-util",
  "tracing",

@@ -31,3 +31,4 @@ indexmap = { version = "2.9", features = ["serde", "std"] }
 minijinja = { version = "2.18", features = ["serde", "builtins"] }
 unicode-normalization = { version = "0.1.22", features = ["std"] }
 ignore.workspace = true
+shell-words = "1"
