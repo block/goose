@@ -32,7 +32,10 @@ vi.mock('./ConfigContext', () => ({
 
 vi.mock('../sessions', () => ({ createSession: vi.fn() }));
 
-vi.mock('../utils/workingDir', () => ({ getInitialWorkingDir: () => '/tmp/goose' }));
+vi.mock('../utils/workingDir', () => ({
+  getInitialWorkingDir: () => '/tmp/goose',
+  getEffectiveWorkingDir: () => Promise.resolve('/tmp/goose'),
+}));
 
 vi.mock('../utils/nextChatExtensions', () => ({
   createNextChatExtensionDraft: () => ({}),
