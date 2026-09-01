@@ -168,7 +168,7 @@ where
 /// by a [`ToolProvider`] whose definitions may vary by session.
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
-    providers: Vec<Arc<dyn ToolProvider<S>>>,
+    providers: Vec<(String, Arc<dyn ToolProvider<S>>)>,
 }
 
 impl<S> ToolOperation<S>
@@ -195,8 +195,21 @@ where
         }
     }
 
-    pub fn with_provider(mut self, provider: Arc<dyn ToolProvider<S>>) -> Self {
-        self.providers.push(provider);
+    pub fn with_provider(
+        mut self,
+        id: impl Into<String>,
+        provider: Arc<dyn ToolProvider<S>>,
+    ) -> Self {
+        let id = id.into();
+        assert!(
+            id != "registered",
+            "'registered' is reserved for typed tools"
+        );
+        assert!(
+            self.providers.iter().all(|(existing, _)| existing != &id),
+            "duplicate tool provider id '{id}'"
+        );
+        self.providers.push((id, provider));
         self
     }
 
@@ -255,7 +268,7 @@ where
             .into_iter()
             .map(|tool| (tool, &self.registered as &dyn ToolProvider<S>))
             .collect::<Vec<_>>();
-        for provider in &self.providers {
+        for (_, provider) in &self.providers {
             let tools = tokio::select! {
                 biased;
                 _ = emit.cancelled() => anyhow::bail!("tool discovery cancelled"),
@@ -304,12 +317,12 @@ where
         let routes = available
             .iter()
             .map(|(tool, provider)| {
-                let provider_index = self
+                let provider_id = self
                     .providers
                     .iter()
-                    .position(|candidate| std::ptr::eq(candidate.as_ref(), *provider))
-                    .map_or(0, |index| index + 1);
-                (tool.name.to_string(), serde_json::json!(provider_index))
+                    .find(|(_, candidate)| std::ptr::eq(candidate.as_ref(), *provider))
+                    .map_or("registered", |(id, _)| id.as_str());
+                (tool.name.to_string(), serde_json::json!(provider_id))
             })
             .collect();
         Ok(InferenceTools {
@@ -339,15 +352,18 @@ where
             .map(|routes| {
                 routes
                     .iter()
-                    .map(|(name, index)| {
-                        let index = index.as_u64().ok_or_else(|| {
+                    .map(|(name, provider_id)| {
+                        let provider_id = provider_id.as_str().ok_or_else(|| {
                             anyhow::anyhow!("invalid persisted provider route for '{name}'")
                         })?;
-                        let index = usize::try_from(index)?;
-                        if index > self.providers.len() {
-                            anyhow::bail!("persisted provider route for '{name}' is unavailable");
+                        if provider_id != "registered"
+                            && !self.providers.iter().any(|(id, _)| id == provider_id)
+                        {
+                            anyhow::bail!(
+                                "persisted provider '{provider_id}' for '{name}' is unavailable"
+                            );
                         }
-                        Ok((name.clone(), index))
+                        Ok((name.clone(), provider_id.to_string()))
                     })
                     .collect::<Result<HashMap<_, _>>>()
             })
@@ -386,11 +402,16 @@ where
                         let provider = advertised
                             .as_ref()
                             .and_then(|providers| providers.get(call.name.as_ref()))
-                            .map(|index| {
-                                if *index == 0 {
+                            .map(|provider_id| {
+                                if provider_id == "registered" {
                                     &self.registered as &dyn ToolProvider<S>
                                 } else {
-                                    self.providers[*index - 1].as_ref()
+                                    self.providers
+                                        .iter()
+                                        .find(|(id, _)| id == provider_id)
+                                        .expect("persisted provider route was validated")
+                                        .1
+                                        .as_ref()
                                 }
                             })
                             .or_else(|| {

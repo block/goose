@@ -258,12 +258,31 @@ impl ToolProvider<()> for ChangesAfterAdvertising {
     }
 }
 
+struct NeverAdvertises;
+
+#[async_trait]
+impl ToolProvider<()> for NeverAdvertises {
+    async fn tools(&self, _session: &()) -> Result<Vec<Tool>> {
+        Ok(Vec::new())
+    }
+
+    async fn call(
+        &self,
+        _session: &(),
+        _request_id: &str,
+        _call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        panic!("the unrelated provider must not receive the persisted call")
+    }
+}
+
 #[tokio::test]
 async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
     let provider = Arc::new(ChangesAfterAdvertising {
         advertised: AtomicBool::new(false),
     });
-    let operation = ToolOperation::new().with_provider(provider.clone());
+    let operation = ToolOperation::new().with_provider("transient", provider.clone());
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call it"),
         Message::assistant()
@@ -288,7 +307,9 @@ async fn dispatches_from_persisted_routes_after_reconstructing_the_operation() {
             inference_tools,
         ),
     ]);
-    let reconstructed = ToolOperation::new().with_provider(provider);
+    let reconstructed = ToolOperation::new()
+        .with_provider("unrelated", Arc::new(NeverAdvertises))
+        .with_provider("transient", provider);
     let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
         &reconstructed,
         &(),
@@ -352,14 +373,20 @@ async fn advertised_routes_are_isolated_by_turn() {
     let false_calls = Arc::new(AtomicUsize::new(0));
     let true_calls = Arc::new(AtomicUsize::new(0));
     let operation = ToolOperation::new()
-        .with_provider(Arc::new(SessionRoutedTools {
-            enabled_for: false,
-            calls: false_calls.clone(),
-        }))
-        .with_provider(Arc::new(SessionRoutedTools {
-            enabled_for: true,
-            calls: true_calls.clone(),
-        }));
+        .with_provider(
+            "false",
+            Arc::new(SessionRoutedTools {
+                enabled_for: false,
+                calls: false_calls.clone(),
+            }),
+        )
+        .with_provider(
+            "true",
+            Arc::new(SessionRoutedTools {
+                enabled_for: true,
+                calls: true_calls.clone(),
+            }),
+        );
     let false_conversation = Conversation::new_unvalidated([
         Message::user().with_text("false session"),
         Message::assistant()
@@ -427,7 +454,7 @@ async fn advertised_routes_are_isolated_by_turn() {
 
 #[tokio::test]
 async fn discovers_and_dispatches_dynamic_tools_per_session() {
-    let operation = ToolOperation::new().with_provider(Arc::new(DynamicTools));
+    let operation = ToolOperation::new().with_provider("dynamic", Arc::new(DynamicTools));
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call the dynamic tool"),
         Message::assistant()
@@ -512,8 +539,8 @@ async fn ignores_tool_requests_from_an_earlier_turn() {
 #[tokio::test]
 async fn rejects_duplicate_dynamic_tool_names() {
     let operation = ToolOperation::new()
-        .with_provider(Arc::new(DynamicTools))
-        .with_provider(Arc::new(DynamicTools));
+        .with_provider("first", Arc::new(DynamicTools))
+        .with_provider("second", Arc::new(DynamicTools));
 
     let conversation = Conversation::new_unvalidated([Message::user().with_text("use tools")]);
     let error = <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
@@ -669,9 +696,12 @@ impl ToolProvider<()> for BlockingTools {
 #[tokio::test]
 async fn cancellation_interrupts_current_and_remaining_calls() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let operation = ToolOperation::new().with_provider(Arc::new(BlockingTools {
-        calls: calls.clone(),
-    }));
+    let operation = ToolOperation::new().with_provider(
+        "blocking",
+        Arc::new(BlockingTools {
+            calls: calls.clone(),
+        }),
+    );
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call twice"),
         Message::assistant()
@@ -764,7 +794,8 @@ impl ToolProvider<()> for BlockingDiscovery {
 
 #[tokio::test]
 async fn cancellation_interrupts_dynamic_tool_discovery() {
-    let operation = ToolOperation::new().with_provider(Arc::new(BlockingDiscovery));
+    let operation =
+        ToolOperation::new().with_provider("blocking-discovery", Arc::new(BlockingDiscovery));
     let conversation = Conversation::new_unvalidated([Message::user().with_text("use tools")]);
     let cancel = CancellationToken::new();
     cancel.cancel();

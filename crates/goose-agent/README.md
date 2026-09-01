@@ -21,7 +21,8 @@ is a function of the persisted conversation, not of in-memory loop state.
 - **`ToolOperation<S>`** — adapts caller-defined `rmcp` tools into one operation.
   Register `SyncTool<S>` and `AsyncTool<S>` implementations with the typed builder
   methods, or implement `ToolProvider<S>` for tools discovered dynamically per
-  session. Their schemas are sent to inference and matching calls are dispatched
+  session and register it with a stable provider ID. Their schemas are sent to
+  inference and matching calls are dispatched
   against the current session.
 - **`StateMachine<'a, S, E>`** — holds `Vec<Step<..>>` and a `CancellationToken`.
   `step()` runs one pass, `apply()` writes effects back, `run()` loops until a
