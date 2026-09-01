@@ -55,12 +55,23 @@ fn stream_max_duration() -> Option<std::time::Duration> {
 /// and the resulting error is a `RequestFailed`, which the pre-first-item
 /// retry loop treats as non-transient — a capped stream fails the turn
 /// instead of silently re-queueing.
-fn cap_stream_duration(stream: MessageStream) -> MessageStream {
+///
+/// Providers that manage their own context (ACP, Claude Code, Gemini CLI)
+/// are never capped: their "stream" is an entire nested agent run that can
+/// legitimately run for hours and block on human permission prompts, and as
+/// subprocess-based providers they cannot hit the SSE keepalive stall this
+/// cap exists to catch.
+fn cap_stream_duration(stream: MessageStream, provider: &Arc<dyn Provider>) -> MessageStream {
+    if provider.manages_own_context() {
+        return stream;
+    }
     let Some(max_duration) = stream_max_duration() else {
         return stream;
     };
+    let Some(deadline) = tokio::time::Instant::now().checked_add(max_duration) else {
+        return stream;
+    };
     Box::pin(try_stream! {
-        let deadline = tokio::time::Instant::now() + max_duration;
         let mut stream = stream;
         loop {
             match tokio::time::timeout_at(deadline, stream.next()).await {
@@ -441,7 +452,7 @@ pub(crate) async fn stream_response_from_provider(
 
     // If there was an error creating the stream, return a stream that yields that error
     let mut stream = match stream_result {
-        Ok(s) => cap_stream_duration(s),
+        Ok(s) => cap_stream_duration(s, &provider),
         Err(e) => {
             let enhanced_error = enhance_model_error(e, &provider, config.toolshim).await;
             // Return a stream that immediately yields the error
@@ -502,7 +513,7 @@ pub(crate) async fn stream_response_from_provider(
                         )
                         .await
                         {
-                            Ok(stream) => cap_stream_duration(stream),
+                            Ok(stream) => cap_stream_duration(stream, &provider),
                             Err(error) => {
                                 Err(enhance_model_error(error, &provider, config.toolshim).await)?
                             }
@@ -2164,23 +2175,34 @@ mod tests {
 
     #[test]
     fn stream_max_duration_parses_env() {
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", None::<&str>)]);
-        assert_eq!(
-            stream_max_duration(),
-            Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
-        );
+        // Each case gets its own scope: env_lock's ENV_MUTEX is non-reentrant,
+        // so a shadowed `_guard` (which lives to end of scope) would deadlock.
+        {
+            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", None::<&str>)]);
+            assert_eq!(
+                stream_max_duration(),
+                Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
+            );
+        }
+        {
+            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("90"))]);
+            assert_eq!(stream_max_duration(), Some(Duration::from_secs(90)));
+        }
+        {
+            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
+            assert_eq!(stream_max_duration(), None);
+        }
+        {
+            let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("bogus"))]);
+            assert_eq!(
+                stream_max_duration(),
+                Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
+            );
+        }
+    }
 
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("90"))]);
-        assert_eq!(stream_max_duration(), Some(Duration::from_secs(90)));
-
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
-        assert_eq!(stream_max_duration(), None);
-
-        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("bogus"))]);
-        assert_eq!(
-            stream_max_duration(),
-            Some(Duration::from_secs(DEFAULT_STREAM_MAX_DURATION_SECS))
-        );
+    fn plain_provider() -> Arc<dyn Provider> {
+        Arc::new(SequencedProvider::new(vec![]))
     }
 
     #[tokio::test(start_paused = true)]
@@ -2191,7 +2213,9 @@ mod tests {
             Ok((Some(Message::assistant().with_text("b")), None)),
         ]));
 
-        let items: Vec<_> = cap_stream_duration(inner).collect().await;
+        let items: Vec<_> = cap_stream_duration(inner, &plain_provider())
+            .collect()
+            .await;
 
         assert_eq!(items.len(), 2);
         assert!(items.iter().all(|item| item.is_ok()));
@@ -2205,7 +2229,7 @@ mod tests {
                 .chain(futures::stream::pending()),
         );
 
-        let mut stream = cap_stream_duration(inner);
+        let mut stream = cap_stream_duration(inner, &plain_provider());
         assert!(stream.next().await.unwrap().is_ok());
 
         let error = stream.next().await.unwrap().unwrap_err();
@@ -2220,9 +2244,47 @@ mod tests {
         let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("0"))]);
         let inner: MessageStream = Box::pin(futures::stream::pending());
 
-        let mut stream = cap_stream_duration(inner);
+        let mut stream = cap_stream_duration(inner, &plain_provider());
         let result = tokio::time::timeout(Duration::from_secs(86_400), stream.next()).await;
 
         assert!(result.is_err(), "disabled cap must never fire");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cap_skipped_for_context_managing_providers() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+        let provider: Arc<dyn Provider> =
+            Arc::new(SequencedProvider::new(vec![]).managing_context());
+        let inner: MessageStream = Box::pin(futures::stream::pending());
+
+        let mut stream = cap_stream_duration(inner, &provider);
+        let result = tokio::time::timeout(Duration::from_secs(86_400), stream.next()).await;
+
+        assert!(
+            result.is_err(),
+            "cap must never fire for managed-context providers"
+        );
+    }
+
+    #[test]
+    fn huge_duration_does_not_panic() {
+        let _guard =
+            env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("18446744073709551615"))]);
+        assert_eq!(stream_max_duration(), Some(Duration::from_secs(u64::MAX)));
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let inner: MessageStream = Box::pin(futures::stream::iter(vec![Ok((
+                Some(Message::assistant().with_text("a")),
+                None,
+            ))]));
+            let items: Vec<_> = cap_stream_duration(inner, &plain_provider())
+                .collect()
+                .await;
+            assert_eq!(items.len(), 1);
+        });
     }
 }
