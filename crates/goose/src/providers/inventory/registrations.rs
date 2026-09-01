@@ -239,6 +239,21 @@ pub fn acp_inventory(
     .with_configured(move || acp_adapter_installed(command))
 }
 
+/// CLI agent providers declare a required command key with a default, so the
+/// command is usable without any stored config. Installation of that command is
+/// the user-supplied configuration.
+pub fn cli_agent_inventory(
+    command: impl Fn() -> String + Send + Sync + 'static,
+    supports_refresh: bool,
+) -> InventoryRegistration {
+    InventoryRegistration {
+        supports_refresh,
+        identity: default_inventory_identity_resolver(),
+        configured: None,
+    }
+    .with_configured(move || acp_adapter_installed(&command()))
+}
+
 pub fn amp_acp_inventory() -> InventoryRegistration {
     acp_inventory(AMP_ACP_PROVIDER_NAME, AMP_ACP_BINARY, false)
 }
@@ -286,6 +301,21 @@ mod tests {
         assert!(azure_foundry_configured_values(
             Some("https://hub.services.ai.azure.com"),
             None,
+        ));
+    }
+
+    #[test]
+    fn cli_agent_inventory_configured_tracks_command_installation() {
+        let missing = cli_agent_inventory(|| "goose-cli-agent-not-installed".to_string(), false);
+        assert!(!(missing
+            .configured
+            .expect("CLI agent should define configured resolver"))(
+        ));
+
+        let installed = cli_agent_inventory(|| "sh".to_string(), false);
+        assert!((installed
+            .configured
+            .expect("CLI agent should define configured resolver"))(
         ));
     }
 
