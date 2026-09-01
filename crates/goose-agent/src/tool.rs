@@ -8,7 +8,7 @@ use goose_provider_types::conversation::{
 };
 use rmcp::{
     handler::server::router::tool::{AsyncTool, SyncTool, ToolBase},
-    model::{CallToolResult, ErrorData, JsonObject, Tool},
+    model::{CallToolRequestParams, CallToolResult, ErrorData, JsonObject, Tool},
 };
 use serde_json::{json, Value};
 
@@ -95,6 +95,20 @@ fn result<T: ToolBase>(output: Result<T::Output, T::Error>) -> Result<CallToolRe
     Ok(CallToolResult::structured(value))
 }
 
+/// Supplies tools whose definitions and implementations may vary by session.
+#[async_trait]
+pub trait ToolProvider<S>: Send + Sync {
+    async fn tools(&self, session: &S) -> Result<Vec<Tool>>;
+
+    async fn call(
+        &self,
+        session: &S,
+        request_id: &str,
+        call: CallToolRequestParams,
+        emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData>;
+}
+
 type ToolHandler<S> = dyn for<'a> Fn(&'a S, Option<JsonObject>) -> OperationFuture<'a, Result<CallToolResult, ErrorData>>
     + Send
     + Sync;
@@ -104,13 +118,48 @@ struct RegisteredTool<S> {
     handler: Arc<ToolHandler<S>>,
 }
 
-/// An agent operation containing tools defined with rmcp's tool traits.
-///
-/// Callers register any number of their own [`SyncTool`] and [`AsyncTool`]
-/// implementations with the builder methods. The operation advertises every
-/// registered definition during inference and dispatches matching tool calls.
-pub struct ToolOperation<S> {
+struct RegisteredToolProvider<S> {
     tools: Vec<RegisteredTool<S>>,
+}
+
+#[async_trait]
+impl<S> ToolProvider<S> for RegisteredToolProvider<S>
+where
+    S: Send + Sync + 'static,
+{
+    async fn tools(&self, _session: &S) -> Result<Vec<Tool>> {
+        Ok(self
+            .tools
+            .iter()
+            .map(|tool| tool.definition.clone())
+            .collect())
+    }
+
+    async fn call(
+        &self,
+        session: &S,
+        _request_id: &str,
+        call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        let tool = self
+            .tools
+            .iter()
+            .find(|tool| tool.definition.name == call.name)
+            .ok_or_else(|| {
+                ErrorData::invalid_params(format!("unknown tool {}", call.name), None)
+            })?;
+        (tool.handler)(session, call.arguments).await
+    }
+}
+
+/// An agent operation that advertises and dispatches tools.
+///
+/// Tools can be registered from rmcp's typed tool traits, or supplied at runtime
+/// by a [`ToolProvider`] whose definitions may vary by session.
+pub struct ToolOperation<S> {
+    registered: RegisteredToolProvider<S>,
+    providers: Vec<Arc<dyn ToolProvider<S>>>,
 }
 
 impl<S> ToolOperation<S>
@@ -118,19 +167,28 @@ where
     S: Send + Sync + 'static,
 {
     pub fn new() -> Self {
-        Self { tools: Vec::new() }
+        Self {
+            registered: RegisteredToolProvider { tools: Vec::new() },
+            providers: Vec::new(),
+        }
     }
 
     fn register(&mut self, tool: RegisteredTool<S>) {
         if let Some(existing) = self
+            .registered
             .tools
             .iter_mut()
             .find(|existing| existing.definition.name == tool.definition.name)
         {
             *existing = tool;
         } else {
-            self.tools.push(tool);
+            self.registered.tools.push(tool);
         }
+    }
+
+    pub fn with_provider(mut self, provider: Arc<dyn ToolProvider<S>>) -> Self {
+        self.providers.push(provider);
+        self
     }
 
     pub fn with_sync_tool<T>(mut self) -> Self
@@ -164,6 +222,26 @@ where
         });
         self
     }
+
+    async fn available_tools(&self, session: &S) -> Result<Vec<(Tool, &dyn ToolProvider<S>)>> {
+        let mut available = self
+            .registered
+            .tools(session)
+            .await?
+            .into_iter()
+            .map(|tool| (tool, &self.registered as &dyn ToolProvider<S>))
+            .collect::<Vec<_>>();
+        for provider in &self.providers {
+            available.extend(
+                provider
+                    .tools(session)
+                    .await?
+                    .into_iter()
+                    .map(|tool| (tool, provider.as_ref())),
+            );
+        }
+        Ok(available)
+    }
 }
 
 impl<S> Default for ToolOperation<S>
@@ -185,11 +263,12 @@ where
         "tools"
     }
 
-    async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, session: &S) -> Result<Vec<Tool>> {
         Ok(self
-            .tools
-            .iter()
-            .map(|tool| tool.definition.clone())
+            .available_tools(session)
+            .await?
+            .into_iter()
+            .map(|(tool, _)| tool)
             .collect())
     }
 
@@ -199,10 +278,10 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let tool_names = self
-            .tools
+        let available = self.available_tools(session).await?;
+        let tool_names = available
             .iter()
-            .map(|tool| tool.definition.name.as_ref())
+            .map(|(tool, _)| tool.name.as_ref())
             .collect();
         let requests = pending_requests(conversation, &tool_names);
         if requests.is_empty() {
@@ -215,12 +294,14 @@ where
                 .tool_call
                 .as_ref()
                 .expect("matched requests have parsed tool calls");
-            let tool = self
-                .tools
+            let provider = available
                 .iter()
-                .find(|tool| tool.definition.name == call.name)
-                .expect("matched requests reference registered tools");
-            let tool_result = (tool.handler)(session, call.arguments.clone()).await;
+                .find(|(tool, _)| tool.name == call.name)
+                .map(|(_, provider)| *provider)
+                .expect("matched requests reference available tools");
+            let tool_result = provider
+                .call(session, &request.id, call.clone(), emit)
+                .await;
             message.add_tool_response_with_metadata(
                 request.id,
                 tool_result,

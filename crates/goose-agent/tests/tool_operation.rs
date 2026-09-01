@@ -1,8 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
+
+use anyhow::Result;
+use async_trait::async_trait;
 
 use goose_agent::{
     operation::{ConversationEffect, Emitter, Operation, OperationResult},
-    tool::ToolOperation,
+    tool::{ToolOperation, ToolProvider},
 };
 use goose_provider_types::conversation::{
     message::{Message, MessageContent},
@@ -10,7 +13,7 @@ use goose_provider_types::conversation::{
 };
 use rmcp::{
     handler::server::router::tool::{AsyncTool, SyncTool, ToolBase},
-    model::{CallToolRequestParams, ErrorData},
+    model::{CallToolRequestParams, CallToolResult, ErrorData, Tool},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -169,6 +172,77 @@ async fn dispatches_calls_to_user_defined_tools() {
             .unwrap()
             .structured_content,
         Some(json!({"greeting": "Hello, Goose!"}))
+    );
+}
+
+struct DynamicTools;
+
+#[async_trait]
+impl ToolProvider<bool> for DynamicTools {
+    async fn tools(&self, enabled: &bool) -> Result<Vec<Tool>> {
+        Ok(if *enabled {
+            vec![Tool::new(
+                "dynamic",
+                "A session-dependent tool",
+                json!({"type": "object"}),
+            )]
+        } else {
+            Vec::new()
+        })
+    }
+
+    async fn call(
+        &self,
+        _session: &bool,
+        request_id: &str,
+        call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(CallToolResult::structured(json!({
+            "request_id": request_id,
+            "name": call.name
+        })))
+    }
+}
+
+#[tokio::test]
+async fn discovers_and_dispatches_dynamic_tools_per_session() {
+    let operation = ToolOperation::new().with_provider(Arc::new(DynamicTools));
+    let enabled_tools =
+        <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+            &operation, &true,
+        )
+        .await
+        .unwrap();
+    let disabled_tools =
+        <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+            &operation, &false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(enabled_tools[0].name, "dynamic");
+    assert!(disabled_tools.is_empty());
+
+    let conversation = Conversation::new_unvalidated([Message::assistant()
+        .with_tool_request("dynamic-call", Ok(CallToolRequestParams::new("dynamic")))]);
+    let result = <ToolOperation<bool> as Operation<bool, ConversationEffect>>::run(
+        &operation,
+        &true,
+        &conversation,
+        &emitter(),
+    )
+    .await
+    .unwrap();
+    let OperationResult::Applied(result) = result else {
+        panic!("dynamic tool operation should apply");
+    };
+    let ConversationEffect::AppendMessage(message) = &result.effects[0] else {
+        panic!("dynamic tool operation should append a response");
+    };
+    let response = message.content[0].as_tool_response().unwrap();
+    assert_eq!(
+        response.tool_result.as_ref().unwrap().structured_content,
+        Some(json!({"request_id": "dynamic-call", "name": "dynamic"}))
     );
 }
 

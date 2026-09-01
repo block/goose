@@ -19,10 +19,10 @@ is a function of the persisted conversation, not of in-memory loop state.
   the machine collects tools and prompt parts from *every* operation in the list
   into an `InferenceInput`.
 - **`ToolOperation<S>`** — adapts caller-defined `rmcp` tools into one operation.
-  Register any number of `SyncTool<S>` and `AsyncTool<S>` implementations with
-  `ToolOperation::new().with_sync_tool::<ReadFile>().with_async_tool::<Search>()`.
-  Their schemas are sent to inference and matching calls are dispatched against
-  the current session.
+  Register `SyncTool<S>` and `AsyncTool<S>` implementations with the typed builder
+  methods, or implement `ToolProvider<S>` for tools discovered dynamically per
+  session. Their schemas are sent to inference and matching calls are dispatched
+  against the current session.
 - **`StateMachine<'a, S, E>`** — holds `Vec<Step<..>>` and a `CancellationToken`.
   `step()` runs one pass, `apply()` writes effects back, `run()` loops until a
   step yields to the client or no step applies.
