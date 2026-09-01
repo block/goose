@@ -848,7 +848,7 @@ impl Provider for OpenAiProvider {
                 })?;
 
             if self.supports_streaming {
-                stream_openai_compat(response, log)
+                stream_openai_compat(response, log, Some(20_000)) // FIXME: Some(model_config.context_limit()))
             } else {
                 let json: serde_json::Value = read_json_response(response).await?;
 

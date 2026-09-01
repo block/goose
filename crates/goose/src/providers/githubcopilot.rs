@@ -527,7 +527,7 @@ impl GithubCopilotProvider {
                     let _ = log.error(e);
                 })?;
 
-            stream_openai_compat(response, log)
+            stream_openai_compat(response, log, None)
         } else {
             let payload = create_request(
                 model_config,

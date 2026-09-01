@@ -585,7 +585,7 @@ impl Provider for OpenRouterProvider {
             let _ = log.error(e);
         })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat(response, log, None)
     }
 }
 
