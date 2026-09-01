@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Gagal mengemas kini direktori kerja"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terkini"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose tidak dapat menyambung ke backend luaran di {url}, jadi tetingkap ini dimulakan dengan backend tempatan."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Buka tetapan"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Uji Sambungan"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "Ujian sambungan gagal. Lihat butiran di bawah."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Ujian sambungan berjaya."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Menguji..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "Gagal beralih ke {branch}"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "Perubahan memerlukan memulakan semula Goose untuk berkuat kuasa. Tetingkap sembang baharu akan menyambung ke pelayan luaran."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Kunci Rahsia"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "Pelayan mungkin sedang dimulakan atau tidak tersedia buat sementara waktu."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Tidak dapat menyambung ke pelayan Goose"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Cuba Semula"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Ejen AI tempatan anda. Sambungkan penyedia model AI untuk bermula."

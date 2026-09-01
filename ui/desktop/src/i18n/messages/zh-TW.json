@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "無法更新工作目錄"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目錄"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose 無法連線到 {url} 上的外部後端，因此此視窗已使用本機後端啟動。"
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "開啟設定"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "測試連線"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "連線測試失敗。請查看下方的詳細資訊。"
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "連線測試通過。"
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "正在測試..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "無法切換至 {branch}"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "變更需要重新啟動 Goose 才會生效。新的聊天視窗將連線至外部伺服器。"
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "密鑰"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "伺服器可能正在啟動或暫時無法使用。"
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "無法連線到 Goose 伺服器"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "重試"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "您的本機 AI 代理。連線 AI 模型供應商即可開始使用。"

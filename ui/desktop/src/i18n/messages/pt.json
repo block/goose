@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Falha ao atualizar o diretório de trabalho"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Diretórios recentes"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "O Goose não conseguiu conectar ao backend externo em {url}, então esta janela iniciou com o backend local."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Abrir configurações"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Testar conexão"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "O teste de conexão falhou. Veja os detalhes abaixo."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Teste de conexão bem-sucedido."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Testando..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "Falha ao mudar para {branch}"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "As alterações exigem reiniciar o Goose para entrar em vigor. As novas janelas de chat se conectarão ao servidor externo."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Chave secreta"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "O servidor pode estar a iniciar ou temporariamente indisponível."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Não foi possível ligar ao servidor Goose"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Tentar novamente"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "O seu agente de IA local. Ligue um fornecedor de modelos de IA para começar."

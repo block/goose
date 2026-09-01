@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Не удалось обновить рабочий каталог"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Недавние каталоги"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose не смог подключиться к внешнему бэкенду по адресу {url}, поэтому это окно запущено на локальном бэкенде."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Открыть настройки"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Проверить подключение"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "Проверка подключения не удалась. Подробности см. ниже."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Проверка подключения пройдена."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Проверка..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "Не удалось переключиться на {branch}"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "Чтобы изменения вступили в силу, требуется перезапуск Goose. Новые окна чата будут подключаться к внешнему серверу."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Секретный ключ"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "Сервер может запускаться или быть временно недоступен."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Не удалось подключиться к серверу Goose"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Повторить"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Ваш локальный ИИ-агент. Подключите провайдера ИИ-модели, чтобы начать."

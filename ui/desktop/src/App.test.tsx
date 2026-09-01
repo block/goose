@@ -171,6 +171,7 @@ const mockElectron = {
   createChatWindow: vi.fn(),
   getSetting: vi.fn().mockResolvedValue(null),
   setSetting: vi.fn().mockResolvedValue(undefined),
+  takeExternalBackendFallback: vi.fn().mockResolvedValue(null),
 };
 
 // Mock appConfig

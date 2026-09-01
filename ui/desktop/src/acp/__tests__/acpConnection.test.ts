@@ -80,9 +80,14 @@ describe('ACP connection ownership', () => {
       expect.anything(),
       expect.objectContaining({ protocolVersion: 1 })
     );
+    // The socket is opened in the main process, so the SDK is handed that
+    // constructor instead of Chromium's WebSocket.
     expect(transport.createWebSocketStream).toHaveBeenCalledWith('ws://localhost/acp', {
       protocols: [],
+      WebSocket: expect.any(Function),
     });
+    const [, streamOptions] = transport.createWebSocketStream.mock.calls[0];
+    expect(streamOptions.WebSocket.name).toBe('MainProcessWebSocket');
   });
 
   it('automatically reconnects after close and shares the result between callers', async () => {

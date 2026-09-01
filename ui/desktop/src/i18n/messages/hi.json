@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "कार्यशील निर्देशिका अद्यतन करने में विफल"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "हाल की निर्देशिकाएँ"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose {url} पर बाहरी बैकएंड से कनेक्ट नहीं कर सका, इसलिए यह विंडो स्थानीय बैकएंड पर शुरू हुई।"
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "सेटिंग्स खोलें"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "कनेक्शन परखें"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "कनेक्शन परीक्षण विफल रहा। नीचे विवरण देखें।"
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "कनेक्शन परीक्षण सफल रहा।"
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "परीक्षण हो रहा है..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "{branch} पर स्विच नहीं किया जा सका"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "परिवर्तनों को प्रभावी होने के लिए Goose को पुनः आरंभ करने की आवश्यकता है। नई चैट विंडो बाहरी सर्वर से कनेक्ट होंगी."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "गुप्त कुंजी"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "सर्वर चालू हो सकता है या अस्थायी रूप से अनुपलब्ध हो सकता है।"
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Goose सर्वर से कनेक्ट करने में असमर्थ"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "पुनः प्रयास करें"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "आपका स्थानीय एआई एजेंट। आरंभ करने के लिए किसी AI मॉडल प्रदाता से कनेक्ट करें।"

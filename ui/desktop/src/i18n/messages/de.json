@@ -942,6 +942,24 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Zuletzt verwendete Verzeichnisse"
   },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose konnte keine Verbindung zum externen Backend unter {url} herstellen. Dieses Fenster wurde daher mit dem lokalen Backend gestartet."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Einstellungen öffnen"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Verbindung testen"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "Verbindungstest fehlgeschlagen. Details siehe unten."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Verbindungstest erfolgreich."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Wird getestet..."
+  },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "Wechsel zu {branch} fehlgeschlagen"
   },
@@ -1212,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "Änderungen werden erst nach einem Neustart von Goose wirksam. Neue Chat-Fenster verbinden sich mit dem externen Server."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Geheimer Schlüssel"
@@ -2397,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "Der Server startet möglicherweise gerade oder ist vorübergehend nicht verfügbar."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Verbindung zum Goose-Server nicht möglich"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Erneut versuchen"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Ihr lokaler KI-Agent. Verbinden Sie einen KI-Modellanbieter, um zu beginnen."
