@@ -29,15 +29,13 @@ const AIMLAPI_WEB_URL_DEFAULT: &str = "https://aimlapi.com";
 
 /// Partner attribution. AI/ML API expects a registered partner id on the
 /// authorization request; it identifies goose as the integration that brought
-/// the user, and carries no user data.
+/// the user, and carries no user data — no account, no prompt, no usage.
 ///
-/// There is deliberately no compiled-in default yet: goose's production partner
-/// has not been provisioned, and shipping either another integration's id or a
-/// staging-only test id would silently attribute this traffic to the wrong
-/// place. Until the production id exists the flow requires the environment
-/// variable and says so; then this constant gets it and the requirement goes.
+/// goose's own registered id ships compiled in, so a normal install needs no
+/// configuration. The environment variable exists to point a build at another
+/// AI/ML API environment during testing, alongside the two URLs above.
 const AIMLAPI_PARTNER_ID_ENV: &str = "AIMLAPI_PARTNER_ID";
-const AIMLAPI_PARTNER_ID_DEFAULT: &str = "";
+const AIMLAPI_PARTNER_ID_DEFAULT: &str = "part_R2KG8QMDBjtWAubVMgG0GF9L";
 
 /// Loopback port the consent screen redirects back to. Chosen from the
 /// ephemeral range and fixed, because it has to be registered with the
@@ -146,12 +144,6 @@ impl PkceAuthFlow {
     async fn start_authorization(&mut self) -> Result<String> {
         let app_url = env_or(AIMLAPI_APP_URL_ENV, AIMLAPI_APP_URL_DEFAULT);
         let partner_id = env_or(AIMLAPI_PARTNER_ID_ENV, AIMLAPI_PARTNER_ID_DEFAULT);
-        if partner_id.is_empty() {
-            return Err(anyhow!(
-                "No AI/ML API partner id configured - set {} before signing in",
-                AIMLAPI_PARTNER_ID_ENV
-            ));
-        }
 
         let body = CreateAuthorizationRequest {
             partner_id,
