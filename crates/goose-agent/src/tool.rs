@@ -85,6 +85,17 @@ fn interrupted_result() -> Result<CallToolResult, ErrorData> {
     ]))
 }
 
+fn turn_key(conversation: &Conversation) -> Result<String> {
+    let kickoff = messages_since_kickoff(conversation)?
+        .first()
+        .expect("messages since kickoff includes the kickoff message");
+    kickoff
+        .id
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(|| serde_json::to_string(kickoff).map_err(Into::into))
+}
+
 fn parameters<T: ToolBase>(arguments: Option<JsonObject>) -> Result<T::Parameter, ErrorData> {
     if T::input_schema().is_none() {
         return Ok(T::Parameter::default());
@@ -168,7 +179,7 @@ where
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
     providers: Vec<Arc<dyn ToolProvider<S>>>,
-    advertised: Mutex<Option<HashMap<String, usize>>>,
+    advertised: Mutex<HashMap<String, HashMap<String, usize>>>,
 }
 
 impl<S> ToolOperation<S>
@@ -179,7 +190,7 @@ where
         Self {
             registered: RegisteredToolProvider { tools: Vec::new() },
             providers: Vec::new(),
-            advertised: Mutex::new(None),
+            advertised: Mutex::new(HashMap::new()),
         }
     }
 
@@ -286,7 +297,7 @@ where
         "tools"
     }
 
-    async fn inference_tools(&self, session: &S) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, session: &S, conversation: &Conversation) -> Result<Vec<Tool>> {
         let available = self.available_tools(session).await?;
         let provider_indexes = available
             .iter()
@@ -299,10 +310,10 @@ where
                 (tool.name.to_string(), provider_index)
             })
             .collect();
-        *self
-            .advertised
+        self.advertised
             .lock()
-            .expect("advertised tool lock poisoned") = Some(provider_indexes);
+            .expect("advertised tool lock poisoned")
+            .insert(turn_key(conversation)?, provider_indexes);
         Ok(available.into_iter().map(|(tool, _)| tool).collect())
     }
 
@@ -316,7 +327,7 @@ where
             .advertised
             .lock()
             .expect("advertised tool lock poisoned")
-            .take();
+            .remove(&turn_key(conversation)?);
         let available = if advertised.is_none() {
             Some(self.available_tools(session).await?)
         } else {
