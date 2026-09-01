@@ -239,6 +239,11 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
 
     let setup_method = cliclack::select("How would you like to set up your provider?")
         .item(
+            "aimlapi",
+            "AI/ML API Login (Recommended)",
+            "Sign in with AI/ML API to automatically configure models",
+        )
+        .item(
             "openrouter",
             "OpenRouter Login (Recommended)",
             "Sign in with OpenRouter to automatically configure models",
@@ -249,10 +254,6 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
             "Sign in with Tetrate Agent Router Service to automatically configure models",
         )
         .item(
-            "aimlapi",
-            "AI/ML API Login",
-            "Sign in with AI/ML API to automatically configure models",
-        )        .item(
             "manual",
             "Manual Configuration",
             "Choose a provider and enter credentials manually",
@@ -1971,13 +1972,17 @@ pub async fn handle_aimlapi_auth() -> anyhow::Result<()> {
 
     let mut auth_flow = AimlapiAuth::new()?;
     let api_key = auth_flow.complete_flow().await?;
-    println!("
-Sign-in complete!");
+    println!(
+        "
+Sign-in complete!"
+    );
 
     let config = Config::global();
 
-    println!("
-Configuring AI/ML API...");
+    println!(
+        "
+Configuring AI/ML API..."
+    );
     configure_aimlapi(config, api_key)?;
 
     println!("AI/ML API configuration complete");
