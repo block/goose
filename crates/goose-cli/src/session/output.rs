@@ -652,6 +652,25 @@ pub(super) fn sanitize_terminal_line(line: &str) -> String {
         .collect()
 }
 
+fn sanitize_tool_confirmation_line(line: &str) -> String {
+    let mut sanitized = String::with_capacity(line.len());
+    for character in sanitize_terminal_line(line).chars() {
+        if matches!(
+            character,
+            '\u{061c}'
+                | '\u{200e}'
+                | '\u{200f}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+        ) {
+            sanitized.push_str(&format!("\\u{:04x}", character as u32));
+        } else {
+            sanitized.push(character);
+        }
+    }
+    sanitized
+}
+
 pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) -> String {
     let mut request = JsonObject::new();
     request.insert(
@@ -663,7 +682,7 @@ pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) 
     serde_json::to_string_pretty(&Value::Object(request))
         .expect("tool confirmation request must serialize")
         .lines()
-        .map(sanitize_terminal_line)
+        .map(sanitize_tool_confirmation_line)
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -1799,6 +1818,39 @@ mod tests {
         assert!(rendered.contains("title\\u0007"));
         assert!(!rendered.contains('\u{1b}'));
         assert!(!rendered.contains('\u{7}'));
+    }
+
+    #[test]
+    fn tool_confirmation_escapes_bidi_controls() {
+        let controls = [
+            '\u{061c}', '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}',
+            '\u{202e}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
+        ];
+        let untrusted = controls.iter().collect::<String>();
+        let arguments = json!({"command": format!("before{untrusted}after")})
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let rendered = format_tool_confirmation(&format!("tool{untrusted}"), &arguments);
+
+        for control in controls {
+            assert!(!rendered.contains(control));
+            assert!(rendered.contains(&format!("\\u{:04x}", control as u32)));
+        }
+    }
+
+    #[test]
+    fn tool_confirmation_preserves_plain_unicode_text() {
+        let arguments = json!({"query": "שלום مرحبا 日本語 🪿"})
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let rendered = format_tool_confirmation("検索", &arguments);
+
+        assert!(rendered.contains("שלום مرحبا 日本語 🪿"));
+        assert!(rendered.contains("検索"));
     }
 
     #[test]
