@@ -2307,6 +2307,14 @@ impl Agent {
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
+            // A continuation appended mid-turn — a goal/grind nudge, a
+            // stop-hook denial, a final-output reminder — adds a user
+            // message no threshold check has seen, so it queues the
+            // pre-inference re-check below. A delivered final output instead
+            // suppresses that re-check: the state machine skips proactive
+            // compaction once the recipe result has landed.
+            let mut continuation_appended = false;
+            let mut final_output_delivered = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2408,6 +2416,7 @@ impl Agent {
                     guard.as_mut().and_then(|fot| fot.final_output.take())
                 };
                 if let Some(output) = final_output {
+                    final_output_delivered = true;
                     last_assistant_text = output.clone();
                     let message = Message::assistant()
                         .with_text(output)
@@ -2462,6 +2471,41 @@ impl Agent {
                     last_assistant_text = MAX_TURNS_MESSAGE.to_string();
                     yield AgentEvent::Message(Message::assistant().with_text(last_assistant_text.clone()));
                     break;
+                }
+
+                // Continuation messages appended mid-turn — goal/grind nudges,
+                // a final-output reminder, a stop-hook denial — were never
+                // seen by a threshold check, and the mid-turn check below
+                // skips tool-free iterations, so re-check before this request
+                // leaves over the threshold. A delivered final output skips
+                // the re-check: the state machine suppresses proactive
+                // compaction once the recipe result has landed. Compaction
+                // failure logs and continues — the reactive path owns the
+                // outcome if the request still does not fit.
+                if continuation_appended
+                    && !final_output_delivered
+                    && !is_token_cancelled(&cancel_token)
+                {
+                    continuation_appended = false;
+                    if self
+                        .over_compaction_threshold(&session_manager, &session_config, &conversation)
+                        .await?
+                    {
+                        for event in super::reply_parts::auto_compaction_started_events() {
+                            yield event;
+                        }
+                        match self
+                            .auto_compact("continuation", &session_manager, &session_config, &mut conversation)
+                            .await
+                        {
+                            Ok(events) => {
+                                for event in events {
+                                    yield event;
+                                }
+                            }
+                            Err(e) => error!("Continuation compaction failed: {}", e),
+                        }
+                    }
                 }
 
                 let mut stream = crate::agents::reply_parts::stream_response_from_provider(
@@ -3182,6 +3226,7 @@ impl Agent {
 
                     match final_output {
                         Some(None) => {
+                            continuation_appended = true;
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = push_message_with_id(
                                 &mut messages_to_add,
@@ -3198,6 +3243,7 @@ impl Agent {
                         }
                         None if self.has_pending_steers(&session_config.id).await => {}
                         None if self.goal.lock().await.is_some() && !goal_check_pending => {
+                            continuation_appended = true;
                             goal_check_pending = true;
                             let goal = self.goal.lock().await.clone().unwrap();
                             let nudge = format!(
@@ -3217,6 +3263,7 @@ impl Agent {
                         }
 
                         None if self.grind.lock().await.is_some() => {
+                            continuation_appended = true;
                             let grind = self.grind.lock().await.clone().unwrap();
                             let nudge = format!(
                                 "Keep working. The grind goal is not yet complete:\n\n\
@@ -3337,6 +3384,7 @@ impl Agent {
                 }
 
                 if let Some(output) = pending_final_output.take() {
+                    final_output_delivered = true;
                     preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
                     let message = push_message_with_id(
@@ -3459,6 +3507,7 @@ impl Agent {
                             )
                             .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            continuation_appended = true;
                             retrying_after_stop_hook_denial = true;
                         }
                     }
@@ -4755,6 +4804,32 @@ cat > "$PLUGIN_ROOT/payload.json"
 exit 0
 "#;
 
+    /// Blocks the first Stop invocation with a stderr reason large enough to
+    /// cross the auto-compact threshold on its own, then allows. The denial
+    /// context message the loop appends is then the only growth the session
+    /// sees, so a threshold re-check that skips it leaves the retry request
+    /// over the limit.
+    const BLOCK_ONCE_LARGE_REASON_SCRIPT: &str = r#"#!/bin/sh
+count_file="$PLUGIN_ROOT/count"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+echo "$count" >> "$PLUGIN_ROOT/hook.log"
+if [ "$count" -eq 1 ]; then
+  printf 'policy denial: ' >&2
+  i=0
+  while [ "$i" -lt 10000 ]; do
+    printf 'x ' >&2
+    i=$((i + 1))
+  done
+  exit 2
+fi
+exit 0
+"#;
+
     struct StopHookTestEnv {
         temp_dir: TempDir,
         hook_log: PathBuf,
@@ -4870,6 +4945,60 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .unwrap_or_default()
                 .lines()
                 .count()
+        }
+    }
+
+    /// Text-only replies against a 10k context limit (8k threshold). A lone
+    /// "summarize" message gets a summary so the loop can compact, and a
+    /// request carrying the post-compaction continuation gets a plain reply.
+    struct ThresholdSummarizingProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl ThresholdSummarizingProvider {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for ThresholdSummarizingProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let text = messages
+                .iter()
+                .map(Message::as_concat_text)
+                .collect::<String>()
+                .to_lowercase();
+            let message = if text.contains("your context was compacted") {
+                Message::assistant().with_text("done after compaction")
+            } else if text.contains("summarize") {
+                Message::assistant().with_text("<mock summary of conversation>")
+            } else {
+                Message::assistant().with_text(format!("provider response {call}"))
+            };
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        async fn get_context_limit(&self, _model: &str, _override_limit: Option<usize>) -> usize {
+            10_000
+        }
+
+        fn get_name(&self) -> &str {
+            "threshold-summarizing"
         }
     }
 
@@ -5442,6 +5571,64 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .any(|text| text.contains("overriding and ending turn")),
             "non-consecutive Stop hook blocks should not trip the cap warning"
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_denial_after_a_text_only_reply_rechecks_the_threshold() -> Result<()> {
+        let env = StopHookTestEnv::new(BLOCK_ONCE_LARGE_REASON_SCRIPT)?;
+        let provider = Arc::new(ThresholdSummarizingProvider::new());
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_stop_hook_block_cap_for_test(5);
+
+        // The kickoff gets a text-only reply, so the mid-turn check never
+        // runs. The denial the stop hook then returns appends an agent-only
+        // user message — the turn's only growth — so the retry request must
+        // be re-checked against the threshold before it leaves.
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(Message::user().with_text("hello"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut history_replacements = 0;
+        let mut texts = Vec::new();
+        while let Some(event_result) = reply_stream.next().await {
+            match event_result? {
+                AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+                AgentEvent::Message(message) => {
+                    let text = message.as_concat_text();
+                    if !text.is_empty() {
+                        texts.push(text);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert_eq!(
+            history_replacements, 1,
+            "the appended stop-hook denial must be re-checked against the threshold"
+        );
+        assert_eq!(
+            provider.call_count(),
+            3,
+            "kickoff, then the compaction summarization, then the retried reply"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            2,
+            "the initial block and the Stop hook that allows the retried reply"
+        );
+        assert!(texts.iter().any(|text| text == "provider response 0"));
+        assert!(texts.iter().any(|text| text == "done after compaction"));
 
         Ok(())
     }

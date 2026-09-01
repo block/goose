@@ -1922,3 +1922,75 @@ async fn test_steer_after_a_text_only_reply_rechecks_the_threshold() -> Result<(
 
     Ok(())
 }
+
+#[tokio::test]
+async fn goal_nudge_after_a_text_only_reply_rechecks_the_threshold() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    // The kickoff gets a text-only reply, so the mid-turn check never runs.
+    // The goal nudge the loop then appends is agent-only, so no user turn
+    // boundary follows it either — without the pre-inference re-check the
+    // request that carries the nudge would leave over the threshold.
+    let session = setup_test_session(&agent, &temp_dir, "goal-nudge-recheck-test", vec![]).await?;
+
+    let provider = Arc::new(MockCompactionProvider::conversational());
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    agent.set_goal(Some("x ".repeat(6_000))).await;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("answer without tools"),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut history_replacements = 0;
+    let mut final_text = String::new();
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result? {
+            AgentEvent::HistoryReplaced(_) => history_replacements += 1,
+            AgentEvent::Message(message) => {
+                if let Some(text) = message.content.iter().find_map(|content| match content {
+                    MessageContent::Text(text) if !text.text.is_empty() => Some(&text.text),
+                    _ => None,
+                }) {
+                    final_text = text.clone();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    assert_eq!(
+        history_replacements, 1,
+        "the appended goal nudge must be re-checked against the threshold"
+    );
+    assert_eq!(final_text, "done after the tool loop");
+    assert!(
+        provider.has_compacted.load(Ordering::SeqCst),
+        "the summarization call should have run"
+    );
+    assert_eq!(provider.context_limit_rejections(), 0);
+    assert!(
+        agent.get_goal().await.is_none(),
+        "the nudge cycle should have cleared the goal before ending the turn"
+    );
+
+    Ok(())
+}
