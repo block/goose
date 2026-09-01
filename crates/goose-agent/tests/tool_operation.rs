@@ -184,7 +184,7 @@ impl ToolProvider<bool> for DynamicTools {
             vec![Tool::new(
                 "dynamic",
                 "A session-dependent tool",
-                json!({"type": "object"}),
+                Arc::new(serde_json::from_value(json!({"type": "object"}))?),
             )]
         } else {
             Vec::new()
@@ -223,8 +223,11 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
     assert_eq!(enabled_tools[0].name, "dynamic");
     assert!(disabled_tools.is_empty());
 
-    let conversation = Conversation::new_unvalidated([Message::assistant()
-        .with_tool_request("dynamic-call", Ok(CallToolRequestParams::new("dynamic")))]);
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call the dynamic tool"),
+        Message::assistant()
+            .with_tool_request("dynamic-call", Ok(CallToolRequestParams::new("dynamic"))),
+    ]);
     let result = <ToolOperation<bool> as Operation<bool, ConversationEffect>>::run(
         &operation,
         &true,
@@ -247,9 +250,53 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
 }
 
 #[tokio::test]
+async fn ignores_tool_requests_from_an_earlier_turn() {
+    let operation = operation();
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("old turn"),
+        Message::assistant().with_tool_request(
+            "stale-call",
+            Ok(CallToolRequestParams::new("add")
+                .with_arguments(serde_json::from_value(json!({"left": 2, "right": 3})).unwrap())),
+        ),
+        Message::user().with_text("new turn"),
+    ]);
+
+    let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+        &operation,
+        &(),
+        &conversation,
+        &emitter(),
+    )
+    .await
+    .unwrap();
+
+    assert!(matches!(result, OperationResult::NotApplicable));
+}
+
+#[tokio::test]
+async fn rejects_duplicate_dynamic_tool_names() {
+    let operation = ToolOperation::new()
+        .with_provider(Arc::new(DynamicTools))
+        .with_provider(Arc::new(DynamicTools));
+
+    let error = <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+        &operation, &true,
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "multiple tool providers registered 'dynamic'"
+    );
+}
+
+#[tokio::test]
 async fn ignores_unregistered_and_answered_requests() {
     let operation = operation();
     let conversation = Conversation::new_unvalidated(vec![
+        Message::user().with_text("call a tool"),
         Message::assistant()
             .with_tool_request("call-1", Ok(CallToolRequestParams::new("add")))
             .with_tool_request("call-2", Ok(CallToolRequestParams::new("not_registered"))),

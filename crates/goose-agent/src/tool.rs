@@ -13,7 +13,8 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use crate::operation::{
-    applied, not_applicable, Emitter, Operation, OperationFuture, OperationResult,
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
+    OperationResult,
 };
 
 fn empty_input_schema() -> Arc<JsonObject> {
@@ -51,15 +52,13 @@ fn definition<T: ToolBase>() -> Tool {
     tool
 }
 
-fn pending_requests(conversation: &Conversation, tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
-    let answered: HashSet<&str> = conversation
-        .messages()
+fn pending_requests(messages: &[Message], tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
+    let answered: HashSet<&str> = messages
         .iter()
         .flat_map(Message::get_tool_response_ids)
         .collect();
 
-    conversation
-        .messages()
+    messages
         .iter()
         .flat_map(|message| &message.content)
         .filter_map(|content| match content {
@@ -232,13 +231,15 @@ where
             .map(|tool| (tool, &self.registered as &dyn ToolProvider<S>))
             .collect::<Vec<_>>();
         for provider in &self.providers {
-            available.extend(
-                provider
-                    .tools(session)
-                    .await?
-                    .into_iter()
-                    .map(|tool| (tool, provider.as_ref())),
-            );
+            for tool in provider.tools(session).await? {
+                if available
+                    .iter()
+                    .any(|(available, _)| available.name == tool.name)
+                {
+                    anyhow::bail!("multiple tool providers registered '{}'", tool.name);
+                }
+                available.push((tool, provider.as_ref()));
+            }
         }
         Ok(available)
     }
@@ -283,7 +284,7 @@ where
             .iter()
             .map(|(tool, _)| tool.name.as_ref())
             .collect();
-        let requests = pending_requests(conversation, &tool_names);
+        let requests = pending_requests(messages_since_kickoff(conversation)?, &tool_names);
         if requests.is_empty() {
             return not_applicable();
         }
@@ -299,9 +300,13 @@ where
                 .find(|(tool, _)| tool.name == call.name)
                 .map(|(_, provider)| *provider)
                 .expect("matched requests reference available tools");
-            let tool_result = provider
-                .call(session, &request.id, call.clone(), emit)
-                .await;
+            let tool_result = tokio::select! {
+                result = provider.call(session, &request.id, call.clone(), emit) => result,
+                _ = emit.cancelled() => Err(ErrorData::internal_error(
+                    "tool call cancelled".to_string(),
+                    None,
+                )),
+            };
             message.add_tool_response_with_metadata(
                 request.id,
                 tool_result,
