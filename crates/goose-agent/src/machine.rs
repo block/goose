@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -50,6 +50,20 @@ pub struct StateMachine<'a, S, E = ConversationEffect> {
     cancel: CancellationToken,
 }
 
+fn add_inference_tools(
+    input: &mut InferenceInput,
+    tool_names: &mut HashSet<String>,
+    tools: Vec<rmcp::model::Tool>,
+) -> Result<()> {
+    for tool in tools {
+        if !tool_names.insert(tool.name.to_string()) {
+            anyhow::bail!("multiple operations registered tool '{}'", tool.name);
+        }
+        input.tools.push(tool);
+    }
+    Ok(())
+}
+
 impl<'a, S, E> StateMachine<'a, S, E>
 where
     S: MachineSession,
@@ -73,10 +87,13 @@ where
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
                         let mut input = InferenceInput::default();
+                        let mut tool_names = HashSet::new();
                         for operation in self.steps.iter().map(|step| step.operation()) {
-                            input
-                                .tools
-                                .extend(operation.inference_tools(session).await?);
+                            add_inference_tools(
+                                &mut input,
+                                &mut tool_names,
+                                operation.inference_tools(session).await?,
+                            )?;
                             input
                                 .prompt_parts
                                 .extend(operation.prompt_parts(session, conversation).await?);
@@ -149,5 +166,35 @@ where
             }
         }
         runtime.load(session_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_duplicate_tools_across_operations() {
+        let schema = Arc::new(serde_json::Map::new());
+        let mut input = InferenceInput::default();
+        let mut names = HashSet::new();
+
+        add_inference_tools(
+            &mut input,
+            &mut names,
+            vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
+        )
+        .unwrap();
+        let error = add_inference_tools(
+            &mut input,
+            &mut names,
+            vec![rmcp::model::Tool::new("duplicate", "second", schema)],
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "multiple operations registered tool 'duplicate'"
+        );
     }
 }

@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -215,6 +215,78 @@ impl ToolProvider<bool> for DynamicTools {
     }
 }
 
+struct ChangesAfterAdvertising {
+    advertised: AtomicBool,
+}
+
+#[async_trait]
+impl ToolProvider<()> for ChangesAfterAdvertising {
+    async fn tools(&self, _session: &()) -> Result<Vec<Tool>> {
+        Ok(if self.advertised.swap(true, Ordering::SeqCst) {
+            Vec::new()
+        } else {
+            vec![Tool::new(
+                "transient",
+                "Only discoverable once",
+                Arc::new(serde_json::from_value(json!({"type": "object"}))?),
+            )]
+        })
+    }
+
+    async fn call(
+        &self,
+        _session: &(),
+        _request_id: &str,
+        _call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(CallToolResult::structured(json!({"called": true})))
+    }
+}
+
+#[tokio::test]
+async fn dispatches_from_the_advertised_dynamic_tool_set() {
+    let operation = ToolOperation::new().with_provider(Arc::new(ChangesAfterAdvertising {
+        advertised: AtomicBool::new(false),
+    }));
+    let tools =
+        <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(&operation, &())
+            .await
+            .unwrap();
+    assert_eq!(tools[0].name, "transient");
+
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call it"),
+        Message::assistant()
+            .with_tool_request("call-1", Ok(CallToolRequestParams::new("transient"))),
+    ]);
+    let result = <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+        &operation,
+        &(),
+        &conversation,
+        &emitter(),
+    )
+    .await
+    .unwrap();
+
+    let OperationResult::Applied(result) = result else {
+        panic!("tool operation should apply");
+    };
+    let ConversationEffect::AppendMessage(message) = &result.effects[0] else {
+        panic!("tool operation should append a response");
+    };
+    assert_eq!(
+        message.content[0]
+            .as_tool_response()
+            .unwrap()
+            .tool_result
+            .as_ref()
+            .unwrap()
+            .structured_content,
+        Some(json!({"called": true}))
+    );
+}
+
 #[tokio::test]
 async fn discovers_and_dispatches_dynamic_tools_per_session() {
     let operation = ToolOperation::new().with_provider(Arc::new(DynamicTools));
@@ -232,6 +304,11 @@ async fn discovers_and_dispatches_dynamic_tools_per_session() {
         .unwrap();
     assert_eq!(enabled_tools[0].name, "dynamic");
     assert!(disabled_tools.is_empty());
+    <ToolOperation<bool> as Operation<bool, ConversationEffect>>::inference_tools(
+        &operation, &true,
+    )
+    .await
+    .unwrap();
 
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("call the dynamic tool"),
@@ -334,6 +411,81 @@ async fn responds_to_unparseable_tool_requests() {
         response.tool_result.as_ref().unwrap_err().message,
         "malformed arguments"
     );
+}
+
+#[derive(Default, Clone)]
+struct BlockingSession {
+    started: Arc<AtomicBool>,
+}
+
+struct BlockingSyncTool;
+
+impl ToolBase for BlockingSyncTool {
+    type Parameter = ();
+    type Output = ();
+    type Error = ErrorData;
+
+    fn name() -> Cow<'static, str> {
+        "blocking_sync".into()
+    }
+
+    fn input_schema() -> Option<Arc<serde_json::Map<String, serde_json::Value>>> {
+        None
+    }
+}
+
+impl SyncTool<BlockingSession> for BlockingSyncTool {
+    fn invoke(session: &BlockingSession, _input: ()) -> Result<(), ErrorData> {
+        session.started.store(true, Ordering::SeqCst);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_blocking_sync_tools() {
+    let session = BlockingSession::default();
+    let started = session.started.clone();
+    let operation = ToolOperation::new().with_sync_tool::<BlockingSyncTool>();
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call it"),
+        Message::assistant()
+            .with_tool_request("call-1", Ok(CallToolRequestParams::new("blocking_sync"))),
+    ]);
+    let cancel = CancellationToken::new();
+    let run_cancel = cancel.clone();
+    let run = tokio::spawn(async move {
+        <ToolOperation<BlockingSession> as Operation<BlockingSession, ConversationEffect>>::run(
+            &operation,
+            &session,
+            &conversation,
+            &emitter_with_token(run_cancel),
+        )
+        .await
+    });
+    while !started.load(Ordering::SeqCst) {
+        tokio::task::yield_now().await;
+    }
+    cancel.cancel();
+    let result = tokio::time::timeout(std::time::Duration::from_millis(50), run)
+        .await
+        .expect("operation should not wait for the blocking tool")
+        .unwrap()
+        .unwrap();
+
+    let OperationResult::Applied(result) = result else {
+        panic!("tool operation should apply");
+    };
+    let ConversationEffect::AppendMessage(message) = &result.effects[0] else {
+        panic!("tool operation should append a response");
+    };
+    let response = message.content[0].as_tool_response().unwrap();
+    assert!(response
+        .tool_result
+        .as_ref()
+        .unwrap()
+        .is_error
+        .is_some_and(|is_error| is_error));
 }
 
 struct BlockingTools {

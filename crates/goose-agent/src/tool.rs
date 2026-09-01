@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -165,6 +168,7 @@ where
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
     providers: Vec<Arc<dyn ToolProvider<S>>>,
+    advertised: Mutex<Option<HashMap<String, usize>>>,
 }
 
 impl<S> ToolOperation<S>
@@ -175,6 +179,7 @@ where
         Self {
             registered: RegisteredToolProvider { tools: Vec::new() },
             providers: Vec::new(),
+            advertised: Mutex::new(None),
         }
     }
 
@@ -198,14 +203,25 @@ where
 
     pub fn with_sync_tool<T>(mut self) -> Self
     where
+        S: Clone,
         T: SyncTool<S> + Send + Sync + 'static,
     {
         self.register(RegisteredTool {
             definition: definition::<T>(),
             handler: Arc::new(|session, arguments| {
+                let session = session.clone();
                 Box::pin(async move {
                     let parameters = parameters::<T>(arguments)?;
-                    result::<T>(T::invoke(session, parameters))
+                    tokio::task::spawn_blocking(move || {
+                        result::<T>(T::invoke(&session, parameters))
+                    })
+                    .await
+                    .map_err(|error| {
+                        ErrorData::internal_error(
+                            format!("synchronous tool task failed: {error}"),
+                            None,
+                        )
+                    })?
                 })
             }),
         });
@@ -271,12 +287,23 @@ where
     }
 
     async fn inference_tools(&self, session: &S) -> Result<Vec<Tool>> {
-        Ok(self
-            .available_tools(session)
-            .await?
-            .into_iter()
-            .map(|(tool, _)| tool)
-            .collect())
+        let available = self.available_tools(session).await?;
+        let provider_indexes = available
+            .iter()
+            .map(|(tool, provider)| {
+                let provider_index = self
+                    .providers
+                    .iter()
+                    .position(|candidate| std::ptr::eq(candidate.as_ref(), *provider))
+                    .map_or(0, |index| index + 1);
+                (tool.name.to_string(), provider_index)
+            })
+            .collect();
+        *self
+            .advertised
+            .lock()
+            .expect("advertised tool lock poisoned") = Some(provider_indexes);
+        Ok(available.into_iter().map(|(tool, _)| tool).collect())
     }
 
     async fn run(
@@ -285,11 +312,27 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let available = self.available_tools(session).await?;
-        let tool_names = available
-            .iter()
-            .map(|(tool, _)| tool.name.as_ref())
-            .collect();
+        let advertised = self
+            .advertised
+            .lock()
+            .expect("advertised tool lock poisoned")
+            .take();
+        let available = if advertised.is_none() {
+            Some(self.available_tools(session).await?)
+        } else {
+            None
+        };
+        let tool_names = advertised
+            .as_ref()
+            .map(|providers| providers.keys().map(String::as_str).collect())
+            .unwrap_or_else(|| {
+                available
+                    .as_ref()
+                    .expect("tools are discovered when no advertised set exists")
+                    .iter()
+                    .map(|(tool, _)| tool.name.as_ref())
+                    .collect()
+            });
         let requests = pending_requests(messages_since_kickoff(conversation)?, &tool_names);
         if requests.is_empty() {
             return not_applicable();
@@ -305,11 +348,25 @@ where
                 match request.tool_call.as_ref() {
                     Err(error) => Err(error.clone()),
                     Ok(call) => {
-                        let provider = available
-                            .iter()
-                            .find(|(tool, _)| tool.name == call.name)
-                            .map(|(_, provider)| *provider)
-                            .expect("matched requests reference available tools");
+                        let provider = advertised
+                            .as_ref()
+                            .and_then(|providers| providers.get(call.name.as_ref()))
+                            .map(|index| {
+                                if *index == 0 {
+                                    &self.registered as &dyn ToolProvider<S>
+                                } else {
+                                    self.providers[*index - 1].as_ref()
+                                }
+                            })
+                            .or_else(|| {
+                                available
+                                    .as_ref()
+                                    .and_then(|tools| {
+                                        tools.iter().find(|(tool, _)| tool.name == call.name)
+                                    })
+                                    .map(|(_, provider)| *provider)
+                            })
+                            .expect("matched requests reference an advertised tool");
                         tokio::select! {
                             biased;
                             _ = emit.cancelled() => {
