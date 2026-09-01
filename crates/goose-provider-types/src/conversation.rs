@@ -52,6 +52,13 @@ impl Conversation {
         if message.content.is_empty()
             && (message.metadata.inference.is_some() || output_token_limit_reached)
         {
+            // A deliberately hidden marker (recoverable length stop awaiting
+            // compact-and-retry) must neither merge its flag into a visible
+            // message nor be forced user-visible.
+            if output_token_limit_reached && !message.is_user_visible() {
+                self.0.push(message);
+                return;
+            }
             if let Some(existing) = self.0.iter_mut().rev().find(|existing| {
                 existing.role == message.role
                     && existing.is_user_visible()

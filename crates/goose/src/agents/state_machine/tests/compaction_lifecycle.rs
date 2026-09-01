@@ -7,6 +7,7 @@ use super::dummy_api::ProviderFeatures;
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
+use crate::agents::AgentEvent;
 use crate::context_mgmt::{compute_tool_call_cutoff, TOOLCALL_SUMMARIZATION_BATCH_SIZE};
 use crate::conversation::message::{Message, MessageErrorKind};
 use crate::conversation::Conversation;
@@ -498,6 +499,59 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
         .agent_visible_messages()
         .iter()
         .any(|message| message.as_concat_text().contains(&large_result)));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn recoverable_output_limit_compacts_once_and_completes() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("hit the output limit").output_limit();
+    api.on(SUMMARIZE_HISTORY).reply("summary of prior work");
+    api.on("Your context was compacted")
+        .reply("finished after recovery");
+
+    let result = pipeline.run(["hit the output limit"]).await?;
+    result.assert_message(-1, Agent, "finished after recovery");
+    result.assert_emitted("Output token limit reached early");
+    assert_eq!(result.history_replacements(), 1);
+
+    // The recoverable marker stays hidden and is compacted away: no visible
+    // output-limit warning may surface.
+    assert!(!result.events.iter().any(|event| {
+        matches!(event, AgentEvent::Message(message) if message.metadata.output_token_limit_reached)
+    }));
+    assert!(!result
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.metadata.output_token_limit_reached && message.is_user_visible()));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn output_limit_second_hit_after_recovery_warns() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("hit the output limit").output_limit();
+    api.on(SUMMARIZE_HISTORY).reply("summary of prior work");
+    api.on("Your context was compacted").output_limit();
+
+    let result = pipeline.run(["hit the output limit"]).await?;
+    assert_eq!(result.history_replacements(), 1);
+
+    let marker = result
+        .conversation()
+        .last()
+        .expect("output-limit marker after recovery was used");
+    assert!(marker.metadata.output_token_limit_reached);
+    assert!(marker.is_user_visible());
+    assert!(result.events.iter().any(|event| {
+        matches!(event, AgentEvent::Message(message) if message.metadata.output_token_limit_reached && message.is_user_visible())
+    }));
+
+    // Exactly one compact-and-retry: initial reply, summarization, retry.
+    assert_eq!(api.calls().len(), 3);
 
     Ok(())
 }

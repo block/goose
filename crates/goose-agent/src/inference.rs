@@ -13,12 +13,13 @@ use goose_provider_types::conversation::{
     EffectiveRole,
 };
 use goose_provider_types::errors::ProviderError;
-use goose_provider_types::model::ModelConfig;
+use goose_provider_types::model::{is_recoverable_length_stop, ModelConfig};
 use tracing_futures::Instrument;
 
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
-    Inference, InferenceInput, Operation, OperationResult,
+    Inference, InferenceInput, Operation, OperationResult, OUTPUT_LIMIT_RECOVERY_ATTEMPTED_NOTE,
+    OUTPUT_LIMIT_RECOVERY_OPERATION,
 };
 
 pub struct PreparedInferenceRequest {
@@ -184,6 +185,7 @@ pub struct InferenceRunner<'a, S, E> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
     request_preparer: Arc<dyn InferenceRequestPreparer<S> + 'a>,
+    output_limit_recovery: bool,
     effect: std::marker::PhantomData<fn() -> E>,
 }
 
@@ -290,8 +292,18 @@ impl<'a, S: Sync, E: InferenceEffect> InferenceRunner<'a, S, E> {
             provider,
             model_config,
             request_preparer: Arc::new(IdentityInferenceRequestPreparer),
+            output_limit_recovery: false,
             effect: std::marker::PhantomData,
         }
+    }
+
+    /// Enable when an output-limit recovery operation is present in the
+    /// pipeline: a recoverable length-stop marker is then hidden from the
+    /// user so the incomplete-response warning only fires once recovery is
+    /// exhausted.
+    pub fn with_output_limit_recovery(mut self, enabled: bool) -> Self {
+        self.output_limit_recovery = enabled;
+        self
     }
 
     pub fn with_request_preparer(
@@ -433,6 +445,7 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
             let mut accumulator = Conversation::empty();
             let mut tool_request_ids = std::collections::HashSet::new();
             let mut provider_usage = None;
+            let mut pending_output_limit_marker: Option<Message> = None;
             let mut cancelled = false;
             loop {
                 tokio::select! {
@@ -472,9 +485,14 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                             normalize_tool_call_thinking(&mut accumulator, &mut chunk);
                             if chunk.content.is_empty() {
                                 if chunk.metadata.output_token_limit_reached {
-                                    chunk = emit.message(chunk).await;
+                                    // Held back until the stream ends and usage is
+                                    // known: a recoverable length stop stays hidden
+                                    // so the recovery operation can compact and
+                                    // retry without surfacing the warning.
+                                    pending_output_limit_marker = Some(chunk);
+                                } else {
+                                    accumulator.push(chunk);
                                 }
-                                accumulator.push(chunk);
                                 continue;
                             }
                             let chunk = emit.message(chunk).await;
@@ -484,14 +502,45 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                 }
             }
 
-            if let Some(usage) = provider_usage {
-                usage_effects.push(E::record_usage(usage));
+            if let Some(usage) = &provider_usage {
+                usage_effects.push(E::record_usage(usage.clone()));
             }
 
             if cancelled || emit.cancel_token().is_cancelled() {
                 if let Some(response) = cancellation_response(messages, accumulator.messages()) {
                     let response = emit.message(response).await;
                     accumulator.push(response);
+                }
+            }
+
+            if let Some(marker) = pending_output_limit_marker {
+                let output_tokens = provider_usage
+                    .as_ref()
+                    .and_then(|usage| usage.usage.output_tokens);
+                let already_recovered = messages.iter().any(|message| {
+                    message
+                        .metadata
+                        .operation_note(
+                            OUTPUT_LIMIT_RECOVERY_OPERATION,
+                            OUTPUT_LIMIT_RECOVERY_ATTEMPTED_NOTE,
+                        )
+                        .is_some()
+                });
+                let hide_for_recovery = self.output_limit_recovery
+                    && !cancelled
+                    && !already_recovered
+                    && is_recoverable_length_stop(
+                        output_tokens,
+                        self.model_config.max_output_tokens(),
+                    );
+                if hide_for_recovery {
+                    // Persisted through the accumulated effects but not emitted:
+                    // clients must not surface the incomplete-response warning
+                    // while the recovery operation can still compact and retry.
+                    accumulator.push(marker.with_visibility(false, true));
+                } else {
+                    let marker = emit.message(marker).await;
+                    accumulator.push(marker);
                 }
             }
 

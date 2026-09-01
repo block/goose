@@ -10,6 +10,20 @@ use std::collections::HashMap;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
+/// Fallback output cap for models with no explicit or catalog limit. Kept
+/// well above the old 4_096 so uncatalogued models are not clipped short;
+/// recoverable length stops are handled by the agent loops.
+pub const DEFAULT_MAX_OUTPUT_TOKENS: i32 = 32_768;
+
+/// A length stop is recoverable when the provider produced fewer output
+/// tokens than requested — the turn was cut short before the intended cap
+/// (commonly because the context window filled up), so compacting and
+/// retrying once can let the turn finish. A stop at or above the cap is a
+/// true max-tokens cutoff and is not recoverable.
+pub fn is_recoverable_length_stop(output_tokens: Option<i32>, max_output_tokens: i32) -> bool {
+    max_output_tokens > 0 && output_tokens.is_some_and(|used| used < max_output_tokens)
+}
+
 /// Request param keys that describe model-family-agnostic reasoning behavior and
 /// are therefore safe to carry across a model switch or subagent delegation.
 /// Provider-specific keys (e.g. `anthropic_beta`) are deliberately excluded so
@@ -295,7 +309,7 @@ impl ModelConfig {
             return tokens;
         }
 
-        4_096
+        DEFAULT_MAX_OUTPUT_TOKENS
     }
 
     pub fn normalize_effort_suffix(&mut self) {
@@ -807,7 +821,7 @@ mod tests {
             ]);
             let config = ModelConfig::new("moonshotai/kimi-k2.6").with_canonical_limits("nvidia");
             assert_eq!(config.max_tokens, None);
-            assert_eq!(config.max_output_tokens(), 4_096);
+            assert_eq!(config.max_output_tokens(), DEFAULT_MAX_OUTPUT_TOKENS);
         }
 
         #[test]

@@ -17,6 +17,13 @@ pub struct SlashCommand<'a> {
     pub params_str: &'a str,
 }
 
+/// Operation-note coordinates for the one-shot output-token-limit recovery.
+/// The recovery operation records the note on the compacted history; inference
+/// reads it to decide whether a new output-token-limit marker should stay
+/// hidden (first recoverable stop) or become visible (recovery already used).
+pub const OUTPUT_LIMIT_RECOVERY_OPERATION: &str = "output_limit_recovery";
+pub const OUTPUT_LIMIT_RECOVERY_ATTEMPTED_NOTE: &str = "attempted";
+
 pub fn messages_since_kickoff(conversation: &Conversation) -> Result<&[Message]> {
     let messages = conversation.messages();
     let start = messages

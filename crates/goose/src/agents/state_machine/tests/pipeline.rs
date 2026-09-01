@@ -17,9 +17,9 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
     ExitOnErrorOperation, GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer,
-    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, StatusOperation,
-    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    InferenceRunner, MaxTurnsOperation, Operation, OutputLimitRecoveryOperation, ProjectOperation,
+    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
+    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
@@ -132,6 +132,10 @@ impl TestPipeline {
                 self.model_config.context_limit(),
                 COMPACTION_THRESHOLD,
             )));
+            operations.push(Arc::new(OutputLimitRecoveryOperation::new(
+                provider.clone(),
+                self.model_config.clone(),
+            )));
         }
         let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
@@ -185,7 +189,8 @@ impl TestPipeline {
         let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
         let inference = Arc::new(
             InferenceRunner::new(inference_provider, self.model_config.clone())
-                .with_request_preparer(Arc::new(request_preparer)),
+                .with_request_preparer(Arc::new(request_preparer))
+                .with_output_limit_recovery(!self.provider_features.manages_own_context),
         );
         let mut command_handlers = operations.clone();
         command_handlers.push(status_operation);

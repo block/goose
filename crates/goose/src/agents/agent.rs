@@ -32,10 +32,11 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
     EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation,
+    OutputLimitRecoveryOperation, ProjectOperation, RecipeOperation, RetryOperation,
+    SkillOperation, SlashCommandOperation, StateMachine, StatusOperation, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     SessionConfig, SharedProvider, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS,
@@ -71,6 +72,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::is_recoverable_length_stop;
 use goose_providers::thinking::{ThinkingEffort, ThinkingEffortSupport};
 use regex::Regex;
 use rmcp::model::{
@@ -1588,6 +1590,10 @@ impl Agent {
                 context_limit,
                 compaction_threshold,
             )));
+            operations.push(Arc::new(OutputLimitRecoveryOperation::new(
+                provider.clone(),
+                model_config.clone(),
+            )));
         }
         let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
@@ -1639,7 +1645,8 @@ impl Agent {
         let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
         let inference = Arc::new(
             InferenceRunner::new(inference_provider, model_config)
-                .with_request_preparer(Arc::new(request_preparer)),
+                .with_request_preparer(Arc::new(request_preparer))
+                .with_output_limit_recovery(!manages_own_context),
         );
         let mut command_handlers = operations.clone();
         command_handlers.push(status_operation);
@@ -2283,6 +2290,7 @@ impl Agent {
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;
+            let mut output_limit_recovery_attempted = false;
             let mut empty_turn_retries = 0u32;
             let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
@@ -2453,6 +2461,7 @@ impl Agent {
                 let mut provider_reached_output_token_limit = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
+                let mut pending_output_limit_marker: Option<Message> = None;
                 let mut preferred_turn_usage_message_id: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
@@ -2550,9 +2559,18 @@ impl Agent {
                                     },
                                 );
 
-                                if !filtered_response.content.is_empty()
-                                    || filtered_response.metadata.output_token_limit_reached
+                                // A bare output-token-limit marker is held back until the
+                                // stream ends and usage is known: a recoverable length stop
+                                // triggers one compact-and-retry instead of surfacing the
+                                // incomplete-response warning mid-turn.
+                                if filtered_response.content.is_empty()
+                                    && filtered_response.metadata.output_token_limit_reached
                                 {
+                                    pending_output_limit_marker = Some(response);
+                                    continue;
+                                }
+
+                                if !filtered_response.content.is_empty() {
                                     yield AgentEvent::Message(filtered_response.clone());
                                     tokio::task::yield_now().await;
                                 }
@@ -3083,6 +3101,74 @@ impl Agent {
                         }
                     }
                 }
+                // Resolve a held-back output-token-limit marker now that turn
+                // usage is known. A recoverable length stop (output below the
+                // intended cap) gets one compact-and-retry; anything else
+                // surfaces the marker so the incomplete-response warning shows.
+                if let Some(marker) = pending_output_limit_marker.take() {
+                    let output_tokens = pending_turn_usage
+                        .as_ref()
+                        .and_then(|usage| usage.usage.output_tokens);
+                    let recoverable = no_tools_called
+                        && !provider_errored
+                        && !output_limit_recovery_attempted
+                        && is_recoverable_length_stop(
+                            output_tokens,
+                            model_config.max_output_tokens(),
+                        );
+                    if recoverable {
+                        output_limit_recovery_attempted = true;
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                "Output token limit reached early. Compacting to continue conversation...",
+                            )
+                        );
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::ProgressMessage,
+                                COMPACTION_PROGRESS_TEXT,
+                            )
+                        );
+                        match compact_messages(
+                            self.provider().await?.as_ref(),
+                            &model_config,
+                            &session_config.id,
+                            &conversation,
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(compaction) => {
+                                session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                conversation = compaction.conversation;
+                                // The truncated turn content is captured by the
+                                // compaction summary; persisting it after the
+                                // compacted history would duplicate it.
+                                messages_to_add = Conversation::default();
+                                did_recovery_compact_this_iteration = true;
+                                yield AgentEvent::HistoryReplaced(conversation.clone());
+                            }
+                            Err(e) => {
+                                #[cfg(feature = "telemetry")]
+                                crate::posthog::emit_error("compaction_failed", &e.to_string());
+                                error!("Output-limit recovery compaction failed: {}", e);
+                                let marker = push_message_with_id(&mut messages_to_add, marker);
+                                yield AgentEvent::Message(marker);
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                                    )
+                                );
+                            }
+                        }
+                    } else {
+                        let marker = push_message_with_id(&mut messages_to_add, marker);
+                        yield AgentEvent::Message(marker);
+                    }
+                }
+
                 can_drain_pending_steers = true;
 
                 if tools_updated {
