@@ -769,7 +769,7 @@ async fn cancellation_interrupts_dynamic_tool_discovery() {
     let cancel = CancellationToken::new();
     cancel.cancel();
 
-    let tools = tokio::time::timeout(
+    let error = tokio::time::timeout(
         std::time::Duration::from_millis(50),
         <ToolOperation<()> as Operation<(), ConversationEffect>>::inference_tools(
             &operation,
@@ -780,9 +780,9 @@ async fn cancellation_interrupts_dynamic_tool_discovery() {
     )
     .await
     .expect("tool discovery should observe cancellation")
-    .unwrap();
+    .unwrap_err();
 
-    assert!(tools.tools.is_empty());
+    assert_eq!(error.to_string(), "tool discovery cancelled");
 }
 
 #[tokio::test]

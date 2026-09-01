@@ -258,7 +258,7 @@ where
         for provider in &self.providers {
             let tools = tokio::select! {
                 biased;
-                _ = emit.cancelled() => return Ok(Vec::new()),
+                _ = emit.cancelled() => anyhow::bail!("tool discovery cancelled"),
                 tools = provider.tools(session) => tools?,
             };
             for tool in tools {
