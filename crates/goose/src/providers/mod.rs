@@ -1,5 +1,4 @@
 mod acp_tooling;
-pub mod aimlapi;
 pub mod amp_acp;
 pub mod anthropic {
     pub use goose_providers::anthropic::*;
