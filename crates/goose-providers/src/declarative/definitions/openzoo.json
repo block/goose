@@ -1,0 +1,31 @@
+{
+  "name": "openzoo",
+  "engine": "openai",
+  "display_name": "OpenZoo",
+  "description": "OpenAI-compatible provider with no signup: any API key value works and usage is paid per call (card or x402). Hosted at api.openzoo.fun; a local gateway is available via `npx openzoo`.",
+  "api_key_env": "OPENZOO_API_KEY",
+  "base_url": "${OPENZOO_HOST}/v1",
+  "env_vars": [
+    {
+      "name": "OPENZOO_HOST",
+      "required": false,
+      "secret": false,
+      "primary": true,
+      "default": "https://api.openzoo.fun",
+      "description": "Base URL of the OpenZoo endpoint (use http://localhost:8402 for the local `npx openzoo` gateway)"
+    }
+  ],
+  "dynamic_models": true,
+  "models": [
+    { "name": "z-ai/glm-5.3-flash", "context_limit": 1310720 },
+    { "name": "qwen/qwen3.7-flash", "context_limit": 1000000 },
+    { "name": "nvidia/nemotron-3.5-lightning", "context_limit": 262144 }
+  ],
+  "supports_streaming": true,
+  "skip_canonical_filtering": true,
+  "model_doc_link": "https://openzoo.fun",
+  "setup_steps": [
+    "No signup needed — enter any API key value (e.g. sk-openzoo) as OPENZOO_API_KEY.",
+    "Optionally set OPENZOO_HOST to http://localhost:8402 after running `npx openzoo` locally."
+  ]
+}
