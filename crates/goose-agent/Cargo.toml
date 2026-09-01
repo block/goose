@@ -23,3 +23,11 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
+goose-sdk-types = { version = "0.1.0-alpha.6", path = "../goose-sdk-types" }
+regex.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+indexmap = { version = "2.9", features = ["serde", "std"] }
+minijinja = { version = "2.18", features = ["serde", "builtins"] }
+unicode-normalization = { version = "0.1.22", features = ["std"] }
+ignore.workspace = true
