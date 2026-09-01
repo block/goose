@@ -202,7 +202,7 @@ jobs:
               --data-urlencode "size=100" \
               "https://central.sonatype.com/api/v1/publisher/deployments")
             if jq --exit-status --arg purl "$purl" \
-              'any(.deployments[]; .deploymentState != "FAILED" and any(.deploymentComponents[]?; .purl == $purl))' \
+              'any(.deployments[]; .deploymentState != "FAILED" and (any(.purls[]?; . == $purl) or any(.deploymentComponents[]?; .purl == $purl)))' \
               <<< "$response" > /dev/null; then
               echo "io.github.aaif-goose:gdk:$VERSION already has a Central deployment; skipping"
               echo "exists=true" >> "$GITHUB_OUTPUT"
