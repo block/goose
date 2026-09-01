@@ -556,7 +556,7 @@ export default function SessionActionsHeader({
               <ChevronDown className="size-3.5 text-text-secondary" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DropdownMenuContent align="center" className="w-56">
             <DropdownMenuItem onSelect={() => setTimeout(() => setIsRenameOpen(true), 0)}>
               <Edit2 className="size-4" />
               {intl.formatMessage(i18n.renameSession)}
