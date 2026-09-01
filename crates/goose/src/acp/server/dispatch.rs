@@ -125,17 +125,26 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     |req: PromptRequest, responder: Responder<PromptResponse>| async {
                         let agent = agent.clone();
                         let cx_clone = cx.clone();
-                        cx.spawn(async move {
-                            match agent.on_prompt(&cx_clone, req).await {
-                                Ok(response) => {
-                                    responder.respond(response)?;
-                                }
-                                Err(e) => {
-                                    responder.respond_with_error(e)?;
-                                }
+                        // Detached on purpose: connection-scoped tasks
+                        // (`cx.spawn`) are dropped when the transport closes,
+                        // which used to cancel the in-flight turn. On a
+                        // runtime task the turn keeps executing and persisting
+                        // its messages, so a client that lost its connection
+                        // (network drop, sleep) can reconnect and
+                        // `session/load` the finished work. `session/cancel`
+                        // still stops it via the shared active-run registry.
+                        tokio::spawn(async move {
+                            let delivery = match agent.on_prompt(&cx_clone, req).await {
+                                Ok(response) => responder.respond(response),
+                                Err(e) => responder.respond_with_error(e),
+                            };
+                            if let Err(error) = delivery {
+                                tracing::debug!(
+                                    %error,
+                                    "prompt response undeliverable; client disconnected mid-turn"
+                                );
                             }
-                            Ok(())
-                        })?;
+                        });
                         Ok(())
                     },
                 )

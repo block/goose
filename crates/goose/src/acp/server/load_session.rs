@@ -229,7 +229,7 @@ fn replay_conversation_to_client(
 }
 
 impl GooseAcpAgent {
-    fn resend_pending_tool_permissions(
+    async fn resend_pending_tool_permissions(
         &self,
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
@@ -286,7 +286,8 @@ impl GooseAcpAgent {
                 tool_name,
                 arguments,
                 prompt,
-            )?;
+            )
+            .await?;
         }
 
         Ok(())
@@ -333,7 +334,8 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider while loading ACP session")?;
         resume_saved_provider_session(&provider, session.conversation.as_ref()).await;
-        self.resend_pending_tool_permissions(cx, &agent, &session)?;
+        self.resend_pending_tool_permissions(cx, &agent, &session)
+            .await?;
 
         session = self
             .session_manager

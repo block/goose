@@ -251,11 +251,13 @@ pub struct ActivePromptRun {
 /// one session.
 pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
-/// Releases a registry entry if the owning `on_prompt` future is dropped
-/// without reaching its explicit `clear_active_run` — e.g. a roaming
-/// connection is revoked or lost mid-prompt and the transport drops the
-/// request future. Without this, the shared registry retains the run forever
-/// and every later connection gets "session already has active run".
+/// Releases a registry entry if the prompt task dies without reaching its
+/// explicit `clear_active_run` — e.g. a panic mid-turn. Prompt turns run on
+/// detached runtime tasks (see the `PromptRequest` handler in `dispatch.rs`),
+/// so losing the transport no longer drops the future; the guard is the
+/// backstop for the task itself dying. Without it, the shared registry would
+/// retain the run forever and every later connection would get "session
+/// already has active run".
 ///
 /// The explicit clear still runs on normal paths; this drop is then a no-op
 /// because the entry (matched by run id) is already gone.
@@ -331,9 +333,33 @@ pub struct GooseAcpAgentOptions {
     pub active_prompt_runs: ActiveRunRegistry,
 }
 
+/// This agent's own prompt runs (session id → run id) plus the connection's
+/// revocation fence, deliberately under one lock.
+///
+/// Registration (`start_active_run`) performs the fence check, the
+/// shared-registry insert, and the per-agent insert inside a single critical
+/// section of this lock, while revocation (`revoke_and_cancel_own_runs`) sets
+/// the fence and snapshots the runs under the same lock before cancelling. A
+/// registration therefore either completes before the fence is set — and is
+/// in the revocation sweep's snapshot — or observes the fence and is refused;
+/// there is no interleaving where a run registers after the sweep, and no
+/// window where the shared registry holds a run this map does not.
+#[derive(Default)]
+struct OwnPromptRuns {
+    revoked: bool,
+    runs: HashMap<String, String>,
+}
+
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    /// Runs this agent started, a per-connection subset of the shared
+    /// `active_prompt_runs`, plus the revocation fence. Lets a
+    /// transport-level authority decision (roaming peer revocation) stop
+    /// exactly the revoked connection's detached runs — current and future —
+    /// via [`Self::revoke_and_cancel_own_runs`] without touching runs owned
+    /// by other connections.
+    own_prompt_runs: Mutex<OwnPromptRuns>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -347,6 +373,11 @@ pub struct GooseAcpAgent {
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
+    /// Cancelled when this agent's client transport stops for any reason,
+    /// including I/O errors that bypass the ACP SDK's clean-EOF callback.
+    /// Detached prompt runs watch this only for client interactions; the run
+    /// itself keeps executing and persisting after a disconnect.
+    client_transport_terminated: CancellationToken,
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     config_dir: std::path::PathBuf,
@@ -817,9 +848,20 @@ impl GooseAcpAgent {
         session_id: &str,
         run_id: String,
         agent: Arc<Agent>,
-    ) -> Result<(), agent_client_protocol::Error> {
-        self.start_active_run(session_id, run_id, CancellationToken::new(), agent)
-            .await
+    ) -> Result<CancellationToken, agent_client_protocol::Error> {
+        let cancel_token = CancellationToken::new();
+        self.start_active_run(session_id, run_id, cancel_token.clone(), agent)
+            .await?;
+        Ok(cancel_token)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_cancel(&self, session_id: &str) {
+        self.on_cancel(CancelNotification::new(SessionId::new(
+            session_id.to_string(),
+        )))
+        .await
+        .unwrap();
     }
 
     #[cfg(test)]
@@ -955,6 +997,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: options.active_prompt_runs,
+            own_prompt_runs: Mutex::new(OwnPromptRuns::default()),
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -968,6 +1011,7 @@ impl GooseAcpAgent {
             client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
+            client_transport_terminated: CancellationToken::new(),
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             config_dir: options.config_dir,
@@ -1402,7 +1446,8 @@ impl GooseAcpAgent {
                         tool_name.clone(),
                         arguments.clone(),
                         prompt.clone(),
-                    )?;
+                    )
+                    .await?;
                 }
                 ActionRequiredData::Elicitation {
                     id,
@@ -1544,7 +1589,7 @@ impl GooseAcpAgent {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn handle_tool_permission_request(
+    async fn handle_tool_permission_request(
         &self,
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
@@ -1557,6 +1602,10 @@ impl GooseAcpAgent {
         let cx = cx.clone();
         let agent = agent.clone();
         let session_id = session_id.clone();
+        let fallback_agent = agent.clone();
+        let fallback_request_id = request_id.clone();
+        let pending_request = PendingClientRequest::new();
+        let callback_pending_request = pending_request.clone();
 
         let tool_call_update =
             build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
@@ -1579,33 +1628,75 @@ impl GooseAcpAgent {
         let permission_request =
             RequestPermissionRequest::new(session_id, tool_call_update, options);
 
-        cx.send_request(permission_request)
-            .on_receiving_result(move |result| async move {
-                match result {
-                    Ok(response) => {
-                        agent
-                            .handle_confirmation(
-                                request_id,
-                                outcome_to_confirmation(&response.outcome),
-                            )
-                            .await;
-                        Ok(())
+        let sent = cx
+            .send_request(permission_request)
+            .on_receiving_result(move |result| {
+                // Claim completion here, synchronously, before the resolution is
+                // handed to its own task: the transport-termination fallback must
+                // not be able to turn a client's answer into a cancellation.
+                callback_pending_request.claim_then_spawn_resolution(async move {
+                    match result {
+                        Ok(response) => {
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    outcome_to_confirmation(&response.outcome),
+                                )
+                                .await;
+                        }
+                        Err(e) => {
+                            error!(error = ?e, "permission request failed");
+                            agent
+                                .handle_confirmation(
+                                    request_id,
+                                    PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::Cancel,
+                                    },
+                                )
+                                .await;
+                        }
                     }
-                    Err(e) => {
-                        error!(error = ?e, "permission request failed");
-                        agent
-                            .handle_confirmation(
-                                request_id,
-                                PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission: Permission::Cancel,
-                                },
-                            )
-                            .await;
-                        Ok(())
-                    }
+                });
+                std::future::ready(Ok(()))
+            });
+
+        if let Err(e) = sent {
+            // The connection is gone (e.g. the client dropped mid-turn), so no
+            // answer can ever arrive. Resolve like the failed-request branch
+            // above: deny the tool so a detached turn keeps moving instead of
+            // waiting on a confirmation forever.
+            error!(error = ?e, "could not send permission request");
+            if pending_request.try_complete() {
+                fallback_agent
+                    .handle_confirmation(
+                        fallback_request_id,
+                        PermissionConfirmation {
+                            principal_type: PrincipalType::Tool,
+                            permission: Permission::Cancel,
+                        },
+                    )
+                    .await;
+            }
+        } else {
+            let transport_terminated = self.client_transport_terminated.clone();
+            tokio::spawn(async move {
+                if pending_request
+                    .complete_on_transport_termination(&transport_terminated)
+                    .await
+                {
+                    fallback_agent
+                        .handle_confirmation(
+                            fallback_request_id,
+                            PermissionConfirmation {
+                                principal_type: PrincipalType::Tool,
+                                permission: Permission::Cancel,
+                            },
+                        )
+                        .await;
                 }
-            })?;
+            });
+        }
 
         Ok(())
     }
@@ -1767,6 +1858,118 @@ fn message_usage_update(
     }
 }
 
+/// Latches the first failed client-bound notification of a prompt run so a
+/// turn that keeps executing after its client disconnected does not hammer
+/// the dead channel — and the log — once per stream event: the first failure
+/// warns, every later send for the run is skipped.
+///
+/// Only plain notification sends go through this latch. Interactive requests
+/// (permission, elicitation) keep their own resolve-as-deny/cancel handling —
+/// they must run even on a dead sink so the agent is never left waiting — and
+/// provider-fatal errors still abort the turn.
+#[derive(Default)]
+struct ClientNotificationSink {
+    failed_sends: std::sync::atomic::AtomicUsize,
+}
+
+/// Coordinates an ACP client request's normal response callback with its
+/// transport-termination fallback. The SDK drops response callbacks on some
+/// transport I/O errors, so the fallback runs on a Tokio task independent of
+/// the connection actor. Exactly one side claims completion.
+#[derive(Clone)]
+struct PendingClientRequest {
+    completed: Arc<std::sync::atomic::AtomicBool>,
+    completion: CancellationToken,
+}
+
+impl PendingClientRequest {
+    fn new() -> Self {
+        Self {
+            completed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            completion: CancellationToken::new(),
+        }
+    }
+
+    fn try_complete(&self) -> bool {
+        if self
+            .completed
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            self.completion.cancel();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Claim completion for the response side, then run `resolution` on a task
+    /// the connection does not own.
+    ///
+    /// Callers must invoke this synchronously from the response callback: the
+    /// claim has to happen the moment the answer arrives, or a concurrent
+    /// transport termination could take the claim first and discard a decision
+    /// the user actually made. Once the claim succeeds the resolution runs on an
+    /// independent Tokio task, so a connection that dies while the resolution is
+    /// in flight cannot strand the run either.
+    fn claim_then_spawn_resolution<F>(&self, resolution: F)
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        if !self.try_complete() {
+            return;
+        }
+        tokio::spawn(resolution);
+    }
+
+    async fn complete_on_transport_termination(
+        &self,
+        transport_terminated: &CancellationToken,
+    ) -> bool {
+        tokio::select! {
+            _ = transport_terminated.cancelled() => self.try_complete(),
+            _ = self.completion.cancelled() => false,
+        }
+    }
+}
+
+impl ClientNotificationSink {
+    fn is_dead(&self) -> bool {
+        self.failed_sends.load(std::sync::atomic::Ordering::Acquire) > 0
+    }
+
+    fn record_failure(&self, session_id: &str, error: &agent_client_protocol::Error) {
+        if self
+            .failed_sends
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+            == 0
+        {
+            warn!(
+                session_id = %session_id,
+                %error,
+                "failed to send a session update; the client appears disconnected — \
+                 skipping further notifications for this run"
+            );
+        } else {
+            debug!(
+                session_id = %session_id,
+                %error,
+                "skipping further client notifications for this run"
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn failed_send_count(&self) -> usize {
+        self.failed_sends.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
 impl GooseAcpAgent {
     async fn on_initialize(
         &self,
@@ -1886,6 +2089,19 @@ impl GooseAcpAgent {
             .data(format!("Session not found: {}", session_id)));
         }
 
+        // Fence check, shared-registry insert, and per-agent insert form one
+        // critical section under the own-runs lock (see `OwnPromptRuns`), so a
+        // revocation can never interleave between them: the shared insert only
+        // happens after the fence check passed, under the same lock hold, so a
+        // refused prompt leaves nothing in the shared registry to unwind.
+        // Nested lock order is own_prompt_runs → active_prompt_runs; no other
+        // path nests them the other way around.
+        let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+        if own_prompt_runs.revoked {
+            return Err(agent_client_protocol::Error::auth_required()
+                .data("connection revoked; prompt refused"));
+        }
+
         let mut active_prompt_runs = self.active_prompt_runs.lock().await;
         if let Some(active_run) = active_prompt_runs.get(session_id) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
@@ -1897,15 +2113,29 @@ impl GooseAcpAgent {
         active_prompt_runs.insert(
             session_id.to_string(),
             ActivePromptRun {
-                run_id,
+                run_id: run_id.clone(),
                 cancel_token,
                 agent,
             },
         );
+        drop(active_prompt_runs);
+
+        own_prompt_runs.runs.insert(session_id.to_string(), run_id);
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
+        {
+            let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+            if own_prompt_runs
+                .runs
+                .get(session_id)
+                .is_some_and(|own_run_id| own_run_id == run_id)
+            {
+                own_prompt_runs.runs.remove(session_id);
+            }
+        }
+
         let agent = {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
@@ -1941,6 +2171,51 @@ impl GooseAcpAgent {
                 );
             }
         }
+    }
+
+    /// Permanently fence this agent against starting new prompt runs and
+    /// cancel every run it already started, leaving runs owned by other agents
+    /// on the shared registry untouched. Returns how many were cancelled.
+    ///
+    /// Detached prompt runs deliberately survive ordinary transport loss; this
+    /// is the escape hatch for when the connection's *authority* is withdrawn
+    /// (a roaming peer is revoked): the revoked peer's in-flight turns must
+    /// stop consuming the provider and executing tools, and a prompt task that
+    /// was dispatched but has not registered yet must not slip in afterwards —
+    /// the fence refuses it (see `OwnPromptRuns` for the atomicity argument).
+    /// The fence is permanent, which is safe because an agent is
+    /// per-connection: a peer that merely lost its network gets a fresh,
+    /// unfenced agent on reconnect, while a revoked agent instance never
+    /// serves another connection. Cancellation goes through the registry's
+    /// tokens — the detached task observes it and clears its own registry
+    /// entry, exactly as with `session/cancel`.
+    pub async fn revoke_and_cancel_own_runs(&self) -> usize {
+        // Set the fence and snapshot under one lock: every run registered
+        // before this point is in the snapshot, and every registration after
+        // it observes the fence and is refused.
+        let own_runs: Vec<(String, String)> = {
+            let mut own_prompt_runs = self.own_prompt_runs.lock().await;
+            own_prompt_runs.revoked = true;
+            own_prompt_runs
+                .runs
+                .iter()
+                .map(|(session_id, run_id)| (session_id.clone(), run_id.clone()))
+                .collect()
+        };
+
+        let active_prompt_runs = self.active_prompt_runs.lock().await;
+        let mut cancelled = 0;
+        for (session_id, run_id) in own_runs {
+            // Only cancel a run that is still the one this agent started; the
+            // session may have finished and been re-claimed by another agent.
+            if let Some(active_run) = active_prompt_runs.get(&session_id) {
+                if active_run.run_id == run_id {
+                    active_run.cancel_token.cancel();
+                    cancelled += 1;
+                }
+            }
+        }
+        cancelled
     }
 
     async fn require_active_run(
@@ -2073,6 +2348,16 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: PromptRequest,
     ) -> Result<PromptResponse, agent_client_protocol::Error> {
+        let client_sink = ClientNotificationSink::default();
+        self.on_prompt_with_sink(cx, args, &client_sink).await
+    }
+
+    async fn on_prompt_with_sink(
+        &self,
+        cx: &ConnectionTo<Client>,
+        args: PromptRequest,
+        client_sink: &ClientNotificationSink,
+    ) -> Result<PromptResponse, agent_client_protocol::Error> {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
 
@@ -2091,9 +2376,11 @@ impl GooseAcpAgent {
         )
         .await?;
 
-        // Frees the run if this future is dropped mid-prompt (e.g. the roaming
-        // connection carrying it is revoked or lost); a normal completion's
-        // explicit clear wins and makes the guard's cleanup a no-op.
+        // Frees the run if this task dies mid-prompt (e.g. a panic); a normal
+        // completion's explicit clear wins and makes the guard's cleanup a
+        // no-op. Losing the transport no longer drops this future: the turn
+        // runs on a detached task (see the `PromptRequest` handler in
+        // `dispatch.rs`) so it finishes and persists for a later session/load.
         let _run_guard = ActiveRunDropGuard {
             registry: self.active_prompt_runs.clone(),
             session_id: session_id.clone(),
@@ -2103,22 +2390,25 @@ impl GooseAcpAgent {
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
-            Self::send_active_run_update(cx, &args.session_id, None)?;
+            let _ = Self::send_active_run_update(cx, &args.session_id, None);
             return Ok(PromptResponse::new(StopReason::Cancelled));
         }
 
+        // Startup sends are fail-soft like the mid-stream ones: a client that
+        // disconnects right after dispatch must not have its prompt silently
+        // discarded — the turn still runs and persists for a later
+        // session/load.
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
-            self.clear_active_run(&session_id, &run_id).await;
-            return Err(error);
+            client_sink.record_failure(&session_id, &error);
         }
 
-        if let Err(error) = self
-            .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
-            .await
-        {
-            self.clear_active_run(&session_id, &run_id).await;
-            let _ = Self::send_active_run_update(cx, &args.session_id, None);
-            return Err(error);
+        if !client_sink.is_dead() {
+            if let Err(error) = self
+                .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+                .await
+            {
+                client_sink.record_failure(&session_id, &error);
+            }
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
@@ -2179,19 +2469,42 @@ impl GooseAcpAgent {
                             tool_requests.insert(tool_request.id.clone(), tool_request.clone());
                         }
 
-                        if let Err(error) = self
-                            .handle_message_content(
-                                content_item,
-                                &message,
-                                &args.session_id,
-                                &agent,
-                                &tool_requests,
-                                cx,
-                            )
-                            .await
-                        {
-                            stream_error = Some(error);
-                            break;
+                        // Interactive content must run even on a dead sink:
+                        // its send failures resolve inside the handler as
+                        // deny/cancel, so the agent is never left waiting for
+                        // an answer. Plain updates are skipped once the sink
+                        // is known dead.
+                        let interactive = matches!(content_item, MessageContent::ActionRequired(_));
+                        if interactive || !client_sink.is_dead() {
+                            if let Err(error) = self
+                                .handle_message_content(
+                                    content_item,
+                                    &message,
+                                    &args.session_id,
+                                    &agent,
+                                    &tool_requests,
+                                    cx,
+                                )
+                                .await
+                            {
+                                // A failed client send must not end the turn:
+                                // the transport may be gone (network drop,
+                                // sleep) while the detached turn keeps
+                                // executing and persisting for a later
+                                // session/load.
+                                if interactive {
+                                    // Resolved inside the handler; may be a
+                                    // schema error rather than a dead
+                                    // transport, so it does not latch.
+                                    warn!(
+                                        session_id = %session_id,
+                                        %error,
+                                        "failed to handle interactive content; continuing"
+                                    );
+                                } else {
+                                    client_sink.record_failure(&session_id, &error);
+                                }
+                            }
                         }
 
                         let ready_chain = match content_item {
@@ -2209,7 +2522,11 @@ impl GooseAcpAgent {
                         };
 
                         if let Some(chain) = ready_chain {
-                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+                            // Label enrichment exists only for client display;
+                            // skip its LLM work when no client is listening.
+                            if !client_sink.is_dead() {
+                                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+                            }
                         }
                     }
 
@@ -2221,18 +2538,24 @@ impl GooseAcpAgent {
                     if let Some(update) =
                         tool_notifications::tool_notification_update(request_id, notification)
                     {
-                        let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
-                        tool_call_notifier.send_update(update)?;
+                        if !client_sink.is_dead() {
+                            let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
+                            if let Err(error) = tool_call_notifier.send_update(update) {
+                                client_sink.record_failure(&session_id, &error);
+                            }
+                        }
                     }
                 }
                 Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
-                    if self.supports_goose_custom_notifications() {
-                        cx.send_notification(GooseSessionNotification {
+                    if self.supports_goose_custom_notifications() && !client_sink.is_dead() {
+                        if let Err(error) = cx.send_notification(GooseSessionNotification {
                             session_id: session_id.clone(),
                             update: GooseSessionUpdate::MessageUsage(message_usage_update(
                                 message_id, &usage,
                             )),
-                        })?;
+                        }) {
+                            client_sink.record_failure(&session_id, &error);
+                        }
                     }
                 }
                 Ok(_) => {}
@@ -2246,13 +2569,19 @@ impl GooseAcpAgent {
             }
         }
 
-        if !was_cancelled && stream_error.is_none() {
+        if !was_cancelled && stream_error.is_none() && !client_sink.is_dead() {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
             }
         }
         self.clear_active_run(&session_id, &run_id).await;
-        Self::send_active_run_update(cx, &args.session_id, None)?;
+        // From here on the turn's work is complete and persisted; failures to
+        // reach a (possibly disconnected) client must not turn it into an error.
+        if !client_sink.is_dead() {
+            if let Err(error) = Self::send_active_run_update(cx, &args.session_id, None) {
+                client_sink.record_failure(&session_id, &error);
+            }
+        }
         if let Some(error) = stream_error {
             return Err(error);
         }
@@ -2279,13 +2608,19 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to resolve context limit")?;
         let updates = build_usage_updates(&session, &totals, context_limit);
-        if self.supports_goose_custom_notifications() {
-            cx.send_notification(updates.custom)?;
+        if self.supports_goose_custom_notifications() && !client_sink.is_dead() {
+            if let Err(error) = cx.send_notification(updates.custom) {
+                client_sink.record_failure(&session_id, &error);
+            }
         }
-        cx.send_notification(SessionNotification::new(
-            args.session_id.clone(),
-            SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+        if !client_sink.is_dead() {
+            if let Err(error) = cx.send_notification(SessionNotification::new(
+                args.session_id.clone(),
+                SessionUpdate::UsageUpdate(updates.standard),
+            )) {
+                client_sink.record_failure(&session_id, &error);
+            }
+        }
 
         let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 
@@ -2591,6 +2926,24 @@ pub struct GooseAcpHandler {
     pub agent: Arc<GooseAcpAgent>,
 }
 
+struct ClientTransportDropGuard {
+    transport_terminated: CancellationToken,
+}
+
+impl ClientTransportDropGuard {
+    fn new(agent: &GooseAcpAgent) -> Self {
+        Self {
+            transport_terminated: agent.client_transport_terminated.clone(),
+        }
+    }
+}
+
+impl Drop for ClientTransportDropGuard {
+    fn drop(&mut self) {
+        self.transport_terminated.cancel();
+    }
+}
+
 pub fn serve<R, W>(
     agent: Arc<GooseAcpAgent>,
     read: R,
@@ -2601,6 +2954,7 @@ where
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
     Box::pin(async move {
+        let _transport_guard = ClientTransportDropGuard::new(&agent);
         let handler = GooseAcpHandler { agent };
 
         SacpAgent
@@ -2636,6 +2990,7 @@ impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
         client: impl agent_client_protocol::ConnectTo<SacpAgent>,
     ) -> std::result::Result<(), agent_client_protocol::Error> {
         let agent = self.server.create_agent().await.internal_err()?;
+        let _transport_guard = ClientTransportDropGuard::new(&agent);
         let handler = GooseAcpHandler { agent };
         SacpAgent
             .builder()
@@ -3250,6 +3605,104 @@ print(\"hello, world\")
         assert_eq!(outcome_to_confirmation(&input), expected);
     }
 
+    #[tokio::test]
+    async fn pending_client_request_completes_on_transport_termination() {
+        let pending = PendingClientRequest::new();
+        let transport_terminated = CancellationToken::new();
+        let waiter_pending = pending.clone();
+        let waiter_transport = transport_terminated.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_pending
+                .complete_on_transport_termination(&waiter_transport)
+                .await
+        });
+
+        transport_terminated.cancel();
+
+        assert!(waiter.await.unwrap());
+        assert!(
+            !pending.try_complete(),
+            "completion must only be claimed once"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_client_response_resolution_survives_transport_termination() {
+        let pending = PendingClientRequest::new();
+        let transport_terminated = CancellationToken::new();
+        let waiter_pending = pending.clone();
+        let waiter_transport = transport_terminated.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_pending
+                .complete_on_transport_termination(&waiter_transport)
+                .await
+        });
+
+        let (resolution_started_tx, resolution_started_rx) = tokio::sync::oneshot::channel();
+        let (finish_resolution_tx, finish_resolution_rx) = tokio::sync::oneshot::channel();
+        let (resolution_finished_tx, resolution_finished_rx) = tokio::sync::oneshot::channel();
+        pending.claim_then_spawn_resolution(async move {
+            resolution_started_tx.send(()).unwrap();
+            finish_resolution_rx.await.unwrap();
+            resolution_finished_tx.send(()).unwrap();
+        });
+
+        resolution_started_rx.await.unwrap();
+        transport_terminated.cancel();
+
+        assert!(!waiter.await.unwrap());
+        finish_resolution_tx.send(()).unwrap();
+        resolution_finished_rx.await.unwrap();
+        assert!(
+            !pending.try_complete(),
+            "fallback must not complete it again"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_client_response_wins_over_concurrent_transport_termination() {
+        let pending = PendingClientRequest::new();
+        // The transport is already gone, so the fallback would claim completion
+        // the instant it gets a chance to.
+        let transport_terminated = CancellationToken::new();
+        transport_terminated.cancel();
+
+        let resolutions = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let response_resolutions = Arc::clone(&resolutions);
+        let (resolved_tx, resolved_rx) = tokio::sync::oneshot::channel();
+        pending.claim_then_spawn_resolution(async move {
+            response_resolutions.lock().unwrap().push("response");
+            let _ = resolved_tx.send(());
+        });
+
+        // The response side claims completion synchronously, inside the
+        // callback, so nothing is left for the fallback to claim.
+        assert!(
+            !pending.try_complete(),
+            "the response callback must claim completion before it returns"
+        );
+
+        if pending
+            .complete_on_transport_termination(&transport_terminated)
+            .await
+        {
+            resolutions.lock().unwrap().push("cancel");
+        }
+
+        // The resolution runs on a task the connection does not own, so it still
+        // completes.
+        resolved_rx
+            .await
+            .expect("the received response must still be resolved");
+
+        assert_eq!(
+            *resolutions.lock().unwrap(),
+            vec!["response"],
+            "a received response must resolve the request exactly once, and the \
+             transport-termination fallback must not cancel it"
+        );
+    }
+
     #[test]
     fn test_credits_exhausted_system_notification_maps_to_prompt_error() {
         let content = MessageContent::SystemNotification(SystemNotificationContent {
@@ -3518,6 +3971,191 @@ print(\"hello, world\")
         let error = thinking_effort_error(anyhow::anyhow!("Failed to persist thinking effort"));
 
         assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    /// Streams a few assistant text chunks so a turn produces several client
+    /// notification opportunities, unlike the empty-stream effort provider.
+    #[derive(Debug)]
+    struct MultiChunkProvider;
+
+    #[async_trait::async_trait]
+    impl Provider for MultiChunkProvider {
+        fn get_name(&self) -> &str {
+            "openai"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::iter([
+                Ok((Some(Message::assistant().with_text("chunk-one ")), None)),
+                Ok((Some(Message::assistant().with_text("chunk-two ")), None)),
+                Ok((Some(Message::assistant().with_text("chunk-three")), None)),
+            ])))
+        }
+    }
+
+    /// The startup notifications a prompt sends before the agent turn (the
+    /// active-run update and local-model progress) must be fail-soft: a client
+    /// that disconnects right after dispatch loses its notifications, not its
+    /// prompt. Uses a deterministically dead connection — the transport is
+    /// fully shut down before `on_prompt` runs, so those sends are guaranteed
+    /// to fail — and asserts the turn still completes, clears its run, and
+    /// persists the conversation for a later `session/load`. Also pins the
+    /// dead-sink latch: the multi-chunk turn attempts exactly one send — the
+    /// first failure latches, everything after is skipped instead of hammering
+    /// the dead channel once per stream event.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn prompt_on_dead_connection_still_runs_and_persists() {
+        let root = tempfile::tempdir().unwrap();
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |_provider_name, _extensions, _working_dir, _use_default_model| {
+                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+            },
+        );
+        let server = Arc::new(
+            GooseAcpAgent::new(GooseAcpAgentOptions {
+                provider_factory,
+                builtin_selection: AcpBuiltinSelection::default(),
+                data_dir: root.path().to_path_buf(),
+                config_dir: root.path().to_path_buf(),
+                disable_session_naming: true,
+                goose_platform: GoosePlatform::GooseCli,
+                additional_source_roots: Vec::new(),
+                scheduler: None,
+                session_cwd: None,
+                active_prompt_runs: Default::default(),
+            })
+            .await
+            .unwrap(),
+        );
+        let session = server
+            .session_manager
+            .create_session(
+                root.path().to_path_buf(),
+                "Dead connection test".to_string(),
+                SessionType::Acp,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+            server.session_manager.clone(),
+            server.permission_manager.clone(),
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        )));
+        // Streams several chunks: each is a client notification the dead-sink
+        // latch must skip after the first failure.
+        let provider = Arc::new(MultiChunkProvider);
+        session_agent
+            .update_provider(
+                provider,
+                goose_providers::model::ModelConfig::new("gpt-4o"),
+                &session.id,
+            )
+            .await
+            .unwrap();
+        server
+            .register_acp_session(session.id.clone(), session_agent)
+            .await;
+
+        // Open a real connection only to mint a `ConnectionTo<Client>`, then
+        // let both ends shut down completely so every send on it fails.
+        let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+        let (server_read, client_write) = tokio::io::duplex(64 * 1024);
+        let client = tokio::spawn(async move {
+            Client
+                .builder()
+                .connect_to(ByteStreams::new(
+                    client_write.compat_write(),
+                    client_read.compat(),
+                ))
+                .await
+        });
+        let cx_holder: Arc<Mutex<Option<ConnectionTo<Client>>>> = Arc::new(Mutex::new(None));
+        SacpAgent
+            .builder()
+            .name("dead-connection-test")
+            .connect_with(
+                ByteStreams::new(server_write.compat_write(), server_read.compat()),
+                {
+                    let cx_holder = cx_holder.clone();
+                    async move |cx: ConnectionTo<Client>| {
+                        *cx_holder.lock().await = Some(cx);
+                        Ok(())
+                    }
+                },
+            )
+            .await
+            .unwrap();
+        let _ = client.await;
+        let cx = cx_holder.lock().await.take().unwrap();
+
+        // Prove the connection is dead: the exact kind of send `on_prompt`
+        // opens with fails.
+        let session_id = SessionId::new(session.id.clone());
+        assert!(
+            GooseAcpAgent::send_active_run_update(&cx, &session_id, None).is_err(),
+            "the minted connection must be fully shut down"
+        );
+
+        let request = PromptRequest::new(
+            session_id,
+            vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+        );
+        let client_sink = ClientNotificationSink::default();
+        let response = server
+            .on_prompt_with_sink(&cx, request, &client_sink)
+            .await
+            .expect("a dead client must not discard the prompt");
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        // The latch: the first failed send marks the sink dead and every later
+        // client-bound send of the run — one per streamed chunk, plus the
+        // post-turn updates — is skipped rather than attempted and logged.
+        assert_eq!(
+            client_sink.failed_send_count(),
+            1,
+            "a dead client sink must be latched after the first send failure"
+        );
+
+        // The run was cleared on completion...
+        assert!(server
+            .test_require_active_run(&session.id, "run-x")
+            .await
+            .is_err());
+        // ...and the prompt is persisted for a later session/load.
+        let persisted = server
+            .session_manager
+            .get_session(&session.id, true)
+            .await
+            .unwrap();
+        let texts: Vec<String> = persisted
+            .conversation
+            .expect("conversation persisted")
+            .messages()
+            .iter()
+            .flat_map(|message| message.content.iter())
+            .filter_map(|content| match content {
+                MessageContent::Text(text) => Some(text.text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            texts.iter().any(|text| text.contains("what is 1+1")),
+            "prompt must be persisted despite the dead connection; got {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|text| text.contains("chunk-three")),
+            "assistant reply must be persisted despite the dead connection; got {texts:?}"
+        );
     }
 
     #[tokio::test]

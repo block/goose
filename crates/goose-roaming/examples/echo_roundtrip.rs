@@ -34,6 +34,7 @@ impl AcpStreamServer for EchoServer {
         _client: EndpointId,
         mut recv: Box<dyn futures::io::AsyncRead + Send + Unpin>,
         mut send: Box<dyn futures::io::AsyncWrite + Send + Unpin>,
+        _revocation: goose_roaming::RevocationSignal,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
         Box::pin(async move {
             // Read the client's fixed-size message, reply upper-cased, then stay

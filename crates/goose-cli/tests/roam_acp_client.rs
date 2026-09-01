@@ -42,6 +42,7 @@ impl AcpStreamServer for StubAcpAgent {
         _client: EndpointId,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
+        _revocation: goose_roaming::RevocationSignal,
     ) -> BoxFuture<'static, Result<()>> {
         Box::pin(async move {
             let transport = agent_client_protocol::ByteStreams::new(send, recv);

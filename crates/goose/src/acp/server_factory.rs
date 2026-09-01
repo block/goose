@@ -208,7 +208,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dropping_a_prompt_future_releases_the_shared_run() {
+    async fn a_dying_prompt_task_releases_the_shared_run() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), false);
 
@@ -219,6 +219,9 @@ mod tests {
             .await
             .unwrap();
 
+        // Prompt turns run on detached tasks, so a lost transport no longer
+        // drops their future; the drop guard now only fires when the task
+        // itself dies (e.g. a panic) before its explicit clear.
         running.test_drop_active_run_guard("session-1", "run-1");
         tokio::task::yield_now().await;
 
@@ -228,9 +231,116 @@ mod tests {
                 .test_require_active_run("session-1", "run-1")
                 .await
                 .is_err(),
-            "a dropped prompt future must release its run so later \
+            "a prompt task that dies mid-run must release its run so later \
              connections are not permanently locked out of the session"
         );
+    }
+
+    #[tokio::test]
+    async fn cancel_from_another_connection_cancels_a_detached_run() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let running = server.create_agent().await.unwrap();
+        let owner = Arc::new(crate::agents::Agent::new());
+        let cancel_token = running
+            .test_start_active_run("session-1", "run-1".to_string(), owner)
+            .await
+            .unwrap();
+
+        // A detached run outlives the connection that started it, so the
+        // reconnecting client's cancel arrives on a different agent; the
+        // shared registry must still route it to the run's cancel token.
+        let canceling = server.create_agent().await.unwrap();
+        canceling.test_cancel("session-1").await;
+
+        assert!(
+            cancel_token.is_cancelled(),
+            "session/cancel from a later connection must cancel a run that \
+             kept executing after its own connection dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn revocation_only_cancels_this_agents_runs() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let revoked = server.create_agent().await.unwrap();
+        let unaffected = server.create_agent().await.unwrap();
+        let owner = Arc::new(crate::agents::Agent::new());
+        let revoked_token = revoked
+            .test_start_active_run("session-revoked", "run-1".to_string(), owner.clone())
+            .await
+            .unwrap();
+        let unaffected_token = unaffected
+            .test_start_active_run("session-other", "run-2".to_string(), owner)
+            .await
+            .unwrap();
+
+        // The roaming bridge calls this when a peer is revoked: only the
+        // revoked connection's runs stop; runs owned by other connections on
+        // the same shared registry keep executing.
+        let cancelled = revoked.revoke_and_cancel_own_runs().await;
+
+        assert_eq!(cancelled, 1);
+        assert!(
+            revoked_token.is_cancelled(),
+            "the revoked agent's own run must be cancelled"
+        );
+        assert!(
+            !unaffected_token.is_cancelled(),
+            "another connection's run must survive a peer revocation"
+        );
+        // Cancellation leaves the registry entry for the run's own task to
+        // clear, exactly like session/cancel.
+        assert!(revoked
+            .test_require_active_run("session-revoked", "run-1")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn revocation_fences_later_run_registration() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let revoked = server.create_agent().await.unwrap();
+        revoked.revoke_and_cancel_own_runs().await;
+
+        // A prompt task that lost the race with revocation — dispatched
+        // before the sweep but registering after it — must be refused rather
+        // than left running detached under a revoked peer's authority. The
+        // fence check, the shared-registry insert, and the per-agent insert
+        // share one critical section (`OwnPromptRuns`), so the finer
+        // interleaving — revoke landing between the shared insert and the
+        // per-agent insert — is impossible by construction and has no seam to
+        // simulate here.
+        let owner = Arc::new(crate::agents::Agent::new());
+        assert!(
+            revoked
+                .test_start_active_run("session-1", "run-1".to_string(), owner)
+                .await
+                .is_err(),
+            "a revoked connection's agent must refuse to start new runs"
+        );
+
+        // The refused registration must leave nothing behind in the shared
+        // registry...
+        let second = server.create_agent().await.unwrap();
+        assert!(second
+            .test_require_active_run("session-1", "run-1")
+            .await
+            .is_err());
+        // ...and the session stays claimable by a non-revoked connection.
+        assert!(second
+            .test_start_active_run(
+                "session-1",
+                "run-2".to_string(),
+                Arc::new(crate::agents::Agent::new())
+            )
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
