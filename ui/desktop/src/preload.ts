@@ -1,9 +1,10 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import type { GooseApp } from './types/apps';
-import type { Settings, SettingKey } from './utils/settings';
+import type { ExternalBackendFallback, Settings, SettingKey } from './utils/settings';
 import { defaultSettings } from './utils/settings';
 import type { OpenExternalUrlResult } from './utils/urlSecurity';
+import type { ConnectionTestResult } from './backend';
 
 // Mapping from settings keys to their old localStorage keys for lazy migration
 const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
@@ -135,6 +136,17 @@ type ElectronAPI = {
   setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => Promise<void>;
   getSecretKey: () => Promise<string | null>;
   getAcpUrl: () => Promise<string | null>;
+  acpSocket: AcpSocketBridge;
+  switchExternalBackend: () => Promise<{ ok: boolean; error?: string; workingDir?: string }>;
+  getWorkingDir: () => Promise<string | null>;
+  useLocalBackend: () => Promise<{ ok: boolean; error?: string }>;
+  testExternalBackend: (params: {
+    url: string;
+    secret: string;
+    certFingerprint?: string;
+    workingDir?: string;
+  }) => Promise<ConnectionTestResult>;
+  takeExternalBackendFallback: () => Promise<ExternalBackendFallback | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   setSpellcheck: (enable: boolean) => Promise<boolean>;
@@ -189,6 +201,58 @@ type ElectronAPI = {
 type AppConfigAPI = {
   get: (key: string) => unknown;
   getAll: () => Record<string, unknown>;
+};
+
+export interface AcpSocketListeners {
+  onOpen: () => void;
+  onMessage: (data: string) => void;
+  onClose: (code: number, reason: string) => void;
+  onError: (message: string) => void;
+}
+
+export interface AcpSocketBridge {
+  open: (url: string, listeners: AcpSocketListeners) => Promise<number>;
+  send: (socketId: number, data: string) => void;
+  close: (socketId: number, code?: number, reason?: string) => void;
+}
+
+const acpSocketListeners = new Map<number, AcpSocketListeners>();
+
+function routeAcpSocketEvent<Payload>(
+  channel: string,
+  handle: (listeners: AcpSocketListeners, payload: Payload) => void
+): void {
+  ipcRenderer.on(channel, (_event, socketId: number, payload: Payload) => {
+    const listeners = acpSocketListeners.get(socketId);
+    if (listeners) {
+      handle(listeners, payload);
+    }
+  });
+}
+
+routeAcpSocketEvent('acp-socket-open-event', (listeners) => listeners.onOpen());
+routeAcpSocketEvent<string>('acp-socket-message', (listeners, data) => listeners.onMessage(data));
+routeAcpSocketEvent<string>('acp-socket-error', (listeners, message) => listeners.onError(message));
+ipcRenderer.on(
+  'acp-socket-close',
+  (_event, socketId: number, { code, reason }: { code: number; reason: string }) => {
+    const listeners = acpSocketListeners.get(socketId);
+    acpSocketListeners.delete(socketId);
+    listeners?.onClose(code, reason);
+  }
+);
+
+const acpSocketBridge: AcpSocketBridge = {
+  open: async (url, listeners) => {
+    const socketId = (await ipcRenderer.invoke('acp-socket-open', url)) as number;
+    acpSocketListeners.set(socketId, listeners);
+    return socketId;
+  },
+  send: (socketId, data) => ipcRenderer.send('acp-socket-send', socketId, data),
+  close: (socketId, code, reason) => {
+    acpSocketListeners.delete(socketId);
+    ipcRenderer.send('acp-socket-close', socketId, code, reason);
+  },
 };
 
 const electronAPI: ElectronAPI = {
@@ -262,6 +326,13 @@ const electronAPI: ElectronAPI = {
   },
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   getAcpUrl: () => ipcRenderer.invoke('get-acp-url'),
+  acpSocket: acpSocketBridge,
+  switchExternalBackend: () => ipcRenderer.invoke('switch-external-backend'),
+  getWorkingDir: () => ipcRenderer.invoke('get-working-dir'),
+  useLocalBackend: () => ipcRenderer.invoke('use-local-backend'),
+  testExternalBackend: (params: { url: string; secret: string; certFingerprint?: string }) =>
+    ipcRenderer.invoke('test-external-backend', params),
+  takeExternalBackendFallback: () => ipcRenderer.invoke('take-external-backend-fallback'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),

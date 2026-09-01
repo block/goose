@@ -47,6 +47,14 @@ export function reconnectAcpAfterSystemResume(): void {
   recoverConnection(true);
 }
 
+export function reconnectAcpToNewBackend(): void {
+  connectionGeneration += 1;
+  const previousConnection = currentConnection;
+  currentConnection = null;
+  pendingConnection = null;
+  previousConnection?.client.connection.close();
+}
+
 export function isAcpRecovering(): boolean {
   return recovering;
 }
@@ -135,7 +143,10 @@ async function openConnection(generation: number): Promise<AcpConnection> {
   }
 
   // Electron treats an explicitly passed undefined protocol as a subprotocol.
-  const stream = createWebSocketStream(wsUrl, { protocols: [] });
+  const stream = createWebSocketStream(wsUrl, {
+    protocols: [],
+    WebSocket: MainProcessWebSocket,
+  });
   const client = connectGooseAcpClient(stream, createClientCallbacks());
 
   try {
@@ -224,6 +235,104 @@ function createClientCallbacks(): GooseAcpCallbacks {
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
     unstable_providerDeviceCode: handleAcpProviderDeviceCodeNotification,
   };
+}
+
+const SOCKET_CONNECTING = 0;
+const SOCKET_OPEN = 1;
+const SOCKET_CLOSING = 2;
+const SOCKET_CLOSED = 3;
+
+type SocketListener = (event: unknown) => void;
+
+// Chromium cannot open the ACP socket when a backend sits behind mTLS or an auth
+// proxy: it never surfaces the client-certificate request for a WebSocket, and a
+// renderer cannot set the User-Agent proxies gate on. Only the constructor is
+// replaced, so the SDK transport behaves as it does against a local backend.
+class MainProcessWebSocket {
+  readyState: number = SOCKET_CONNECTING;
+
+  private socketId: number | null = null;
+  private closeRequest: { code?: number; reason?: string } | null = null;
+  private readonly listeners = new Map<string, Set<SocketListener>>();
+  private readonly queued: string[] = [];
+
+  constructor(url: string) {
+    void window.electron.acpSocket
+      .open(url, {
+        onOpen: () => {
+          this.readyState = SOCKET_OPEN;
+          for (const data of this.queued) {
+            this.sendNow(data);
+          }
+          this.queued.length = 0;
+          this.emit('open', {});
+        },
+        onMessage: (data) => this.emit('message', { data }),
+        onError: (message) => this.emit('error', { message }),
+        onClose: (code, reason) => {
+          this.readyState = SOCKET_CLOSED;
+          this.emit('close', { code, reason, wasClean: code === 1000 });
+        },
+      })
+      .then((socketId) => {
+        this.socketId = socketId;
+        if (this.closeRequest) {
+          this.close(this.closeRequest.code, this.closeRequest.reason);
+        }
+      })
+      .catch((error: unknown) => {
+        this.readyState = SOCKET_CLOSED;
+        const message = error instanceof Error ? error.message : String(error);
+        this.emit('error', { message });
+        this.emit('close', { code: 1006, reason: message, wasClean: false });
+      });
+  }
+
+  addEventListener(type: string, listener: SocketListener): void {
+    const existing = this.listeners.get(type);
+    if (existing) {
+      existing.add(listener);
+      return;
+    }
+    this.listeners.set(type, new Set([listener]));
+  }
+
+  removeEventListener(type: string, listener: SocketListener): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  send(data: string): void {
+    if (this.readyState === SOCKET_OPEN) {
+      this.sendNow(data);
+      return;
+    }
+    this.queued.push(data);
+  }
+
+  close(code?: number, reason?: string): void {
+    if (this.readyState === SOCKET_CLOSED || this.readyState === SOCKET_CLOSING) {
+      return;
+    }
+
+    this.readyState = SOCKET_CLOSING;
+    if (this.socketId === null) {
+      this.closeRequest = { code, reason };
+      return;
+    }
+    window.electron.acpSocket.close(this.socketId, code, reason);
+  }
+
+  private sendNow(data: string): void {
+    if (this.socketId !== null) {
+      window.electron.acpSocket.send(this.socketId, data);
+    }
+  }
+
+  private emit(type: string, event: Record<string, unknown>): void {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener({ type, ...event });
+    }
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {

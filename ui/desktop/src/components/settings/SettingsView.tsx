@@ -101,6 +101,7 @@ export default function SettingsView({
         models: 'models',
         modes: 'chat',
         sharing: 'sharing',
+        'external-backend': 'sharing',
         styles: 'chat',
         tools: 'chat',
         app: 'app',

@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "작업 디렉터리를 업데이트하지 못했습니다."
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "최근 디렉터리"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "{url}의 외부 백엔드에 연결할 수 없어 이 창은 로컬 백엔드로 시작되었습니다."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "설정 열기"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "연결 테스트"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "연결 테스트에 실패했습니다. 아래 세부 정보를 확인하세요."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "연결 테스트를 통과했습니다."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "테스트 중..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "{branch} 브랜치로 전환하지 못했습니다"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "인증서 지문은 https URL이 필요합니다"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "변경 사항은 새 채팅 창에 적용됩니다. 기존 창을 업데이트하려면 goose를 다시 시작하세요."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "비밀 키"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "서버가 시작 중이거나 일시적으로 사용할 수 없습니다."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "goose 서버에 접속할 수 없습니다"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "다시 시도"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "로컬 AI 에이전트입니다. 시작하려면 AI 모델 제공업체를 연결하세요."

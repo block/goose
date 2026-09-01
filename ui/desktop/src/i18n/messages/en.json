@@ -1205,6 +1205,12 @@
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Search extensions..."
   },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose could not connect to the external backend at {url}, so this window started on the local backend."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Open settings"
+  },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "Certificate Fingerprint (optional)"
   },
@@ -1217,11 +1223,11 @@
   "externalBackendSection.description": {
     "defaultMessage": "By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend."
   },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
+  },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
-  },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes apply to new chat windows. Restart Goose to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
@@ -1237,6 +1243,27 @@
   },
   "externalBackendSection.serverUrlHelp": {
     "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Test Connection"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "Connection test failed. See the details below."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Connection test passed."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Testing…"
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1257,10 +1284,10 @@
     "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
   },
   "externalBackendSection.workingDir": {
-    "defaultMessage": "Remote Working Directory (optional)"
+    "defaultMessage": "Remote Working Directory"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Absolute path on the external backend. Leave blank to send the local working directory."
+    "defaultMessage": "Absolute path that exists on the external backend. Without it Goose sends a local path, which the backend rejects when starting a chat."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"
@@ -2420,11 +2447,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Unable to connect to Goose server"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Your local AI agent. Connect an AI model provider to get started."

@@ -11,6 +11,12 @@ export interface ExternalBackendConfig {
   workingDir?: string;
 }
 
+export interface ExternalBackendFallback {
+  url: string;
+  reason: string;
+  at: number;
+}
+
 export interface KeyboardShortcuts {
   focusWindow: string | null;
   quickLauncher: string | null;

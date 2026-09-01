@@ -927,7 +927,6 @@
     "defaultMessage": "Working directory must be an absolute path"
   },
 
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Không thể cập nhật thư mục làm việc"
   },
@@ -942,6 +941,24 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Thư mục gần đây"
+  },
+  "externalBackendFallback.body": {
+    "defaultMessage": "Goose không thể kết nối tới backend bên ngoài tại {url}, nên cửa sổ này đã khởi động với backend cục bộ."
+  },
+  "externalBackendFallback.openSettings": {
+    "defaultMessage": "Mở cài đặt"
+  },
+  "externalBackendSection.test": {
+    "defaultMessage": "Kiểm tra kết nối"
+  },
+  "externalBackendSection.testFailed": {
+    "defaultMessage": "Kiểm tra kết nối thất bại. Xem chi tiết bên dưới."
+  },
+  "externalBackendSection.testPassed": {
+    "defaultMessage": "Kiểm tra kết nối thành công."
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Đang kiểm tra..."
   },
   "gitBranchIndicator.failedToSwitch": {
     "defaultMessage": "Không thể chuyển sang {branch}"
@@ -1213,8 +1230,17 @@
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
-  "externalBackendSection.restartNote": {
-    "defaultMessage": "Các thay đổi cần khởi động lại Goose để có hiệu lực. Các cửa sổ trò chuyện mới sẽ kết nối tới máy chủ bên ngoài."
+  "externalBackendSection.switching": {
+    "defaultMessage": "Connecting this window to the external backend…"
+  },
+  "externalBackendSection.switched": {
+    "defaultMessage": "This window is now using the external backend."
+  },
+  "externalBackendSection.switchFailed": {
+    "defaultMessage": "Could not switch this window: {error}"
+  },
+  "externalBackendSection.disabledNote": {
+    "defaultMessage": "Turning the external backend off applies to new chat windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Khóa bí mật"
@@ -2398,11 +2424,17 @@
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "Máy chủ có thể đang khởi động hoặc tạm thời không khả dụng."
   },
+  "onboardingGuard.checkProviderErrorExternal": {
+    "defaultMessage": "Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend."
+  },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Không thể kết nối với máy chủ Goose"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Thử lại"
+  },
+  "onboardingGuard.useLocalBackend": {
+    "defaultMessage": "Use local backend"
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Tác nhân AI cục bộ của bạn. Kết nối một nhà cung cấp mô hình AI để bắt đầu."

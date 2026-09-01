@@ -37,9 +37,41 @@ const i18n = defineMessages({
     id: 'onboardingGuard.retry',
     defaultMessage: 'Retry',
   },
+  checkProviderErrorExternal: {
+    id: 'onboardingGuard.checkProviderErrorExternal',
+    defaultMessage:
+      'Goose is set to use the external backend at {url}. Check that it is running and reachable, or switch back to the local backend.',
+  },
+  useLocalBackend: {
+    id: 'onboardingGuard.useLocalBackend',
+    defaultMessage: 'Use local backend',
+  },
 });
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
+
+const errorText = (error: unknown): string | null => {
+  if (!error) {
+    return null;
+  }
+  // Transport failures arrive as WebSocket-style event objects, not Errors.
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : String(error);
+  return message.trim() && message !== '[object Object]' ? message : null;
+};
+
+const readExternalBackendUrl = async (): Promise<string | null> => {
+  try {
+    const externalGoosed = await window.electron.getSetting('externalGoosed');
+    return externalGoosed?.enabled && externalGoosed.url ? externalGoosed.url : null;
+  } catch {
+    return null;
+  }
+};
 
 interface OnboardingGuardProps {
   children: React.ReactNode;
@@ -54,6 +86,9 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [checkProviderError, setCheckProviderError] = useState(false);
+  const [checkProviderErrorDetail, setCheckProviderErrorDetail] = useState<string | null>(null);
+  const [externalBackendUrl, setExternalBackendUrl] = useState<string | null>(null);
+  const [localBackendError, setLocalBackendError] = useState<string | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const [configuredProvider, setConfiguredProvider] = useState<string | null>(null);
   const [configuredProviderDisplayName, setConfiguredProviderDisplayName] = useState<string | null>(
@@ -65,6 +100,8 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const checkProvider = async (retries = 3, delay = 1000) => {
     setIsCheckingProvider(true);
     setCheckProviderError(false);
+    setLocalBackendError(null);
+    let lastError: unknown = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const { providerId: provider } = await acpReadDefaults();
@@ -91,11 +128,15 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
         return;
       } catch (error) {
         console.error(`Error checking provider (attempt ${attempt + 1}/${retries + 1}):`, error);
+        lastError = error;
         if (attempt < retries) {
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
+
+    setCheckProviderErrorDetail(errorText(lastError));
+    setExternalBackendUrl(await readExternalBackendUrl());
     setCheckProviderError(true);
     setIsCheckingProvider(false);
   };
@@ -106,7 +147,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }, []);
 
   useEffect(() => {
-    if (!isCheckingProvider && !hasProvider && !checkProviderError && !hasTrackedOnboardingStart.current) {
+    if (
+      !isCheckingProvider &&
+      !hasProvider &&
+      !checkProviderError &&
+      !hasTrackedOnboardingStart.current
+    ) {
       trackOnboardingStarted();
       hasTrackedOnboardingStart.current = true;
     }
@@ -122,6 +168,13 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
     setConfiguredProviderDisplayName(matchedProvider?.metadata.display_name || providerName);
+  };
+
+  const useLocalBackend = async (): Promise<void> => {
+    const result = await window.electron.useLocalBackend();
+    if (!result.ok) {
+      setLocalBackendError(result.error ?? 'Could not switch to the local backend.');
+    }
   };
 
   const finishOnboarding = async (telemetryEnabled: boolean) => {
@@ -152,11 +205,30 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
           <div className="mb-4">
             <Goose className="size-8 mx-auto" />
           </div>
-          <h1 className="text-xl font-light mb-3">{intl.formatMessage(i18n.checkProviderErrorTitle)}</h1>
-          <p className="text-text-muted mb-6">{intl.formatMessage(i18n.checkProviderErrorDescription)}</p>
-          <Button onClick={() => checkProvider()}>
-            {intl.formatMessage(i18n.retry)}
-          </Button>
+          <h1 className="text-xl font-light mb-3">
+            {intl.formatMessage(i18n.checkProviderErrorTitle)}
+          </h1>
+          <p className="text-text-muted mb-3">
+            {externalBackendUrl
+              ? intl.formatMessage(i18n.checkProviderErrorExternal, { url: externalBackendUrl })
+              : intl.formatMessage(i18n.checkProviderErrorDescription)}
+          </p>
+          {checkProviderErrorDetail && (
+            <p className="text-xs text-text-muted mb-6 font-mono break-words text-left bg-background-muted border border-border-subtle rounded-md p-3">
+              {checkProviderErrorDetail}
+            </p>
+          )}
+          <div className="flex items-center justify-center gap-2">
+            <Button onClick={() => checkProvider()}>{intl.formatMessage(i18n.retry)}</Button>
+            {externalBackendUrl && (
+              <Button variant="outline" onClick={useLocalBackend}>
+                {intl.formatMessage(i18n.useLocalBackend)}
+              </Button>
+            )}
+          </div>
+          {localBackendError && (
+            <p className="text-xs text-red-500 mt-4 break-words">{localBackendError}</p>
+          )}
         </div>
       </div>
     );
@@ -185,7 +257,9 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
               <div className="mb-4">
                 <Goose className="size-8" />
               </div>
-              <h1 className="text-2xl sm:text-4xl font-light mb-3">{intl.formatMessage(i18n.welcomeTitle)}</h1>
+              <h1 className="text-2xl sm:text-4xl font-light mb-3">
+                {intl.formatMessage(i18n.welcomeTitle)}
+              </h1>
               <p className="text-text-muted text-base sm:text-lg">
                 {intl.formatMessage(i18n.welcomeDescription)}
               </p>
