@@ -99,7 +99,7 @@ fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> 
     error.context(message)
 }
 
-pub const MCP_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V_2025_11_25;
+pub const MCP_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V_2026_07_28;
 
 fn normalize_legacy_provider_thinking_effort(
     mut model_config: goose_providers::model::ModelConfig,

@@ -5264,7 +5264,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "rubato",
  "rustls",
  "schemars 1.2.2",
@@ -5336,7 +5336,7 @@ dependencies = [
  "async-trait",
  "futures",
  "goose-provider-types",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -5383,7 +5383,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5417,7 +5417,7 @@ dependencies = [
  "goose-providers",
  "include_dir",
  "minijinja",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde",
  "serde_json",
  "tokio",
@@ -5461,7 +5461,7 @@ dependencies = [
  "pulldown-cmark",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5488,7 +5488,7 @@ dependencies = [
  "lopdf",
  "once_cell",
  "process-wrap",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -5516,7 +5516,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5547,7 +5547,7 @@ dependencies = [
  "pem 4.0.0",
  "pkcs8 0.11.0",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "sec1 0.8.1",
  "serde",
  "serde_json",
@@ -5594,7 +5594,7 @@ dependencies = [
  "goose-context-management",
  "goose-providers",
  "goose-sdk-types",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
@@ -5628,7 +5628,7 @@ dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde_json",
  "tokio",
 ]
@@ -10307,9 +10307,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.4"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a15bc53261a9dc37e105df006e4656c598379a8f9581f8950debb130f27a7cf"
+checksum = "42b6914fac0be956fe704a38239c3f44a9f841d1b06a5713d2f638065593f5b5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -10328,7 +10328,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros 3.1.4",
+ "rmcp-macros 3.2.0",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -10358,9 +10358,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.4"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85d45508e9b4ba024fe996c2638799635d75b6dd0ba8f32ccf08f8026f0c780"
+checksum = "cdf1c49bd4d52014b94db0877410db273c2008f01628b0252a2e9460ad9b7fda"
 dependencies = [
  "darling 0.24.0",
  "proc-macro2",
