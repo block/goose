@@ -199,8 +199,6 @@ pub enum SessionSystemPromptMode {
 /// `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
 /// instruction under "Additional Instructions". Reusing a key replaces the
 /// previous value for that mode/key; sending empty text clears it.
-/// Get a diagnostic report for a session.
-/// List locally available inference models.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/session/system-prompt/set",
@@ -240,6 +238,7 @@ pub struct SteerSessionResponse {
     pub message_id: String,
 }
 
+/// Get a diagnostic report for a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/diagnostics/get",
@@ -635,7 +634,6 @@ pub struct OnboardingImportCandidate {
 }
 
 /// Scan for existing Goose and compatible app data that onboarding can import.
-/// Share a session through Nostr and return its share links.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/onboarding/import/scan",
@@ -785,6 +783,7 @@ pub enum SessionImportSource {
     Nostr,
 }
 
+/// Share a session through Nostr and return its share links.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/session/share/nostr",
@@ -1999,6 +1998,7 @@ pub struct LocalInferenceHfModelInfoDto {
     pub variants: Vec<LocalInferenceHfModelVariantDto>,
 }
 
+/// List locally available inference models.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/list",

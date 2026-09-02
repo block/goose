@@ -371,8 +371,6 @@ export type UpdateWorkingDirRequest_unstable = {
  * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
  * instruction under "Additional Instructions". Reusing a key replaces the
  * previous value for that mode/key; sending empty text clears it.
- * Get a diagnostic report for a session.
- * List locally available inference models.
  */
 export type SetSessionSystemPromptRequest_unstable = {
     sessionId: string;
@@ -679,6 +677,9 @@ export type SteerSessionResponse_unstable = {
     messageId: string;
 };
 
+/**
+ * Get a diagnostic report for a session.
+ */
 export type DiagnosticsGetRequest_unstable = {
     sessionId: string;
     level?: DiagnosticsReportLevel;
@@ -1429,7 +1430,6 @@ export type DefaultsClearRequest_unstable = {
 
 /**
  * Scan for existing Goose and compatible app data that onboarding can import.
- * Share a session through Nostr and return its share links.
  */
 export type OnboardingImportScanRequest_unstable = {
     /**
@@ -1518,6 +1518,9 @@ export type ImportSessionResponse_unstable = {
     messageCount: number;
 };
 
+/**
+ * Share a session through Nostr and return its share links.
+ */
 export type ShareSessionNostrRequest_unstable = {
     sessionId: string;
     relays: Array<string>;
@@ -2379,6 +2382,9 @@ export type DictationModelDeleteRequest_unstable = {
     modelId: string;
 };
 
+/**
+ * List locally available inference models.
+ */
 export type LocalInferenceModelsListRequest_unstable = {
     [key: string]: unknown;
 };

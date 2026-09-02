@@ -277,8 +277,6 @@ export const zSessionSystemPromptMode = z.union([
  * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
  * instruction under "Additional Instructions". Reusing a key replaces the
  * previous value for that mode/key; sending empty text clears it.
- * Get a diagnostic report for a session.
- * List locally available inference models.
  */
 export const zSetSessionSystemPromptRequest_unstable = z.object({
     sessionId: z.string(),
@@ -426,6 +424,9 @@ export const zSteerSessionResponse_unstable = z.object({
 
 export const zDiagnosticsReportLevel = z.enum(['summary', 'full']);
 
+/**
+ * Get a diagnostic report for a session.
+ */
 export const zDiagnosticsGetRequest_unstable = z.object({
     sessionId: z.string(),
     level: zDiagnosticsReportLevel.optional().default('summary')
@@ -1089,7 +1090,6 @@ export const zOnboardingImportSourceKind = z.enum(['goose_config', 'claude_deskt
 
 /**
  * Scan for existing Goose and compatible app data that onboarding can import.
- * Share a session through Nostr and return its share links.
  */
 export const zOnboardingImportScanRequest_unstable = z.object({
     sources: z.array(zOnboardingImportSourceKind).optional().default([])
@@ -1174,6 +1174,9 @@ export const zImportSessionResponse_unstable = z.object({
     messageCount: z.int().gte(0)
 });
 
+/**
+ * Share a session through Nostr and return its share links.
+ */
 export const zShareSessionNostrRequest_unstable = z.object({
     sessionId: z.string(),
     relays: z.array(z.string())
@@ -1908,6 +1911,9 @@ export const zDictationModelDeleteRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * List locally available inference models.
+ */
 export const zLocalInferenceModelsListRequest_unstable = z.record(z.string(), z.unknown());
 
 export const zLocalInferenceDownloadState = z.enum([

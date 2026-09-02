@@ -788,7 +788,7 @@
         "sessionId",
         "text"
       ],
-      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces Goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.\nGet a diagnostic report for a session.\nList locally available inference models.",
+      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces Goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/system-prompt/set"
     },
@@ -1309,6 +1309,7 @@
       "required": [
         "sessionId"
       ],
+      "description": "Get a diagnostic report for a session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/diagnostics/get"
     },
@@ -3281,7 +3282,7 @@
           "default": []
         }
       },
-      "description": "Scan for existing Goose and compatible app data that onboarding can import.\nShare a session through Nostr and return its share links.",
+      "description": "Scan for existing Goose and compatible app data that onboarding can import.",
       "x-side": "agent",
       "x-method": "_goose/unstable/onboarding/import/scan"
     },
@@ -3546,6 +3547,7 @@
         "sessionId",
         "relays"
       ],
+      "description": "Share a session through Nostr and return its share links.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/share/nostr"
     },
@@ -5756,6 +5758,7 @@
     },
     "LocalInferenceModelsListRequest_unstable": {
       "type": "object",
+      "description": "List locally available inference models.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/list"
     },
