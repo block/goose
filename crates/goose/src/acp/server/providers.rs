@@ -649,6 +649,7 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                auth: None,
             },
         )
         .internal_err_ctx("Failed to create custom provider")?;
@@ -693,7 +694,7 @@ impl GooseAcpAgent {
         }
 
         let provider = normalize_custom_provider_upsert(req.provider, false)?;
-        if provider.requires_auth && provider.api_key.is_none() {
+        if provider.requires_auth && provider.api_key.is_none() && loaded.config.auth.is_none() {
             let api_key_env = if loaded.config.api_key_env.is_empty() {
                 declarative_providers::generate_api_key_name(&req.provider_id)
             } else {
@@ -710,7 +711,11 @@ impl GooseAcpAgent {
                 engine: provider.engine,
                 display_name: provider.display_name,
                 api_url: provider.api_url,
-                api_key: provider.api_key,
+                api_key: if loaded.config.auth.is_some() {
+                    None
+                } else {
+                    provider.api_key
+                },
                 models: custom_provider_models(
                     provider.models,
                     &loaded.config.models,
@@ -722,6 +727,15 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                // The desktop/ACP form doesn't yet support editing command-based
+                // auth, so carry the existing setting forward unchanged rather
+                // than silently clearing it — but only while auth stays enabled;
+                // disabling auth must actually stop the credential command.
+                auth: if provider.requires_auth {
+                    loaded.config.auth.clone()
+                } else {
+                    None
+                },
             },
         )
         .internal_err_ctx("Failed to update custom provider")?;

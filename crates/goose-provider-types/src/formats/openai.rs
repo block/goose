@@ -1,6 +1,10 @@
 use crate::base::ThinkingPreservationFormat;
 use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
+use crate::documents::{
+    convert_document, document_media_type_is_supported, unsupported_document_text, DocumentFormat,
+    ASSISTANT_ROLE_REASON, UNSUPPORTED_MEDIA_TYPE_REASON,
+};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::json::{parse_tool_arguments, truncation_error_message};
@@ -423,6 +427,22 @@ pub fn format_messages_with_options(
                         content_array.push(json!({
                             "type": "text",
                             "text": "[Image content removed - not supported in assistant messages]"
+                        }));
+                    }
+                }
+                MessageContentBlock::Document(document) => {
+                    if message.role != Role::User {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": unsupported_document_text(document, ASSISTANT_ROLE_REASON)
+                        }));
+                    } else if document_media_type_is_supported(&document.mime_type) {
+                        has_non_text_content = true;
+                        content_array.push(convert_document(document, &DocumentFormat::OpenAi));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": unsupported_document_text(document, UNSUPPORTED_MEDIA_TYPE_REASON)
                         }));
                     }
                 }
@@ -1928,6 +1948,73 @@ pub fn is_valid_function_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
     re.is_match(name)
+}
+
+#[cfg(test)]
+mod document_tests {
+    use super::*;
+
+    fn format(messages: &[Message]) -> Vec<Value> {
+        format_messages_with_options(
+            messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                supports_vision: true,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn user_document_becomes_a_file_content_part() {
+        let spec = format(&[Message::user().with_document(
+            "cGRmLWJ5dGVz",
+            "application/pdf",
+            Some("q3-report.pdf".to_string()),
+        )]);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(
+            spec[0]["content"][0],
+            json!({
+                "type": "file",
+                "file": {
+                    "filename": "q3-report.pdf",
+                    "file_data": "data:application/pdf;base64,cGRmLWJ5dGVz",
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn assistant_document_becomes_a_text_part() {
+        let spec = format(&[Message::assistant().with_document(
+            "cGRmLWJ5dGVz",
+            "application/pdf",
+            Some("q3-report.pdf".to_string()),
+        )]);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        let text = spec[0]["content"].as_str().unwrap();
+        assert!(text.contains("q3-report.pdf"), "{text}");
+        assert!(text.contains("user messages"), "{text}");
+        assert!(!text.contains("cGRmLWJ5dGVz"), "{text}");
+    }
+
+    #[test]
+    fn unsupported_document_media_type_becomes_an_explicit_text_part() {
+        let spec = format(&[Message::user().with_document(
+            "cm93cw==",
+            "text/csv",
+            Some("rows.csv".to_string()),
+        )]);
+
+        let text = spec[0]["content"].as_str().unwrap();
+        assert!(text.contains("rows.csv"), "{text}");
+        assert!(text.contains("application/pdf"), "{text}");
+        assert!(!text.contains("cm93cw=="), "{text}");
+    }
 }
 
 #[cfg(test)]

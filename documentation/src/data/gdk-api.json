@@ -391,6 +391,29 @@
               ]
             },
             {
+              "name": "Document",
+              "fields": [
+                {
+                  "name": "mime_type",
+                  "type": "String",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "data",
+                  "type": "Vec<u8>",
+                  "default": null,
+                  "docs": ""
+                },
+                {
+                  "name": "name",
+                  "type": "Option<String>",
+                  "default": null,
+                  "docs": ""
+                }
+              ]
+            },
+            {
               "name": "ToolRequest",
               "fields": [
                 {
@@ -862,6 +885,10 @@
             },
             {
               "name": "Images",
+              "fields": []
+            },
+            {
+              "name": "Documents",
               "fields": []
             },
             {

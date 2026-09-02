@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
 use crate::providers::base::{ProviderDef, DEFAULT_PROVIDER_TIMEOUT_SECS};
+use crate::providers::command_auth::CommandAuthProvider;
 use crate::providers::custom_provider_config::ConfigKeyResolver;
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::openai::{
@@ -217,6 +218,7 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
+    let auth_override = config.auth.clone();
     goose_providers::openai::from_declarative_config(
         config,
         tls_config,
@@ -225,8 +227,14 @@ pub fn from_custom_config(
     .map(|builder| {
         builder
             .map_api_client(|api_client| {
-                api_client
-                    .with_request_builder(crate::session_context::session_id_request_builder())
+                let api_client = api_client
+                    .with_request_builder(crate::session_context::session_id_request_builder());
+                match auth_override {
+                    Some(auth_config) => api_client.with_auth(AuthMethod::Custom(Box::new(
+                        CommandAuthProvider::new(&auth_config, "Authorization", "Bearer "),
+                    ))),
+                    None => api_client,
+                }
             })
             .build()
     })

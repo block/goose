@@ -7,7 +7,7 @@
  * lives there.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
@@ -47,8 +47,11 @@ function useClock() {
 
 export default function Hub({
   setView,
+  draftRef,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
+  /** Unsent input of this screen, kept above the route outlet across the unmount. */
+  draftRef: RefObject<string>;
 }) {
   const intl = useIntl();
   const { extensionsList } = useConfig();
@@ -104,6 +107,7 @@ export default function Hub({
     const { msg: userMessage, images } = input;
     if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
 
+    const draftAtSubmit = draftRef.current;
     setIsCreatingSession(true);
 
     try {
@@ -127,6 +131,13 @@ export default function Hub({
           detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
         })
       );
+
+      // The draft is this screen's own, so it is dropped once the session exists.
+      // Comparing it against the value at submit leaves an edit made while the
+      // session was starting alone, including one that emptied the input.
+      if (draftRef.current === draftAtSubmit) {
+        draftRef.current = '';
+      }
 
       setView('pair', {
         disableAnimation: true,
@@ -156,6 +167,7 @@ export default function Hub({
         <ChatInputCard>
           <ChatInput
             sessionId={null}
+            draftRef={draftRef}
             handleSubmit={handleSubmit}
             chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
             onStop={() => {}}
