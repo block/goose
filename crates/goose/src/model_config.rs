@@ -23,13 +23,14 @@ pub fn model_config_from_user_config_with_session_settings(
     model_name: impl AsRef<str>,
     previous: Option<&ModelConfig>,
     request_params: Option<HashMap<String, Value>>,
-    _context_limit: Option<usize>,
+    context_limit: Option<usize>,
 ) -> Result<ModelConfig> {
     let config = Config::global();
     let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     let model = materialize_model_config_inner(model, provider_name, false)?
         .with_inherited_session_settings_from(previous, request_params)
-        .with_default_thinking_effort(config.get_goose_thinking_effort());
+        .with_default_thinking_effort(config.get_goose_thinking_effort())
+        .with_context_limit(context_limit);
 
     Ok(apply_canonical_limits(provider_name, model))
 }
