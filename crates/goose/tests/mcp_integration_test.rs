@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
-use goose::agents::{GoosePlatform, MCP_PROTOCOL_VERSION};
+use goose::agents::GoosePlatform;
 use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
@@ -242,7 +242,7 @@ async fn test_replayed_session(
         envs,
         env_keys: vec![],
         timeout: Some(30),
-        cwd: None,
+        cwd: Some(env!("CARGO_MANIFEST_DIR").to_string()),
         bundled: Some(false),
         available_tools: vec![],
     };
@@ -263,7 +263,7 @@ async fn test_replayed_session(
             mcpui: true,
             host_info: None,
             elicitation_handler: None,
-            protocol_version: Some(MCP_PROTOCOL_VERSION),
+            protocol_version: None,
         },
         true,
     ));

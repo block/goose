@@ -249,7 +249,7 @@ impl AgentConfig {
             goose_platform,
             mcp_host_info: None,
             elicitation_handler: None,
-            mcp_protocol_version: Some(MCP_PROTOCOL_VERSION),
+            mcp_protocol_version: None,
             session_name_update_tx: None,
             use_login_shell_path: None,
             is_subagent: false,
