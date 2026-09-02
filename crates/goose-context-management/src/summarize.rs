@@ -1,7 +1,7 @@
 use anyhow::Result;
-use goose_providers::conversation::message::{Message, MessageContent};
-use goose_providers::conversation::token_usage::ProviderUsage;
-use goose_providers::errors::ProviderError;
+use goose_provider_types::conversation::message::{Message, MessageContent};
+use goose_provider_types::conversation::token_usage::ProviderUsage;
+use goose_provider_types::errors::ProviderError;
 use rmcp::model::Role;
 use serde::Serialize;
 use tracing::warn;
@@ -9,7 +9,7 @@ use tracing::warn;
 use crate::format::format_message_for_compacting;
 use crate::model::{CompactionModel, TokenEstimator};
 use crate::structured::StructuredSummary;
-use crate::templates::{render, Templates};
+use crate::templates::{Templates, render};
 
 const REMOVAL_PERCENTAGES: [u32; 5] = [0, 10, 20, 50, 100];
 

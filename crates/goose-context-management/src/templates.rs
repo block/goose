@@ -1,4 +1,4 @@
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
 use serde::Serialize;
 
