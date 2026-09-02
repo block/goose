@@ -239,11 +239,6 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
 
     let setup_method = cliclack::select("How would you like to set up your provider?")
         .item(
-            "aimlapi",
-            "AI/ML API Login (Recommended)",
-            "Sign in with AI/ML API to automatically configure models",
-        )
-        .item(
             "openrouter",
             "OpenRouter Login (Recommended)",
             "Sign in with OpenRouter to automatically configure models",
@@ -276,18 +271,6 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
                 let _ = config.clear();
                 println!(
                     "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
-                    style("Error").red().italic(),
-                    e,
-                );
-            }
-        }
-        "aimlapi" => {
-            if let Err(e) = handle_aimlapi_auth().await {
-                let _ = config.clear();
-                println!(
-                    "
-  {} AI/ML API sign-in failed: {} 
-  Please try again or use manual configuration",
                     style("Error").red().italic(),
                     e,
                 );
@@ -1962,30 +1945,6 @@ pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
         "Set maximum turns to {} - goose will ask for input after {} consecutive actions",
         max_turns, max_turns
     ))?;
-
-    Ok(())
-}
-
-/// Handle AI/ML API authentication (authorization code + PKCE)
-pub async fn handle_aimlapi_auth() -> anyhow::Result<()> {
-    use goose::config::{configure_aimlapi, signup_aimlapi::AimlapiAuth};
-
-    let mut auth_flow = AimlapiAuth::new()?;
-    let api_key = auth_flow.complete_flow().await?;
-    println!(
-        "
-Sign-in complete!"
-    );
-
-    let config = Config::global();
-
-    println!(
-        "
-Configuring AI/ML API..."
-    );
-    configure_aimlapi(config, api_key)?;
-
-    println!("AI/ML API configuration complete");
 
     Ok(())
 }
