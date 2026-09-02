@@ -436,10 +436,10 @@ fn discover_skills_with_config(working_dir: Option<&Path>, config: &Config) -> V
         .enumerate()
         .map(|(precedence, dir)| SkillRoot {
             path: dir.path,
-            scope: if dir.is_global {
-                SkillScope::Global
-            } else if dir.preserve_path {
+            scope: if dir.preserve_path {
                 SkillScope::Plugin
+            } else if dir.is_global {
+                SkillScope::Global
             } else {
                 SkillScope::Project
             },
