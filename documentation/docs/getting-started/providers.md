@@ -281,11 +281,10 @@ To configure your chosen provider, see available options, or select a model, vis
 
 [OpenLLM](https://openllm.sh/) manages both BYOK API providers and subscription providers for goose. You arrange them into fallback chains, then select a chain such as `ultra`, `plus`, or `lite` as your model. If the first provider is unavailable, rate-limited, or cannot fit the request, OpenLLM tries the next one without changing your goose configuration.
 
-Install OpenLLM and start its local service:
+Install OpenLLM (the installer also starts its local service):
 
 ```sh
 curl -fsSL https://www.openllm.sh/install | bash
-openllm start
 ```
 
 Then choose **OpenLLM** in goose and select `ultra`, `plus`, `lite`, or another model returned by OpenLLM. You can create and reorder fallback chains in the OpenLLM dashboard. Since goose refers to the chain by name, you can change the models behind it without updating goose.
