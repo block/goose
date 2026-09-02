@@ -9,7 +9,7 @@ use tracing::warn;
 use crate::format::format_message_for_compacting;
 use crate::model::{CompactionModel, TokenEstimator};
 use crate::structured::StructuredSummary;
-use crate::templates::{Templates, render};
+use crate::templates::{render, Templates};
 
 const REMOVAL_PERCENTAGES: [u32; 5] = [0, 10, 20, 50, 100];
 
