@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
+use tokio::sync::Mutex as TokioMutex;
 
 use crate::config::paths::Paths;
 use crate::config::Config;
@@ -79,6 +80,7 @@ struct MuseCodeAuth {
     api_host: String,
     auth_host: String,
     client_id: String,
+    refresh_mutex: TokioMutex<()>,
 }
 
 struct SharedAuthProvider(Arc<MuseCodeAuth>);
@@ -401,7 +403,25 @@ impl MuseCodeAuth {
             return Err(ProviderError::NotConfigured);
         }
 
-        match self.do_refresh_token(&token.refresh_token).await {
+        let _guard = self.refresh_mutex.lock().await;
+
+        if let Some(reloaded) = self.cache.load() {
+            if reloaded != token
+                && reloaded.expires_at - Utc::now() > Duration::seconds(REFRESH_THRESHOLD_SECS)
+            {
+                return Ok(reloaded);
+            }
+            if reloaded != token && !reloaded.refresh_token.is_empty() {
+                return self.refresh_with_token(reloaded).await;
+            }
+        }
+
+        self.refresh_with_token(token).await
+    }
+
+    async fn refresh_with_token(&self, token: MuseToken) -> Result<MuseToken, ProviderError> {
+        let refresh_token = token.refresh_token.clone();
+        match self.do_refresh_token(&refresh_token).await {
             Ok(refreshed) => {
                 if let Err(e) = self.cache.save(&refreshed) {
                     tracing::warn!("failed to persist refreshed muse_code token: {}", e);
@@ -466,6 +486,7 @@ async fn from_env(tls_config: Option<TlsConfig>) -> Result<MuseCodeProvider> {
         api_host: host.clone(),
         auth_host,
         client_id,
+        refresh_mutex: TokioMutex::new(()),
     });
 
     let api_client = ApiClient::with_timeout_and_tls(
