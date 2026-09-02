@@ -2413,13 +2413,16 @@ fn emit_stream_event(event: &StreamEvent) {
 fn prompt_tool_confirmation(request: &ToolConfirmationRequest) -> Result<Permission> {
     output::hide_thinking();
 
-    let prompt = if let Some(security_message) = &request.prompt {
-        println!("\n{}", security_message);
+    output::render_tool_confirmation(
+        &request.tool_name,
+        &request.arguments,
+        request.prompt.as_deref(),
+    );
+    let prompt = if request.prompt.is_some() {
         "Do you allow this tool call?".to_string()
     } else {
         "Goose would like to call the above tool, do you allow?".to_string()
     };
-    output::render_tool_confirmation(&request.tool_name, &request.arguments);
 
     let permission_result = if request.prompt.is_none() {
         cliclack::select(prompt)

@@ -671,6 +671,13 @@ fn sanitize_tool_confirmation_line(line: &str) -> String {
     sanitized
 }
 
+fn sanitize_tool_confirmation_text(text: &str) -> String {
+    text.split('\n')
+        .map(sanitize_tool_confirmation_line)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) -> String {
     let mut request = JsonObject::new();
     request.insert(
@@ -687,13 +694,21 @@ pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) 
         .join("\n")
 }
 
-pub(super) fn render_tool_confirmation(tool_name: &str, arguments: &JsonObject) {
+pub(super) fn render_tool_confirmation(
+    tool_name: &str,
+    arguments: &JsonObject,
+    security_prompt: Option<&str>,
+) {
     eprintln!();
     eprintln!("  {}", style("Tool approval request").bold());
     for line in format_tool_confirmation(tool_name, arguments).lines() {
         eprintln!("    {}", style(line).dim());
     }
     eprintln!();
+    if let Some(security_prompt) = security_prompt {
+        eprintln!("{}", sanitize_tool_confirmation_text(security_prompt));
+        eprintln!();
+    }
 }
 
 fn print_tool_output_line(line: &str) {
@@ -1854,16 +1869,36 @@ mod tests {
     }
 
     #[test]
+    fn tool_confirmation_sanitizes_unterminated_control_strings() {
+        let rendered = sanitize_tool_confirmation_text(
+            "visible bidi\u{202e}\nvisible OSC\u{1b}]unterminated\nvisible DCS\u{1b}Punterminated",
+        );
+
+        assert!(rendered.contains("visible OSC"));
+        assert!(rendered.contains("visible DCS"));
+        assert!(!rendered.contains('\u{1b}'));
+        assert!(!rendered.contains('\u{202e}'));
+        assert!(rendered.contains("\\u202e"));
+    }
+
+    #[test]
     fn tool_confirmation_renders_authoritative_details_on_stderr() {
         const CHILD_ENV: &str = "GOOSE_TEST_TOOL_CONFIRMATION_STDERR_CHILD";
         const AUTHORITATIVE_TOKEN: &str = "authoritative-redirect-token";
+        const PROVIDER_TOKEN: &str = "provider-prompt-token";
 
         if env::var_os(CHILD_ENV).is_some() {
             let arguments = json!({"command": AUTHORITATIVE_TOKEN})
                 .as_object()
                 .unwrap()
                 .clone();
-            render_tool_confirmation("shell", &arguments);
+            render_tool_confirmation(
+                "shell",
+                &arguments,
+                Some(&format!(
+                    "{PROVIDER_TOKEN} OSC\u{1b}]unterminated\nDCS\u{1b}Punterminated"
+                )),
+            );
             return;
         }
 
@@ -1881,7 +1916,12 @@ mod tests {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!stdout.contains(AUTHORITATIVE_TOKEN));
+        assert!(!stdout.contains(PROVIDER_TOKEN));
         assert!(stderr.contains(AUTHORITATIVE_TOKEN));
+        assert!(stderr.contains(PROVIDER_TOKEN));
+        assert!(stderr.find(AUTHORITATIVE_TOKEN) < stderr.find(PROVIDER_TOKEN));
+        assert!(!stderr.contains("\u{1b}]"));
+        assert!(!stderr.contains("\u{1b}P"));
     }
 
     #[test]
