@@ -1,5 +1,5 @@
 use crate::session::builder::ExtensionFailure;
-use anstream::{adapter::strip_str, println};
+use anstream::{adapter::strip_str, eprintln, println};
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
@@ -688,12 +688,12 @@ pub(super) fn format_tool_confirmation(tool_name: &str, arguments: &JsonObject) 
 }
 
 pub(super) fn render_tool_confirmation(tool_name: &str, arguments: &JsonObject) {
-    println!();
-    println!("  {}", style("Tool approval request").bold());
+    eprintln!();
+    eprintln!("  {}", style("Tool approval request").bold());
     for line in format_tool_confirmation(tool_name, arguments).lines() {
-        println!("    {}", style(line).dim());
+        eprintln!("    {}", style(line).dim());
     }
-    println!();
+    eprintln!();
 }
 
 fn print_tool_output_line(line: &str) {
@@ -1851,6 +1851,37 @@ mod tests {
 
         assert!(rendered.contains("שלום مرحبا 日本語 🪿"));
         assert!(rendered.contains("検索"));
+    }
+
+    #[test]
+    fn tool_confirmation_renders_authoritative_details_on_stderr() {
+        const CHILD_ENV: &str = "GOOSE_TEST_TOOL_CONFIRMATION_STDERR_CHILD";
+        const AUTHORITATIVE_TOKEN: &str = "authoritative-redirect-token";
+
+        if env::var_os(CHILD_ENV).is_some() {
+            let arguments = json!({"command": AUTHORITATIVE_TOKEN})
+                .as_object()
+                .unwrap()
+                .clone();
+            render_tool_confirmation("shell", &arguments);
+            return;
+        }
+
+        let output = std::process::Command::new(env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "session::output::tests::tool_confirmation_renders_authoritative_details_on_stderr",
+                "--nocapture",
+            ])
+            .env(CHILD_ENV, "1")
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!stdout.contains(AUTHORITATIVE_TOKEN));
+        assert!(stderr.contains(AUTHORITATIVE_TOKEN));
     }
 
     #[test]
