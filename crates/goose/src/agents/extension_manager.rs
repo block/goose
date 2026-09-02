@@ -669,6 +669,21 @@ pub(crate) async fn merge_environments(
     Ok(Envs::new(all_envs).get_env())
 }
 
+fn containerized_stdio_command(
+    container_id: &str,
+    executable: &str,
+    args: &[String],
+    envs: &HashMap<String, String>,
+) -> Command {
+    let mut command = Command::new("docker");
+    command.arg("exec").arg("-i").envs(envs);
+    for key in envs.keys() {
+        command.arg("-e").arg(key);
+    }
+    command.arg(container_id).arg(executable).args(args);
+    command
+}
+
 /// Build the pre-registered OAuth client config for a streamable_http
 /// extension. The secret is referenced by key and resolved from the merged
 /// environment or the config secret store, so it is never stored inline in
@@ -1628,15 +1643,7 @@ impl ExtensionManager {
                         cmd = %cmd,
                         "Starting stdio extension inside Docker container"
                     );
-                    Command::new("docker").configure(|command| {
-                        command.arg("exec").arg("-i");
-                        for (key, value) in &all_envs {
-                            command.arg("-e").arg(format!("{}={}", key, value));
-                        }
-                        command.arg(container_id);
-                        command.arg(cmd);
-                        command.args(args);
-                    })
+                    containerized_stdio_command(container_id, cmd, args, &all_envs)
                 } else {
                     let cmd = resolve_command(cmd);
                     Command::new(cmd).configure(|command| {
@@ -2640,6 +2647,43 @@ impl ExtensionManager {
 mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
+
+    #[test]
+    fn container_extension_env_values_stay_out_of_docker_argv() {
+        let secret = "super-secret-container-token";
+        let envs = HashMap::from([("API_TOKEN".to_string(), secret.to_string())]);
+        let command = containerized_stdio_command(
+            "requested-sandbox",
+            "test-mcp-server",
+            &["--serve".to_string()],
+            &envs,
+        );
+        let command = command.as_std();
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            [
+                "exec",
+                "-i",
+                "-e",
+                "API_TOKEN",
+                "requested-sandbox",
+                "test-mcp-server",
+                "--serve"
+            ]
+        );
+        assert!(args.iter().all(|arg| !arg.contains(secret)));
+        assert_eq!(
+            command
+                .get_envs()
+                .find_map(|(key, value)| (key == "API_TOKEN").then_some(value)),
+            Some(Some(std::ffi::OsStr::new(secret)))
+        );
+    }
 
     mod static_oauth_client {
         use super::*;
