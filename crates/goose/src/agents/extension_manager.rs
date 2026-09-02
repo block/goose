@@ -11,6 +11,7 @@ use rmcp::transport::streamable_http_client::{
 };
 use rmcp::transport::{ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport};
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -674,14 +675,75 @@ fn containerized_stdio_command(
     executable: &str,
     args: &[String],
     envs: &HashMap<String, String>,
-) -> Command {
+) -> std::io::Result<(Command, Option<tempfile::NamedTempFile>)> {
+    let mut envs = envs.iter().collect::<Vec<_>>();
+    envs.sort_unstable_by_key(|(key, _)| *key);
+
     let mut command = Command::new("docker");
-    command.arg("exec").arg("-i").envs(envs);
-    for key in envs.keys() {
-        command.arg("-e").arg(key);
+    command.arg("exec").arg("-i");
+
+    let client_envs = envs
+        .iter()
+        .filter(|(key, _)| docker_client_uses_environment_key(key))
+        .collect::<Vec<_>>();
+    let env_file = if client_envs.is_empty() {
+        None
+    } else {
+        let mut env_file = tempfile::Builder::new()
+            .prefix("goose-container-extension-")
+            .tempfile()?;
+        for (key, value) in client_envs {
+            if value.contains(['\r', '\n']) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Docker client environment variables cannot contain line breaks",
+                ));
+            }
+            writeln!(env_file, "{key}={value}")?;
+        }
+        env_file.flush()?;
+        command.arg("--env-file").arg(env_file.path());
+        Some(env_file)
+    };
+
+    for (key, value) in envs {
+        if docker_client_uses_environment_key(key) {
+            continue;
+        }
+        command.arg("-e").arg(key).env(key, value);
     }
+
     command.arg(container_id).arg(executable).args(args);
-    command
+    Ok((command, env_file))
+}
+
+fn docker_client_uses_environment_key(key: &str) -> bool {
+    let key = key.to_ascii_uppercase();
+    if key.starts_with("DOCKER_") {
+        return true;
+    }
+
+    const KEYS: &[&str] = &[
+        "ALL_PROXY",
+        "BUILDKIT_PROGRESS",
+        "DISPLAY",
+        "HOME",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "SSH_ASKPASS",
+        "SSH_ASKPASS_REQUIRE",
+        "SSH_AUTH_SOCK",
+        "SSH_PKCS11_HELPER",
+        "SSH_SK_HELPER",
+        "SSH_SK_PROVIDER",
+        "TMPDIR",
+        "XDG_CONFIG_HOME",
+    ];
+
+    KEYS.contains(&key.as_str())
 }
 
 /// Build the pre-registered OAuth client config for a streamable_http
@@ -1636,19 +1698,24 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let command = if let Some(container) = container {
+                let (command, container_env_file) = if let Some(container) = container {
                     let container_id = container.id();
                     tracing::info!(
                         container = %container_id,
                         cmd = %cmd,
                         "Starting stdio extension inside Docker container"
                     );
-                    containerized_stdio_command(container_id, cmd, args, &all_envs)
+                    let (command, env_file) =
+                        containerized_stdio_command(container_id, cmd, args, &all_envs)?;
+                    (command, env_file)
                 } else {
                     let cmd = resolve_command(cmd);
-                    Command::new(cmd).configure(|command| {
-                        command.args(args).envs(all_envs);
-                    })
+                    (
+                        Command::new(cmd).configure(|command| {
+                            command.args(args).envs(all_envs);
+                        }),
+                        None,
+                    )
                 };
 
                 let client = child_process_client(
@@ -1663,6 +1730,7 @@ impl ExtensionManager {
                     Arc::downgrade(self),
                 )
                 .await?;
+                drop(container_env_file);
                 Box::new(client)
             }
         };
@@ -2649,15 +2717,34 @@ mod tests {
     use rmcp::model::CallToolResult;
 
     #[test]
-    fn container_extension_env_values_stay_out_of_docker_argv() {
-        let secret = "super-secret-container-token";
-        let envs = HashMap::from([("API_TOKEN".to_string(), secret.to_string())]);
-        let command = containerized_stdio_command(
+    fn container_extension_env_values_use_protected_env_file() {
+        let secret = "super-secret-container-token\nsecond-line";
+        let envs = HashMap::from([
+            ("API_TOKEN".to_string(), secret.to_string()),
+            (
+                "DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT".to_string(),
+                "https://collector.invalid".to_string(),
+            ),
+            (
+                "DOCKER_HOST".to_string(),
+                "tcp://extension-only:2375".to_string(),
+            ),
+            (
+                "SSH_ASKPASS".to_string(),
+                "/tmp/extension-helper".to_string(),
+            ),
+            (
+                "SSH_SK_HELPER".to_string(),
+                "/tmp/security-key-helper".to_string(),
+            ),
+        ]);
+        let (command, env_file) = containerized_stdio_command(
             "requested-sandbox",
             "test-mcp-server",
             &["--serve".to_string()],
             &envs,
-        );
+        )
+        .unwrap();
         let command = command.as_std();
         let args = command
             .get_args()
@@ -2669,6 +2756,8 @@ mod tests {
             [
                 "exec",
                 "-i",
+                "--env-file",
+                env_file.as_ref().unwrap().path().to_str().unwrap(),
                 "-e",
                 "API_TOKEN",
                 "requested-sandbox",
@@ -2677,12 +2766,39 @@ mod tests {
             ]
         );
         assert!(args.iter().all(|arg| !arg.contains(secret)));
+        assert!(args.iter().all(|arg| !arg.contains("collector.invalid")));
+        assert!(args.iter().all(|arg| !arg.contains("extension-helper")));
+        assert!(args.iter().all(|arg| !arg.contains("security-key-helper")));
         assert_eq!(
             command
                 .get_envs()
                 .find_map(|(key, value)| (key == "API_TOKEN").then_some(value)),
             Some(Some(std::ffi::OsStr::new(secret)))
         );
+        assert!(command.get_envs().all(|(key, _)| key == "API_TOKEN"));
+        assert_eq!(
+            std::fs::read_to_string(env_file.as_ref().unwrap().path()).unwrap(),
+            concat!(
+                "DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.invalid\n",
+                "DOCKER_HOST=tcp://extension-only:2375\n",
+                "SSH_ASKPASS=/tmp/extension-helper\n",
+                "SSH_SK_HELPER=/tmp/security-key-helper\n"
+            )
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = env_file
+                .as_ref()
+                .unwrap()
+                .path()
+                .metadata()
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o077, 0);
+        }
     }
 
     mod static_oauth_client {
