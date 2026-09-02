@@ -17,6 +17,7 @@ use reqwest::Client;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::Mutex as TokioMutex;
@@ -52,6 +53,8 @@ static GLOBAL_MUSE_REFRESH_MUTEX: std::sync::OnceLock<TokioMutex<()>> = std::syn
 fn global_muse_refresh_mutex() -> &'static TokioMutex<()> {
     GLOBAL_MUSE_REFRESH_MUTEX.get_or_init(|| TokioMutex::new(()))
 }
+
+static MUSE_TOKEN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 pub struct MuseCodeProviderDef;
 
@@ -279,8 +282,16 @@ impl TokenCache {
         Ok(())
     }
 
-    fn clear(&self) {
-        let _ = std::fs::remove_file(&self.path);
+    fn clear(&self) -> anyhow::Result<()> {
+        let result = match std::fs::remove_file(&self.path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        };
+        if result.is_ok() {
+            MUSE_TOKEN_GENERATION.fetch_add(1, Ordering::SeqCst);
+        }
+        result
     }
 }
 
@@ -383,12 +394,18 @@ impl MuseCodeAuth {
         if token.access_token.is_empty() {
             return Err(ProviderError::NotConfigured);
         }
+        let generation = MUSE_TOKEN_GENERATION.load(Ordering::SeqCst);
         token.api_key = self
             .mint_api_key(&token.access_token)
             .await
             .map_err(|error| {
                 ProviderError::Authentication(format!("Failed to mint Muse API key: {error}"))
             })?;
+        if MUSE_TOKEN_GENERATION.load(Ordering::SeqCst) != generation {
+            return Err(ProviderError::Authentication(
+                "Muse Code credential was removed during mint".to_string(),
+            ));
+        }
         if let Err(error) = self.cache.save(&token) {
             tracing::warn!("failed to persist minted muse_code api key: {error}");
         }
@@ -404,7 +421,7 @@ impl MuseCodeAuth {
             if token.expires_at > Utc::now() {
                 return Ok(token);
             }
-            self.cache.clear();
+            let _ = self.cache.clear();
             return Err(ProviderError::NotConfigured);
         }
 
@@ -464,7 +481,8 @@ impl AuthProvider for SharedAuthProvider {
 
 impl MuseCodeProvider {
     pub async fn cleanup() -> Result<()> {
-        TokenCache::new().clear();
+        let _guard = global_muse_refresh_mutex().lock().await;
+        TokenCache::new().clear()?;
         Ok(())
     }
 }
@@ -599,24 +617,15 @@ impl Provider for MuseCodeProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let previous_token = self.auth.cache.load();
-        self.auth.cache.clear();
-
-        let result = match self.auth.device_flow_login().await {
-            Ok(token) => self.auth.cache.save(&token).map_err(|e| e.to_string()),
-            Err(e) => Err(e.to_string()),
-        };
-
-        if let Err(e) = result {
-            if let Some(previous_token) = previous_token.as_ref() {
-                if self.auth.cache.load().is_none() {
-                    let _ = self.auth.cache.save(previous_token);
-                }
-            }
-            return Err(ProviderError::Authentication(format!(
-                "OAuth flow failed: {e}"
-            )));
-        }
+        let token = self
+            .auth
+            .device_flow_login()
+            .await
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {e}")))?;
+        let _guard = global_muse_refresh_mutex().lock().await;
+        self.auth.cache.save(&token).map_err(|e| {
+            ProviderError::Authentication(format!("Failed to save OAuth token: {e}"))
+        })?;
         Ok(())
     }
 }
