@@ -110,6 +110,10 @@ impl Provider for GooseInferenceProvider {
         self.inner.resume(session_id).await
     }
 
+    fn manages_own_context(&self) -> bool {
+        self.inner.manages_own_context()
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -234,5 +238,40 @@ mod canonicalization_tests {
         canonicalize_tool_request_names(&mut message, &advertised);
 
         assert_eq!(tool_name(&message), "developer.shell!");
+    }
+}
+
+#[cfg(test)]
+mod manages_own_context_tests {
+    use super::*;
+    use rmcp::model::Tool;
+
+    struct ContextManagingProvider;
+
+    #[async_trait]
+    impl Provider for ContextManagingProvider {
+        fn get_name(&self) -> &str {
+            "context-managing"
+        }
+
+        fn manages_own_context(&self) -> bool {
+            true
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn delegates_manages_own_context_to_inner_provider() {
+        let provider = GooseInferenceProvider::new(Arc::new(ContextManagingProvider));
+        assert!(provider.manages_own_context());
     }
 }

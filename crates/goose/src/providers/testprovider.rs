@@ -182,7 +182,12 @@ impl Provider for TestProvider {
         if let Some(inner) = &self.inner {
             // Call inner provider's stream and collect it
             let stream = inner.stream(model_config, system, messages, tools).await?;
-            let (message, usage) = super::base::collect_stream(stream).await?;
+            let (message, usage) =
+                super::base::collect_stream(goose_providers::stream_cap::cap_stream_duration(
+                    stream,
+                    inner.manages_own_context(),
+                ))
+                .await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -329,5 +334,43 @@ mod tests {
             .contains("No recorded response found"));
 
         let _ = fs::remove_file(temp_file);
+    }
+
+    struct WedgedProvider;
+
+    #[async_trait]
+    impl Provider for WedgedProvider {
+        fn get_name(&self) -> &str {
+            "wedged"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::pending()))
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn recording_is_capped_when_the_inner_stream_wedges() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+        let temp_file = format!(
+            "{}/test_wedged_{}.json",
+            env::temp_dir().display(),
+            std::process::id()
+        );
+
+        let test_provider = TestProvider::new_recording(Arc::new(WedgedProvider), &temp_file);
+        let model_config = ModelConfig::new("test-model");
+
+        let result = test_provider
+            .complete(&model_config, "You are helpful", &[], &[])
+            .await;
+
+        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
     }
 }
