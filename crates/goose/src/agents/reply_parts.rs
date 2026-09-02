@@ -1,7 +1,7 @@
 use anyhow::Result;
 use goose_providers::errors::ProviderError;
 use regex::Regex;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -192,6 +192,16 @@ fn is_mergeable_assistant_chunk(message: &Message) -> bool {
         })
 }
 
+fn ensure_unique_tool_names(tools: &[Tool]) -> Result<()> {
+    let mut names = HashSet::new();
+    for tool in tools {
+        if !names.insert(tool.name.as_ref()) {
+            anyhow::bail!("multiple tools registered '{}'", tool.name);
+        }
+    }
+    Ok(())
+}
+
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
@@ -199,6 +209,7 @@ impl Agent {
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
         let tools = self.list_tools(session_id, None).await;
+        ensure_unique_tool_names(&tools)?;
 
         #[cfg(feature = "code-mode")]
         let code_execution_active = self
@@ -2152,5 +2163,22 @@ mod tests {
             result.is_err(),
             "cap must never fire for managed-context providers"
         );
+    }
+}
+
+#[cfg(test)]
+mod duplicate_tool_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_duplicate_tool_names_for_legacy_inference() {
+        let schema = Arc::new(serde_json::Map::new());
+        let tools = vec![
+            Tool::new("duplicate", "first", schema.clone()),
+            Tool::new("duplicate", "second", schema),
+        ];
+
+        let error = ensure_unique_tool_names(&tools).unwrap_err();
+        assert_eq!(error.to_string(), "multiple tools registered 'duplicate'");
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "goose-agent"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -16,8 +16,8 @@ anyhow = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "net", "signal", "io-std", "io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 async-trait = { workspace = true }
-goose-provider-types = { version = "0.1.0-alpha.6", path = "../goose-provider-types", default-features = false }
-rmcp = { workspace = true }
+goose-provider-types = { version = "0.1.0-alpha.7", path = "../goose-provider-types", default-features = false }
+rmcp = { workspace = true, features = ["server"] }
 uuid = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
@@ -26,4 +26,6 @@ tracing-futures = { workspace = true }
 
 [dev-dependencies]
 env-lock = { workspace = true }
+schemars.workspace = true
+serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

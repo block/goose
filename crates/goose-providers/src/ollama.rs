@@ -588,7 +588,6 @@ mod tests {
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: vec![],
-            fast_model: None,
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,

@@ -1,6 +1,13 @@
 name: Maven GDK
 
 on:
+  workflow_call:
+    inputs:
+      publish:
+        description: "Publish gdk to Maven Central after building"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       publish:
@@ -73,6 +80,8 @@ jobs:
     name: Package Maven artifact
     needs: build-native
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -112,12 +121,20 @@ jobs:
         working-directory: crates/goose-sdk/maven
         run: gradle --no-daemon publishToMavenLocal
 
-      - name: Stage Maven local artifacts
+      - name: Resolve Maven version
+        id: version
         shell: bash
         run: |
           version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Stage Maven local artifacts
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
           mkdir -p maven-artifacts
-          cp -R "$HOME/.m2/repository/io/github/aaif-goose/gdk/$version" maven-artifacts/
+          cp -R "$HOME/.m2/repository/io/github/aaif-goose/gdk/$VERSION" maven-artifacts/
 
       - name: Upload Maven artifact bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -175,8 +192,11 @@ jobs:
     name: Publish to Maven Central
     needs: [package, smoke-test-linux-aarch64]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: inputs.publish
     environment: maven-central
+    concurrency:
+      group: gdk-maven-release-${{ needs.package.outputs.version }}
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

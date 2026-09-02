@@ -1381,7 +1381,12 @@ where
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
-                                                if let Some((_, _, ref mut args, ref mut extra)) = tool_call_data.get_mut(&index) {
+                                                if let Some((_, ref mut stored_name, ref mut args, ref mut extra)) = tool_call_data.get_mut(&index) {
+                                                    if let Some(new_name) = &delta_call.function.name {
+                                                        if !new_name.is_empty() {
+                                                            *stored_name = new_name.clone();
+                                                        }
+                                                    }
                                                     args.push_str(&delta_call.function.arguments);
                                                     if extra.is_none() && delta_call.extra.is_some() {
                                                         *extra = delta_call.extra.clone();
