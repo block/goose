@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 acp_ref=$(gh api 'repos/{owner}/{repo}/releases/latest' --jq '.tag_name')
-echo "Using Goose release $acp_ref for ACP documentation."
+echo "Using goose release $acp_ref for ACP documentation."
 
 if ! git rev-parse --verify --quiet "refs/tags/$acp_ref" >/dev/null; then
   echo "Release tag $acp_ref is not available locally. Run 'git fetch --tags'." >&2
