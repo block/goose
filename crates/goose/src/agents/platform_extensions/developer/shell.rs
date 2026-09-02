@@ -3,11 +3,11 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(not(windows))]
 use std::sync::Arc;
 #[cfg(not(windows))]
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
@@ -18,17 +18,17 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
 #[cfg(not(windows))]
 use tokio::task::JoinHandle;
-use tokio_stream::{StreamExt, wrappers::SplitStream};
+use tokio_stream::{wrappers::SplitStream, StreamExt};
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::tool_execution::ToolCallNotificationEmitter;
 use crate::subprocess::SubprocessExt;
 
 pub use super::shell_output_streaming::{
-    DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD, ShellOutputNotificationChunk,
-    ShellOutputNotificationParams, ShellOutputStream, parse_shell_output_notification,
+    parse_shell_output_notification, ShellOutputNotificationChunk, ShellOutputNotificationParams,
+    ShellOutputStream, DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
 };
-use super::shell_output_streaming::{SHELL_LIVE_OUTPUT_FLUSH_INTERVAL, ShellOutputBatcher};
+use super::shell_output_streaming::{ShellOutputBatcher, SHELL_LIVE_OUTPUT_FLUSH_INTERVAL};
 
 /// Check if the current process is running inside a Flatpak sandbox.
 ///
@@ -176,6 +176,7 @@ struct TruncateResult {
 struct TruncationInfo {
     path: PathBuf,
     reason: String,
+    is_fragment: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -436,13 +437,19 @@ impl ShellTool {
 
         let output_dir = self.output_dir.path();
         let slot = self.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
+        let is_fragment = execution.capture_dropped_bytes > 0;
         let stdout_result = if raw_stdout.is_empty() {
             TruncateResult {
                 text: String::new(),
                 truncation: None,
             }
         } else {
-            match truncate_output(&raw_stdout, &format!("stdout-{slot}"), output_dir) {
+            match truncate_output(
+                &raw_stdout,
+                &format!("stdout-{slot}"),
+                output_dir,
+                is_fragment,
+            ) {
                 Ok(r) => r,
                 Err(error) => return Self::error_result(&error, None),
             }
@@ -453,7 +460,12 @@ impl ShellTool {
                 truncation: None,
             }
         } else {
-            match truncate_output(&raw_stderr, &format!("stderr-{slot}"), output_dir) {
+            match truncate_output(
+                &raw_stderr,
+                &format!("stderr-{slot}"),
+                output_dir,
+                is_fragment,
+            ) {
                 Ok(r) => r,
                 Err(error) => return Self::error_result(&error, None),
             }
@@ -468,8 +480,12 @@ impl ShellTool {
             output_collection_error: execution.output_collection_error.clone(),
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
-        let render_result = match render_output(&interleaved, &format!("output-{slot}"), output_dir)
-        {
+        let render_result = match render_output(
+            &interleaved,
+            &format!("output-{slot}"),
+            output_dir,
+            is_fragment,
+        ) {
             Ok(r) => r,
             Err(error) => return Self::error_result(&error, None),
         };
@@ -605,10 +621,11 @@ async fn drain_with_budget(
         // and then be stored in full, bypassing the budget.
         let line = if original_len > half {
             let mut s = line;
-            s.truncate(half.saturating_sub(1));
-            while !s.is_char_boundary(s.len()) {
-                s.pop();
+            let mut end = half.saturating_sub(1).min(s.len());
+            while end > 0 && !s.is_char_boundary(end) {
+                end -= 1;
             }
+            s.truncate(end);
             s
         } else {
             line
@@ -962,18 +979,29 @@ fn truncation_notice(info: &TruncationInfo) -> String {
     } else {
         "shell commands like `head`, `tail`, or `sed -n '100,200p'`"
     };
-    format!(
-        "[{reason} Full output saved to {path}. \
-         Read it with {commands} up to {limit} lines at a time.]",
-        reason = info.reason,
-        limit = OUTPUT_LIMIT_LINES,
-    )
+    if info.is_fragment {
+        format!(
+            "[{reason} Captured fragment (beginning and end) saved to {path}; \
+             the dropped middle is unrecoverable. \
+             Read it with {commands} up to {limit} lines at a time.]",
+            reason = info.reason,
+            limit = OUTPUT_LIMIT_LINES,
+        )
+    } else {
+        format!(
+            "[{reason} Full output saved to {path}. \
+             Read it with {commands} up to {limit} lines at a time.]",
+            reason = info.reason,
+            limit = OUTPUT_LIMIT_LINES,
+        )
+    }
 }
 
 fn render_output(
     full_output: &str,
     label: &str,
     output_dir: &std::path::Path,
+    is_fragment: bool,
 ) -> Result<TruncateResult, String> {
     if full_output.is_empty() {
         return Ok(TruncateResult {
@@ -981,13 +1009,14 @@ fn render_output(
             truncation: None,
         });
     }
-    truncate_output(full_output, label, output_dir)
+    truncate_output(full_output, label, output_dir, is_fragment)
 }
 
 fn truncate_output(
     full_output: &str,
     label: &str,
     output_dir: &std::path::Path,
+    is_fragment: bool,
 ) -> Result<TruncateResult, String> {
     let lines: Vec<&str> = full_output.split('\n').collect();
     let total_lines = lines.len();
@@ -1022,6 +1051,7 @@ fn truncate_output(
         truncation: Some(TruncationInfo {
             path: output_path,
             reason,
+            is_fragment,
         }),
     })
 }
@@ -1313,7 +1343,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let result = render_output(&input, "test", dir.path()).unwrap();
+        let result = render_output(&input, "test", dir.path(), false).unwrap();
         assert_eq!(result.text, input);
         assert!(result.truncation.is_none());
     }
@@ -1321,7 +1351,7 @@ mod tests {
     #[test]
     fn render_output_shows_empty_message() {
         let dir = tempfile::tempdir().unwrap();
-        let result = render_output("", "test", dir.path()).unwrap();
+        let result = render_output("", "test", dir.path(), false).unwrap();
         assert_eq!(result.text, "(no output)");
         assert!(result.truncation.is_none());
     }
@@ -1334,7 +1364,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let result = render_output(&input, "test_lines", dir.path()).unwrap();
+        let result = render_output(&input, "test_lines", dir.path(), false).unwrap();
         let preview = &result.text;
 
         assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
@@ -1363,7 +1393,7 @@ mod tests {
         assert!(input.len() > OUTPUT_LIMIT_BYTES);
         assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
 
-        let result = render_output(&input, "test_bytes", dir.path()).unwrap();
+        let result = render_output(&input, "test_bytes", dir.path(), false).unwrap();
         let info = result
             .truncation
             .as_ref()
@@ -1380,7 +1410,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let input = "x".repeat(200_000);
 
-        let result = render_output(&input, "test_giant_line", dir.path()).unwrap();
+        let result = render_output(&input, "test_giant_line", dir.path(), false).unwrap();
 
         assert!(result.text.len() <= OUTPUT_PREVIEW_BYTES);
         let info = result
