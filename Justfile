@@ -151,11 +151,11 @@ run-server:
     @echo "Running external ACP backend..."
     GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --enable-scheduler --host 127.0.0.1 --port 3000
 
-# Check if generated ACP schema and TypeScript types are up-to-date
-check-acp-schema: generate-acp-types
+# Check if checked-in ACP artifacts are up-to-date and the docs can be rendered
+check-acp-artifacts: generate-acp-types generate-acp-docs
     #!/usr/bin/env bash
     set -e
-    echo "🔍 Checking ACP schema and generated types are up-to-date..."
+    echo "🔍 Checking generated ACP artifacts are up-to-date..."
     if ! git diff --exit-code crates/goose/acp-schema.json crates/goose/acp-meta.json ui/sdk/src/generated/; then
       echo ""
       echo "❌ ACP generated files are out of date!"
@@ -163,7 +163,7 @@ check-acp-schema: generate-acp-types
       echo "Run 'just generate-acp-types' locally, then commit the changes."
       exit 1
     fi
-    echo "✅ ACP schema and generated types are up-to-date"
+    echo "✅ Generated ACP artifacts are up-to-date"
 
 # Generate ACP JSON schema from Rust types
 generate-acp-schema:
@@ -176,6 +176,12 @@ generate-acp-types: generate-acp-schema
     @echo "Generating ACP TypeScript types..."
     cd ui/sdk && npx tsx generate-schema.ts
     @echo "ACP TypeScript types generated in ui/sdk/src/generated/"
+
+# Generate ACP documentation from the existing JSON schema and metadata
+generate-acp-docs:
+    @echo "Generating ACP documentation..."
+    node documentation/scripts/generate-acp-docs.js
+    @echo "ACP documentation generated for the docs build."
 
 # Build SDK TypeScript package (schema + types + compile)
 build-sdk: generate-acp-types

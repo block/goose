@@ -118,6 +118,7 @@ pub struct GooseToolCallResponse {
     pub meta: Option<serde_json::Value>,
 }
 
+/// List available Goose apps, optionally scoped to a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/apps/list", response = AppsListResponse)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +133,7 @@ pub struct AppsListResponse {
     pub apps: Vec<serde_json::Value>,
 }
 
+/// Export a Goose app as HTML.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/apps/export", response = AppsExportResponse)]
 #[serde(rename_all = "camelCase")]
@@ -144,6 +146,7 @@ pub struct AppsExportResponse {
     pub html: String,
 }
 
+/// Import a Goose app from HTML.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/apps/import", response = AppsImportResponse)]
 #[serde(rename_all = "camelCase")]
@@ -157,6 +160,7 @@ pub struct AppsImportResponse {
     pub message: String,
 }
 
+/// Delete a Goose app by name.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/apps/delete", response = AppsDeleteResponse)]
 #[serde(rename_all = "camelCase")]
@@ -195,6 +199,8 @@ pub enum SessionSystemPromptMode {
 /// `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
 /// instruction under "Additional Instructions". Reusing a key replaces the
 /// previous value for that mode/key; sending empty text clears it.
+/// Get a diagnostic report for a session.
+/// List locally available inference models.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/session/system-prompt/set",
@@ -461,6 +467,7 @@ pub struct SetConfigExtensionEnabledRequest {
     pub enabled: bool,
 }
 
+/// List extensions enabled for an active session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/extensions/list", response = GetSessionExtensionsResponse)]
 #[serde(rename_all = "camelCase")]
@@ -491,6 +498,7 @@ pub struct PreferencesSaveRequest {
     pub values: Vec<PreferenceValue>,
 }
 
+/// Read one Goose configuration value.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/config/read", response = ConfigReadResponse)]
 #[serde(rename_all = "camelCase")]
@@ -507,6 +515,7 @@ pub struct ConfigReadResponse {
     pub value: serde_json::Value,
 }
 
+/// Create or replace one Goose configuration value.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/config/upsert", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
@@ -517,6 +526,7 @@ pub struct ConfigUpsertRequest {
     pub is_secret: bool,
 }
 
+/// Remove one Goose configuration value.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/config/remove", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
@@ -526,6 +536,7 @@ pub struct ConfigRemoveRequest {
     pub is_secret: bool,
 }
 
+/// Read all non-secret Goose configuration values.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/config/read-all", response = ConfigReadAllResponse)]
 #[serde(rename_all = "camelCase")]
@@ -624,6 +635,7 @@ pub struct OnboardingImportCandidate {
 }
 
 /// Scan for existing Goose and compatible app data that onboarding can import.
+/// Share a session through Nostr and return its share links.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/onboarding/import/scan",
@@ -2001,6 +2013,7 @@ pub struct LocalInferenceModelsListResponse {
     pub models: Vec<LocalInferenceModelDto>,
 }
 
+/// Download a model for local inference.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/download",
@@ -2021,6 +2034,7 @@ pub struct LocalInferenceModelDownloadResponse {
     pub model_id: String,
 }
 
+/// Get the progress of a local model download.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/download/progress",
@@ -2038,6 +2052,7 @@ pub struct LocalInferenceModelDownloadProgressResponse {
     pub progress: Option<LocalInferenceDownloadProgressDto>,
 }
 
+/// Cancel a local model download.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/download/cancel",
@@ -2048,6 +2063,7 @@ pub struct LocalInferenceModelDownloadCancelRequest {
     pub model_id: String,
 }
 
+/// Delete a downloaded local inference model.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/delete",
@@ -2058,6 +2074,7 @@ pub struct LocalInferenceModelDeleteRequest {
     pub model_id: String,
 }
 
+/// Evict a local inference model from memory.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/evict",
@@ -2068,6 +2085,7 @@ pub struct LocalInferenceModelEvictRequest {
     pub model_id: String,
 }
 
+/// Read the sampling settings for a local inference model.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/settings/read",
@@ -2084,6 +2102,7 @@ pub struct LocalInferenceModelSettingsReadResponse {
     pub settings: LocalInferenceModelSettingsDto,
 }
 
+/// Update the sampling settings for a local inference model.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/models/settings/update",
@@ -2101,6 +2120,7 @@ pub struct LocalInferenceModelSettingsUpdateResponse {
     pub settings: LocalInferenceModelSettingsDto,
 }
 
+/// Search Hugging Face for local inference models.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/huggingface/search",
@@ -2119,6 +2139,7 @@ pub struct LocalInferenceHuggingFaceSearchResponse {
     pub models: Vec<LocalInferenceHfModelInfoDto>,
 }
 
+/// List downloadable variants of a Hugging Face model repository.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/huggingface/repo/variants",
@@ -2140,6 +2161,7 @@ pub struct LocalInferenceHuggingFaceRepoVariantsResponse {
     pub downloaded_variants: Vec<String>,
 }
 
+/// List built-in chat templates for local inference.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
     method = "_goose/unstable/local-inference/chat-templates/builtin/list",

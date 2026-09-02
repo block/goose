@@ -56,6 +56,9 @@ export type Annotations = {
     } | null;
 };
 
+/**
+ * Delete a Goose app by name.
+ */
 export type AppsDeleteRequest_unstable = {
     name: string;
 };
@@ -65,6 +68,9 @@ export type AppsDeleteResponse_unstable = {
     message: string;
 };
 
+/**
+ * Export a Goose app as HTML.
+ */
 export type AppsExportRequest_unstable = {
     name: string;
 };
@@ -73,6 +79,9 @@ export type AppsExportResponse_unstable = {
     html: string;
 };
 
+/**
+ * Import a Goose app from HTML.
+ */
 export type AppsImportRequest_unstable = {
     html: string;
 };
@@ -82,6 +91,9 @@ export type AppsImportResponse_unstable = {
     message: string;
 };
 
+/**
+ * List available Goose apps, optionally scoped to a session.
+ */
 export type AppsListRequest_unstable = {
     sessionId?: string | null;
 };
@@ -211,6 +223,9 @@ export type CanonicalModelInfoResponse_unstable = {
     modelInfo?: CanonicalModelInfoDto | null;
 };
 
+/**
+ * Read all non-secret Goose configuration values.
+ */
 export type ConfigReadAllRequest_unstable = {
     [key: string]: unknown;
 };
@@ -221,6 +236,9 @@ export type ConfigReadAllResponse_unstable = {
     };
 };
 
+/**
+ * Read one Goose configuration value.
+ */
 export type ConfigReadRequest_unstable = {
     key: string;
     isSecret?: boolean;
@@ -230,11 +248,17 @@ export type ConfigReadResponse_unstable = {
     value?: unknown;
 };
 
+/**
+ * Remove one Goose configuration value.
+ */
 export type ConfigRemoveRequest_unstable = {
     key: string;
     isSecret?: boolean;
 };
 
+/**
+ * Create or replace one Goose configuration value.
+ */
 export type ConfigUpsertRequest_unstable = {
     key: string;
     value: unknown;
@@ -274,6 +298,9 @@ export type ContentBlock = ({
  */
 export type CostSourceData = 'provider_reported' | 'estimated';
 
+/**
+ * Create a scheduled recipe job.
+ */
 export type CreateScheduleRequest_unstable = {
     id: string;
     recipe: RecipeDto;
@@ -399,6 +426,9 @@ export type CustomProviderUpdateResponse_unstable = {
     refresh: RefreshProviderInventoryResponse_unstable;
 };
 
+/**
+ * Decode a Goose deep link into a recipe.
+ */
 export type DecodeRecipeRequest_unstable = {
     deeplink: string;
 };
@@ -434,10 +464,16 @@ export type DefaultsSaveRequest_unstable = {
     modelId?: string | null;
 };
 
+/**
+ * Delete a recipe from the local recipe library.
+ */
 export type DeleteRecipeRequest_unstable = {
     id: string;
 };
 
+/**
+ * Delete a scheduled recipe job.
+ */
 export type DeleteScheduleRequest_unstable = {
     scheduleId: string;
 };
@@ -450,6 +486,9 @@ export type DeleteSourceRequest_unstable = {
     path: string;
 };
 
+/**
+ * Get a diagnostic report for a session.
+ */
 export type DiagnosticsGetRequest_unstable = {
     sessionId: string;
     level?: DiagnosticsReportLevel;
@@ -627,6 +666,9 @@ export type EmptyResponse = {
     [key: string]: unknown;
 };
 
+/**
+ * Encode a recipe as a Goose deep link.
+ */
 export type EncodeRecipeRequest_unstable = {
     recipe: RecipeDto;
 };
@@ -764,6 +806,9 @@ export type GetPromptResponse_unstable = {
     isCustomized: boolean;
 };
 
+/**
+ * List extensions enabled for an active session.
+ */
 export type GetSessionExtensionsRequest_unstable = {
     sessionId: string;
 };
@@ -986,6 +1031,9 @@ export type ImportSourcesResponse_unstable = {
     sources: Array<SourceEntry>;
 };
 
+/**
+ * Inspect the current state of a running scheduled job.
+ */
 export type InspectRunningJobRequest_unstable = {
     jobId: string;
 };
@@ -997,6 +1045,9 @@ export type InspectRunningJobResponse_unstable = {
     runningDurationSeconds?: number | null;
 };
 
+/**
+ * Stop a currently running scheduled job.
+ */
 export type KillRunningJobRequest_unstable = {
     jobId: string;
 };
@@ -1045,6 +1096,9 @@ export type ListProvidersResponse_unstable = {
     entries: Array<ProviderInventoryEntryDto>;
 };
 
+/**
+ * List recipes in the local recipe library.
+ */
 export type ListRecipesRequest_unstable = {
     [key: string]: unknown;
 };
@@ -1053,6 +1107,9 @@ export type ListRecipesResponse_unstable = {
     recipes: Array<RecipeListEntryDto>;
 };
 
+/**
+ * List recent sessions created by a scheduled recipe job.
+ */
 export type ListScheduleSessionsRequest_unstable = {
     scheduleId: string;
     limit: number;
@@ -1062,6 +1119,9 @@ export type ListScheduleSessionsResponse_unstable = {
     sessions: Array<SessionInfo>;
 };
 
+/**
+ * List scheduled recipe jobs.
+ */
 export type ListSchedulesRequest_unstable = {
     [key: string]: unknown;
 };
@@ -1104,6 +1164,9 @@ export type ListSourcesResponse_unstable = {
     sources: Array<SourceEntry>;
 };
 
+/**
+ * List built-in chat templates for local inference.
+ */
 export type LocalInferenceBuiltinChatTemplatesListRequest_unstable = {
     [key: string]: unknown;
 };
@@ -1169,6 +1232,9 @@ export type LocalInferenceHfModelVariantDto = {
     unsupportedReason?: string | null;
 };
 
+/**
+ * List downloadable variants of a Hugging Face model repository.
+ */
 export type LocalInferenceHuggingFaceRepoVariantsRequest_unstable = {
     repoId: string;
 };
@@ -1181,6 +1247,9 @@ export type LocalInferenceHuggingFaceRepoVariantsResponse_unstable = {
     downloadedVariants: Array<string>;
 };
 
+/**
+ * Search Hugging Face for local inference models.
+ */
 export type LocalInferenceHuggingFaceSearchRequest_unstable = {
     query: string;
     limit?: number | null;
@@ -1190,14 +1259,23 @@ export type LocalInferenceHuggingFaceSearchResponse_unstable = {
     models: Array<LocalInferenceHfModelInfoDto>;
 };
 
+/**
+ * Delete a downloaded local inference model.
+ */
 export type LocalInferenceModelDeleteRequest_unstable = {
     modelId: string;
 };
 
+/**
+ * Cancel a local model download.
+ */
 export type LocalInferenceModelDownloadCancelRequest_unstable = {
     modelId: string;
 };
 
+/**
+ * Get the progress of a local model download.
+ */
 export type LocalInferenceModelDownloadProgressRequest_unstable = {
     modelId: string;
 };
@@ -1206,6 +1284,9 @@ export type LocalInferenceModelDownloadProgressResponse_unstable = {
     progress?: LocalInferenceDownloadProgressDto | null;
 };
 
+/**
+ * Download a model for local inference.
+ */
 export type LocalInferenceModelDownloadRequest_unstable = {
     spec: string;
     backendId?: string | null;
@@ -1238,6 +1319,9 @@ export type LocalInferenceModelDto = {
     mmprojStatus?: LocalInferenceModelDownloadStatusDto | null;
 };
 
+/**
+ * Evict a local inference model from memory.
+ */
 export type LocalInferenceModelEvictRequest_unstable = {
     modelId: string;
 };
@@ -1265,6 +1349,9 @@ export type LocalInferenceModelSettingsDto = {
     mmprojSizeBytes: number;
 };
 
+/**
+ * Read the sampling settings for a local inference model.
+ */
 export type LocalInferenceModelSettingsReadRequest_unstable = {
     modelId: string;
 };
@@ -1273,6 +1360,9 @@ export type LocalInferenceModelSettingsReadResponse_unstable = {
     settings: LocalInferenceModelSettingsDto;
 };
 
+/**
+ * Update the sampling settings for a local inference model.
+ */
 export type LocalInferenceModelSettingsUpdateRequest_unstable = {
     modelId: string;
     settings: LocalInferenceModelSettingsDto;
@@ -1282,6 +1372,9 @@ export type LocalInferenceModelSettingsUpdateResponse_unstable = {
     settings: LocalInferenceModelSettingsDto;
 };
 
+/**
+ * List locally available inference models.
+ */
 export type LocalInferenceModelsListRequest_unstable = {
     [key: string]: unknown;
 };
@@ -1492,6 +1585,9 @@ export type OnboardingImportScanResponse_unstable = {
  */
 export type OnboardingImportSourceKind = 'goose_config' | 'claude_desktop';
 
+/**
+ * Parse serialized recipe content.
+ */
 export type ParseRecipeRequest_unstable = {
     content: string;
 };
@@ -1500,6 +1596,9 @@ export type ParseRecipeResponse_unstable = {
     recipe: RecipeDto;
 };
 
+/**
+ * Pause a scheduled recipe job.
+ */
 export type PauseScheduleRequest_unstable = {
     scheduleId: string;
 };
@@ -2083,6 +2182,9 @@ export type RecipeSuccessCheckDto = {
     type: 'shell';
 };
 
+/**
+ * Serialize a recipe as YAML.
+ */
 export type RecipeToYamlRequest_unstable = {
     recipe: RecipeDto;
 };
@@ -2145,6 +2247,9 @@ export type RenameSessionRequest_unstable = {
     title: string;
 };
 
+/**
+ * Ask the client to provide values for a recipe's parameters.
+ */
 export type RequestRecipeParams_unstable = {
     sessionId: string;
     parameters: Array<RecipeParameterDto>;
@@ -2207,6 +2312,9 @@ export type ResourceLink = {
  */
 export type Role = 'assistant' | 'user';
 
+/**
+ * Run a scheduled recipe job immediately.
+ */
 export type RunScheduleNowRequest_unstable = {
     scheduleId: string;
 };
@@ -2226,6 +2334,9 @@ export type SavePromptRequest_unstable = {
     content: string;
 };
 
+/**
+ * Save a recipe to the local recipe library.
+ */
 export type SaveRecipeRequest_unstable = {
     recipe: RecipeDto;
     id?: string | null;
@@ -2237,6 +2348,9 @@ export type SaveRecipeResponse_unstable = {
     file_path: string;
 };
 
+/**
+ * Scan a recipe for security warnings.
+ */
 export type ScanRecipeRequest_unstable = {
     recipe: RecipeDto;
 };
@@ -2245,6 +2359,9 @@ export type ScanRecipeResponse_unstable = {
     has_security_warnings: boolean;
 };
 
+/**
+ * Set or clear a recipe's cron schedule.
+ */
 export type ScheduleRecipeRequest_unstable = {
     id: string;
     cron_schedule?: string | null;
@@ -2344,6 +2461,9 @@ export type SetConfigExtensionEnabledRequest_unstable = {
     enabled: boolean;
 };
 
+/**
+ * Set or clear a recipe's slash command.
+ */
 export type SetRecipeSlashCommandRequest_unstable = {
     id: string;
     slash_command?: string | null;
@@ -2374,6 +2494,9 @@ export type SetToolPermissionsResponse_unstable = {
     [key: string]: unknown;
 };
 
+/**
+ * Share a session through Nostr and return its share links.
+ */
 export type ShareSessionNostrRequest_unstable = {
     sessionId: string;
     relays: Array<string>;
@@ -2582,6 +2705,9 @@ export type UnarchiveSessionRequest_unstable = {
     sessionId: string;
 };
 
+/**
+ * Resume a paused scheduled recipe job.
+ */
 export type UnpauseScheduleRequest_unstable = {
     scheduleId: string;
 };
@@ -2606,6 +2732,9 @@ export type UnstructuredCommandInput = {
     } | null;
 };
 
+/**
+ * Update the cron expression for a scheduled recipe job.
+ */
 export type UpdateScheduleRequest_unstable = {
     scheduleId: string;
     cron: string;

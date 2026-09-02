@@ -122,6 +122,7 @@
       "required": [
         "name"
       ],
+      "description": "Delete a Goose app by name.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/delete"
     },
@@ -152,6 +153,7 @@
       "required": [
         "name"
       ],
+      "description": "Export a Goose app as HTML.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/export"
     },
@@ -178,6 +180,7 @@
       "required": [
         "html"
       ],
+      "description": "Import a Goose app from HTML.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/import"
     },
@@ -208,6 +211,7 @@
           ]
         }
       },
+      "description": "List available Goose apps, optionally scoped to a session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/list"
     },
@@ -459,6 +463,7 @@
     },
     "ConfigReadAllRequest_unstable": {
       "type": "object",
+      "description": "Read all non-secret Goose configuration values.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/read-all"
     },
@@ -490,6 +495,7 @@
       "required": [
         "key"
       ],
+      "description": "Read one Goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/read"
     },
@@ -517,6 +523,7 @@
       "required": [
         "key"
       ],
+      "description": "Remove one Goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/remove"
     },
@@ -536,6 +543,7 @@
         "key",
         "value"
       ],
+      "description": "Create or replace one Goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/upsert"
     },
@@ -650,6 +658,7 @@
         "recipe",
         "cron"
       ],
+      "description": "Create a scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/create"
     },
@@ -1049,6 +1058,7 @@
       "required": [
         "deeplink"
       ],
+      "description": "Decode a Goose deep link into a recipe.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/decode"
     },
@@ -1125,6 +1135,7 @@
       "required": [
         "id"
       ],
+      "description": "Delete a recipe from the local recipe library.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/delete"
     },
@@ -1138,6 +1149,7 @@
       "required": [
         "scheduleId"
       ],
+      "description": "Delete a scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/delete"
     },
@@ -1173,6 +1185,7 @@
       "required": [
         "sessionId"
       ],
+      "description": "Get a diagnostic report for a session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/diagnostics/get"
     },
@@ -1565,6 +1578,7 @@
       "required": [
         "recipe"
       ],
+      "description": "Encode a recipe as a Goose deep link.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/encode"
     },
@@ -3564,6 +3578,7 @@
       "required": [
         "sessionId"
       ],
+      "description": "List extensions enabled for an active session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/list"
     },
@@ -4125,6 +4140,7 @@
       "required": [
         "jobId"
       ],
+      "description": "Inspect the current state of a running scheduled job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/running-job/inspect"
     },
@@ -4169,6 +4185,7 @@
       "required": [
         "jobId"
       ],
+      "description": "Stop a currently running scheduled job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/running-job/kill"
     },
@@ -4278,6 +4295,7 @@
     },
     "ListRecipesRequest_unstable": {
       "type": "object",
+      "description": "List recipes in the local recipe library.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/list"
     },
@@ -4312,6 +4330,7 @@
         "scheduleId",
         "limit"
       ],
+      "description": "List recent sessions created by a scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/sessions/list"
     },
@@ -4333,6 +4352,7 @@
     },
     "ListSchedulesRequest_unstable": {
       "type": "object",
+      "description": "List scheduled recipe jobs.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/list"
     },
@@ -4435,6 +4455,7 @@
     },
     "LocalInferenceBuiltinChatTemplatesListRequest_unstable": {
       "type": "object",
+      "description": "List built-in chat templates for local inference.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/chat-templates/builtin/list"
     },
@@ -4708,6 +4729,7 @@
       "required": [
         "repoId"
       ],
+      "description": "List downloadable variants of a Hugging Face model repository.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/huggingface/repo/variants"
     },
@@ -4770,6 +4792,7 @@
       "required": [
         "query"
       ],
+      "description": "Search Hugging Face for local inference models.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/huggingface/search"
     },
@@ -4799,6 +4822,7 @@
       "required": [
         "modelId"
       ],
+      "description": "Delete a downloaded local inference model.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/delete"
     },
@@ -4812,6 +4836,7 @@
       "required": [
         "modelId"
       ],
+      "description": "Cancel a local model download.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/download/cancel"
     },
@@ -4825,6 +4850,7 @@
       "required": [
         "modelId"
       ],
+      "description": "Get the progress of a local model download.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/download/progress"
     },
@@ -4867,6 +4893,7 @@
       "required": [
         "spec"
       ],
+      "description": "Download a model for local inference.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/download"
     },
@@ -4990,6 +5017,7 @@
       "required": [
         "modelId"
       ],
+      "description": "Evict a local inference model from memory.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/evict"
     },
@@ -5123,6 +5151,7 @@
       "required": [
         "modelId"
       ],
+      "description": "Read the sampling settings for a local inference model.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/settings/read"
     },
@@ -5153,6 +5182,7 @@
         "modelId",
         "settings"
       ],
+      "description": "Update the sampling settings for a local inference model.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/settings/update"
     },
@@ -5171,6 +5201,7 @@
     },
     "LocalInferenceModelsListRequest_unstable": {
       "type": "object",
+      "description": "List locally available inference models.",
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/list"
     },
@@ -5706,6 +5737,7 @@
       "required": [
         "content"
       ],
+      "description": "Parse serialized recipe content.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/parse"
     },
@@ -5732,6 +5764,7 @@
       "required": [
         "scheduleId"
       ],
+      "description": "Pause a scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/pause"
     },
@@ -7451,6 +7484,7 @@
       "required": [
         "recipe"
       ],
+      "description": "Serialize a recipe as YAML.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/to-yaml"
     },
@@ -7606,6 +7640,7 @@
         "sessionId",
         "parameters"
       ],
+      "description": "Ask the client to provide values for a recipe's parameters.",
       "x-side": "client",
       "x-method": "_goose/unstable/session/recipe/request-params"
     },
@@ -7719,6 +7754,7 @@
       "required": [
         "scheduleId"
       ],
+      "description": "Run a scheduled recipe job immediately.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/run-now"
     },
@@ -7782,6 +7818,7 @@
       "required": [
         "recipe"
       ],
+      "description": "Save a recipe to the local recipe library.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/save"
     },
@@ -7816,6 +7853,7 @@
       "required": [
         "recipe"
       ],
+      "description": "Scan a recipe for security warnings.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/scan"
     },
@@ -7848,6 +7886,7 @@
       "required": [
         "id"
       ],
+      "description": "Set or clear a recipe's cron schedule.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/schedule"
     },
@@ -8066,6 +8105,7 @@
       "required": [
         "id"
       ],
+      "description": "Set or clear a recipe's slash command.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/slash-command"
     },
@@ -8136,6 +8176,7 @@
         "sessionId",
         "relays"
       ],
+      "description": "Share a session through Nostr and return its share links.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/share/nostr"
     },
@@ -8576,6 +8617,7 @@
       "required": [
         "scheduleId"
       ],
+      "description": "Resume a paused scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/unpause"
     },
@@ -8615,6 +8657,7 @@
         "scheduleId",
         "cron"
       ],
+      "description": "Update the cron expression for a scheduled recipe job.",
       "x-side": "agent",
       "x-method": "_goose/unstable/schedules/update"
     },

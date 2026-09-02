@@ -2,6 +2,9 @@
 
 import * as z from 'zod';
 
+/**
+ * Delete a Goose app by name.
+ */
 export const zAppsDeleteRequest_unstable = z.object({
     name: z.string()
 });
@@ -11,6 +14,9 @@ export const zAppsDeleteResponse_unstable = z.object({
     message: z.string()
 });
 
+/**
+ * Export a Goose app as HTML.
+ */
 export const zAppsExportRequest_unstable = z.object({
     name: z.string()
 });
@@ -19,6 +25,9 @@ export const zAppsExportResponse_unstable = z.object({
     html: z.string()
 });
 
+/**
+ * Import a Goose app from HTML.
+ */
 export const zAppsImportRequest_unstable = z.object({
     html: z.string()
 });
@@ -28,6 +37,9 @@ export const zAppsImportResponse_unstable = z.object({
     message: z.string()
 });
 
+/**
+ * List available Goose apps, optionally scoped to a session.
+ */
 export const zAppsListRequest_unstable = z.object({
     sessionId: z.string().nullish()
 });
@@ -78,12 +90,18 @@ export const zCanonicalModelInfoResponse_unstable = z.object({
     modelInfo: zCanonicalModelInfoDto.nullish()
 });
 
+/**
+ * Read all non-secret Goose configuration values.
+ */
 export const zConfigReadAllRequest_unstable = z.record(z.string(), z.unknown());
 
 export const zConfigReadAllResponse_unstable = z.object({
     config: z.record(z.string(), z.unknown())
 });
 
+/**
+ * Read one Goose configuration value.
+ */
 export const zConfigReadRequest_unstable = z.object({
     key: z.string(),
     isSecret: z.boolean().optional().default(false)
@@ -93,11 +111,17 @@ export const zConfigReadResponse_unstable = z.object({
     value: z.unknown().optional().default(null)
 });
 
+/**
+ * Remove one Goose configuration value.
+ */
 export const zConfigRemoveRequest_unstable = z.object({
     key: z.string(),
     isSecret: z.boolean().optional().default(false)
 });
 
+/**
+ * Create or replace one Goose configuration value.
+ */
 export const zConfigUpsertRequest_unstable = z.object({
     key: z.string(),
     value: z.unknown(),
@@ -177,6 +201,9 @@ export const zCustomProviderUpdateRequest_unstable = z.object({
     preservesThinking: z.boolean().nullish()
 });
 
+/**
+ * Decode a Goose deep link into a recipe.
+ */
 export const zDecodeRecipeRequest_unstable = z.object({
     deeplink: z.string()
 });
@@ -204,10 +231,16 @@ export const zDefaultsSaveRequest_unstable = z.object({
     modelId: z.string().nullish()
 });
 
+/**
+ * Delete a recipe from the local recipe library.
+ */
 export const zDeleteRecipeRequest_unstable = z.object({
     id: z.string()
 });
 
+/**
+ * Delete a scheduled recipe job.
+ */
 export const zDeleteScheduleRequest_unstable = z.object({
     scheduleId: z.string()
 });
@@ -218,6 +251,9 @@ export const zDiagnosticsGetResponse_unstable = z.object({
 
 export const zDiagnosticsReportLevel = z.enum(['summary', 'full']);
 
+/**
+ * Get a diagnostic report for a session.
+ */
 export const zDiagnosticsGetRequest_unstable = z.object({
     sessionId: z.string(),
     level: zDiagnosticsReportLevel.optional().default('summary')
@@ -382,6 +418,9 @@ export const zGetPromptResponse_unstable = z.object({
     isCustomized: z.boolean()
 });
 
+/**
+ * List extensions enabled for an active session.
+ */
 export const zGetSessionExtensionsRequest_unstable = z.object({
     sessionId: z.string()
 });
@@ -439,6 +478,9 @@ export const zImportSessionResponse_unstable = z.object({
     messageCount: z.int().gte(0)
 });
 
+/**
+ * Inspect the current state of a running scheduled job.
+ */
 export const zInspectRunningJobRequest_unstable = z.object({
     jobId: z.string()
 });
@@ -450,6 +492,9 @@ export const zInspectRunningJobResponse_unstable = z.object({
     runningDurationSeconds: z.int().nullish()
 });
 
+/**
+ * Stop a currently running scheduled job.
+ */
 export const zKillRunningJobRequest_unstable = z.object({
     jobId: z.string()
 });
@@ -478,13 +523,22 @@ export const zListProvidersRequest_unstable = z.object({
     providerIds: z.array(z.string()).optional().default([])
 });
 
+/**
+ * List recipes in the local recipe library.
+ */
 export const zListRecipesRequest_unstable = z.record(z.string(), z.unknown());
 
+/**
+ * List recent sessions created by a scheduled recipe job.
+ */
 export const zListScheduleSessionsRequest_unstable = z.object({
     scheduleId: z.string(),
     limit: z.int().gte(0)
 });
 
+/**
+ * List scheduled recipe jobs.
+ */
 export const zListSchedulesRequest_unstable = z.record(z.string(), z.unknown());
 
 /**
@@ -495,6 +549,9 @@ export const zListSlashCommandsRequest_unstable = z.object({
     sessionId: z.string().nullish()
 });
 
+/**
+ * List built-in chat templates for local inference.
+ */
 export const zLocalInferenceBuiltinChatTemplatesListRequest_unstable = z.record(z.string(), z.unknown());
 
 export const zLocalInferenceBuiltinChatTemplatesListResponse_unstable = z.object({
@@ -566,6 +623,9 @@ export const zLocalInferenceHfModelInfoDto = z.object({
     variants: z.array(zLocalInferenceHfModelVariantDto).optional().default([])
 });
 
+/**
+ * List downloadable variants of a Hugging Face model repository.
+ */
 export const zLocalInferenceHuggingFaceRepoVariantsRequest_unstable = z.object({
     repoId: z.string()
 });
@@ -578,6 +638,9 @@ export const zLocalInferenceHuggingFaceRepoVariantsResponse_unstable = z.object(
     downloadedVariants: z.array(z.string())
 });
 
+/**
+ * Search Hugging Face for local inference models.
+ */
 export const zLocalInferenceHuggingFaceSearchRequest_unstable = z.object({
     query: z.string(),
     limit: z.int().gte(0).nullish()
@@ -587,14 +650,23 @@ export const zLocalInferenceHuggingFaceSearchResponse_unstable = z.object({
     models: z.array(zLocalInferenceHfModelInfoDto)
 });
 
+/**
+ * Delete a downloaded local inference model.
+ */
 export const zLocalInferenceModelDeleteRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * Cancel a local model download.
+ */
 export const zLocalInferenceModelDownloadCancelRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * Get the progress of a local model download.
+ */
 export const zLocalInferenceModelDownloadProgressRequest_unstable = z.object({
     modelId: z.string()
 });
@@ -603,6 +675,9 @@ export const zLocalInferenceModelDownloadProgressResponse_unstable = z.object({
     progress: zLocalInferenceDownloadProgressDto.nullish()
 });
 
+/**
+ * Download a model for local inference.
+ */
 export const zLocalInferenceModelDownloadRequest_unstable = z.object({
     spec: z.string(),
     backendId: z.string().nullish(),
@@ -621,14 +696,23 @@ export const zLocalInferenceModelDownloadStatusDto = z.object({
     speedBps: z.int().gte(0).nullish()
 });
 
+/**
+ * Evict a local inference model from memory.
+ */
 export const zLocalInferenceModelEvictRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * Read the sampling settings for a local inference model.
+ */
 export const zLocalInferenceModelSettingsReadRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * List locally available inference models.
+ */
 export const zLocalInferenceModelsListRequest_unstable = z.record(z.string(), z.unknown());
 
 export const zLocalInferenceSamplingConfig = z.union([
@@ -704,6 +788,9 @@ export const zLocalInferenceModelSettingsReadResponse_unstable = z.object({
     settings: zLocalInferenceModelSettingsDto
 });
 
+/**
+ * Update the sampling settings for a local inference model.
+ */
 export const zLocalInferenceModelSettingsUpdateRequest_unstable = z.object({
     modelId: z.string(),
     settings: zLocalInferenceModelSettingsDto
@@ -902,10 +989,16 @@ export const zOnboardingImportScanResponse_unstable = z.object({
     candidates: z.array(zOnboardingImportCandidate)
 });
 
+/**
+ * Parse serialized recipe content.
+ */
 export const zParseRecipeRequest_unstable = z.object({
     content: z.string()
 });
 
+/**
+ * Pause a scheduled recipe job.
+ */
 export const zPauseScheduleRequest_unstable = z.object({
     scheduleId: z.string()
 });
@@ -1489,6 +1582,9 @@ export const zRenameSessionRequest_unstable = z.object({
     title: z.string()
 });
 
+/**
+ * Ask the client to provide values for a recipe's parameters.
+ */
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
     parameters: z.array(zRecipeParameterDto),
@@ -1564,6 +1660,9 @@ export const zResourceLink = z.object({
     _meta: z.record(z.string(), z.unknown()).nullish()
 });
 
+/**
+ * Run a scheduled recipe job immediately.
+ */
 export const zRunScheduleNowRequest_unstable = z.object({
     scheduleId: z.string()
 });
@@ -1593,6 +1692,9 @@ export const zScanRecipeResponse_unstable = z.object({
     has_security_warnings: z.boolean()
 });
 
+/**
+ * Set or clear a recipe's cron schedule.
+ */
 export const zScheduleRecipeRequest_unstable = z.object({
     id: z.string(),
     cron_schedule: z.string().nullish()
@@ -1707,6 +1809,9 @@ export const zSetConfigExtensionEnabledRequest_unstable = z.object({
     enabled: z.boolean()
 });
 
+/**
+ * Set or clear a recipe's slash command.
+ */
 export const zSetRecipeSlashCommandRequest_unstable = z.object({
     id: z.string(),
     slash_command: z.string().nullish()
@@ -1728,6 +1833,9 @@ export const zSetSessionSystemPromptRequest_unstable = z.object({
 
 export const zSetToolPermissionsResponse_unstable = z.record(z.string(), z.unknown());
 
+/**
+ * Share a session through Nostr and return its share links.
+ */
 export const zShareSessionNostrRequest_unstable = z.object({
     sessionId: z.string(),
     relays: z.array(z.string())
@@ -1947,6 +2055,9 @@ export const zRecipeDto = z.object({
     retry: zRecipeRetryConfigDto.nullish()
 });
 
+/**
+ * Create a scheduled recipe job.
+ */
 export const zCreateScheduleRequest_unstable = z.object({
     id: z.string(),
     recipe: zRecipeDto,
@@ -1957,6 +2068,9 @@ export const zDecodeRecipeResponse_unstable = z.object({
     recipe: zRecipeDto
 });
 
+/**
+ * Encode a recipe as a Goose deep link.
+ */
 export const zEncodeRecipeRequest_unstable = z.object({
     recipe: zRecipeDto
 });
@@ -1978,15 +2092,24 @@ export const zListRecipesResponse_unstable = z.object({
     recipes: z.array(zRecipeListEntryDto)
 });
 
+/**
+ * Serialize a recipe as YAML.
+ */
 export const zRecipeToYamlRequest_unstable = z.object({
     recipe: zRecipeDto
 });
 
+/**
+ * Save a recipe to the local recipe library.
+ */
 export const zSaveRecipeRequest_unstable = z.object({
     recipe: zRecipeDto,
     id: z.string().nullish()
 });
 
+/**
+ * Scan a recipe for security warnings.
+ */
 export const zScanRecipeRequest_unstable = z.object({
     recipe: zRecipeDto
 });
@@ -2118,6 +2241,9 @@ export const zUnarchiveSessionRequest_unstable = z.object({
     sessionId: z.string()
 });
 
+/**
+ * Resume a paused scheduled recipe job.
+ */
 export const zUnpauseScheduleRequest_unstable = z.object({
     scheduleId: z.string()
 });
@@ -2149,6 +2275,9 @@ export const zListSlashCommandsResponse_unstable = z.object({
     availableCommands: z.array(zAvailableCommand)
 });
 
+/**
+ * Update the cron expression for a scheduled recipe job.
+ */
 export const zUpdateScheduleRequest_unstable = z.object({
     scheduleId: z.string(),
     cron: z.string()
