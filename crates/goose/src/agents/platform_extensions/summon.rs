@@ -1,9 +1,11 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
+use crate::agents::subagent_handler::{
+    run_subagent_task, OnMessageCallback, SubagentRunParams, SubagentRunResult,
+};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter};
-use crate::agents::AgentConfig;
+use crate::agents::{AgentConfig, ExtensionLoadResult};
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
@@ -71,18 +73,25 @@ pub struct BackgroundTask {
     pub started_at: Instant,
     pub turns: Arc<AtomicU32>,
     pub last_activity: Arc<AtomicU64>,
-    pub handle: JoinHandle<Result<String>>,
+    pub handle: JoinHandle<Result<SubagentRunResult>>,
     pub cancellation_token: CancellationToken,
+    /// True when the delegated recipe declared a `response:` schema.
+    /// Consumers of the run result must preserve the raw JSON output and
+    /// not append a prose extension-load report to it.
+    pub response_expected: bool,
     notification_sink: SharedNotificationSink,
 }
 
 pub struct CompletedTask {
     pub id: String,
     pub description: String,
-    pub result: Result<String, String>,
+    pub result: Result<SubagentRunResult, String>,
     pub turns_taken: u32,
     pub duration: Duration,
     pub completed_at: Instant,
+    /// True when the delegated recipe declared a `response:` schema.
+    /// See `BackgroundTask::response_expected` for details.
+    pub response_expected: bool,
     notification_sink: SharedNotificationSink,
 }
 
@@ -611,13 +620,13 @@ impl SummonClient {
         sink.lock().await.attach(emitter).await;
     }
 
-    async fn run_subagent_with_notifications<Run, RunFuture>(
+    async fn run_subagent_with_notifications<Run, RunFuture, Output>(
         sink: SharedNotificationSink,
         run_subagent: Run,
-    ) -> Result<String>
+    ) -> Result<Output>
     where
         Run: FnOnce(tokio::sync::mpsc::UnboundedSender<ServerNotification>) -> RunFuture,
-        RunFuture: Future<Output = Result<String>>,
+        RunFuture: Future<Output = Result<Output>>,
     {
         let (notification_tx, mut notification_rx) = tokio::sync::mpsc::unbounded_channel();
         let run = run_subagent(notification_tx);
@@ -1019,12 +1028,19 @@ impl SummonClient {
                 task.description.clone(),
                 task.duration,
                 task.turns_taken,
+                task.response_expected,
                 Arc::clone(&task.notification_sink),
             )
         });
 
-        if let Some((result, description, duration, turns_taken, notification_sink)) =
-            completed_entry
+        if let Some((
+            result,
+            description,
+            duration,
+            turns_taken,
+            response_expected,
+            notification_sink,
+        )) = completed_entry
         {
             if !peek {
                 Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
@@ -1041,7 +1057,7 @@ impl SummonClient {
                 _ => "✗ Failed",
             };
             let output = match result {
-                Ok(output) => output,
+                Ok(run_result) => Self::subagent_output_text(run_result, response_expected),
                 Err(error) => format!("Error: {}", error),
             };
             return Ok(TaskLoadResult {
@@ -1112,12 +1128,13 @@ impl SummonClient {
 
                 let duration = task.started_at.elapsed();
                 let turns_taken = task.turns.load(Ordering::Relaxed);
+                let response_expected = task.response_expected;
 
                 let mut handle = task.handle;
                 let output = tokio::select! {
                     result = &mut handle => {
                         match result {
-                            Ok(Ok(s)) => s,
+                            Ok(Ok(run_result)) => Self::subagent_output_text(run_result, response_expected),
                             Ok(Err(e)) => format!("Error: {}", e),
                             Err(e) => format!("Task panicked: {}", e),
                         }
@@ -1153,11 +1170,12 @@ impl SummonClient {
             Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
             let mut task = running.remove(task_id).unwrap();
             drop(running);
+            let response_expected = task.response_expected;
 
             tokio::select! {
                 result = &mut task.handle => {
                     let (output, status_key) = match result {
-                        Ok(Ok(s)) => (s, "completed"),
+                        Ok(Ok(run_result)) => (Self::subagent_output_text(run_result, response_expected), "completed"),
                         Ok(Err(e)) => (format!("Error: {}", e), "failed"),
                         Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
@@ -1389,6 +1407,7 @@ impl SummonClient {
             .await?;
 
         let subagent_session_id = subagent_session.id.clone();
+        let response_expected = recipe.response.is_some();
 
         let params = SubagentRunParams {
             config: agent_config,
@@ -1417,8 +1436,21 @@ impl SummonClient {
         );
 
         match result {
-            Ok(text) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(text)]).with_meta(Some(meta)))
+            Ok(run_result) => {
+                if let Some(msg) =
+                    Self::schema_recipe_failure_message(&run_result, response_expected)
+                {
+                    return Ok(
+                        CallToolResult::error(vec![ContentBlock::text(msg)]).with_meta(Some(meta))
+                    );
+                }
+                Ok(
+                    CallToolResult::success(vec![ContentBlock::text(Self::subagent_output_text(
+                        run_result,
+                        response_expected,
+                    ))])
+                    .with_meta(Some(meta)),
+                )
             }
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Delegation failed: {}",
@@ -1426,6 +1458,66 @@ impl SummonClient {
             ))])
             .with_meta(Some(meta))),
         }
+    }
+
+    /// Decide whether a completed subagent run should be surfaced as a
+    /// tool-level error instead of a success, based on the interaction
+    /// between schema recipes and extension load failures.
+    ///
+    /// For recipes with a `response:` schema, the tool-response text must
+    /// remain valid JSON so the caller can parse it. That constraint rules
+    /// out the two obvious ways of surfacing extension load failures to
+    /// the parent LLM:
+    ///
+    /// - Appending a prose failure report inline corrupts the JSON (the
+    ///   very bug the response_expected branch exists to prevent).
+    /// - Adding a second `ContentBlock` doesn't help either: both the
+    ///   Anthropic format serialiser (newline-joined text parts, see
+    ///   `crates/goose-provider-types/src/formats/anthropic.rs:344-352`)
+    ///   and the OpenAI format serialiser (space-joined text, see
+    ///   `crates/goose-provider-types/src/formats/openai.rs:381-388`)
+    ///   collapse multi-block tool responses into a single joined string
+    ///   before the LLM sees them. The JSON is still corrupted at the
+    ///   caller.
+    /// - `_meta` on the tool response is transport-only and is not read
+    ///   by any format serialiser we checked.
+    ///
+    /// If a schema recipe requested extensions and some failed to load,
+    /// the subagent produced its JSON output under a degraded tool set.
+    /// Rather than silently returning that "clean" JSON, we return a
+    /// tool-level error so the parent LLM sees the failure and can
+    /// choose to retry or fall back. Prose recipes are unaffected —
+    /// they surface load failures via the appended report as before.
+    ///
+    /// Returns `Some(error_message)` when the caller should return a
+    /// `CallToolResult::error`, or `None` when the run is a legitimate
+    /// success and should be surfaced via the normal output path.
+    fn schema_recipe_failure_message(
+        run_result: &SubagentRunResult,
+        response_expected: bool,
+    ) -> Option<String> {
+        if !response_expected {
+            return None;
+        }
+        let failures: Vec<&ExtensionLoadResult> = run_result
+            .extension_load_results
+            .iter()
+            .filter(|r| !r.success)
+            .collect();
+        if failures.is_empty() {
+            return None;
+        }
+        let mut msg = format!(
+            "Delegation failed: {} extension(s) failed to load and the \
+             recipe declares a `response:` schema, so the subagent's JSON \
+             output cannot be trusted. Failures:",
+            failures.len(),
+        );
+        for r in &failures {
+            let err = r.error.as_deref().unwrap_or("unknown error");
+            msg.push_str(&format!("\n  failed: {} ({})", r.name, err));
+        }
+        Some(msg)
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
@@ -1640,6 +1732,8 @@ impl SummonClient {
             Config::global(),
         );
 
+        let mut pre_attach_load_results: Vec<ExtensionLoadResult> = Vec::new();
+
         if let Some(filter) = &params.extensions {
             if filter.is_empty() {
                 extensions = Vec::new();
@@ -1657,6 +1751,20 @@ impl SummonClient {
                         "Delegate requested extensions not available in session: {:?}. Available: {:?}",
                         unmatched, available_names
                     );
+                    // Surface the drops on the returned TaskConfig so the
+                    // subagent's tool response reports them to the parent LLM.
+                    // Without this, filter-culled extensions vanish silently
+                    // and the parent has no signal that its request was not
+                    // honoured.
+                    for name in unmatched {
+                        pre_attach_load_results.push(ExtensionLoadResult {
+                            name: name.to_string(),
+                            success: false,
+                            error: Some(format!(
+                                "extension \"{name}\" not available in parent session"
+                            )),
+                        });
+                    }
                 }
             }
         }
@@ -1690,7 +1798,8 @@ impl SummonClient {
             &effective_working_dir,
             extensions,
         )
-        .with_max_turns(Some(max_turns));
+        .with_max_turns(Some(max_turns))
+        .with_pre_attach_load_results(pre_attach_load_results);
 
         Ok(task_config)
     }
@@ -1919,6 +2028,7 @@ impl SummonClient {
                     turns_taken,
                     duration,
                     completed_at: Instant::now(),
+                    response_expected: task.response_expected,
                     notification_sink: task.notification_sink,
                 },
             );
@@ -1934,6 +2044,32 @@ impl SummonClient {
             (Some(source), None) => source.clone(),
             (None, Some(instructions)) => instructions.clone(),
             (None, None) => "Unknown task".to_string(),
+        }
+    }
+
+    /// Choose the caller-facing text for a completed subagent run.
+    ///
+    /// Recipes with a `response:` schema serialise their final output as
+    /// JSON; appending a prose report to that string produces invalid
+    /// JSON. In that case surface the raw text and log any drops via
+    /// `warn!` so operators still have visibility. Prose recipes keep
+    /// the inlined report as before (unchanged for the common case).
+    fn subagent_output_text(run_result: SubagentRunResult, response_expected: bool) -> String {
+        if response_expected {
+            let (text, load_results) = run_result.into_parts();
+            let failures: Vec<&ExtensionLoadResult> =
+                load_results.iter().filter(|r| !r.success).collect();
+            if !failures.is_empty() {
+                warn!(
+                    "Subagent completed with {} extension load failure(s); \
+                     report suppressed to preserve response schema. Failures: {:?}",
+                    failures.len(),
+                    failures
+                );
+            }
+            text
+        } else {
+            run_result.text_with_report()
         }
     }
 
@@ -2006,6 +2142,7 @@ impl SummonClient {
 
         let notification_sink = Self::notification_sink(None);
         let task_notification_sink = Arc::clone(&notification_sink);
+        let response_expected = recipe.response.is_some();
 
         let handle = tokio::spawn(async move {
             let params = SubagentRunParams {
@@ -2034,6 +2171,7 @@ impl SummonClient {
             last_activity,
             handle,
             cancellation_token: task_token,
+            response_expected,
             notification_sink,
         };
 
@@ -2932,6 +3070,79 @@ You review code."#;
         assert!(task_config.extensions.is_empty());
     }
 
+    /// Regression test for the silent-drop bug that motivated this PR.
+    ///
+    /// Parent session has `developer` active. Delegate filter requests both
+    /// `developer` (should survive the filter) and `nonexistent` (should be
+    /// culled). Assert the returned `TaskConfig` reports the culled name
+    /// on `pre_attach_load_results` so the subagent handler can surface it
+    /// to the parent LLM alongside attach-time results.
+    #[tokio::test]
+    async fn test_build_task_config_reports_unmatched_extensions_as_pre_attach_drops() {
+        use crate::session::ExtensionState;
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        // Seed session.extension_data with `developer` as the only enabled extension.
+        let mut extension_data = crate::session::ExtensionData::new();
+        crate::session::extension_data::EnabledExtensionsState::new(vec![
+            crate::agents::ExtensionConfig::Builtin {
+                name: "developer".into(),
+                description: "dev".into(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            },
+        ])
+        .to_extension_data(&mut extension_data)
+        .unwrap();
+
+        let session = crate::session::Session {
+            provider_name: Some(parent_provider.get_name().to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new("test-model")),
+            working_dir: temp_dir.path().to_path_buf(),
+            extension_data,
+            ..Default::default()
+        };
+        let params = DelegateParams {
+            extensions: Some(vec!["developer".to_string(), "nonexistent".to_string()]),
+            provider: Some(parent_provider.get_name().to_string()),
+            model: Some("test-model".to_string()),
+            ..Default::default()
+        };
+
+        let task_config = client
+            .build_task_config(&params, &empty_recipe(), &session)
+            .await
+            .unwrap();
+
+        // developer survived the filter and would be attached at runtime.
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
+
+        // nonexistent was culled but is reported for the parent to see.
+        assert_eq!(task_config.pre_attach_load_results.len(), 1);
+        let drop = &task_config.pre_attach_load_results[0];
+        assert_eq!(drop.name, "nonexistent");
+        assert!(!drop.success);
+        let err = drop.error.as_deref().unwrap_or("");
+        assert!(
+            err.contains("not available in parent session"),
+            "expected filter-drop reason in error: {}",
+            err
+        );
+    }
+
     const PARENT_MODEL: &str = "claude-3-5-sonnet-20241022";
     const OVERRIDE_MODEL: &str = "claude-opus-4-6";
     const PROVIDER: &str = "anthropic";
@@ -3431,10 +3642,14 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(buffered),
             },
         );
@@ -3480,10 +3695,14 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -3552,10 +3771,14 @@ You review code."#;
             CompletedTask {
                 id: task_id.to_string(),
                 description: "Completed task".to_string(),
-                result: Ok("done".to_string()),
+                result: Ok(SubagentRunResult {
+                    text: "done".to_string(),
+                    extension_load_results: Vec::new(),
+                }),
                 turns_taken: 1,
                 duration: Duration::from_secs(1),
                 completed_at: Instant::now(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(
                     (0..64)
                         .map(|index| test_tool_notification(&format!("inner-{index}"), task_id))
@@ -3602,9 +3825,13 @@ You review code."#;
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_millis(50)).await;
-                        Ok("done".to_string())
+                        Ok(SubagentRunResult {
+                            text: "done".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: CancellationToken::new(),
+                    response_expected: false,
                     notification_sink,
                 },
             );
@@ -3639,10 +3866,14 @@ You review code."#;
                 CompletedTask {
                     id: "20260204_2".to_string(),
                     description: "Successful task".to_string(),
-                    result: Ok("Task completed successfully with output".to_string()),
+                    result: Ok(SubagentRunResult {
+                        text: "Task completed successfully with output".to_string(),
+                        extension_load_results: Vec::new(),
+                    }),
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3655,6 +3886,7 @@ You review code."#;
                     turns_taken: 3,
                     duration: Duration::from_secs(30),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3739,9 +3971,13 @@ You review code."#;
                             .lock()
                             .await
                             .route(test_tool_notification("cancel", task_id));
-                        Ok("cancelled gracefully".to_string())
+                        Ok(SubagentRunResult {
+                            text: "cancelled gracefully".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: token.clone(),
+                    response_expected: false,
                     notification_sink,
                 },
             );
@@ -3785,9 +4021,13 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     task_token.cancelled().await;
-                    Ok("cancelled gracefully".to_string())
+                    Ok(SubagentRunResult {
+                        text: "cancelled gracefully".to_string(),
+                        extension_load_results: Vec::new(),
+                    })
                 }),
                 cancellation_token: token.clone(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -3845,9 +4085,13 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     finish_rx.await.unwrap();
-                    Ok("done".to_string())
+                    Ok(SubagentRunResult {
+                        text: "done".to_string(),
+                        extension_load_results: Vec::new(),
+                    })
                 }),
                 cancellation_token: CancellationToken::new(),
+                response_expected: false,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -3904,9 +4148,13 @@ You review code."#;
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_secs(1000)).await;
-                        Ok("eventual result".to_string())
+                        Ok(SubagentRunResult {
+                            text: "eventual result".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: CancellationToken::new(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3952,10 +4200,14 @@ You review code."#;
                 CompletedTask {
                     id: "20260204_1".to_string(),
                     description: "Finished task".to_string(),
-                    result: Ok("final output".to_string()),
+                    result: Ok(SubagentRunResult {
+                        text: "final output".to_string(),
+                        extension_load_results: Vec::new(),
+                    }),
                     turns_taken: 4,
                     duration: Duration::from_secs(30),
                     completed_at: Instant::now(),
+                    response_expected: false,
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
@@ -3981,5 +4233,90 @@ You review code."#;
             .await
             .unwrap();
         assert!(extract_text(&result.content[0]).contains("final output"));
+    }
+
+    #[test]
+    fn schema_recipe_failure_message_none_when_no_response_expected() {
+        // Prose recipes are unaffected — failures surface through the
+        // appended report in `text_with_report()`, not through a
+        // tool-level error. Return `None` regardless of load results.
+        let run = SubagentRunResult {
+            text: "prose output".to_string(),
+            extension_load_results: vec![ExtensionLoadResult {
+                name: "foo".to_string(),
+                success: false,
+                error: Some("boom".to_string()),
+            }],
+        };
+        assert!(SummonClient::schema_recipe_failure_message(&run, false).is_none());
+    }
+
+    #[test]
+    fn schema_recipe_failure_message_none_when_all_extensions_loaded() {
+        // Schema recipe, all extensions loaded successfully — legitimate
+        // success. Caller should surface the JSON output as-is.
+        let run = SubagentRunResult {
+            text: "{\"answer\": 42}".to_string(),
+            extension_load_results: vec![ExtensionLoadResult {
+                name: "developer".to_string(),
+                success: true,
+                error: None,
+            }],
+        };
+        assert!(SummonClient::schema_recipe_failure_message(&run, true).is_none());
+    }
+
+    #[test]
+    fn schema_recipe_failure_message_surfaces_failures_when_response_expected() {
+        // The Move-1 fix: schema recipe with any extension failure →
+        // caller should return a tool-level error listing every failure,
+        // rather than a "clean" JSON that hides the degraded tool set.
+        let run = SubagentRunResult {
+            text: "{\"answer\": 42}".to_string(),
+            extension_load_results: vec![
+                ExtensionLoadResult {
+                    name: "developer".to_string(),
+                    success: true,
+                    error: None,
+                },
+                ExtensionLoadResult {
+                    name: "computercontroller".to_string(),
+                    success: false,
+                    error: Some("not registered".to_string()),
+                },
+                ExtensionLoadResult {
+                    name: "chatrecall".to_string(),
+                    success: false,
+                    error: Some("startup timed out".to_string()),
+                },
+            ],
+        };
+        let msg = SummonClient::schema_recipe_failure_message(&run, true)
+            .expect("schema + failure should produce an error message");
+        // Structural assertions rather than exact match — leaves the
+        // wording free to evolve without touching the test.
+        assert!(msg.contains("2 extension(s) failed to load"));
+        assert!(msg.contains("`response:` schema"));
+        assert!(msg.contains("failed: computercontroller (not registered)"));
+        assert!(msg.contains("failed: chatrecall (startup timed out)"));
+        // The successful extension should NOT appear in the error list.
+        assert!(!msg.contains("failed: developer"));
+    }
+
+    #[test]
+    fn schema_recipe_failure_message_handles_missing_error_field() {
+        // Defensive: an ExtensionLoadResult with success=false but no
+        // error text (shouldn't happen in practice, but the type allows
+        // it) should not panic and should surface a sentinel string.
+        let run = SubagentRunResult {
+            text: "{\"answer\": 42}".to_string(),
+            extension_load_results: vec![ExtensionLoadResult {
+                name: "mystery".to_string(),
+                success: false,
+                error: None,
+            }],
+        };
+        let msg = SummonClient::schema_recipe_failure_message(&run, true).unwrap();
+        assert!(msg.contains("failed: mystery (unknown error)"));
     }
 }

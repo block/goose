@@ -1,4 +1,4 @@
-use crate::agents::ExtensionConfig;
+use crate::agents::{ExtensionConfig, ExtensionLoadResult};
 use crate::config::Config;
 use crate::providers::base::Provider;
 use std::fmt;
@@ -17,6 +17,13 @@ pub struct TaskConfig {
     pub parent_working_dir: PathBuf,
     pub extensions: Vec<ExtensionConfig>,
     pub max_turns: Option<usize>,
+    /// Extensions the caller requested that were unavailable before attach
+    /// was attempted (e.g. filtered out by `build_task_config` because they
+    /// were not active in the parent session). Pre-populated by the caller;
+    /// consumed alongside attach-time results in `subagent_handler` so the
+    /// parent LLM sees one entry per requested extension whether the drop
+    /// happened at filter time or attach time.
+    pub pre_attach_load_results: Vec<ExtensionLoadResult>,
 }
 
 impl fmt::Debug for TaskConfig {
@@ -50,6 +57,7 @@ impl TaskConfig {
                     .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
+            pre_attach_load_results: Vec::new(),
         }
     }
 
@@ -57,6 +65,16 @@ impl TaskConfig {
         if let Some(turns) = max_turns {
             self.max_turns = Some(turns);
         }
+        self
+    }
+
+    /// Attach a set of pre-computed extension load results to this config.
+    ///
+    /// Used by callers (e.g. `build_task_config`) to record extensions that
+    /// were requested but unavailable before the attach step ran, so the
+    /// parent LLM can see the drop in the subagent's tool response.
+    pub fn with_pre_attach_load_results(mut self, results: Vec<ExtensionLoadResult>) -> Self {
+        self.pre_attach_load_results = results;
         self
     }
 }
