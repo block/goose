@@ -269,4 +269,5 @@ bump-version rust_version:
     print(f"Python package: {python_version}")
     print(f"Maven artifact: {rust_version}")
     PY
+    cargo update --workspace
     cargo fmt --all
