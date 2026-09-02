@@ -305,7 +305,22 @@ where
             return not_applicable();
         }
 
-        let available = self.available_tools(session).await?;
+        let available = tokio::select! {
+            biased;
+            _ = emit.cancelled() => {
+                let mut message = Message::user();
+                for request in pending {
+                    message.add_tool_response_with_metadata(
+                        request.id,
+                        interrupted_result(),
+                        request.metadata.as_ref(),
+                    );
+                }
+                let message = emit.message(message).await;
+                return applied([E::from(message)]);
+            },
+            available = self.available_tools(session) => available?,
+        };
         let available_names = available
             .iter()
             .map(|(tool, _)| tool.name.as_ref())

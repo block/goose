@@ -92,11 +92,12 @@ where
                         let mut input = InferenceInput::default();
                         let mut tool_names = HashSet::new();
                         for operation in self.steps.iter().map(|step| step.operation()) {
-                            add_inference_tools(
-                                &mut input,
-                                &mut tool_names,
-                                operation.inference_tools(session).await?,
-                            )?;
+                            let tools = tokio::select! {
+                                biased;
+                                _ = self.cancel.cancelled() => return Ok(None),
+                                tools = operation.inference_tools(session) => tools?,
+                            };
+                            add_inference_tools(&mut input, &mut tool_names, tools)?;
                             input
                                 .prompt_parts
                                 .extend(operation.prompt_parts(session, conversation).await?);

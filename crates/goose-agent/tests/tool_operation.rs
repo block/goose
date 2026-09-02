@@ -9,7 +9,10 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use goose_agent::{
-    operation::{ConversationEffect, Emitter, Operation, OperationResult},
+    machine::{MachineSession, StateMachine, Step},
+    operation::{
+        ConversationEffect, Emitter, Inference, InferenceInput, Operation, OperationResult,
+    },
     tool::{ToolOperation, ToolProvider},
 };
 use goose_provider_types::conversation::{
@@ -444,6 +447,134 @@ async fn cancellation_interrupts_blocking_sync_tools() {
     assert!(message.content[0]
         .as_tool_response()
         .unwrap()
+        .tool_result
+        .as_ref()
+        .unwrap()
+        .is_error
+        .is_some_and(|is_error| is_error));
+}
+
+struct BlockingDiscovery {
+    started: Arc<AtomicBool>,
+}
+
+#[async_trait]
+impl<S: Send + Sync> ToolProvider<S> for BlockingDiscovery {
+    async fn tools(&self, _session: &S) -> Result<Vec<Tool>> {
+        self.started.store(true, Ordering::SeqCst);
+        std::future::pending().await
+    }
+
+    async fn call(
+        &self,
+        _session: &S,
+        _request_id: &str,
+        _call: CallToolRequestParams,
+        _emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        unreachable!()
+    }
+}
+
+struct TestSession {
+    conversation: Conversation,
+}
+
+impl MachineSession for TestSession {
+    fn id(&self) -> &str {
+        "test"
+    }
+
+    fn conversation(&self) -> Option<&Conversation> {
+        Some(&self.conversation)
+    }
+}
+
+struct TestInference;
+
+#[async_trait]
+impl Operation<TestSession> for TestInference {
+    fn name(&self) -> &'static str {
+        "inference"
+    }
+}
+
+#[async_trait]
+impl Inference<TestSession> for TestInference {
+    fn applies(&self, _conversation: &Conversation) -> bool {
+        true
+    }
+
+    async fn infer(
+        &self,
+        _session: &TestSession,
+        _conversation: &Conversation,
+        _input: InferenceInput,
+        _emit: &Emitter,
+    ) -> Result<OperationResult<ConversationEffect>> {
+        unreachable!()
+    }
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_inference_discovery() {
+    let started = Arc::new(AtomicBool::new(false));
+    let operation = ToolOperation::new().with_provider(Arc::new(BlockingDiscovery {
+        started: started.clone(),
+    }));
+    let cancel = CancellationToken::new();
+    let machine = StateMachine::new(
+        vec![
+            Step::Operation(Arc::new(operation)),
+            Step::Inference(Arc::new(TestInference)),
+        ],
+        cancel.clone(),
+    );
+    let session = TestSession {
+        conversation: Conversation::new_unvalidated([Message::user().with_text("use tools")]),
+    };
+    let emit = emitter_with_token(cancel.clone());
+
+    let step = tokio::spawn(async move { machine.step(&session, &emit).await });
+    while !started.load(Ordering::SeqCst) {
+        tokio::task::yield_now().await;
+    }
+    cancel.cancel();
+
+    assert!(step.await.unwrap().unwrap().is_none());
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_execution_discovery() {
+    let started = Arc::new(AtomicBool::new(false));
+    let operation = ToolOperation::new().with_provider(Arc::new(BlockingDiscovery {
+        started: started.clone(),
+    }));
+    let conversation = Conversation::new_unvalidated([
+        Message::user().with_text("call it"),
+        Message::assistant()
+            .with_tool_request("call-1", Ok(CallToolRequestParams::new("blocking"))),
+    ]);
+    let cancel = CancellationToken::new();
+    let run_cancel = cancel.clone();
+    let run = tokio::spawn(async move {
+        <ToolOperation<()> as Operation<(), ConversationEffect>>::run(
+            &operation,
+            &(),
+            &conversation,
+            &emitter_with_token(run_cancel),
+        )
+        .await
+    });
+    while !started.load(Ordering::SeqCst) {
+        tokio::task::yield_now().await;
+    }
+    cancel.cancel();
+    let message = appended_message(run.await.unwrap().unwrap());
+
+    let response = message.content[0].as_tool_response().unwrap();
+    assert_eq!(response.id, "call-1");
+    assert!(response
         .tool_result
         .as_ref()
         .unwrap()
