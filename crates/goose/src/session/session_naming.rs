@@ -131,14 +131,13 @@ pub(crate) async fn generate_session_name(
             &[message],
         )?
     } else {
-        crate::model_config::complete_fast(
+        crate::model_config::complete_one_shot(
             provider,
             model_config,
             session_id,
             &system,
             &[message],
             &[],
-            true,
         )
         .await?
     };

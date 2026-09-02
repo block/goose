@@ -235,7 +235,10 @@ impl InstructionDiscovery {
         let root = working_dir.canonicalize()?;
         let import_boundary = find_git_root(&root).unwrap_or(&root);
         let ignore = if self.options.respect_gitignore {
-            build_gitignore(directories.last().map(PathBuf::as_path).unwrap_or(&root))
+            build_gitignore_with_root(
+                &root,
+                directories.last().map(PathBuf::as_path).unwrap_or(&root),
+            )
         } else {
             Gitignore::empty()
         };
@@ -292,15 +295,16 @@ pub fn find_git_root(start: &Path) -> Option<&Path> {
 }
 
 pub fn build_gitignore(cwd: &Path) -> Gitignore {
-    let mut directories: Vec<_> = match find_git_root(cwd) {
-        Some(root) => cwd
-            .ancestors()
-            .take_while(|dir| dir.starts_with(root))
-            .collect(),
-        None => vec![cwd],
-    };
+    build_gitignore_with_root(find_git_root(cwd).unwrap_or(cwd), cwd)
+}
+
+fn build_gitignore_with_root(root: &Path, cwd: &Path) -> Gitignore {
+    let mut directories: Vec<_> = cwd
+        .ancestors()
+        .take_while(|dir| dir.starts_with(root))
+        .collect();
     directories.reverse();
-    let mut builder = GitignoreBuilder::new(cwd);
+    let mut builder = GitignoreBuilder::new(root);
     for directory in directories {
         let path = directory.join(".gitignore");
         if path.is_file() {

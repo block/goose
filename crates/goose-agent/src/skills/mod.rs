@@ -78,6 +78,19 @@ fn valid_name(name: &str) -> bool {
             .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
 }
 
+fn valid_plugin_name(name: &str) -> bool {
+    let Some((plugin, skill)) = name.split_once(':') else {
+        return valid_name(name);
+    };
+    !plugin.is_empty()
+        && !plugin.starts_with(['-', '.'])
+        && !plugin.ends_with(['-', '.'])
+        && plugin
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '-' | '.'))
+        && valid_name(skill)
+}
+
 fn walk(root: &Path, files: &mut Vec<PathBuf>, visited: &mut HashSet<PathBuf>) {
     let Ok(canonical) = root.canonicalize() else {
         return;
@@ -98,6 +111,35 @@ fn walk(root: &Path, files: &mut Vec<PathBuf>, visited: &mut HashSet<PathBuf>) {
                 Some(".git" | ".hg" | ".svn")
             ) {
                 walk(&path, files, visited);
+            }
+        } else if path.is_file() {
+            files.push(path);
+        }
+    }
+}
+
+fn walk_supporting_files(root: &Path, files: &mut Vec<PathBuf>, visited: &mut HashSet<PathBuf>) {
+    let Ok(canonical) = root.canonicalize() else {
+        return;
+    };
+    if !visited.insert(canonical) {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            if !path.join("SKILL.md").is_file()
+                && !matches!(
+                    path.file_name().and_then(|n| n.to_str()),
+                    Some(".git" | ".hg" | ".svn")
+                )
+            {
+                walk_supporting_files(&path, files, visited);
             }
         } else if path.is_file() {
             files.push(path);
@@ -128,7 +170,11 @@ pub fn discover_skills(options: &SkillDiscoveryOptions) -> Result<SkillDiscovery
                 let content = std::fs::read_to_string(&skill_file)?;
                 let (frontmatter, body) = parse_frontmatter(&content)?;
                 let name = frontmatter.name.context("missing skill name")?;
-                if !valid_name(&name) {
+                let name_is_valid = match root.scope {
+                    SkillScope::Plugin => valid_plugin_name(&name),
+                    _ => valid_name(&name),
+                };
+                if !name_is_valid {
                     bail!("invalid skill name '{name}'");
                 }
                 let discovered_dir = skill_file.parent().context("SKILL.md has no parent")?;
@@ -141,7 +187,7 @@ pub fn discover_skills(options: &SkillDiscoveryOptions) -> Result<SkillDiscovery
                 };
                 let mut supporting = Vec::new();
                 let mut all_files = Vec::new();
-                walk(discovered_dir, &mut all_files, &mut HashSet::new());
+                walk_supporting_files(discovered_dir, &mut all_files, &mut HashSet::new());
                 for file in all_files {
                     if file.file_name().and_then(|n| n.to_str()) != Some("SKILL.md") {
                         if let Ok(canonical) = file.canonicalize() {
@@ -251,4 +297,76 @@ pub fn resolve_supporting_file(skill: &SourceEntry, relative: &Path) -> Result<P
         bail!("supporting file is outside the skill directory or is not a file");
     }
     Ok(resolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_skill(directory: &Path, name: &str) {
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(
+            directory.join("SKILL.md"),
+            format!("---\nname: {name}\ndescription: test\n---\nbody\n"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn discovers_namespaced_plugin_skill() {
+        let root = tempfile::tempdir().unwrap();
+        write_skill(&root.path().join("audit"), "test-plugin:audit");
+        let discovery = discover_skills(&SkillDiscoveryOptions {
+            roots: vec![SkillRoot {
+                path: root.path().to_path_buf(),
+                scope: SkillScope::Plugin,
+                precedence: 0,
+                writable: false,
+                preserve_path: true,
+            }],
+            working_dir: None,
+        })
+        .unwrap();
+
+        assert_eq!(discovery.skills.len(), 1);
+        assert_eq!(discovery.skills[0].name, "test-plugin:audit");
+        assert!(discovery.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn nested_skill_files_are_not_parent_supporting_files() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("parent");
+        write_skill(&parent, "parent");
+        std::fs::write(parent.join("parent.txt"), "parent").unwrap();
+        let child = parent.join("child");
+        write_skill(&child, "child");
+        std::fs::write(child.join("child.txt"), "child").unwrap();
+
+        let discovery = discover_skills(&SkillDiscoveryOptions {
+            roots: vec![SkillRoot {
+                path: root.path().to_path_buf(),
+                scope: SkillScope::Project,
+                precedence: 0,
+                writable: true,
+                preserve_path: false,
+            }],
+            working_dir: None,
+        })
+        .unwrap();
+        let parent = discovery
+            .skills
+            .iter()
+            .find(|skill| skill.name == "parent")
+            .unwrap();
+
+        assert!(parent
+            .supporting_files
+            .iter()
+            .any(|path| path.ends_with("parent.txt")));
+        assert!(!parent
+            .supporting_files
+            .iter()
+            .any(|path| path.ends_with("child.txt")));
+    }
 }

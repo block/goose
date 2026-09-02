@@ -11,18 +11,13 @@ use crate::providers::custom_provider_config::ConfigKeyResolver;
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::openai::{
     parse_custom_headers, parse_openai_base_url, OpenAiProvider, OpenAiProviderBuilder,
-    OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_VERSIONLESS_BASE_PATH,
+    OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_VERSIONLESS_BASE_PATH,
 };
 
 pub struct OpenAiProviderDef;
 
 impl ProviderDescriptor for OpenAiProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        // The default fast model is resolved live in `live_fast_model` rather
-        // than baked into metadata here: registry metadata is snapshotted at
-        // init time, but the OpenAI base URL can change at runtime (e.g.
-        // switching to an OpenAI-compatible endpoint), which would otherwise
-        // leave the cached fast model stale.
         OpenAiProvider::metadata().with_setup(
             crate::providers::catalog::ProviderSetupMetadata::new(
                 crate::providers::catalog::ProviderSetupCategory::Model,
@@ -37,15 +32,6 @@ impl ProviderDescriptor for OpenAiProviderDef {
                 None,
             ),
         )
-    }
-}
-
-pub fn live_fast_model() -> Option<String> {
-    match resolve_base_url(crate::config::Config::global()) {
-        Ok(parsed) if is_direct_openai_host(&parsed.host) => {
-            Some(OPEN_AI_DEFAULT_FAST_MODEL.to_string())
-        }
-        _ => None,
     }
 }
 

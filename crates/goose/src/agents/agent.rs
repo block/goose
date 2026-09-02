@@ -12,6 +12,9 @@ use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
+use super::tool_confirmation_coordinator::{
+    ActiveTurnGuard, ConfirmationAnswer, ToolConfirmationCoordinator,
+};
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{
     tool_stream, ToolCallResult, ToolStream, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE,
@@ -30,12 +33,14 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
-    run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
+    persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
+    DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
+    GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
+    SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
+    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     SessionConfig, SharedProvider, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS,
@@ -57,7 +62,7 @@ use crate::conversation::{
 };
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
-use crate::permission::PermissionConfirmation;
+use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{PermissionRouting, Provider};
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
@@ -287,7 +292,8 @@ pub struct Agent {
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
-    pub tool_confirmation_router: ToolConfirmationRouter,
+    pub(super) tool_confirmation_router: ToolConfirmationRouter,
+    tool_confirmation_coordinator: ToolConfirmationCoordinator,
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -449,6 +455,7 @@ impl Agent {
             final_output_tool: Arc::new(Mutex::new(None)),
             prompt_manager: Mutex::new(PromptManager::new()),
             tool_confirmation_router: ToolConfirmationRouter::new(),
+            tool_confirmation_coordinator: ToolConfirmationCoordinator::new(),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(
                 permission_manager,
@@ -1502,29 +1509,102 @@ impl Agent {
         self.extension_manager.get_extension_configs().await
     }
 
-    /// Handle a confirmation response for a tool request
-    pub async fn handle_confirmation(
+    pub async fn submit_tool_confirmation(
         &self,
-        request_id: String,
-        confirmation: PermissionConfirmation,
-    ) {
+        session_id: &str,
+        request_id: &str,
+        permission: Permission,
+    ) -> Result<()> {
+        self.config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+
+        let state = self.tool_confirmation_coordinator.session(session_id);
+        let _confirmation_submission_guard = state.confirmation_submission_lock.lock().await;
+        let state_machine_permission = if permission == Permission::Cancel {
+            Permission::DenyOnce
+        } else {
+            permission.clone()
+        };
+
+        if let Some(answer) = state.answer(request_id) {
+            return match answer {
+                ConfirmationAnswer::LiveHandled => {
+                    Err(anyhow!("tool confirmation request was already answered"))
+                }
+                ConfirmationAnswer::StateMachine(previous)
+                    if previous == state_machine_permission =>
+                {
+                    Ok(())
+                }
+                ConfirmationAnswer::StateMachine(_) => Err(anyhow!(
+                    "tool confirmation request already has a different decision"
+                )),
+            };
+        }
+
+        let confirmation = PermissionConfirmation {
+            principal_type: crate::permission::permission_confirmation::PrincipalType::Tool,
+            permission: permission.clone(),
+        };
+        if self
+            .try_route_tool_confirmation_to_provider(request_id, &confirmation)
+            .await
+        {
+            if state.contains_request(request_id) {
+                state.record_answer(request_id, ConfirmationAnswer::LiveHandled)?;
+            }
+            return Ok(());
+        }
+
+        if self
+            .tool_confirmation_router
+            .deliver(session_id, request_id, confirmation)
+            .await
+        {
+            if state.contains_request(request_id) {
+                state.record_answer(request_id, ConfirmationAnswer::LiveHandled)?;
+            }
+            return Ok(());
+        }
+
+        if state.contains_request(request_id) {
+            persist_tool_confirmation_decision(
+                self.config.session_manager.as_ref(),
+                session_id,
+                request_id,
+                &state_machine_permission,
+            )
+            .await?;
+            state.record_answer(
+                request_id,
+                ConfirmationAnswer::StateMachine(state_machine_permission),
+            )?;
+            return Ok(());
+        }
+
+        Err(anyhow!(
+            "unknown or stale tool confirmation request {request_id} for session {session_id}"
+        ))
+    }
+
+    async fn try_route_tool_confirmation_to_provider(
+        &self,
+        request_id: &str,
+        confirmation: &PermissionConfirmation,
+    ) -> bool {
         let provider = self.provider.lock().await.clone();
         if let Some(provider) = provider.as_ref() {
             if provider.permission_routing() == PermissionRouting::ActionRequired
                 && provider
-                    .handle_permission_confirmation(&request_id, &confirmation)
+                    .handle_permission_confirmation(request_id, confirmation)
                     .await
             {
-                return;
+                return true;
             }
         }
-        if !self
-            .tool_confirmation_router
-            .deliver(request_id, confirmation)
-            .await
-        {
-            error!("Failed to deliver confirmation");
-        }
+        false
     }
 
     pub async fn supports_action_required_permissions(&self) -> bool {
@@ -1668,10 +1748,12 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
-        let cancel = cancel_token.unwrap_or_default();
         let session_id = session_config.id.clone();
+        let turn_guard = self
+            .tool_confirmation_coordinator
+            .session(&session_id)
+            .try_start_turn()?;
 
-        let entry_session = session_manager.get_session(&session_id, false).await?;
         if let Some(schedule_id) = session_config.schedule_id.clone() {
             session_manager
                 .update(&session_id)
@@ -1683,14 +1765,13 @@ impl Agent {
             .add_message(&session_config.id, &user_message)
             .await?;
 
-        let provider = self
-            .provider
-            .lock()
-            .await
-            .clone()
-            .ok_or_else(|| anyhow!("Provider not set"))?;
-
         if !self.config.disable_session_naming {
+            let provider = self
+                .provider
+                .lock()
+                .await
+                .clone()
+                .ok_or_else(|| anyhow!("Provider not set"))?;
             let manager = session_manager.clone();
             let tx = self.config.session_name_update_tx.clone();
             let id = session_id.clone();
@@ -1710,6 +1791,158 @@ impl Agent {
             });
         }
 
+        let cancel = cancel_token.unwrap_or_default();
+        let initial_stream = self
+            .stream_state_machine_session(session_config.clone(), cancel.clone())
+            .await?;
+        Ok(
+            self.stream_state_machine_turn(
+                session_config,
+                cancel,
+                turn_guard,
+                Some(initial_stream),
+            ),
+        )
+    }
+
+    pub(crate) async fn resume_state_machine_turn(
+        self: &Arc<Self>,
+        session_config: SessionConfig,
+        cancel: CancellationToken,
+    ) -> Result<Option<BoxStream<'static, Result<AgentEvent>>>> {
+        if !super::state_machine::enabled() {
+            return Ok(None);
+        }
+
+        let session = self
+            .config
+            .session_manager
+            .get_session(&session_config.id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .as_ref()
+            .ok_or_else(|| anyhow!("Session {} has no conversation", session_config.id))?;
+        let pending_confirmations = pending_tool_confirmations(conversation);
+        let resume_from_persisted_response = pending_confirmations.is_empty()
+            && has_unapplied_tool_confirmation_response(conversation);
+        if pending_confirmations.is_empty() && !resume_from_persisted_response {
+            return Ok(None);
+        }
+
+        let turn_guard = self
+            .tool_confirmation_coordinator
+            .session(&session_config.id)
+            .try_start_turn()?;
+        for request in pending_confirmations {
+            turn_guard.state().register_request(request.id);
+        }
+
+        let agent = Arc::clone(self);
+        Ok(Some(Box::pin(async_stream::try_stream! {
+            let initial_stream = if resume_from_persisted_response {
+                Some(
+                    agent
+                        .stream_state_machine_session(
+                            session_config.clone(),
+                            cancel.clone(),
+                        )
+                        .await?,
+                )
+            } else {
+                None
+            };
+            let mut stream = agent.stream_state_machine_turn(
+                session_config,
+                cancel,
+                turn_guard,
+                initial_stream,
+            );
+            while let Some(event) = stream.next().await {
+                yield event?;
+            }
+        })))
+    }
+
+    fn tool_confirmation_request_ids(event: &AgentEvent) -> Vec<String> {
+        let AgentEvent::Message(message) = event else {
+            return Vec::new();
+        };
+
+        message
+            .content
+            .iter()
+            .filter_map(|content| {
+                let MessageContent::ActionRequired(action) = content else {
+                    return None;
+                };
+                let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
+                    return None;
+                };
+                Some(id.clone())
+            })
+            .collect()
+    }
+
+    fn stream_state_machine_turn<'a>(
+        &'a self,
+        session_config: SessionConfig,
+        cancel: CancellationToken,
+        turn_guard: ActiveTurnGuard,
+        initial_stream: Option<BoxStream<'a, Result<AgentEvent>>>,
+    ) -> BoxStream<'a, Result<AgentEvent>> {
+        Box::pin(async_stream::try_stream! {
+            let mut stream = initial_stream;
+            loop {
+                if let Some(active_stream) = stream.as_mut() {
+                    let mut has_confirmations = false;
+                    while let Some(event) = active_stream.next().await {
+                        let event = event?;
+                        for request_id in Self::tool_confirmation_request_ids(&event) {
+                            turn_guard.state().register_request(request_id);
+                            has_confirmations = true;
+                        }
+                        yield event;
+                    }
+
+                    if !has_confirmations {
+                        return;
+                    }
+                }
+
+                let has_state_machine_answer = turn_guard
+                    .state()
+                    .wait_for_all_confirmation_answers(&cancel)
+                    .await?;
+                if !has_state_machine_answer {
+                    return;
+                }
+                turn_guard.state().clear_confirmations();
+                stream = Some(
+                    self.stream_state_machine_session(
+                        session_config.clone(),
+                        cancel.clone(),
+                    )
+                    .await?,
+                );
+            }
+        })
+    }
+
+    async fn stream_state_machine_session(
+        &self,
+        session_config: SessionConfig,
+        cancel: CancellationToken,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let session_manager = self.config.session_manager.clone();
+        let session_id = session_config.id.clone();
+        let entry_session = session_manager.get_session(&session_id, false).await?;
+        let provider = self
+            .provider
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow!("Provider not set"))?;
         let model_config = match entry_session.model_config {
             Some(model_config) => model_config,
             None => {
@@ -3992,7 +4225,6 @@ fn recipe_conversation_history(messages: &Conversation) -> Vec<Message> {
 mod tests {
     use super::*;
     use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
-    use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
     use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
     use crate::recipe::Response;
@@ -4334,39 +4566,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_confirmation_routes_to_provider() {
-        let agent = Agent::new();
+    async fn test_submit_tool_confirmation_routes_to_provider() {
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(ActionRequiredProvider::new());
         *agent.provider.lock().await =
             Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
 
         // Known request_id → provider handles it, confirmation_router NOT called
         agent
-            .handle_confirmation(
-                "known".to_string(),
-                PermissionConfirmation {
-                    principal_type: PrincipalType::Tool,
-                    permission: crate::permission::Permission::AllowOnce,
-                },
+            .submit_tool_confirmation(
+                &session.id,
+                "known",
+                crate::permission::Permission::AllowOnce,
             )
-            .await;
+            .await
+            .unwrap();
         assert_eq!(provider.handled.lock().await.len(), 1);
 
         // Unknown request_id → provider returns false, falls through to confirmation_router
         // Register first so deliver() has somewhere to send
         let rx = agent
             .tool_confirmation_router
-            .register("unknown".to_string())
+            .register(session.id.clone(), "unknown".to_string())
             .await;
         agent
-            .handle_confirmation(
-                "unknown".to_string(),
-                PermissionConfirmation {
-                    principal_type: PrincipalType::Tool,
-                    permission: crate::permission::Permission::DenyOnce,
-                },
+            .submit_tool_confirmation(
+                &session.id,
+                "unknown",
+                crate::permission::Permission::DenyOnce,
             )
-            .await;
+            .await
+            .unwrap();
         assert_eq!(provider.handled.lock().await.len(), 2);
         // Verify the fallthrough went to confirmation_router
         let conf = rx.await.unwrap();
@@ -4374,23 +4604,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_confirmation_noop_provider() {
-        let agent = Agent::new();
+    async fn test_submit_tool_confirmation_routes_to_legacy() {
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
         // No provider set → Noop routing, goes straight to confirmation_router
         // Register first so deliver() has somewhere to send
         let rx = agent
             .tool_confirmation_router
-            .register("any".to_string())
+            .register(session.id.clone(), "any".to_string())
             .await;
         agent
-            .handle_confirmation(
-                "any".to_string(),
-                PermissionConfirmation {
-                    principal_type: PrincipalType::Tool,
-                    permission: crate::permission::Permission::AllowOnce,
-                },
-            )
-            .await;
+            .submit_tool_confirmation(&session.id, "any", crate::permission::Permission::AllowOnce)
+            .await
+            .unwrap();
 
         let conf = rx.await.unwrap();
         assert_eq!(conf.permission, crate::permission::Permission::AllowOnce);

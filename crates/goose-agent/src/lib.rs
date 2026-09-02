@@ -4,3 +4,4 @@ pub mod machine;
 pub mod operation;
 pub mod prompt;
 pub mod skills;
+pub mod tool;
