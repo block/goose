@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
@@ -50,7 +50,7 @@ pub struct StateMachine<'a, S, E = ConversationEffect> {
     cancel: CancellationToken,
 }
 
-fn add_inference_tools(
+fn add_tools_to_inference_input(
     input: &mut InferenceInput,
     tool_names: &mut HashSet<String>,
     tools: Vec<rmcp::model::Tool>,
@@ -97,7 +97,7 @@ where
                                 _ = self.cancel.cancelled() => return Ok(None),
                                 tools = operation.inference_tools(session) => tools?,
                             };
-                            add_inference_tools(&mut input, &mut tool_names, tools)?;
+                            add_tools_to_inference_input(&mut input, &mut tool_names, tools)?;
                             input
                                 .prompt_parts
                                 .extend(operation.prompt_parts(session, conversation).await?);
@@ -183,13 +183,13 @@ mod tests {
         let mut input = InferenceInput::default();
         let mut names = HashSet::new();
 
-        add_inference_tools(
+        add_tools_to_inference_input(
             &mut input,
             &mut names,
             vec![rmcp::model::Tool::new("duplicate", "first", schema.clone())],
         )
         .unwrap();
-        let error = add_inference_tools(
+        let error = add_tools_to_inference_input(
             &mut input,
             &mut names,
             vec![rmcp::model::Tool::new("duplicate", "second", schema)],
