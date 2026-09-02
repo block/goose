@@ -108,11 +108,7 @@ pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
         not_applicable()
     }
 
-    async fn inference_tools(
-        &self,
-        _session: &S,
-        _conversation: &Conversation,
-    ) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
         Ok(Vec::new())
     }
 

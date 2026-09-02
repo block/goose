@@ -753,11 +753,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
         }
     }
 
-    async fn inference_tools(
-        &self,
-        session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
         let tools = self
             .extension_manager
             .get_prefixed_tools_excluding(&session.id, crate::skills::EXTENSION_NAME)

@@ -13,8 +13,8 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use crate::operation::{
-    applied, ends_turn, messages_since_kickoff, not_applicable, Emitter, Operation,
-    OperationFuture, OperationResult,
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
+    OperationResult,
 };
 
 fn empty_input_schema() -> Arc<JsonObject> {
@@ -89,6 +89,9 @@ fn result<T: ToolBase>(output: Result<T::Output, T::Error>) -> Result<CallToolRe
 }
 
 /// Supplies tools whose definitions and implementations may vary by session.
+///
+/// A provider's tool names and their handlers must remain stable from an inference
+/// advertisement until every tool call produced by that inference has been handled.
 #[async_trait]
 pub trait ToolProvider<S>: Send + Sync {
     async fn tools(&self, session: &S) -> Result<Vec<Tool>>;
@@ -152,7 +155,7 @@ where
 /// by a [`ToolProvider`] whose definitions may vary by session.
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
-    providers: Vec<(String, Arc<dyn ToolProvider<S>>)>,
+    providers: Vec<Arc<dyn ToolProvider<S>>>,
 }
 
 impl<S> ToolOperation<S>
@@ -179,21 +182,8 @@ where
         }
     }
 
-    pub fn with_provider(
-        mut self,
-        id: impl Into<String>,
-        provider: Arc<dyn ToolProvider<S>>,
-    ) -> Self {
-        let id = id.into();
-        assert!(
-            id != "registered",
-            "'registered' is reserved for typed tools"
-        );
-        assert!(
-            self.providers.iter().all(|(existing, _)| existing != &id),
-            "duplicate tool provider id '{id}'"
-        );
-        self.providers.push((id, provider));
+    pub fn with_provider(mut self, provider: Arc<dyn ToolProvider<S>>) -> Self {
+        self.providers.push(provider);
         self
     }
 
@@ -240,11 +230,7 @@ where
         self
     }
 
-    async fn available_tools(
-        &self,
-        session: &S,
-        emit: &Emitter,
-    ) -> Result<Vec<(Tool, &dyn ToolProvider<S>)>> {
+    async fn available_tools(&self, session: &S) -> Result<Vec<(Tool, &dyn ToolProvider<S>)>> {
         let mut available = self
             .registered
             .tools(session)
@@ -252,13 +238,8 @@ where
             .into_iter()
             .map(|tool| (tool, &self.registered as &dyn ToolProvider<S>))
             .collect::<Vec<_>>();
-        for (_, provider) in &self.providers {
-            let tools = tokio::select! {
-                biased;
-                _ = emit.cancelled() => anyhow::bail!("tool discovery cancelled"),
-                tools = provider.tools(session) => tools?,
-            };
-            for tool in tools {
+        for provider in &self.providers {
+            for tool in provider.tools(session).await? {
                 if available
                     .iter()
                     .any(|(available, _)| available.name == tool.name)
@@ -269,27 +250,6 @@ where
             }
         }
         Ok(available)
-    }
-
-    fn advertisement(
-        available: &[(Tool, &dyn ToolProvider<S>)],
-        providers: &[(String, Arc<dyn ToolProvider<S>>)],
-    ) -> Result<Value> {
-        let tools = available.iter().map(|(tool, _)| tool).collect::<Vec<_>>();
-        let routes = available
-            .iter()
-            .map(|(tool, provider)| {
-                let provider_id = providers
-                    .iter()
-                    .find(|(_, candidate)| std::ptr::eq(candidate.as_ref(), *provider))
-                    .map_or("registered", |(id, _)| id.as_str());
-                (
-                    tool.name.to_string(),
-                    Value::String(provider_id.to_string()),
-                )
-            })
-            .collect::<serde_json::Map<_, _>>();
-        Ok(json!({ "tools": tools, "routes": routes }))
     }
 }
 
@@ -312,21 +272,13 @@ where
         "tools"
     }
 
-    async fn inference_tools(
-        &self,
-        _session: &S,
-        conversation: &Conversation,
-    ) -> Result<Vec<Tool>> {
-        messages_since_kickoff(conversation)?
-            .iter()
-            .rev()
-            .find_map(|message| message.metadata.operation_note("tools", "advertisement"))
-            .and_then(|advertisement| advertisement.get("tools"))
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
-            .map(|tools| tools.unwrap_or_default())
-            .map_err(Into::into)
+    async fn inference_tools(&self, session: &S) -> Result<Vec<Tool>> {
+        Ok(self
+            .available_tools(session)
+            .await?
+            .into_iter()
+            .map(|(tool, _)| tool)
+            .collect())
     }
 
     async fn run(
@@ -340,134 +292,40 @@ where
             .iter()
             .flat_map(Message::get_tool_response_ids)
             .collect();
-        let has_unresolved_request = turn.iter().any(|message| {
-            message.content.iter().any(|content| {
-                content.as_tool_request().is_some_and(|request| {
-                    !request.was_executed_externally() && !answered.contains(request.id.as_str())
-                })
+        let pending = turn
+            .iter()
+            .flat_map(|message| message.content.iter())
+            .filter_map(MessageContent::as_tool_request)
+            .filter(|request| {
+                !request.was_executed_externally() && !answered.contains(request.id.as_str())
             })
-        });
-        let latest_assistant = turn
-            .iter()
-            .rposition(|message| message.role == rmcp::model::Role::Assistant);
-        let has_current_advertisement = turn
-            .iter()
-            .skip(latest_assistant.map_or(0, |index| index + 1))
-            .any(|message| {
-                message
-                    .metadata
-                    .operation_note("tools", "advertisement")
-                    .is_some()
-            });
-        let follows_provider_input = turn
-            .last()
-            .is_some_and(|message| message.role == rmcp::model::Role::User);
-        if !has_unresolved_request
-            && follows_provider_input
-            && !ends_turn(turn)
-            && !has_current_advertisement
-        {
-            let available = self.available_tools(session, emit).await?;
-            let mut message = Message::user().with_visibility(false, false);
-            message.metadata.set_operation_note(
-                "tools",
-                "advertisement",
-                Self::advertisement(&available, &self.providers)?,
-            );
-            return applied([E::from(message)]);
-        }
-
-        let answered: HashSet<&str> = turn
-            .iter()
-            .flat_map(Message::get_tool_response_ids)
-            .collect();
-        let mut routed = Vec::new();
-        let mut unrouted = Vec::new();
-        let mut routes = None;
-        for message in turn {
-            if let Some(advertisement) = message
-                .metadata
-                .operation_note("tools", "advertisement")
-                .and_then(Value::as_object)
-            {
-                routes = advertisement.get("routes").and_then(Value::as_object);
-            }
-            for request in message
-                .content
-                .iter()
-                .filter_map(MessageContent::as_tool_request)
-            {
-                if request.was_executed_externally() || answered.contains(request.id.as_str()) {
-                    continue;
-                }
-                match (&request.tool_call, routes) {
-                    (Ok(call), Some(routes)) => {
-                        if let Some(provider_id) = routes.get(call.name.as_ref()) {
-                            let provider_id = provider_id.as_str().ok_or_else(|| {
-                                anyhow::anyhow!(
-                                    "invalid persisted provider route for '{}'",
-                                    call.name
-                                )
-                            })?;
-                            routed.push((request.clone(), provider_id.to_string()));
-                        }
-                    }
-                    (Err(_), Some(_)) => routed.push((request.clone(), "registered".to_string())),
-                    (_, None) => unrouted.push(request.clone()),
-                }
-            }
-        }
-        if routed.is_empty() && unrouted.is_empty() {
+            .cloned()
+            .collect::<Vec<_>>();
+        if pending.is_empty() {
             return not_applicable();
         }
 
-        let available = if unrouted.is_empty() {
-            Vec::new()
-        } else {
-            self.available_tools(session, emit).await?
-        };
+        let available = self.available_tools(session).await?;
         let available_names = available
             .iter()
             .map(|(tool, _)| tool.name.as_ref())
             .collect();
-        let unrouted = pending_requests(unrouted, &available_names);
-        if routed.is_empty() && unrouted.is_empty() {
+        let pending = pending_requests(pending, &available_names);
+        if pending.is_empty() {
             return not_applicable();
         }
 
-        let mut requests = Vec::with_capacity(routed.len() + unrouted.len());
-        for (request, provider_id) in routed {
-            let provider = if provider_id == "registered" {
-                &self.registered as &dyn ToolProvider<S>
-            } else {
-                self.providers
-                    .iter()
-                    .find(|(id, _)| id == &provider_id)
-                    .map(|(_, provider)| provider.as_ref())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "persisted provider '{provider_id}' for request '{}' is unavailable",
-                            request.id
-                        )
-                    })?
-            };
-            requests.push((request, provider));
-        }
-        for request in unrouted {
+        let mut message = Message::user();
+        let mut cancelled = false;
+        for request in pending {
             let provider = match request.tool_call.as_ref() {
                 Ok(call) => available
                     .iter()
                     .find(|(tool, _)| tool.name == call.name)
                     .map(|(_, provider)| *provider)
-                    .expect("unrouted requests were filtered by available tools"),
+                    .expect("pending requests were filtered by available tools"),
                 Err(_) => &self.registered as &dyn ToolProvider<S>,
             };
-            requests.push((request, provider));
-        }
-
-        let mut message = Message::user();
-        let mut cancelled = false;
-        for (request, provider) in requests {
             let tool_result = if cancelled || emit.cancel_token().is_cancelled() {
                 cancelled = true;
                 interrupted_result()

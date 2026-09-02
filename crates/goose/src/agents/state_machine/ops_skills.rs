@@ -281,11 +281,7 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         ])
     }
 
-    async fn inference_tools(
-        &self,
-        _session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
         Ok(vec![skill_tool()?])
     }
 

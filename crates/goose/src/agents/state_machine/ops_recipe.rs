@@ -259,11 +259,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         ])
     }
 
-    async fn inference_tools(
-        &self,
-        session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
         Ok(Self::final_output(session)?
             .as_ref()
             .map(FinalOutputTool::tool)

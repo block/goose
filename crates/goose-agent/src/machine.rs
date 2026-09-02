@@ -95,7 +95,7 @@ where
                             add_inference_tools(
                                 &mut input,
                                 &mut tool_names,
-                                operation.inference_tools(session, conversation).await?,
+                                operation.inference_tools(session).await?,
                             )?;
                             input
                                 .prompt_parts
