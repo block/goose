@@ -23,3 +23,7 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
+
+[dev-dependencies]
+env-lock = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

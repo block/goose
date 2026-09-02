@@ -5334,6 +5334,7 @@ version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-trait",
+ "env-lock",
  "futures",
  "goose-provider-types",
  "rmcp 3.1.4",

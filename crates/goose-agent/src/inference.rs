@@ -408,7 +408,10 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                 .await;
 
             let mut stream = match stream {
-                Ok(stream) => stream,
+                Ok(stream) => goose_provider_types::stream_cap::cap_stream_duration(
+                    stream,
+                    self.provider.manages_own_context(),
+                ),
                 Err(err) => {
                     usage_effects.extend(self.error_outcome(&err, emit).await);
                     return applied(usage_effects);
@@ -524,6 +527,91 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_provider_types::base::MessageStream;
+    use rmcp::model::Tool;
+
+    struct WedgedProvider;
+
+    #[async_trait]
+    impl Provider for WedgedProvider {
+        fn get_name(&self) -> &str {
+            "wedged"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(
+                futures::stream::once(async {
+                    Ok((Some(Message::assistant().with_text("partial")), None))
+                })
+                .chain(futures::stream::pending()),
+            ))
+        }
+    }
+
+    enum TestEffect {
+        Message(Message),
+        Usage,
+    }
+
+    impl From<Message> for TestEffect {
+        fn from(message: Message) -> Self {
+            TestEffect::Message(message)
+        }
+    }
+
+    impl InferenceEffect for TestEffect {
+        fn record_usage(_usage: ProviderUsage) -> Self {
+            TestEffect::Usage
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn state_machine_inference_stream_is_capped_when_the_stream_wedges() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("60"))]);
+        let runner = InferenceRunner::<(), TestEffect>::new(
+            Arc::new(WedgedProvider),
+            ModelConfig::new("test-model"),
+        );
+        let conversation = Conversation::new_unvalidated([Message::user().with_text("hello")]);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(32);
+        let emit = Emitter::new(tx, tokio_util::sync::CancellationToken::new());
+        let input = InferenceInput {
+            tools: Vec::new(),
+            prompt_parts: Vec::new(),
+            moim_parts: Vec::new(),
+        };
+
+        let result = runner
+            .infer(&(), &conversation, input, &emit)
+            .await
+            .expect("infer must terminate when the cap fires");
+
+        drop(emit);
+        rx.close();
+        let crate::operation::OperationResult::Applied(step) = result else {
+            panic!("capped inference must produce an applied result");
+        };
+        let has_cap_error = step
+            .effects
+            .iter()
+            .filter_map(|effect| match effect {
+                TestEffect::Message(message) => Some(message),
+                TestEffect::Usage => None,
+            })
+            .flat_map(|message| &message.content)
+            .filter_map(MessageContent::as_error)
+            .any(|error| error.message.contains("maximum duration"));
+        assert!(
+            has_cap_error,
+            "effects must surface the stream cap error to the conversation"
+        );
+    }
 
     #[test]
     fn provider_session_id_comes_only_from_latest_inference() {
