@@ -30,7 +30,8 @@ use crate::errors::ProviderError;
 pub const DEFAULT_STREAM_MAX_DURATION_SECS: u64 = 900;
 
 /// Wall-clock cap per provider response: `GOOSE_STREAM_MAX_DURATION`
-/// (seconds, `0` disables) or the 30-minute default.
+/// (seconds, `0` disables) or the 15-minute default
+/// ([`DEFAULT_STREAM_MAX_DURATION_SECS`]).
 pub fn stream_max_duration() -> Option<Duration> {
     let secs = std::env::var("GOOSE_STREAM_MAX_DURATION")
         .ok()
