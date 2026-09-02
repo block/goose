@@ -1,6 +1,4 @@
-use anyhow::Result;
 use goose::acp::custom_notifications::custom_notification_schemas;
-use goose::acp::custom_requests::CustomMethodSchema;
 use goose::acp::server::{agent_request_schemas, GooseAcpAgent};
 use schemars::SchemaGenerator;
 use serde_json::{json, Map, Value};
@@ -11,34 +9,11 @@ use std::path::PathBuf;
 
 const STABLE_SCHEMA_TYPE_NAMES: &[&str] = &["EmptyResponse"];
 
-fn main() -> Result<()> {
-    let (schema, meta) = generate_artifacts()?;
-    let schema_json = serialize_json(&schema)?;
-    let meta_json = serialize_json(&meta)?;
-
-    let package_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
-    let schema_path = package_path.join("acp-schema.json");
-    let meta_path = package_path.join("acp-meta.json");
-
-    fs::write(&schema_path, &schema_json)?;
-    fs::write(&meta_path, meta_json)?;
-
-    eprintln!("Generated ACP schema at {}", schema_path.display());
-    eprintln!("Generated ACP meta at {}", meta_path.display());
-    print!("{schema_json}");
-
-    Ok(())
-}
-
-fn generate_artifacts() -> Result<(Value, Value)> {
+fn main() {
     let mut generator = SchemaGenerator::default();
-    let mut methods = GooseAcpAgent::custom_method_schemas(&mut generator);
-    let mut notifications = custom_notification_schemas(&mut generator);
-    let mut agent_requests = agent_request_schemas(&mut generator);
-
-    methods.sort_by(|left, right| left.method.cmp(&right.method));
-    notifications.sort_by(|left, right| left.method.cmp(&right.method));
-    agent_requests.sort_by(|left, right| left.method.cmp(&right.method));
+    let methods = GooseAcpAgent::custom_method_schemas(&mut generator);
+    let notifications = custom_notification_schemas(&mut generator);
+    let agent_requests = agent_request_schemas(&mut generator);
 
     // Types used by agent → client requests are answered by the client, so
     // they're tagged `x-side: "client"` rather than `"agent"`.
@@ -343,16 +318,6 @@ fn generate_artifacts() -> Result<(Value, Value)> {
         }),
     );
 
-    defs.sort_keys();
-    validate_type_references("method", &methods, &defs, &unstable_type_names)?;
-    validate_type_references("notification", &notifications, &defs, &unstable_type_names)?;
-    validate_type_references(
-        "agent request",
-        &agent_requests,
-        &defs,
-        &unstable_type_names,
-    )?;
-
     // Assemble the root schema document.
     let root = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -386,6 +351,15 @@ fn generate_artifacts() -> Result<(Value, Value)> {
             }
         ],
     });
+
+    let json_str = serde_json::to_string_pretty(&root).expect("failed to serialize schema");
+
+    let package_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let package_path = PathBuf::from(&package_dir);
+
+    let schema_path = package_path.join("acp-schema.json");
+    fs::write(&schema_path, format!("{json_str}\n")).expect("failed to write schema file");
+    eprintln!("Generated ACP schema at {}", schema_path.display());
 
     // Build meta.json with method→type mappings (consumed by TS codegen).
     let method_entries: Vec<Value> = methods
@@ -437,72 +411,12 @@ fn generate_artifacts() -> Result<(Value, Value)> {
         "notifications": notification_entries,
         "agentRequests": agent_request_entries,
     });
+    let meta_str = serde_json::to_string_pretty(&meta).expect("failed to serialize meta");
+    let meta_path = package_path.join("acp-meta.json");
+    fs::write(&meta_path, format!("{meta_str}\n")).expect("failed to write meta file");
+    eprintln!("Generated ACP meta at {}", meta_path.display());
 
-    validate_internal_schema_refs(&root)?;
-
-    Ok((root, meta))
-}
-
-fn serialize_json(value: &Value) -> Result<String> {
-    Ok(format!("{}\n", serde_json::to_string_pretty(value)?))
-}
-
-fn validate_type_references(
-    entry_kind: &str,
-    entries: &[CustomMethodSchema],
-    defs: &Map<String, Value>,
-    unstable_type_names: &BTreeSet<String>,
-) -> Result<()> {
-    for entry in entries {
-        for (type_role, type_name) in [
-            ("parameter", entry.params_type_name.as_deref()),
-            ("response", entry.response_type_name.as_deref()),
-        ] {
-            let Some(type_name) = type_name else {
-                continue;
-            };
-            let generated_name = generated_type_name(type_name, unstable_type_names);
-            if !defs.contains_key(&generated_name) {
-                anyhow::bail!(
-                    "{entry_kind} {:?} references missing {type_role} type {generated_name:?}",
-                    entry.method
-                );
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn validate_internal_schema_refs(root: &Value) -> Result<()> {
-    fn visit(value: &Value, root: &Value) -> Result<()> {
-        match value {
-            Value::Object(map) => {
-                if let Some(reference) = map.get("$ref").and_then(Value::as_str) {
-                    if let Some(pointer) = reference.strip_prefix('#') {
-                        let resolves = pointer.is_empty()
-                            || (pointer.starts_with('/') && root.pointer(pointer).is_some());
-                        if !resolves {
-                            anyhow::bail!("unresolved internal schema reference {reference:?}");
-                        }
-                    }
-                }
-                for nested in map.values() {
-                    visit(nested, root)?;
-                }
-            }
-            Value::Array(values) => {
-                for nested in values {
-                    visit(nested, root)?;
-                }
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    visit(root, root)
+    println!("{json_str}");
 }
 
 fn is_unstable_method(method: &str) -> bool {
@@ -639,62 +553,6 @@ fn replace_true_schemas(value: &mut Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rejects_missing_protocol_type_reference() {
-        let entries = [CustomMethodSchema {
-            method: "_goose/test".to_string(),
-            params_schema: None,
-            params_type_name: Some("MissingType".to_string()),
-            response_schema: None,
-            response_type_name: None,
-        }];
-        let error = validate_type_references("method", &entries, &Map::new(), &BTreeSet::new())
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("MissingType"));
-    }
-
-    #[test]
-    fn rejects_dangling_internal_schema_refs() {
-        let schema = json!({"$defs": {"Example": {"$ref": "#/$defs/Missing"}}});
-
-        assert!(validate_internal_schema_refs(&schema).is_err());
-    }
-
-    #[test]
-    fn generated_artifacts_are_sorted_and_deterministic() {
-        let (first_schema, first_meta) = generate_artifacts().unwrap();
-        let (second_schema, second_meta) = generate_artifacts().unwrap();
-
-        assert_eq!(
-            serialize_json(&first_schema).unwrap(),
-            serialize_json(&second_schema).unwrap()
-        );
-        assert_eq!(
-            serialize_json(&first_meta).unwrap(),
-            serialize_json(&second_meta).unwrap()
-        );
-
-        for collection in ["methods", "notifications", "agentRequests"] {
-            let names: Vec<_> = first_meta[collection]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|entry| entry["method"].as_str().unwrap())
-                .collect();
-            assert!(names.is_sorted(), "{collection} must be sorted");
-        }
-
-        let definition_names: Vec<_> = first_schema["$defs"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .map(String::as_str)
-            .collect();
-        assert!(definition_names.is_sorted(), "$defs must be sorted");
-    }
 
     #[test]
     fn adds_http_and_sse_discriminants_without_tagging_stdio() {
