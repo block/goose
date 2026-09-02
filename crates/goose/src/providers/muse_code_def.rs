@@ -47,6 +47,12 @@ const MUSE_CODE_KNOWN_MODELS: &[&str] = &[
 const REFRESH_THRESHOLD_SECS: i64 = 300;
 const DEFAULT_TOKEN_LIFETIME_SECS: i64 = 3600;
 
+static GLOBAL_MUSE_REFRESH_MUTEX: std::sync::OnceLock<TokioMutex<()>> = std::sync::OnceLock::new();
+
+fn global_muse_refresh_mutex() -> &'static TokioMutex<()> {
+    GLOBAL_MUSE_REFRESH_MUTEX.get_or_init(|| TokioMutex::new(()))
+}
+
 pub struct MuseCodeProviderDef;
 
 pub struct MuseCodeProvider {
@@ -80,7 +86,6 @@ struct MuseCodeAuth {
     api_host: String,
     auth_host: String,
     client_id: String,
-    refresh_mutex: TokioMutex<()>,
 }
 
 struct SharedAuthProvider(Arc<MuseCodeAuth>);
@@ -403,7 +408,7 @@ impl MuseCodeAuth {
             return Err(ProviderError::NotConfigured);
         }
 
-        let _guard = self.refresh_mutex.lock().await;
+        let _guard = global_muse_refresh_mutex().lock().await;
 
         if let Some(reloaded) = self.cache.load() {
             if reloaded != token
@@ -486,7 +491,6 @@ async fn from_env(tls_config: Option<TlsConfig>) -> Result<MuseCodeProvider> {
         api_host: host.clone(),
         auth_host,
         client_id,
-        refresh_mutex: TokioMutex::new(()),
     });
 
     let api_client = ApiClient::with_timeout_and_tls(
