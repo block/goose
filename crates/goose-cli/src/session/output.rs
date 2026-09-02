@@ -700,15 +700,18 @@ pub(super) fn render_tool_confirmation(
     security_prompt: Option<&str>,
 ) {
     eprintln!();
+    if let Some(security_prompt) = security_prompt {
+        eprintln!("  {}", style("Provider-provided approval notice").bold());
+        for line in sanitize_tool_confirmation_text(security_prompt).split('\n') {
+            eprintln!("    {}", style(line).dim());
+        }
+        eprintln!();
+    }
     eprintln!("  {}", style("Tool approval request").bold());
     for line in format_tool_confirmation(tool_name, arguments).lines() {
         eprintln!("    {}", style(line).dim());
     }
     eprintln!();
-    if let Some(security_prompt) = security_prompt {
-        eprintln!("{}", sanitize_tool_confirmation_text(security_prompt));
-        eprintln!();
-    }
 }
 
 fn print_tool_output_line(line: &str) {
@@ -1888,17 +1891,18 @@ mod tests {
         const PROVIDER_TOKEN: &str = "provider-prompt-token";
 
         if env::var_os(CHILD_ENV).is_some() {
+            let forged_request = (0..80)
+                .map(|line| format!("forged safe request line {line}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let provider_prompt = format!(
+                "{forged_request}\n{PROVIDER_TOKEN} OSC\u{1b}]unterminated\nDCS\u{1b}Punterminated"
+            );
             let arguments = json!({"command": AUTHORITATIVE_TOKEN})
                 .as_object()
                 .unwrap()
                 .clone();
-            render_tool_confirmation(
-                "shell",
-                &arguments,
-                Some(&format!(
-                    "{PROVIDER_TOKEN} OSC\u{1b}]unterminated\nDCS\u{1b}Punterminated"
-                )),
-            );
+            render_tool_confirmation("shell", &arguments, Some(&provider_prompt));
             return;
         }
 
@@ -1919,7 +1923,15 @@ mod tests {
         assert!(!stdout.contains(PROVIDER_TOKEN));
         assert!(stderr.contains(AUTHORITATIVE_TOKEN));
         assert!(stderr.contains(PROVIDER_TOKEN));
-        assert!(stderr.find(AUTHORITATIVE_TOKEN) < stderr.find(PROVIDER_TOKEN));
+        assert!(stderr.contains("forged safe request line 79"));
+        let provider_notice = stderr.find("Provider-provided approval notice").unwrap();
+        let provider_content = stderr.find(PROVIDER_TOKEN).unwrap();
+        let authoritative_block = stderr.find("Tool approval request").unwrap();
+        assert!(provider_notice < provider_content);
+        assert!(provider_content < authoritative_block);
+        let authoritative_tail = stderr.get(authoritative_block..).unwrap();
+        assert!(authoritative_tail.contains(AUTHORITATIVE_TOKEN));
+        assert!(!authoritative_tail.contains(PROVIDER_TOKEN));
         assert!(!stderr.contains("\u{1b}]"));
         assert!(!stderr.contains("\u{1b}P"));
     }
