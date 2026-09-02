@@ -49,6 +49,9 @@ rmcp = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
+async-trait.workspace = true
+env-lock.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "io-std", "io-util"] }
 tokio-util = { workspace = true, features = ["compat", "rt"] }
 

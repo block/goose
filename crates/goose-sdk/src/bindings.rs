@@ -746,6 +746,7 @@ impl ProviderHandle {
         tools: Vec<ProviderTool>,
     ) -> Result<Arc<ProviderStream>, GooseError> {
         let timeout_ms = model.timeout_ms;
+        let manages_own_context = self.provider.manages_own_context();
         let model = model.to_goose_model_config()?;
         let messages = convert_messages(messages)?;
         let tools = convert_tools(tools)?;
@@ -763,7 +764,9 @@ impl ProviderHandle {
         })
         .await
         {
-            Ok(Ok(stream)) => stream,
+            Ok(Ok(stream)) => {
+                goose_providers::stream_cap::cap_stream_duration(stream, manages_own_context)
+            }
             Ok(Err(error)) => return Err(observer.fail(GooseError::from(error))),
             Err(error) => return Err(observer.fail(error)),
         };
@@ -1313,6 +1316,67 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::errors::ProviderError;
+
+    /// A provider whose stream wedges after the first item, like an upstream
+    /// that stalls behind SSE keepalives (#11679).
+    struct WedgingProvider;
+
+    #[async_trait::async_trait]
+    impl GooseProvider for WedgingProvider {
+        fn get_name(&self) -> &str {
+            "wedging"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            use futures::StreamExt;
+            Ok(Box::pin(
+                futures::stream::once(async {
+                    Ok((Some(Message::assistant().with_text("a")), None))
+                })
+                .chain(futures::stream::pending()),
+            ))
+        }
+    }
+
+    /// The raw SDK stream path (`Provider::stream` with no `timeout_ms`) must
+    /// also be capped: it hands the provider stream straight to the foreign
+    /// caller without going through the agent reply path (#11679).
+    #[tokio::test]
+    async fn sdk_stream_is_capped_when_the_stream_wedges() {
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_MAX_DURATION", Some("1"))]);
+
+        let provider = Provider::new(Box::new(WedgingProvider));
+        let stream = provider
+            .stream(base_model_config(), "system".to_string(), vec![], vec![])
+            .await
+            .unwrap();
+
+        let first = stream.next_chunk().await.unwrap();
+        assert!(
+            matches!(first, Some(StreamChunk::TextChunk { ref text }) if text == "a"),
+            "unexpected first chunk: {first:?}"
+        );
+
+        let capped = tokio::time::timeout(Duration::from_secs(30), stream.next_chunk())
+            .await
+            .expect("stream must not run past the cap")
+            .unwrap();
+        assert!(
+            matches!(
+                capped,
+                Some(StreamChunk::ErrorChunk { ref error })
+                    if error.message.contains("maximum duration")
+            ),
+            "unexpected chunk after cap: {capped:?}"
+        );
+    }
 
     fn base_model_config() -> ProviderModelConfig {
         ProviderModelConfig {
