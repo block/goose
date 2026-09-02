@@ -1,6 +1,13 @@
 name: Python GDK Wheels
 
 on:
+  workflow_call:
+    inputs:
+      publish:
+        description: "Publish wheels to PyPI after building"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       publish:
@@ -25,7 +32,7 @@ jobs:
           - name: macos-arm64
             os: macos-14
           - name: macos-x86_64
-            os: macos-13
+            os: macos-15-intel
           - name: linux-x86_64
             os: ubuntu-latest
             container: quay.io/pypa/manylinux_2_28_x86_64@sha256:441c35fdc6ee809ff9260894f8468ab4fea8c15dc880f8700a3f81b7922c1cda
@@ -39,7 +46,12 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
 
+      - name: Select Linux Python
+        if: runner.os == 'Linux'
+        run: echo "/opt/python/cp312-cp312/bin" >> "$GITHUB_PATH"
+
       - name: Set up Python
+        if: runner.os != 'Linux'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -99,7 +111,7 @@ jobs:
     name: Publish wheels to PyPI
     needs: build-wheels
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: inputs.publish
     environment: pypi
     steps:
       - name: Download wheel artifacts
@@ -113,3 +125,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist
+          skip-existing: true

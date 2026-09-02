@@ -570,9 +570,6 @@ fn claude_mcp_config_json(extensions: &[ExtensionConfig]) -> Option<String> {
                 }
                 mcp_servers.insert(key, Value::Object(config));
             }
-            ExtensionConfig::Sse { name, .. } => {
-                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
-            }
             _ => {}
         }
     }
@@ -1243,15 +1240,6 @@ mod tests {
         vec![],
         None
         ; "empty_extensions_returns_none"
-    )]
-    #[test_case(
-        vec![ExtensionConfig::Sse {
-            name: "legacy".into(),
-            description: String::new(),
-            uri: Some("http://localhost/sse".into()),
-        }],
-        None
-        ; "sse_only_returns_none"
     )]
     #[test_case(
         vec![ExtensionConfig::Stdio {

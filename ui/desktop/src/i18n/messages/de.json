@@ -1053,9 +1053,6 @@
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Typ"
   },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (nicht unterstützt)"
-  },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standard IO (STDIO)"
   },

@@ -355,14 +355,13 @@ impl OrchestratorClient {
         ));
 
         let model_config = self.parent_model_config(provider.get_name()).await?;
-        let (response, _usage) = crate::model_config::complete_fast(
+        let (response, _usage) = crate::model_config::complete_one_shot(
             provider.as_ref(),
             &model_config,
             session_id,
             system,
             &[user_message],
             &[],
-            true,
         )
         .await
         .map_err(|e| format!("LLM summarization failed: {}", e))?;

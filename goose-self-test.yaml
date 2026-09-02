@@ -15,6 +15,7 @@ activities:
   - Test delegate tool for task delegation (sync and async)
   - Test multi-turn thinking preservation for providers that reject replayed reasoning_content
   - Validate ACP thinking-effort discovery, forwarding, and provider switching
+  - Validate GDK observability hook lifecycle events and payload opt-in
   - Test error boundaries including nested delegation prevention
   - Generate comprehensive test report
 
@@ -413,6 +414,23 @@ prompt: |
      managed providers preserve values they support.
 
   Log results to: {{ workspace_dir }}/phase3d_acp_effort.md
+  {% endif %}
+
+  {% if test_phases == "all" or "advanced" in test_phases %}
+  ## 🔭 PHASE 3E: GDK Observability Hook Testing
+
+  **Prerequisites**: Run this phase from a goose source checkout with the Rust toolchain
+  available. Skip this phase and record it as SKIPPED otherwise.
+
+  ### Observability Hook Integration Test
+  1. Run `cargo test -p goose-sdk --features uniffi --lib observability`.
+  2. Verify a registered hook receives `on_request_start`, `on_response_start`, and exactly
+     one `on_request_end` sharing a single `request_id`, with latency and token usage.
+  3. Verify request and response payloads are omitted unless `capture_payloads` is enabled.
+  4. Verify a panicking foreign hook does not fail the request and later events still arrive.
+  5. Verify `clear_observability_hook` stops events for in-flight requests as well as new ones.
+
+  Log results to: {{ workspace_dir }}/phase3e_observability.md
   {% endif %}
 
   {% if test_phases == "all" or "advanced" in test_phases %}

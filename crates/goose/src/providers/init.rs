@@ -28,7 +28,6 @@ use super::{
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
-    openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
     snowflake_def::SnowflakeProviderDef,
@@ -45,6 +44,7 @@ use crate::providers::databricks_v2_def::{self, DatabricksV2ProviderDef};
 use crate::providers::google_def::GoogleProviderDef;
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
+use crate::providers::openrouter_def::OpenRouterProviderDef;
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
@@ -157,7 +157,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::openai_inventory()),
         );
-        registry.register_with_inventory::<OpenRouterProvider>(
+        registry.register_with_inventory::<OpenRouterProviderDef>(
             true,
             Some(registrations::refresh_only().with_configured(|| {
                 let config = crate::config::Config::global();

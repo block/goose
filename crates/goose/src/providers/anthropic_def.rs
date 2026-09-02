@@ -3,7 +3,10 @@ use futures::future::BoxFuture;
 
 use crate::{
     config::{Config, DeclarativeProviderConfig},
-    providers::{base::ProviderDef, custom_provider_config::ConfigKeyResolver},
+    providers::{
+        base::ProviderDef, command_auth::CommandAuthProvider,
+        custom_provider_config::ConfigKeyResolver,
+    },
 };
 use goose_providers::{
     anthropic::{self, AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION},
@@ -69,12 +72,19 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
 ) -> Result<AnthropicProvider> {
+    let auth_override = config.auth.clone();
     anthropic::from_declarative_config(config, tls_config, ConfigKeyResolver::new(Config::global()))
         .map(|builder| {
             builder
                 .map_api_client(|api_client| {
-                    api_client
-                        .with_request_builder(crate::session_context::session_id_request_builder())
+                    let api_client = api_client
+                        .with_request_builder(crate::session_context::session_id_request_builder());
+                    match auth_override {
+                        Some(auth_config) => api_client.with_auth(AuthMethod::Custom(Box::new(
+                            CommandAuthProvider::new(&auth_config, "x-api-key", ""),
+                        ))),
+                        None => api_client,
+                    }
                 })
                 .build()
         })
@@ -129,11 +139,11 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models,
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: vec![],
-            fast_model: None,
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,

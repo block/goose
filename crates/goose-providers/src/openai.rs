@@ -58,7 +58,6 @@ impl CachedContextLimit {
     }
 }
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
-pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
@@ -912,6 +911,8 @@ pub fn from_declarative_config(
         ));
     }
 
+    config.validate_auth()?;
+
     let api_key = if config.api_key_env.is_empty() {
         None
     } else {
@@ -1384,11 +1385,11 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: Some(false),
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: vec![],
-            fast_model: None,
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,
