@@ -26,9 +26,7 @@ use goose::agents::platform_extensions::developer::shell::{
 };
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
-use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
-use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 use goose::providers::base::ProviderUsage;
 use goose::utils::safe_truncate;
@@ -1553,7 +1551,6 @@ impl CliSession {
             .messages
             .last()
             .ok_or_else(|| anyhow::anyhow!("No user message"))?;
-
         let cancel_token_interrupt = cancel_token.clone();
         let handle = tokio::spawn(async move {
             if ctrl_c().await.is_ok() {
@@ -1590,7 +1587,7 @@ impl CliSession {
                                 first_token_at = Some(Instant::now());
                             }
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
-                                let permission = if interactive {
+                                let selected_permission = if interactive {
                                     prompt_tool_confirmation(&security_prompt)?
                                 } else {
                                     // Non-interactive/headless mode: refuse to run in
@@ -1613,30 +1610,39 @@ impl CliSession {
                                     Permission::AllowOnce
                                 };
 
-                                if permission == Permission::Cancel {
+                                let cancelled_by_user = selected_permission == Permission::Cancel;
+                                if cancelled_by_user {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
-                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
-                                        principal_type: PrincipalType::Tool,
-                                        permission: Permission::DenyOnce,
-                                    }).await;
+                                }
+                                self.agent
+                                    .submit_tool_confirmation(
+                                        &self.session_id,
+                                        &id,
+                                        selected_permission,
+                                    )
+                                    .await?;
+                                if cancelled_by_user {
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,
                                         Err(ErrorData {
                                             code: ErrorCode::INVALID_REQUEST,
-                                            message: std::borrow::Cow::from("Tool call cancelled by user"),
+                                            message: std::borrow::Cow::from(
+                                                "Tool call cancelled by user",
+                                            ),
                                             data: None,
                                         }),
                                     ));
+                                    self.agent
+                                        .config
+                                        .session_manager
+                                        .add_message(&self.session_id, &response_message)
+                                        .await?;
                                     self.messages.push(response_message);
                                     cancel_token_clone.cancel();
                                     drop(stream);
                                     break;
                                 }
-                                self.agent.handle_confirmation(id, PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission,
-                                }).await;
                             } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 if !interactive {
                                     // Non-interactive/headless mode: cannot collect user input

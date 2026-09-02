@@ -4,10 +4,21 @@ use async_trait::async_trait;
 use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};
 use goose_agent::machine::{EffectHandler, EffectUsage, MachineSession, SessionLoader};
 use goose_agent::operation::{ConversationEffect, Emitter, MachineEffect};
+
+fn contains_tool_confirmation_request(message: &Message) -> bool {
+    message.content.iter().any(|content| {
+        matches!(
+            content,
+            MessageContent::ActionRequired(action)
+                if matches!(&action.data, ActionRequiredData::ToolConfirmation { .. })
+        )
+    })
+}
 
 impl MachineSession for Session {
     fn id(&self) -> &str {
@@ -105,6 +116,10 @@ impl EffectHandler<Session, GooseEffect> for SessionManager {
         for effect in effects {
             match effect {
                 GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => {
+                    if contains_tool_confirmation_request(message) {
+                        // Responses can arrive immediately, so publish only after the persistence pass.
+                        emit.emit(AgentEvent::Message(message.clone())).await;
+                    }
                     if let Some(usage) = message
                         .metadata
                         .usage
