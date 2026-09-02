@@ -1,5 +1,5 @@
-use crate::config::GooseMode;
 use crate::config::paths::Paths;
+use crate::config::GooseMode;
 use crate::providers::private_file::{private_file_target_path, write_private_file};
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
