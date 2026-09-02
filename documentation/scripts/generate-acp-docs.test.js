@@ -37,7 +37,7 @@ test('renders representative schema forms deterministically', () => {
   const output = renderDocumentation(schema, meta, 'v1.2.3');
 
   assert.equal(output, renderDocumentation(schema, meta, 'v1.2.3'));
-  assert.match(output, /\*\*Goose version:\*\* <code>v1\.2\.3<\/code>/);
+  assert.match(output, /\*\*goose version:\*\* <code>v1\.2\.3<\/code>/);
   assert.match(output, /\[<code>Target<\/code>\]\(#schema-target\)/);
   assert.match(output, /### <code>Target<\/code> \{#schema-target\}/);
   assert.match(output, /\[<code>Response<\/code>\]\(#schema-response\) & .*<code>kind<\/code>/);

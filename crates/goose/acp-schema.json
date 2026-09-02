@@ -641,7 +641,7 @@
           ]
         }
       },
-      "description": "List available Goose apps, optionally scoped to a session.",
+      "description": "List available goose apps, optionally scoped to a session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/list"
     },
@@ -667,7 +667,7 @@
       "required": [
         "name"
       ],
-      "description": "Export a Goose app as HTML.",
+      "description": "Export a goose app as HTML.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/export"
     },
@@ -694,7 +694,7 @@
       "required": [
         "html"
       ],
-      "description": "Import a Goose app from HTML.",
+      "description": "Import a goose app from HTML.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/import"
     },
@@ -725,7 +725,7 @@
       "required": [
         "name"
       ],
-      "description": "Delete a Goose app by name.",
+      "description": "Delete a goose app by name.",
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/delete"
     },
@@ -788,7 +788,7 @@
         "sessionId",
         "text"
       ],
-      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces Goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.",
+      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/system-prompt/set"
     },
@@ -1333,7 +1333,7 @@
     },
     "ListPromptsRequest_unstable": {
       "type": "object",
-      "description": "List all available Goose prompt templates.",
+      "description": "List all available goose prompt templates.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/prompts/list"
     },
@@ -1393,7 +1393,7 @@
       "required": [
         "name"
       ],
-      "description": "Read a Goose prompt template.",
+      "description": "Read a goose prompt template.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/prompts/get"
     },
@@ -1436,7 +1436,7 @@
         "name",
         "content"
       ],
-      "description": "Save a custom Goose prompt template.",
+      "description": "Save a custom goose prompt template.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/prompts/save"
     },
@@ -1462,7 +1462,7 @@
       "required": [
         "name"
       ],
-      "description": "Reset a Goose prompt template to its default content.",
+      "description": "Reset a goose prompt template to its default content.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/prompts/reset"
     },
@@ -2308,7 +2308,7 @@
         "apiUrl",
         "requiresAuth"
       ],
-      "description": "Create a custom provider backed by Goose's declarative provider store.",
+      "description": "Create a custom provider backed by goose's declarative provider store.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/custom/create"
     },
@@ -2576,7 +2576,7 @@
         "apiUrl",
         "requiresAuth"
       ],
-      "description": "Update a custom provider backed by Goose's declarative provider store.",
+      "description": "Update a custom provider backed by goose's declarative provider store.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/custom/update"
     },
@@ -2611,7 +2611,7 @@
       "required": [
         "providerId"
       ],
-      "description": "Delete a custom provider from Goose's declarative provider store.",
+      "description": "Delete a custom provider from goose's declarative provider store.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/custom/delete"
     },
@@ -2858,7 +2858,7 @@
     },
     "ProviderSecretsListRequest_unstable": {
       "type": "object",
-      "description": "List provider credentials stored locally by Goose.",
+      "description": "List provider credentials stored locally by goose.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/secrets/list"
     },
@@ -3148,7 +3148,7 @@
       "required": [
         "key"
       ],
-      "description": "Read one Goose configuration value.",
+      "description": "Read one goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/read"
     },
@@ -3178,7 +3178,7 @@
         "key",
         "value"
       ],
-      "description": "Create or replace one Goose configuration value.",
+      "description": "Create or replace one goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/upsert"
     },
@@ -3196,13 +3196,13 @@
       "required": [
         "key"
       ],
-      "description": "Remove one Goose configuration value.",
+      "description": "Remove one goose configuration value.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/remove"
     },
     "ConfigReadAllRequest_unstable": {
       "type": "object",
-      "description": "Read all non-secret Goose configuration values.",
+      "description": "Read all non-secret goose configuration values.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/read-all"
     },
@@ -3222,7 +3222,7 @@
     },
     "DefaultsReadRequest_unstable": {
       "type": "object",
-      "description": "Read Goose default provider and model configuration.",
+      "description": "Read goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/read"
     },
@@ -3260,13 +3260,13 @@
       "required": [
         "providerId"
       ],
-      "description": "Save Goose default provider and model configuration.",
+      "description": "Save goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/save"
     },
     "DefaultsClearRequest_unstable": {
       "type": "object",
-      "description": "Clear Goose default provider and model configuration.",
+      "description": "Clear goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/clear"
     },
@@ -3282,7 +3282,7 @@
           "default": []
         }
       },
-      "description": "Scan for existing Goose and compatible app data that onboarding can import.",
+      "description": "Scan for existing goose and compatible app data that onboarding can import.",
       "x-side": "agent",
       "x-method": "_goose/unstable/onboarding/import/scan"
     },
@@ -3589,7 +3589,7 @@
       "required": [
         "recipe"
       ],
-      "description": "Encode a recipe as a Goose deep link.",
+      "description": "Encode a recipe as a goose deep link.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/encode"
     },
@@ -4193,7 +4193,7 @@
       "required": [
         "deeplink"
       ],
-      "description": "Decode a Goose deep link into a recipe.",
+      "description": "Decode a goose deep link into a recipe.",
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/decode"
     },

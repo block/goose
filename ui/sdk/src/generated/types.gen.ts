@@ -312,7 +312,7 @@ export type ReadResourceResponse_unstable = {
 };
 
 /**
- * List available Goose apps, optionally scoped to a session.
+ * List available goose apps, optionally scoped to a session.
  */
 export type AppsListRequest_unstable = {
     sessionId?: string | null;
@@ -323,7 +323,7 @@ export type AppsListResponse_unstable = {
 };
 
 /**
- * Export a Goose app as HTML.
+ * Export a goose app as HTML.
  */
 export type AppsExportRequest_unstable = {
     name: string;
@@ -334,7 +334,7 @@ export type AppsExportResponse_unstable = {
 };
 
 /**
- * Import a Goose app from HTML.
+ * Import a goose app from HTML.
  */
 export type AppsImportRequest_unstable = {
     html: string;
@@ -346,7 +346,7 @@ export type AppsImportResponse_unstable = {
 };
 
 /**
- * Delete a Goose app by name.
+ * Delete a goose app by name.
  */
 export type AppsDeleteRequest_unstable = {
     name: string;
@@ -368,7 +368,7 @@ export type UpdateWorkingDirRequest_unstable = {
 /**
  * Set, append, or clear system prompt text for a session.
  *
- * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
+ * `mode: "set"` replaces goose's base system prompt. `mode: "append"` adds an
  * instruction under "Additional Instructions". Reusing a key replaces the
  * previous value for that mode/key; sending empty text clears it.
  */
@@ -692,7 +692,7 @@ export type DiagnosticsGetResponse_unstable = {
 };
 
 /**
- * List all available Goose prompt templates.
+ * List all available goose prompt templates.
  */
 export type ListPromptsRequest_unstable = {
     [key: string]: unknown;
@@ -714,7 +714,7 @@ export type PromptTemplateEntry = {
 };
 
 /**
- * Read a Goose prompt template.
+ * Read a goose prompt template.
  */
 export type GetPromptRequest_unstable = {
     name: string;
@@ -728,7 +728,7 @@ export type GetPromptResponse_unstable = {
 };
 
 /**
- * Save a custom Goose prompt template.
+ * Save a custom goose prompt template.
  */
 export type SavePromptRequest_unstable = {
     name: string;
@@ -740,7 +740,7 @@ export type PromptOperationResponse_unstable = {
 };
 
 /**
- * Reset a Goose prompt template to its default content.
+ * Reset a goose prompt template to its default content.
  */
 export type ResetPromptRequest_unstable = {
     name: string;
@@ -1068,7 +1068,7 @@ export type ProviderTemplateCapabilitiesDto = {
 };
 
 /**
- * Create a custom provider backed by Goose's declarative provider store.
+ * Create a custom provider backed by goose's declarative provider store.
  */
 export type CustomProviderCreateRequest_unstable = {
     engine: string;
@@ -1150,7 +1150,7 @@ export type CustomProviderConfigDto = {
 };
 
 /**
- * Update a custom provider backed by Goose's declarative provider store.
+ * Update a custom provider backed by goose's declarative provider store.
  */
 export type CustomProviderUpdateRequest_unstable = {
     providerId: string;
@@ -1176,7 +1176,7 @@ export type CustomProviderUpdateResponse_unstable = {
 };
 
 /**
- * Delete a custom provider from Goose's declarative provider store.
+ * Delete a custom provider from goose's declarative provider store.
  */
 export type CustomProviderDeleteRequest_unstable = {
     providerId: string;
@@ -1273,7 +1273,7 @@ export type ProviderConfigAuthenticateRequest_unstable = {
 };
 
 /**
- * List provider credentials stored locally by Goose.
+ * List provider credentials stored locally by goose.
  */
 export type ProviderSecretsListRequest_unstable = {
     [key: string]: unknown;
@@ -1360,7 +1360,7 @@ export type PreferencesSaveRequest_unstable = {
 };
 
 /**
- * Read one Goose configuration value.
+ * Read one goose configuration value.
  */
 export type ConfigReadRequest_unstable = {
     key: string;
@@ -1372,7 +1372,7 @@ export type ConfigReadResponse_unstable = {
 };
 
 /**
- * Create or replace one Goose configuration value.
+ * Create or replace one goose configuration value.
  */
 export type ConfigUpsertRequest_unstable = {
     key: string;
@@ -1381,7 +1381,7 @@ export type ConfigUpsertRequest_unstable = {
 };
 
 /**
- * Remove one Goose configuration value.
+ * Remove one goose configuration value.
  */
 export type ConfigRemoveRequest_unstable = {
     key: string;
@@ -1389,7 +1389,7 @@ export type ConfigRemoveRequest_unstable = {
 };
 
 /**
- * Read all non-secret Goose configuration values.
+ * Read all non-secret goose configuration values.
  */
 export type ConfigReadAllRequest_unstable = {
     [key: string]: unknown;
@@ -1402,7 +1402,7 @@ export type ConfigReadAllResponse_unstable = {
 };
 
 /**
- * Read Goose default provider and model configuration.
+ * Read goose default provider and model configuration.
  */
 export type DefaultsReadRequest_unstable = {
     [key: string]: unknown;
@@ -1414,7 +1414,7 @@ export type DefaultsReadResponse_unstable = {
 };
 
 /**
- * Save Goose default provider and model configuration.
+ * Save goose default provider and model configuration.
  */
 export type DefaultsSaveRequest_unstable = {
     providerId: string;
@@ -1422,14 +1422,14 @@ export type DefaultsSaveRequest_unstable = {
 };
 
 /**
- * Clear Goose default provider and model configuration.
+ * Clear goose default provider and model configuration.
  */
 export type DefaultsClearRequest_unstable = {
     [key: string]: unknown;
 };
 
 /**
- * Scan for existing Goose and compatible app data that onboarding can import.
+ * Scan for existing goose and compatible app data that onboarding can import.
  */
 export type OnboardingImportScanRequest_unstable = {
     /**
@@ -1534,7 +1534,7 @@ export type ShareSessionNostrResponse_unstable = {
 };
 
 /**
- * Encode a recipe as a Goose deep link.
+ * Encode a recipe as a goose deep link.
  */
 export type EncodeRecipeRequest_unstable = {
     recipe: RecipeDto;
@@ -1684,7 +1684,7 @@ export type EncodeRecipeResponse_unstable = {
 };
 
 /**
- * Decode a Goose deep link into a recipe.
+ * Decode a goose deep link into a recipe.
  */
 export type DecodeRecipeRequest_unstable = {
     deeplink: string;

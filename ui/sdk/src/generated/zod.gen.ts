@@ -210,7 +210,7 @@ export const zReadResourceResponse_unstable = z.object({
 });
 
 /**
- * List available Goose apps, optionally scoped to a session.
+ * List available goose apps, optionally scoped to a session.
  */
 export const zAppsListRequest_unstable = z.object({
     sessionId: z.string().nullish()
@@ -221,7 +221,7 @@ export const zAppsListResponse_unstable = z.object({
 });
 
 /**
- * Export a Goose app as HTML.
+ * Export a goose app as HTML.
  */
 export const zAppsExportRequest_unstable = z.object({
     name: z.string()
@@ -232,7 +232,7 @@ export const zAppsExportResponse_unstable = z.object({
 });
 
 /**
- * Import a Goose app from HTML.
+ * Import a goose app from HTML.
  */
 export const zAppsImportRequest_unstable = z.object({
     html: z.string()
@@ -244,7 +244,7 @@ export const zAppsImportResponse_unstable = z.object({
 });
 
 /**
- * Delete a Goose app by name.
+ * Delete a goose app by name.
  */
 export const zAppsDeleteRequest_unstable = z.object({
     name: z.string()
@@ -274,7 +274,7 @@ export const zSessionSystemPromptMode = z.union([
 /**
  * Set, append, or clear system prompt text for a session.
  *
- * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
+ * `mode: "set"` replaces goose's base system prompt. `mode: "append"` adds an
  * instruction under "Additional Instructions". Reusing a key replaces the
  * previous value for that mode/key; sending empty text clears it.
  */
@@ -437,7 +437,7 @@ export const zDiagnosticsGetResponse_unstable = z.object({
 });
 
 /**
- * List all available Goose prompt templates.
+ * List all available goose prompt templates.
  */
 export const zListPromptsRequest_unstable = z.record(z.string(), z.unknown());
 
@@ -457,7 +457,7 @@ export const zListPromptsResponse_unstable = z.object({
 });
 
 /**
- * Read a Goose prompt template.
+ * Read a goose prompt template.
  */
 export const zGetPromptRequest_unstable = z.object({
     name: z.string()
@@ -471,7 +471,7 @@ export const zGetPromptResponse_unstable = z.object({
 });
 
 /**
- * Save a custom Goose prompt template.
+ * Save a custom goose prompt template.
  */
 export const zSavePromptRequest_unstable = z.object({
     name: z.string(),
@@ -483,7 +483,7 @@ export const zPromptOperationResponse_unstable = z.object({
 });
 
 /**
- * Reset a Goose prompt template to its default content.
+ * Reset a goose prompt template to its default content.
  */
 export const zResetPromptRequest_unstable = z.object({
     name: z.string()
@@ -733,7 +733,7 @@ export const zProviderCatalogTemplateResponse_unstable = z.object({
 });
 
 /**
- * Create a custom provider backed by Goose's declarative provider store.
+ * Create a custom provider backed by goose's declarative provider store.
  */
 export const zCustomProviderCreateRequest_unstable = z.object({
     engine: z.string(),
@@ -810,7 +810,7 @@ export const zCustomProviderReadResponse_unstable = z.object({
 });
 
 /**
- * Update a custom provider backed by Goose's declarative provider store.
+ * Update a custom provider backed by goose's declarative provider store.
  */
 export const zCustomProviderUpdateRequest_unstable = z.object({
     providerId: z.string(),
@@ -834,7 +834,7 @@ export const zCustomProviderUpdateResponse_unstable = z.object({
 });
 
 /**
- * Delete a custom provider from Goose's declarative provider store.
+ * Delete a custom provider from goose's declarative provider store.
  */
 export const zCustomProviderDeleteRequest_unstable = z.object({
     providerId: z.string()
@@ -928,7 +928,7 @@ export const zProviderConfigAuthenticateRequest_unstable = z.object({
 });
 
 /**
- * List provider credentials stored locally by Goose.
+ * List provider credentials stored locally by goose.
  */
 export const zProviderSecretsListRequest_unstable = z.record(z.string(), z.unknown());
 
@@ -1023,7 +1023,7 @@ export const zPreferencesSaveRequest_unstable = z.object({
 });
 
 /**
- * Read one Goose configuration value.
+ * Read one goose configuration value.
  */
 export const zConfigReadRequest_unstable = z.object({
     key: z.string(),
@@ -1035,7 +1035,7 @@ export const zConfigReadResponse_unstable = z.object({
 });
 
 /**
- * Create or replace one Goose configuration value.
+ * Create or replace one goose configuration value.
  */
 export const zConfigUpsertRequest_unstable = z.object({
     key: z.string(),
@@ -1044,7 +1044,7 @@ export const zConfigUpsertRequest_unstable = z.object({
 });
 
 /**
- * Remove one Goose configuration value.
+ * Remove one goose configuration value.
  */
 export const zConfigRemoveRequest_unstable = z.object({
     key: z.string(),
@@ -1052,7 +1052,7 @@ export const zConfigRemoveRequest_unstable = z.object({
 });
 
 /**
- * Read all non-secret Goose configuration values.
+ * Read all non-secret goose configuration values.
  */
 export const zConfigReadAllRequest_unstable = z.record(z.string(), z.unknown());
 
@@ -1061,7 +1061,7 @@ export const zConfigReadAllResponse_unstable = z.object({
 });
 
 /**
- * Read Goose default provider and model configuration.
+ * Read goose default provider and model configuration.
  */
 export const zDefaultsReadRequest_unstable = z.record(z.string(), z.unknown());
 
@@ -1071,7 +1071,7 @@ export const zDefaultsReadResponse_unstable = z.object({
 });
 
 /**
- * Save Goose default provider and model configuration.
+ * Save goose default provider and model configuration.
  */
 export const zDefaultsSaveRequest_unstable = z.object({
     providerId: z.string(),
@@ -1079,7 +1079,7 @@ export const zDefaultsSaveRequest_unstable = z.object({
 });
 
 /**
- * Clear Goose default provider and model configuration.
+ * Clear goose default provider and model configuration.
  */
 export const zDefaultsClearRequest_unstable = z.record(z.string(), z.unknown());
 
@@ -1089,7 +1089,7 @@ export const zDefaultsClearRequest_unstable = z.record(z.string(), z.unknown());
 export const zOnboardingImportSourceKind = z.enum(['goose_config', 'claude_desktop']);
 
 /**
- * Scan for existing Goose and compatible app data that onboarding can import.
+ * Scan for existing goose and compatible app data that onboarding can import.
  */
 export const zOnboardingImportScanRequest_unstable = z.object({
     sources: z.array(zOnboardingImportSourceKind).optional().default([])
@@ -1316,7 +1316,7 @@ export const zRecipeDto = z.object({
 });
 
 /**
- * Encode a recipe as a Goose deep link.
+ * Encode a recipe as a goose deep link.
  */
 export const zEncodeRecipeRequest_unstable = z.object({
     recipe: zRecipeDto
@@ -1327,7 +1327,7 @@ export const zEncodeRecipeResponse_unstable = z.object({
 });
 
 /**
- * Decode a Goose deep link into a recipe.
+ * Decode a goose deep link into a recipe.
  */
 export const zDecodeRecipeRequest_unstable = z.object({
     deeplink: z.string()
