@@ -48,9 +48,6 @@ test('renders representative schema forms deterministically', () => {
   assert.match(output, /Format: <code>slug<\/code><br \/>Pattern: <code>\^\[a-z\]\+\$<\/code>/);
 });
 
-test('handles missing descriptions and rejects unsupported schema shapes', () => {
-  const missingDescription = structuredClone(schema);
-  delete missingDescription.$defs.Request.description;
-  assert.match(renderDocumentation(missingDescription, meta), /<code>_goose\/example<\/code> \| —/);
+test('rejects unsupported schema shapes', () => {
   assert.throws(() => schemaType({not: {type: 'string'}}), /Unsupported schema keyword: not/);
 });

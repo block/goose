@@ -24,14 +24,28 @@ const UNSUPPORTED_KEYWORDS = [
   'unevaluatedProperties',
 ];
 
-function code(value) {
-  const escaped = String(value)
+function escapeCode(value) {
+  return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('{', '&#123;')
     .replaceAll('}', '&#125;')
     .replaceAll('`', '&#96;');
+}
+
+function code(value) {
+  return `<code>${escapeCode(value)}</code>`;
+}
+
+function methodCode(value) {
+  return `<code>${escapeCode(value).replaceAll('/', '/<wbr />')}</code>`;
+}
+
+function schemaCode(value) {
+  const escaped = escapeCode(value)
+    .replace(/([a-z0-9])([A-Z])/g, '$1<wbr />$2')
+    .replaceAll('_', '_<wbr />');
   return `<code>${escaped}</code>`;
 }
 
@@ -59,7 +73,7 @@ function schemaId(name) {
 }
 
 function schemaLink(name) {
-  return `[${code(name)}](#${schemaId(name)})`;
+  return `[${schemaCode(name)}](#${schemaId(name)})`;
 }
 
 function schemaType(schema, inlineObject = false) {
@@ -173,7 +187,7 @@ function renderProperties(schema) {
   ].join('\n');
 }
 
-function renderMethodTable(entries, schemas, notification = false) {
+function renderMethods(entries, schemas, notification = false) {
   if (entries.length === 0) return '_None._\n';
 
   const rows = [...entries]
@@ -181,26 +195,23 @@ function renderMethodTable(entries, schemas, notification = false) {
     .map((entry) => {
       const inputType = notification ? entry.paramsType : entry.requestType;
       const inputSchema = schemas.$defs[inputType];
-      if (!inputSchema) throw new Error(`${entry.method} references missing type ${inputType}`);
-      // TODO: Enable this check once v1.48.0 is no longer the latest release;
-      // its ACP schema is missing descriptions for some public methods.
-      // if (!text(inputSchema.description)) {
-      //   throw new Error(`${entry.method} is missing a description on ${inputType}`);
-      // }
+      if (!inputSchema) {
+        throw new Error(`${entry.method} references missing type ${inputType}`);
+      }
       if (!notification && !schemas.$defs[entry.responseType]) {
         throw new Error(`${entry.method} references missing type ${entry.responseType}`);
       }
-      const response = notification ? '—' : schemaLink(entry.responseType);
-      const description = text(inputSchema.description, '—');
-      return `| ${code(entry.method)} | ${description} | ${schemaLink(inputType)} | ${response} |`;
+      const links = notification
+        ? `**Parameters:** ${schemaLink(inputType)}`
+        : `**Request:** ${schemaLink(inputType)}<br />**Response:** ${schemaLink(entry.responseType)}`;
+      const description = text(inputSchema.description);
+      const method = description
+        ? `${methodCode(entry.method)}<br />${description}`
+        : methodCode(entry.method);
+      return `| ${method} | ${links} |`;
     });
 
-  return [
-    `| Method | Description | ${notification ? 'Parameters' : 'Request'} | Response |`,
-    '|---|---|---|---|',
-    ...rows,
-    '',
-  ].join('\n');
+  return ['| Method | Schemas |', '|---|---|', ...rows, ''].join('\n');
 }
 
 function renderSchema(name, schema) {
@@ -227,27 +238,27 @@ function renderDocumentation(schemas, meta, gooseVersion = 'Preview') {
 
   const output = [
     '---',
-    'title: Goose ACP Reference',
-    'sidebar_label: Goose ACP Reference',
+    'title: goose ACP Reference',
+    'sidebar_label: goose ACP Reference',
     '---',
     '',
-    '# Goose ACP Reference',
+    '# goose ACP Reference',
     '',
-    'This reference documents Goose-specific Agent Client Protocol methods. Standard ACP methods are documented by the [Agent Client Protocol specification](https://agentclientprotocol.com/).',
+    'This reference documents goose-specific Agent Client Protocol methods. Standard ACP methods are documented by the [Agent Client Protocol specification](https://agentclientprotocol.com/).',
     '',
-    `**Goose version:** ${code(gooseVersion)}`,
+    `**goose version:** ${code(gooseVersion)}`,
     '',
     '> This file is generated from `crates/goose/acp-schema.json` and `crates/goose/acp-meta.json`. Do not edit it manually.',
     '',
     '## Client-to-agent requests',
     '',
-    renderMethodTable(meta.methods ?? [], schemas),
+    renderMethods(meta.methods ?? [], schemas),
     '## Agent-to-client requests',
     '',
-    renderMethodTable(meta.agentRequests ?? [], schemas),
+    renderMethods(meta.agentRequests ?? [], schemas),
     '## Agent-to-client notifications',
     '',
-    renderMethodTable(meta.notifications ?? [], schemas, true),
+    renderMethods(meta.notifications ?? [], schemas, true),
     '## Schemas',
     '',
     ...definitions.map(([name, schema]) => renderSchema(name, schema)),
