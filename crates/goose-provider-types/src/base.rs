@@ -8,7 +8,10 @@ use std::pin::Pin;
 use tokio::sync::watch;
 
 use crate::{
-    canonical::{catalog::ProviderSetupMetadata, map_to_canonical_model, CanonicalModelRegistry},
+    canonical::{
+        catalog::ProviderSetupMetadata, map_to_canonical_model, provider_wire_name,
+        recommended_models_from_registry, CanonicalModelRegistry,
+    },
     conversation::{
         message::{Message, MessageContentBlock},
         token_usage::{ProviderUsage, Usage},
@@ -359,6 +362,17 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         thinking_preservation_format: None,
         request_params: None,
     }
+}
+
+/// Pre-key picker list from the bundled catalog. No hardcoded fallback.
+pub fn known_models_from_registry(provider: &str) -> Vec<ModelInfo> {
+    recommended_models_from_registry(provider)
+        .into_iter()
+        .map(|name| {
+            let name = provider_wire_name(provider, &name);
+            model_info_for_provider_model(provider, &name)
+        })
+        .collect()
 }
 
 /// Collect all chunks from a MessageStream into a single Message and ProviderUsage

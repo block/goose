@@ -65,6 +65,34 @@ pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
         .collect()
 }
 
+/// Catalog names use dotted versions (`claude-sonnet-4.5`). Anthropic's API
+/// takes the dashed alias (`claude-sonnet-4-5`). Other providers keep catalog names.
+pub fn provider_wire_name(provider: &str, canonical_name: &str) -> String {
+    if map_provider_name(provider) == "anthropic" {
+        dotted_version_to_dash(canonical_name)
+    } else {
+        canonical_name.to_string()
+    }
+}
+
+fn dotted_version_to_dash(name: &str) -> String {
+    let bytes = name.as_bytes();
+    let mut out = String::with_capacity(name.len());
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'.'
+            && i > 0
+            && i + 1 < bytes.len()
+            && bytes[i - 1].is_ascii_digit()
+            && bytes[i + 1].is_ascii_digit()
+        {
+            out.push('-');
+        } else {
+            out.push(b as char);
+        }
+    }
+    out
+}
+
 /// Catalog pricing is not valid for local inference: models served via ollama or a
 /// local runtime are actually free to run, so any catalog price would be misleading.
 ///
@@ -202,5 +230,18 @@ mod tests {
         assert_eq!(canonical.limit.context, 1_048_576);
         assert_eq!(canonical.reasoning, Some(true));
         assert_eq!(canonical.temperature, Some(false));
+    }
+
+    #[test]
+    fn anthropic_wire_name_uses_dashed_versions() {
+        assert_eq!(
+            provider_wire_name("anthropic", "claude-sonnet-4.5"),
+            "claude-sonnet-4-5"
+        );
+        assert_eq!(
+            provider_wire_name("anthropic", "claude-opus-5"),
+            "claude-opus-5"
+        );
+        assert_eq!(provider_wire_name("openai", "gpt-5.2"), "gpt-5.2");
     }
 }
