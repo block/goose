@@ -464,7 +464,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
     fn generate(
         &self,
         loaded: &mut dyn BackendLoadedModel,
-        request: LocalGenerationRequest<'_>,
+        request: LocalGenerationRequest,
     ) -> Result<(), ProviderError> {
         let loaded = loaded
             .as_any_mut()
@@ -477,20 +477,20 @@ impl LocalInferenceBackend for LlamaCppBackend {
         let marker = llama_cpp_2::mtmd::mtmd_default_marker();
         let (images, vision_messages): (Vec<ExtractedImage>, Option<Vec<_>>) = if has_vision {
             let (imgs, msgs) =
-                super::multimodal::extract_images_from_messages(request.messages, marker);
+                super::multimodal::extract_images_from_messages(&request.messages, marker);
             (imgs, Some(msgs))
         } else {
             (Vec::new(), None)
         };
         let has_media = !images.is_empty();
-        let effective_messages = vision_messages.as_deref().unwrap_or(request.messages);
+        let effective_messages = vision_messages.as_deref().unwrap_or(&request.messages);
 
         let code_mode_enabled = request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
         let (full_tools_json, compact_tools) = if !request.tools.is_empty() {
-            let full = format_tools(request.tools)
+            let full = format_tools(&request.tools)
                 .ok()
                 .and_then(|spec| serde_json::to_string(&spec).ok());
-            let compact = compact_tools_json(request.tools);
+            let compact = compact_tools_json(&request.tools);
             (full, compact)
         } else {
             (None, None)
@@ -504,14 +504,14 @@ impl LocalInferenceBackend for LlamaCppBackend {
                 && has_native_tool_payload
             {
                 let messages_json = build_openai_messages_json(
-                    request.system,
+                    &request.system,
                     effective_messages,
                     has_media.then_some(marker),
                 );
                 if let Some(template) = loaded.templates.tool_use.as_ref() {
                     supports_native_tool_calling(
                         loaded,
-                        request.settings,
+                        &request.settings,
                         template,
                         &messages_json,
                         full_tools_json.as_deref(),
@@ -520,7 +520,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
                     loaded.templates.default.as_ref().is_some_and(|template| {
                         supports_native_tool_calling(
                             loaded,
-                            request.settings,
+                            &request.settings,
                             template,
                             &messages_json,
                             full_tools_json.as_deref(),
@@ -537,10 +537,10 @@ impl LocalInferenceBackend for LlamaCppBackend {
         );
         let use_emulator = !native_tool_calling && !request.tools.is_empty();
         let system_prompt = if use_emulator {
-            let tool_desc = build_emulator_tool_description(request.tools, code_mode_enabled);
+            let tool_desc = build_emulator_tool_description(&request.tools, code_mode_enabled);
             format!("{}{}", load_tiny_model_prompt(), tool_desc)
         } else {
-            request.system.to_string()
+            request.system.clone()
         };
 
         let oai_messages_json = if use_emulator {
@@ -561,7 +561,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
             loaded.mtmd_ctx = Self::init_mtmd_context(
                 &loaded.model,
                 &request.resolved_model.mmproj_path,
-                request.settings,
+                &request.settings,
             );
         }
 
@@ -573,16 +573,19 @@ impl LocalInferenceBackend for LlamaCppBackend {
             !request.tools.is_empty(),
         )?;
 
+        let mut log = request.log.lock().map_err(|_| {
+            ProviderError::ExecutionError("Local inference request log lock poisoned".to_string())
+        })?;
         let mut gen_ctx = GenerationContext {
             loaded,
             backend: self,
             template,
-            settings: request.settings,
+            settings: &request.settings,
             context_limit: request.context_limit,
-            model_name: request.model_name,
-            message_id: request.message_id,
-            tx: request.tx,
-            log: request.log,
+            model_name: request.model_name.clone(),
+            message_id: &request.message_id,
+            tx: &request.tx,
+            log: &mut log,
             images: &images,
         };
 

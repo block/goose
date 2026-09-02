@@ -34,6 +34,26 @@ const i18n = defineMessages({
     id: 'modelSettingsPanel.contextAndGeneration',
     defaultMessage: 'Context & Generation',
   },
+  backend: {
+    id: 'modelSettingsPanel.backend',
+    defaultMessage: 'Inference backend',
+  },
+  backendDescription: {
+    id: 'modelSettingsPanel.backendDescription',
+    defaultMessage: 'Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors',
+  },
+  backendAuto: {
+    id: 'modelSettingsPanel.backendAuto',
+    defaultMessage: 'Auto',
+  },
+  backendLlamaCpp: {
+    id: 'modelSettingsPanel.backendLlamaCpp',
+    defaultMessage: 'llama.cpp',
+  },
+  backendEredu: {
+    id: 'modelSettingsPanel.backendEredu',
+    defaultMessage: 'eredu',
+  },
   contextSize: {
     id: 'modelSettingsPanel.contextSize',
     defaultMessage: 'Context size',
@@ -252,6 +272,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
 
 type SamplingType = SamplingConfig['type'];
 type ChatTemplateMode = 'embedded' | 'builtin' | 'custom_inline';
+type BackendMode = 'auto' | NonNullable<ModelSettings['backendId']>;
 
 function NumberField({
   label,
@@ -384,7 +405,13 @@ function TextAreaField({
   );
 }
 
-export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
+export const ModelSettingsPanel = ({
+  modelId,
+  modelFormat,
+}: {
+  modelId: string;
+  modelFormat?: 'gguf' | 'safetensors';
+}) => {
   const intl = useIntl();
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
   const [chatTemplateDraft, setChatTemplateDraft] = useState('');
@@ -458,6 +485,24 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
       : chatTemplate.type === 'builtin'
         ? 'builtin'
         : 'embedded';
+  const backendMode: BackendMode = settings.backendId ?? 'auto';
+  const inferredModelFormat = modelFormat ?? (modelId.includes(':') ? 'gguf' : 'safetensors');
+  const usesEredu =
+    backendMode === 'eredu' || (backendMode === 'auto' && inferredModelFormat === 'safetensors');
+
+  const setBackendMode = (mode: BackendMode) => {
+    const updated: ModelSettings = {
+      ...settings,
+      backendId: mode === 'auto' ? null : mode,
+    };
+    if (mode === 'eredu') {
+      updated.chatTemplate = { type: 'embedded' };
+      if (updated.toolCalling === 'force_emulated') {
+        updated.toolCalling = 'auto';
+      }
+    }
+    save(updated);
+  };
 
   const setChatTemplateMode = (mode: ChatTemplateMode) => {
     let next: ChatTemplate;
@@ -515,14 +560,23 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     : [builtinTemplateDraft, ...builtinTemplateOptions].filter(Boolean);
 
   if (loading) {
-    return <div className="py-2 text-xs text-text-muted">{intl.formatMessage(i18n.loadingSettings)}</div>;
+    return (
+      <div className="py-2 text-xs text-text-muted">{intl.formatMessage(i18n.loadingSettings)}</div>
+    );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        {saving && <span className="text-xs text-text-muted mr-auto">{intl.formatMessage(i18n.saving)}</span>}
-        <Button variant="ghost" size="sm" onClick={resetDefaults} title={intl.formatMessage(i18n.resetToDefaults)}>
+        {saving && (
+          <span className="text-xs text-text-muted mr-auto">{intl.formatMessage(i18n.saving)}</span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={resetDefaults}
+          title={intl.formatMessage(i18n.resetToDefaults)}
+        >
           <RotateCcw className="w-3.5 h-3.5 mr-1" />
           <span className="text-xs">{intl.formatMessage(i18n.reset)}</span>
         </Button>
@@ -530,7 +584,20 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
 
       {/* Context & Generation */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">{intl.formatMessage(i18n.contextAndGeneration)}</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {intl.formatMessage(i18n.contextAndGeneration)}
+        </h5>
+        <SelectField<BackendMode>
+          label={intl.formatMessage(i18n.backend)}
+          description={intl.formatMessage(i18n.backendDescription)}
+          value={backendMode}
+          options={[
+            { value: 'auto', label: intl.formatMessage(i18n.backendAuto) },
+            { value: 'llamacpp', label: intl.formatMessage(i18n.backendLlamaCpp) },
+            { value: 'eredu', label: intl.formatMessage(i18n.backendEredu) },
+          ]}
+          onChange={setBackendMode}
+        />
         <div className="grid grid-cols-2 gap-3">
           <NumberField
             label={intl.formatMessage(i18n.contextSize)}
@@ -640,7 +707,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
 
       {/* Repetition Penalty */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">{intl.formatMessage(i18n.repetitionPenalty)}</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {intl.formatMessage(i18n.repetitionPenalty)}
+        </h5>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
             label={intl.formatMessage(i18n.repeatPenalty)}
@@ -679,60 +748,67 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
       </div>
 
       {/* Performance */}
-      <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">{intl.formatMessage(i18n.performance)}</h5>
-        <div className="grid grid-cols-2 gap-3">
-          <NumberField
-            label={intl.formatMessage(i18n.batchSize)}
-            description={intl.formatMessage(i18n.batchSizeDescription)}
-            value={settings.nBatch}
-            onChange={(v) => updateField('nBatch', v)}
-            placeholder="Auto"
-            min={1}
-            allowNull
+      {!usesEredu && (
+        <div className="space-y-2">
+          <h5 className="text-xs font-medium text-text-default">
+            {intl.formatMessage(i18n.performance)}
+          </h5>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField
+              label={intl.formatMessage(i18n.batchSize)}
+              description={intl.formatMessage(i18n.batchSizeDescription)}
+              value={settings.nBatch}
+              onChange={(v) => updateField('nBatch', v)}
+              placeholder="Auto"
+              min={1}
+              allowNull
+            />
+            <NumberField
+              label={intl.formatMessage(i18n.gpuLayers)}
+              description={intl.formatMessage(i18n.gpuLayersDescription)}
+              value={settings.nGpuLayers}
+              onChange={(v) => updateField('nGpuLayers', v)}
+              placeholder="All"
+              min={0}
+              allowNull
+            />
+            <NumberField
+              label={intl.formatMessage(i18n.threads)}
+              description={intl.formatMessage(i18n.threadsDescription)}
+              value={settings.nThreads}
+              onChange={(v) => updateField('nThreads', v)}
+              placeholder="Auto"
+              min={1}
+              allowNull
+            />
+          </div>
+          <ToggleField
+            label={intl.formatMessage(i18n.lockModelInRam)}
+            description={intl.formatMessage(i18n.lockModelInRamDescription)}
+            value={settings.useMlock ?? false}
+            onChange={(v) => updateField('useMlock', v)}
           />
-          <NumberField
-            label={intl.formatMessage(i18n.gpuLayers)}
-            description={intl.formatMessage(i18n.gpuLayersDescription)}
-            value={settings.nGpuLayers}
-            onChange={(v) => updateField('nGpuLayers', v)}
-            placeholder="All"
-            min={0}
-            allowNull
-          />
-          <NumberField
-            label={intl.formatMessage(i18n.threads)}
-            description={intl.formatMessage(i18n.threadsDescription)}
-            value={settings.nThreads}
-            onChange={(v) => updateField('nThreads', v)}
-            placeholder="Auto"
-            min={1}
-            allowNull
+          <SelectField
+            label={intl.formatMessage(i18n.flashAttention)}
+            description={intl.formatMessage(i18n.flashAttentionDescription)}
+            value={
+              settings.flashAttention === null || settings.flashAttention === undefined
+                ? 'auto'
+                : settings.flashAttention
+                  ? 'on'
+                  : 'off'
+            }
+            options={[
+              { value: 'auto', label: 'Auto' },
+              { value: 'on', label: 'On' },
+              { value: 'off', label: 'Off' },
+            ]}
+            onChange={(v) => updateField('flashAttention', v === 'auto' ? null : v === 'on')}
           />
         </div>
-        <ToggleField
-          label={intl.formatMessage(i18n.lockModelInRam)}
-          description={intl.formatMessage(i18n.lockModelInRamDescription)}
-          value={settings.useMlock ?? false}
-          onChange={(v) => updateField('useMlock', v)}
-        />
-        <SelectField
-          label={intl.formatMessage(i18n.flashAttention)}
-          description={intl.formatMessage(i18n.flashAttentionDescription)}
-          value={
-            settings.flashAttention === null || settings.flashAttention === undefined
-              ? 'auto'
-              : settings.flashAttention
-                ? 'on'
-                : 'off'
-          }
-          options={[
-            { value: 'auto', label: 'Auto' },
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' },
-          ]}
-          onChange={(v) => updateField('flashAttention', v === 'auto' ? null : v === 'on')}
-        />
+      )}
+
+      <div className="space-y-2">
         <SelectField<ToolCallingMode>
           label={intl.formatMessage(i18n.toolCalling)}
           description={intl.formatMessage(i18n.toolCallingDescription)}
@@ -740,44 +816,55 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           options={[
             { value: 'auto', label: intl.formatMessage(i18n.toolCallingAuto) },
             { value: 'force_native', label: intl.formatMessage(i18n.toolCallingForceNative) },
-            { value: 'force_emulated', label: intl.formatMessage(i18n.toolCallingForceEmulated) },
+            ...(!usesEredu
+              ? [
+                  {
+                    value: 'force_emulated' as ToolCallingMode,
+                    label: intl.formatMessage(i18n.toolCallingForceEmulated),
+                  },
+                ]
+              : []),
           ]}
           onChange={(v) => updateField('toolCalling', v)}
         />
-        <SelectField<ChatTemplateMode>
-          label={intl.formatMessage(i18n.chatTemplate)}
-          description={intl.formatMessage(i18n.chatTemplateDescription)}
-          value={chatTemplateMode}
-          options={[
-            { value: 'embedded', label: intl.formatMessage(i18n.chatTemplateEmbedded) },
-            { value: 'builtin', label: intl.formatMessage(i18n.chatTemplateBuiltin) },
-            {
-              value: 'custom_inline',
-              label: intl.formatMessage(i18n.chatTemplateCustomInline),
-            },
-          ]}
-          onChange={setChatTemplateMode}
-        />
-        {chatTemplateMode === 'builtin' && (
-          <SelectField<string>
-            label={intl.formatMessage(i18n.builtinChatTemplate)}
-            description={intl.formatMessage(i18n.builtinChatTemplateDescription)}
-            value={builtinTemplateDraft}
-            options={visibleBuiltinTemplateOptions.map((template) => ({
-              value: template,
-              label: template,
-            }))}
-            onChange={setBuiltinTemplateName}
-          />
-        )}
-        {chatTemplateMode === 'custom_inline' && (
-          <TextAreaField
-            label={intl.formatMessage(i18n.customChatTemplate)}
-            description={intl.formatMessage(i18n.customChatTemplateDescription)}
-            value={chatTemplateDraft}
-            onChange={setChatTemplateDraft}
-            onBlur={saveChatTemplateDraft}
-          />
+        {!usesEredu && (
+          <>
+            <SelectField<ChatTemplateMode>
+              label={intl.formatMessage(i18n.chatTemplate)}
+              description={intl.formatMessage(i18n.chatTemplateDescription)}
+              value={chatTemplateMode}
+              options={[
+                { value: 'embedded', label: intl.formatMessage(i18n.chatTemplateEmbedded) },
+                { value: 'builtin', label: intl.formatMessage(i18n.chatTemplateBuiltin) },
+                {
+                  value: 'custom_inline',
+                  label: intl.formatMessage(i18n.chatTemplateCustomInline),
+                },
+              ]}
+              onChange={setChatTemplateMode}
+            />
+            {chatTemplateMode === 'builtin' && (
+              <SelectField<string>
+                label={intl.formatMessage(i18n.builtinChatTemplate)}
+                description={intl.formatMessage(i18n.builtinChatTemplateDescription)}
+                value={builtinTemplateDraft}
+                options={visibleBuiltinTemplateOptions.map((template) => ({
+                  value: template,
+                  label: template,
+                }))}
+                onChange={setBuiltinTemplateName}
+              />
+            )}
+            {chatTemplateMode === 'custom_inline' && (
+              <TextAreaField
+                label={intl.formatMessage(i18n.customChatTemplate)}
+                description={intl.formatMessage(i18n.customChatTemplateDescription)}
+                value={chatTemplateDraft}
+                onChange={setChatTemplateDraft}
+                onBlur={saveChatTemplateDraft}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

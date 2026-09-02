@@ -2155,6 +2155,21 @@
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Переключить модели"
   },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
+  },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Размер пакета"
   },

@@ -1757,7 +1757,7 @@
     "defaultMessage": "Eliminare questo modello? Potrai scaricarlo di nuovo in seguito."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Scarica e gestisci modelli LLM locali per l'inferenza senza chiavi API. Cerca modelli GGUF o MLX su HuggingFace oppure usa le scelte consigliate qui sotto."
+    "defaultMessage": "Scarica e gestisci modelli LLM locali per l'inferenza senza chiavi API. Cerca modelli GGUF o SafeTensors su HuggingFace oppure usa le scelte consigliate qui sotto."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Ignora"
@@ -2154,6 +2154,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Cambia modelli"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Dimensione batch"

@@ -5855,9 +5855,13 @@
       "type": "object",
       "properties": {
         "backendId": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceBackend"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "contextSize": {
@@ -5969,6 +5973,13 @@
         "visionCapable",
         "imageTokenEstimate",
         "mmprojSizeBytes"
+      ]
+    },
+    "LocalInferenceBackend": {
+      "type": "string",
+      "enum": [
+        "llamacpp",
+        "eredu"
       ]
     },
     "LocalInferenceSamplingConfig": {

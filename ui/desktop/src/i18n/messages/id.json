@@ -1757,7 +1757,7 @@
     "defaultMessage": "Hapus model ini? Anda dapat mengunduhnya kembali nanti."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Unduh dan kelola model LLM lokal untuk inferensi tanpa kunci API. Cari model GGUF atau MLX di HuggingFace, atau gunakan pilihan unggulan di bawah."
+    "defaultMessage": "Unduh dan kelola model LLM lokal untuk inferensi tanpa kunci API. Cari model GGUF atau SafeTensors di HuggingFace, atau gunakan pilihan unggulan di bawah."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Tutup"
@@ -2154,6 +2154,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Ganti model"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Ukuran batch"

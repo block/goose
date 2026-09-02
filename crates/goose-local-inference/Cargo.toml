@@ -12,10 +12,11 @@ description.workspace = true
 workspace = true
 
 [features]
-default = []
-cuda = ["llama-cpp-2/cuda"]
-vulkan = ["llama-cpp-2/vulkan"]
-mlx = ["dep:safemlx", "dep:safemlx-lm", "dep:safemlx-lm-utils"]
+default = ["llamacpp"]
+llamacpp = ["dep:llama-cpp-2", "dep:llama-cpp-sys-2"]
+eredu = ["dep:eredu", "dep:eredu-core"]
+cuda = ["llamacpp", "llama-cpp-2/cuda"]
+vulkan = ["llamacpp", "llama-cpp-2/vulkan"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -32,8 +33,8 @@ goose-provider-types = { version = "0.1.0-alpha.6", path = "../goose-provider-ty
 goose-sdk-types = { version = "0.1.0-alpha.6", path = "../goose-sdk-types", default-features = false }
 hf-hub = { version = "1.0.0-rc.1", default-features = false }
 include_dir = { workspace = true }
-llama-cpp-2 = { workspace = true }
-llama-cpp-sys-2 = { workspace = true }
+llama-cpp-2 = { workspace = true, optional = true }
+llama-cpp-sys-2 = { workspace = true, optional = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 pulldown-cmark = { version = "0.13.4", default-features = false }
 reqwest = { workspace = true, features = ["json", "stream"] }
@@ -45,12 +46,12 @@ tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"]
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "std"] }
 tempfile = { workspace = true }
+eredu = { version = "0.1.0", default-features = false, features = ["mlx"], optional = true }
+eredu-core = { version = "0.1.0", default-features = false, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }
-safemlx = { default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true, version = "0.1.2" }
-safemlx-lm = { optional = true, version = "0.4.1" }
-safemlx-lm-utils = { optional = true, version = "0.1.2" }
+llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"], optional = true }
+eredu = { version = "0.1.0", default-features = false, features = ["metal"], optional = true }
 
 [dev-dependencies]
 env-lock.workspace = true

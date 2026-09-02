@@ -30,6 +30,8 @@ local-inference = [
     "dep:rubato",
     "dep:byteorder",
 ]
+llamacpp = ["local-inference", "goose-providers/llamacpp"]
+eredu = ["local-inference", "goose-providers/eredu"]
 aws-providers = [
     "dep:aws-config",
     "dep:aws-smithy-types",
@@ -38,9 +40,8 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
     "dep:smithy-transport-reqwest",
 ]
-cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "goose-providers/cuda"]
-vulkan = ["local-inference", "goose-providers/vulkan"]
-mlx = ["local-inference", "goose-providers/mlx"]
+cuda = ["llamacpp", "candle-core/cuda", "candle-nn/cuda", "goose-providers/cuda"]
+vulkan = ["llamacpp", "goose-providers/vulkan"]
 rustls-tls = [
     "dep:rustls",
     "dep:rcgen",

@@ -2,38 +2,46 @@ pub mod config_resolver;
 pub use goose_download_manager as download_manager;
 pub mod huggingface_auth;
 pub mod paths;
+#[cfg(feature = "llamacpp")]
 pub mod prompt_template;
 pub mod provider_utils;
 
 mod backend;
+#[cfg(feature = "eredu")]
+mod eredu;
 pub mod hf_models;
+#[cfg(feature = "llamacpp")]
 mod llamacpp;
 pub mod local_model_registry;
 pub mod management;
-mod mlx;
+#[cfg(feature = "llamacpp")]
 pub(crate) mod multimodal;
-#[cfg(feature = "mlx")]
-mod native_tool_parsing;
+#[cfg(feature = "llamacpp")]
 pub(crate) mod thinking_output;
+#[cfg(feature = "llamacpp")]
 mod tool_emulation;
+#[cfg(feature = "llamacpp")]
 mod tool_parsing;
 
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
+#[cfg(feature = "eredu")]
+use eredu::{EreduBackend, EREDU_BACKEND_ID};
 use goose_provider_types::base::{MessageStream, Provider, ProviderDescriptor, ProviderMetadata};
 use goose_provider_types::conversation::message::{
     Message, MessageContent, SystemNotificationType,
 };
 use goose_provider_types::conversation::token_usage::{ProviderUsage, Usage};
 use goose_provider_types::errors::ProviderError;
+#[cfg(feature = "llamacpp")]
 use goose_provider_types::images::ImageFormat;
 use goose_provider_types::model::ModelConfig;
 use goose_provider_types::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
+#[cfg(feature = "llamacpp")]
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
-use local_model_registry::ChatTemplate;
-use mlx::{MlxBackend, MLX_BACKEND_ID};
+use local_model_registry::{ChatTemplate, InferenceBackend};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -69,6 +77,7 @@ struct ModelCacheKey {
     backend_id: &'static str,
     model_id: String,
     chat_template: ChatTemplate,
+    draft_model: Option<String>,
 }
 
 impl ModelCacheKey {
@@ -76,11 +85,13 @@ impl ModelCacheKey {
         backend_id: &'static str,
         model_id: impl Into<String>,
         chat_template: ChatTemplate,
+        draft_model: Option<String>,
     ) -> Self {
         Self {
             backend_id,
             model_id: model_id.into(),
             chat_template,
+            draft_model,
         }
     }
 }
@@ -92,7 +103,11 @@ pub struct InferenceRuntime {
 }
 
 pub fn builtin_chat_template_names() -> Vec<String> {
-    llamacpp::builtin_chat_template_names()
+    #[cfg(feature = "llamacpp")]
+    let names = llamacpp::builtin_chat_template_names();
+    #[cfg(not(feature = "llamacpp"))]
+    let names = Vec::new();
+    names
 }
 
 static RUNTIME: StdMutex<Weak<InferenceRuntime>> = StdMutex::new(Weak::new());
@@ -107,11 +122,22 @@ impl InferenceRuntime {
         if let Some(runtime) = guard.upgrade() {
             return Ok(runtime);
         }
-        let llamacpp_backend: Arc<dyn LocalInferenceBackend> = Arc::new(LlamaCppBackend::new()?);
-        let mlx_backend: Arc<dyn LocalInferenceBackend> = Arc::new(MlxBackend::new());
         let mut backends = HashMap::new();
-        backends.insert(LLAMACPP_BACKEND_ID, llamacpp_backend);
-        backends.insert(MLX_BACKEND_ID, mlx_backend);
+        #[cfg(feature = "llamacpp")]
+        backends.insert(
+            LLAMACPP_BACKEND_ID,
+            Arc::new(LlamaCppBackend::new()?) as Arc<dyn LocalInferenceBackend>,
+        );
+        #[cfg(feature = "eredu")]
+        backends.insert(
+            EREDU_BACKEND_ID,
+            Arc::new(EreduBackend::new()) as Arc<dyn LocalInferenceBackend>,
+        );
+        if backends.is_empty() {
+            anyhow::bail!(
+                "Local inference has no backend; enable the `llamacpp` or `eredu` crate feature"
+            );
+        }
         let runtime = Arc::new(Self {
             models: StdMutex::new(HashMap::new()),
             cold_load_lock: Mutex::new(()),
@@ -122,8 +148,17 @@ impl InferenceRuntime {
     }
 
     fn default_backend(&self) -> &dyn LocalInferenceBackend {
+        #[cfg(feature = "llamacpp")]
+        if let Some(backend) = self.backends.get(LLAMACPP_BACKEND_ID) {
+            return backend.as_ref();
+        }
+        #[cfg(feature = "eredu")]
+        if let Some(backend) = self.backends.get(EREDU_BACKEND_ID) {
+            return backend.as_ref();
+        }
         self.backends
-            .get(LLAMACPP_BACKEND_ID)
+            .values()
+            .next()
             .expect("default local inference backend registered")
             .as_ref()
     }
@@ -132,10 +167,13 @@ impl InferenceRuntime {
         &self,
         resolved: &ResolvedModelPaths,
     ) -> Result<Arc<dyn LocalInferenceBackend>, ProviderError> {
-        let backend_id = resolved
-            .backend_id
-            .as_deref()
-            .unwrap_or(LLAMACPP_BACKEND_ID);
+        let backend = select_backend(
+            resolved.format,
+            resolved.settings.backend_id,
+            self.backends.contains_key("llamacpp"),
+            self.backends.contains_key("eredu"),
+        )?;
+        let backend_id = backend.id();
         self.backends.get(backend_id).cloned().ok_or_else(|| {
             ProviderError::ExecutionError(format!(
                 "Local inference backend '{}' unavailable",
@@ -165,6 +203,35 @@ impl InferenceRuntime {
     }
 }
 
+fn select_backend(
+    format: ModelFormat,
+    configured: Option<InferenceBackend>,
+    llamacpp_available: bool,
+    eredu_available: bool,
+) -> Result<InferenceBackend, ProviderError> {
+    let selected = configured.unwrap_or(match format {
+        ModelFormat::Safetensors => InferenceBackend::Eredu,
+        ModelFormat::Gguf if llamacpp_available => InferenceBackend::LlamaCpp,
+        ModelFormat::Gguf => InferenceBackend::Eredu,
+    });
+    if format == ModelFormat::Safetensors && selected == InferenceBackend::LlamaCpp {
+        return Err(ProviderError::ExecutionError(
+            "llama.cpp cannot load SafeTensors models; select Eredu or Auto".to_string(),
+        ));
+    }
+    let available = match selected {
+        InferenceBackend::LlamaCpp => llamacpp_available,
+        InferenceBackend::Eredu => eredu_available,
+    };
+    if !available {
+        return Err(ProviderError::ExecutionError(format!(
+            "Local inference backend '{}' unavailable",
+            selected.id()
+        )));
+    }
+    Ok(selected)
+}
+
 pub async fn is_model_loaded(model_name: &str) -> Result<bool, ProviderError> {
     let resolved = match resolve_model_path(model_name) {
         Some(resolved) => resolved,
@@ -178,6 +245,7 @@ pub async fn is_model_loaded(model_name: &str) -> Result<bool, ProviderError> {
         backend.id(),
         model_name.to_string(),
         resolved.settings.chat_template,
+        resolved.settings.draft_model,
     );
     let Some(slot) = runtime.model_slot(&key) else {
         return Ok(false);
@@ -245,9 +313,17 @@ pub(crate) struct ResolvedModelPaths {
     pub model_path: PathBuf,
     pub context_limit: usize,
     pub settings: crate::local_model_registry::ModelSettings,
+    #[cfg_attr(not(feature = "llamacpp"), allow(dead_code))]
     pub mmproj_path: Option<PathBuf>,
-    pub backend_id: Option<String>,
+    pub format: ModelFormat,
+    #[cfg_attr(not(feature = "eredu"), allow(dead_code))]
     pub draft_model_path: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ModelFormat {
+    Gguf,
+    Safetensors,
 }
 
 fn resolve_model_local_path(model_id: &str) -> Option<PathBuf> {
@@ -278,10 +354,13 @@ fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
             settings.vision_capable = defaults.vision_capable;
             settings.mmproj_size_bytes = entry.mmproj_size_bytes;
             let mmproj_path = entry.mmproj_path.as_ref().filter(|p| p.exists()).cloned();
-            let backend_id = entry
-                .backend_id
-                .clone()
-                .or_else(|| settings.backend_id.clone());
+            let format = if entry.filename.ends_with(".gguf")
+                || entry.local_path.extension().and_then(|ext| ext.to_str()) == Some("gguf")
+            {
+                ModelFormat::Gguf
+            } else {
+                ModelFormat::Safetensors
+            };
             let draft_model = settings
                 .draft_model
                 .clone()
@@ -297,7 +376,7 @@ fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
                 context_limit: ctx,
                 settings,
                 mmproj_path,
-                backend_id,
+                format,
                 draft_model_path,
             });
         }
@@ -340,6 +419,7 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
     FEATURED_MODELS[0].spec.to_string()
 }
 
+#[cfg(feature = "llamacpp")]
 fn build_openai_messages_json(
     system: &str,
     messages: &[Message],
@@ -356,6 +436,7 @@ fn build_openai_messages_json(
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
+#[cfg(feature = "llamacpp")]
 fn build_openai_text_messages_json(
     system: &str,
     messages: &[Message],
@@ -379,6 +460,7 @@ fn build_openai_text_messages_json(
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
+#[cfg(feature = "llamacpp")]
 fn convert_text_media_markers(messages: &mut [Value], marker: &str) {
     if marker.is_empty() {
         return;
@@ -419,6 +501,7 @@ fn convert_text_media_markers(messages: &mut [Value], marker: &str) {
     }
 }
 
+#[cfg(feature = "llamacpp")]
 fn split_media_marker_text(text: &str, marker: &str) -> Option<Vec<Value>> {
     let mut parts = Vec::new();
     let mut rest = text;
@@ -676,6 +759,7 @@ impl Provider for LocalInferenceProvider {
             backend.id(),
             model_config.model_name.clone(),
             model_settings.chat_template.clone(),
+            model_settings.draft_model.clone(),
         );
         let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
         let runtime = self.runtime.clone();
@@ -854,22 +938,22 @@ impl Provider for LocalInferenceProvider {
                 };
 
                 let message_id = Uuid::new_v4().to_string();
+                let log = Arc::new(StdMutex::new(log));
 
                 let request = backend::LocalGenerationRequest {
                     model_name,
-                    system: &system,
-                    messages: &messages,
-                    tools: &tools,
-                    settings: &settings,
+                    system,
+                    messages,
+                    tools,
+                    settings,
                     temperature,
                     max_tokens,
                     context_limit,
                     model_load_ms,
-                    resolved_model: &resolved_model,
-                    draft_model_path: resolved_model.draft_model_path.clone(),
-                    message_id: &message_id,
-                    tx: &tx,
-                    log: &mut log,
+                    resolved_model,
+                    message_id,
+                    tx: tx.clone(),
+                    log: log.clone(),
                 };
 
                 let result = backend.generate(loaded, request);
@@ -880,7 +964,9 @@ impl Provider for LocalInferenceProvider {
                         ProviderError::ContextLengthExceeded(s) => s.as_str(),
                         _ => "unknown error",
                     };
-                    let _ = log.error(msg);
+                    if let Ok(mut log) = log.lock() {
+                        let _ = log.error(msg);
+                    }
                     let _ = tx.blocking_send(Err(err));
                 }
             });
@@ -900,6 +986,7 @@ impl Provider for LocalInferenceProvider {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "llamacpp")]
     #[test]
     fn converts_marker_in_string_content_to_media_marker_part() {
         let mut messages = vec![json!({
@@ -919,6 +1006,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "llamacpp")]
     #[test]
     fn converts_marker_inside_text_content_parts() {
         let mut messages = vec![json!({
@@ -969,5 +1057,41 @@ mod tests {
         let message = Message::user().with_text("ordinary user content");
 
         assert_eq!(extract_text_content(&message), "ordinary user content");
+    }
+
+    #[test]
+    fn auto_prefers_llamacpp_for_gguf_when_both_are_available() {
+        assert_eq!(
+            select_backend(ModelFormat::Gguf, None, true, true).unwrap(),
+            InferenceBackend::LlamaCpp
+        );
+    }
+
+    #[test]
+    fn per_model_override_selects_eredu_for_gguf() {
+        assert_eq!(
+            select_backend(ModelFormat::Gguf, Some(InferenceBackend::Eredu), true, true).unwrap(),
+            InferenceBackend::Eredu
+        );
+    }
+
+    #[test]
+    fn auto_selects_eredu_for_safetensors() {
+        assert_eq!(
+            select_backend(ModelFormat::Safetensors, None, true, true).unwrap(),
+            InferenceBackend::Eredu
+        );
+    }
+
+    #[test]
+    fn unavailable_or_incompatible_override_is_rejected() {
+        assert!(select_backend(ModelFormat::Gguf, None, false, false).is_err());
+        assert!(select_backend(
+            ModelFormat::Safetensors,
+            Some(InferenceBackend::LlamaCpp),
+            true,
+            true
+        )
+        .is_err());
     }
 }

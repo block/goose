@@ -1806,6 +1806,15 @@ pub enum LocalInferenceToolCallingMode {
     ForceEmulated,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalInferenceBackend {
+    #[serde(rename = "llamacpp", alias = "llama.cpp", alias = "llama_cpp")]
+    LlamaCpp,
+    #[serde(alias = "mlx")]
+    Eredu,
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LocalInferenceChatTemplate {
@@ -1855,7 +1864,7 @@ impl Default for LocalInferenceSamplingConfig {
 #[serde(rename_all = "camelCase")]
 pub struct LocalInferenceModelSettingsDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub backend_id: Option<String>,
+    pub backend_id: Option<LocalInferenceBackend>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_size: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

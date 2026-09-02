@@ -1776,7 +1776,7 @@
     "defaultMessage": "Delete this model? You can re-download it later."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or SafeTensors models, or use the featured picks below."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Dismiss"
@@ -2173,6 +2173,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Switch models"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Batch size"

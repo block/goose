@@ -1834,6 +1834,8 @@ export const zLocalInferenceModelDownloadStatusDto = z.object({
     speedBps: z.int().gte(0).nullish()
 });
 
+export const zLocalInferenceBackend = z.enum(['llamacpp', 'eredu']);
+
 export const zLocalInferenceSamplingConfig = z.union([
     z.object({
         type: z.literal('Greedy')
@@ -1875,7 +1877,7 @@ export const zLocalInferenceChatTemplate = z.union([
 ]);
 
 export const zLocalInferenceModelSettingsDto = z.object({
-    backendId: z.string().nullish(),
+    backendId: zLocalInferenceBackend.nullish(),
     contextSize: z.int().gte(0).nullish(),
     maxOutputTokens: z.int().gte(0).nullish(),
     draftModel: z.string().nullish(),

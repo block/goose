@@ -4,8 +4,8 @@ use super::hf_models::{
 };
 use super::local_model_registry::{
     default_settings_for_model, featured_mmproj_spec, get_registry, model_id_from_repo,
-    ChatTemplate, LocalModelEntry, LocalModelStorage, ModelDownloadStatus, ModelSettings,
-    SamplingConfig, ToolCallingMode, FEATURED_MODELS,
+    ChatTemplate, InferenceBackend, LocalModelEntry, LocalModelStorage, ModelDownloadStatus,
+    ModelSettings, SamplingConfig, ToolCallingMode, FEATURED_MODELS,
 };
 use super::{
     available_inference_memory_bytes, builtin_chat_template_names, recommend_local_model,
@@ -17,9 +17,9 @@ use crate::paths::Paths;
 use anyhow::{anyhow, Result};
 use futures::future::join_all;
 use goose_sdk_types::custom_requests::{
-    LocalInferenceBuiltinChatTemplatesListResponse, LocalInferenceChatTemplate,
-    LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto,
-    LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto,
+    LocalInferenceBackend, LocalInferenceBuiltinChatTemplatesListResponse,
+    LocalInferenceChatTemplate, LocalInferenceDownloadProgressDto, LocalInferenceDownloadState,
+    LocalInferenceHfGgufFileDto, LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto,
     LocalInferenceHuggingFaceRepoVariantsResponse, LocalInferenceHuggingFaceSearchResponse,
     LocalInferenceModelDownloadRequest, LocalInferenceModelDownloadResponse,
     LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto,
@@ -361,7 +361,6 @@ pub async fn ensure_featured_models_current() -> Result<()> {
                 quantization: pending.quantization,
                 local_path,
                 source_url: hf_file.download_url,
-                backend_id: settings.backend_id.clone(),
                 storage: LocalModelStorage::GooseManaged,
                 settings,
                 size_bytes: hf_file.size_bytes,
@@ -542,7 +541,7 @@ fn hf_model_variant_to_dto(variant: HfModelVariant) -> LocalInferenceHfModelVari
 
 pub fn model_settings_to_dto(settings: &ModelSettings) -> LocalInferenceModelSettingsDto {
     LocalInferenceModelSettingsDto {
-        backend_id: settings.backend_id.clone(),
+        backend_id: settings.backend_id.map(backend_to_dto),
         context_size: settings.context_size,
         max_output_tokens: settings.max_output_tokens,
         draft_model: settings.draft_model.clone(),
@@ -567,7 +566,7 @@ pub fn model_settings_to_dto(settings: &ModelSettings) -> LocalInferenceModelSet
 
 pub fn model_settings_from_dto(settings: LocalInferenceModelSettingsDto) -> ModelSettings {
     ModelSettings {
-        backend_id: settings.backend_id,
+        backend_id: settings.backend_id.map(backend_from_dto),
         context_size: settings.context_size,
         max_output_tokens: settings.max_output_tokens,
         draft_model: settings.draft_model,
@@ -587,6 +586,20 @@ pub fn model_settings_from_dto(settings: LocalInferenceModelSettingsDto) -> Mode
         vision_capable: settings.vision_capable,
         image_token_estimate: settings.image_token_estimate,
         mmproj_size_bytes: settings.mmproj_size_bytes,
+    }
+}
+
+fn backend_to_dto(backend: InferenceBackend) -> LocalInferenceBackend {
+    match backend {
+        InferenceBackend::LlamaCpp => LocalInferenceBackend::LlamaCpp,
+        InferenceBackend::Eredu => LocalInferenceBackend::Eredu,
+    }
+}
+
+fn backend_from_dto(backend: LocalInferenceBackend) -> InferenceBackend {
+    match backend {
+        LocalInferenceBackend::LlamaCpp => InferenceBackend::LlamaCpp,
+        LocalInferenceBackend::Eredu => InferenceBackend::Eredu,
     }
 }
 
@@ -683,7 +696,7 @@ fn explicit_model_selection(
             .unwrap_or_else(|_| (req.spec.clone(), None));
         let variant_id = req.variant_id.clone().or(parsed_variant_id);
         match backend_id {
-            "mlx" | "llamacpp" => Ok(Some(LocalModelSelection {
+            "eredu" | "llamacpp" => Ok(Some(LocalModelSelection {
                 repo_id,
                 backend_id: backend_id.to_string(),
                 variant_id,
@@ -701,7 +714,7 @@ async fn local_model_id_from_request(
 ) -> Result<String> {
     if let Some(selection) = selection {
         return match selection.backend_id.as_str() {
-            "mlx" => Ok(selection.repo_id.clone()),
+            "eredu" => Ok(selection.repo_id.clone()),
             "llamacpp" => {
                 let quantization = selection.variant_id.as_deref().ok_or_else(|| {
                     anyhow!(
@@ -723,11 +736,11 @@ async fn local_model_id_from_request(
     let has_llamacpp = variants
         .iter()
         .any(|variant| variant.backend_id == "llamacpp");
-    let mlx_variants: Vec<_> = variants
+    let safetensors_variants: Vec<_> = variants
         .iter()
-        .filter(|variant| variant.backend_id == "mlx")
+        .filter(|variant| variant.backend_id == "eredu")
         .collect();
-    if mlx_variants.len() == 1 && !has_llamacpp {
+    if safetensors_variants.len() == 1 && !has_llamacpp {
         Ok(req.spec.clone())
     } else {
         anyhow::bail!(
@@ -792,7 +805,7 @@ fn register_pending_download_model(
     } else if let Ok((repo_id, quantization)) = hf_models::parse_model_spec(&req.spec) {
         (repo_id, "llamacpp".to_string(), quantization)
     } else {
-        (req.spec.clone(), "mlx".to_string(), "default".to_string())
+        (req.spec.clone(), "eredu".to_string(), "default".to_string())
     };
 
     let mut registry = get_registry()
@@ -804,7 +817,7 @@ fn register_pending_download_model(
 
     let mut settings = default_settings_for_model(model_id);
     if backend_id != "llamacpp" {
-        settings.backend_id = Some(backend_id.clone());
+        settings.backend_id = Some(InferenceBackend::Eredu);
     }
 
     let filename = variant_id.clone();
@@ -815,7 +828,6 @@ fn register_pending_download_model(
         quantization: variant_id,
         local_path: Paths::in_data_dir("models").join(filename),
         source_url: req.spec.clone(),
-        backend_id: settings.backend_id.clone(),
         storage: LocalModelStorage::HuggingFaceCache,
         settings,
         size_bytes: 0,

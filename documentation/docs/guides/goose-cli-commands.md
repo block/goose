@@ -607,7 +607,7 @@ This command is available in goose builds that include local inference support.
 :::
 
 **Commands:**
-- **`search <QUERY>`**: Search Hugging Face for compatible GGUF and MLX models
+- **`search <QUERY>`**: Search Hugging Face for compatible GGUF and SafeTensors models
   - **`-l, --limit <NUMBER>`**: Maximum number of results to show. Defaults to `10`
 - **`download <SPEC>`**: Download and register a model from a search result, such as `user/repo:Q4_K_M`
 - **`list`**: List downloaded local models

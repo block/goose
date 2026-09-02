@@ -39,7 +39,7 @@ const i18n = defineMessages({
   description: {
     id: 'localInferenceSettings.description',
     defaultMessage:
-      'Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below.',
+      'Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or SafeTensors models, or use the featured picks below.',
   },
   downloading: {
     id: 'localInferenceSettings.downloading',
@@ -206,9 +206,7 @@ export const LocalInferenceSettings = () => {
       if (models) {
         setModels(models);
         const downloadedIds = new Set(
-          models
-            .filter((model) => model.status.state === 'Downloaded')
-            .map((model) => model.id)
+          models.filter((model) => model.status.state === 'Downloaded').map((model) => model.id)
         );
         if (downloadedIds.size > 0) {
           setDownloads((prev) => {
@@ -716,7 +714,16 @@ export const LocalInferenceSettings = () => {
             <DialogTitle>{intl.formatMessage(i18n.modelSettings)}</DialogTitle>
             <p className="text-sm text-text-muted">{settingsOpenFor || ''}</p>
           </DialogHeader>
-          {settingsOpenFor && <ModelSettingsPanel modelId={settingsOpenFor} />}
+          {settingsOpenFor && (
+            <ModelSettingsPanel
+              modelId={settingsOpenFor}
+              modelFormat={
+                models.find((model) => model.id === settingsOpenFor)?.filename.endsWith('.gguf')
+                  ? 'gguf'
+                  : 'safetensors'
+              }
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

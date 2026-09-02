@@ -2322,7 +2322,7 @@ export type LocalInferenceModelDownloadStatusDto = {
 export type LocalInferenceDownloadState = 'NotDownloaded' | 'Downloading' | 'Downloaded';
 
 export type LocalInferenceModelSettingsDto = {
-    backendId?: string | null;
+    backendId?: LocalInferenceBackend | null;
     contextSize?: number | null;
     maxOutputTokens?: number | null;
     draftModel?: string | null;
@@ -2343,6 +2343,8 @@ export type LocalInferenceModelSettingsDto = {
     imageTokenEstimate: number;
     mmprojSizeBytes: number;
 };
+
+export type LocalInferenceBackend = 'llamacpp' | 'eredu';
 
 export type LocalInferenceSamplingConfig = {
     type: 'Greedy';

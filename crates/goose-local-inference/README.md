@@ -1,7 +1,9 @@
 # goose-local-inference
 
-On-device model inference for goose. Runs GGUF models through `llama.cpp` (via
-`llama-cpp-2`), with an optional MLX backend on Apple silicon.
+On-device model inference for goose. Supports `llama.cpp` (via `llama-cpp-2`)
+and eredu as independently selectable backends. eredu loads both SafeTensors
+and GGUF artifacts and provides checkpoint-native chat templates, semantic
+streaming, constrained sampling, and native tool calls.
 
 Reach it through [`goose-providers`](../goose-providers) with the
 `local-inference` feature, which exposes `LocalInferenceProvider` as an ordinary
@@ -9,10 +11,15 @@ Reach it through [`goose-providers`](../goose-providers) with the
 
 ## Features
 
-Default is `[]` — CPU inference.
+The default is `llamacpp`.
 
-- `cuda`, `vulkan` — GPU acceleration via the corresponding `llama-cpp-2` backend.
-- `mlx` — the MLX backend for Apple silicon.
+- `llamacpp` — GGUF inference through llama.cpp.
+- `eredu` — SafeTensors and GGUF inference through eredu.
+- `cuda`, `vulkan` — optional llama.cpp accelerator support.
+
+When both backends are compiled, GGUF models use llama.cpp by default and
+SafeTensors models use eredu. Each model can override that selection in its
+settings. llama.cpp cannot be selected for SafeTensors artifacts.
 
 ## What it handles
 
@@ -25,13 +32,11 @@ Default is `[]` — CPU inference.
   `huggingface_auth` handles gated repos. Downloads go through
   [`goose-download-manager`](../goose-download-manager), re-exported here as
   `download_manager`.
-- **Prompt formatting** — `prompt_template` applies the model's chat template;
-  `builtin_chat_template_names()` lists the bundled ones.
-- **Tool calling** — `native_tool_parsing` and `tool_parsing` extract tool calls
-  from model output, and `tool_emulation` (toolshim) fills in for models with no
-  native tool support.
-- **Richer outputs** — `thinking_output` separates reasoning blocks from the
-  answer; `multimodal` handles image input.
+- **Prompt formatting and tools** — eredu owns checkpoint chat templates,
+  semantic output parsing, constraints, and native tool calls. The llama.cpp
+  backend retains its built-in/custom templates and emulated-tool fallback.
+- **Richer outputs** — semantic reasoning is streamed as thinking output;
+  llama.cpp also supports image input through an associated projection model.
 - **Config** — `config_resolver` and `provider_utils` resolve settings such as
   `LOCAL_LLM_MODEL`.
 
@@ -42,5 +47,6 @@ plus the CUDA or Vulkan SDK when selecting those features.
 
 ```bash
 cargo build -p goose-local-inference
-cargo build -p goose-local-inference --features mlx
+cargo build -p goose-local-inference --no-default-features --features eredu
+cargo build -p goose-local-inference --features eredu
 ```

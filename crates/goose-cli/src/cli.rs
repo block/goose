@@ -1223,7 +1223,7 @@ enum Command {
 #[derive(Subcommand)]
 enum LocalModelsCommand {
     /// Search HuggingFace for local models
-    #[command(about = "Search HuggingFace for local GGUF and MLX models")]
+    #[command(about = "Search HuggingFace for local GGUF and SafeTensors models")]
     Search {
         /// Search query
         query: Option<String>,
@@ -2731,7 +2731,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 println!(
                     "{:<50} {:<10} {:<12} {}",
                     m.id,
-                    m.backend_id.as_deref().unwrap_or("llamacpp"),
+                    m.settings
+                        .backend_id
+                        .map(|backend| backend.id())
+                        .unwrap_or("auto"),
                     m.quantization,
                     if m.is_downloaded() { "✓" } else { "✗" }
                 );

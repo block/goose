@@ -146,7 +146,7 @@ async fn toolshim_postprocess(
 }
 
 /// Fill `usage.stats` timing fields measured by the stream wrapper, keeping any
-/// values the provider already reported (e.g. MLX's own `elapsed_ms`).
+/// values the provider already reported (e.g. eredu's own `elapsed_ms`).
 fn fill_stream_timing(
     usage: &mut ProviderUsage,
     request_started: std::time::Instant,
@@ -1865,7 +1865,7 @@ mod tests {
         assert_eq!(
             stats.elapsed_ms,
             Some(7),
-            "provider-reported elapsed_ms (e.g. MLX) must not be overwritten"
+            "provider-reported elapsed_ms (e.g. eredu) must not be overwritten"
         );
         assert_eq!(
             stats.time_to_first_token_ms,

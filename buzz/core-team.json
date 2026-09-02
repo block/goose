@@ -63,7 +63,7 @@
         "Security boundaries and permissions",
         "Path and file confinement",
         "Secrets, OAuth, and output sanitization",
-        "MLX and GGUF local inference",
+        "eredu and llama.cpp local inference",
         "Model management and vision support",
         "ACP transports and session behavior",
         "Streaming and cross-platform release reliability"

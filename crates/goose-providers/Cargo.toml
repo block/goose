@@ -14,9 +14,10 @@ workspace = true
 [features]
 default = []
 local-inference = ["dep:goose-local-inference"]
-cuda = ["local-inference", "goose-local-inference/cuda"]
-vulkan = ["local-inference", "goose-local-inference/vulkan"]
-mlx = ["local-inference", "goose-local-inference/mlx"]
+llamacpp = ["local-inference", "goose-local-inference/llamacpp"]
+eredu = ["local-inference", "goose-local-inference/eredu"]
+cuda = ["llamacpp", "goose-local-inference/cuda"]
+vulkan = ["llamacpp", "goose-local-inference/vulkan"]
 rustls-tls = [
     "reqwest/rustls",
     "rmcp/reqwest",

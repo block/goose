@@ -5,6 +5,24 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InferenceBackend {
+    #[serde(rename = "llamacpp", alias = "llama.cpp", alias = "llama_cpp")]
+    LlamaCpp,
+    #[serde(alias = "mlx")]
+    Eredu,
+}
+
+impl InferenceBackend {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::LlamaCpp => "llamacpp",
+            Self::Eredu => "eredu",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SamplingConfig {
@@ -60,9 +78,9 @@ pub enum ChatTemplate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSettings {
-    /// Backend implementation to use for this model. Defaults to llama.cpp.
+    /// Explicit backend override. When unset, the runtime selects by artifact format.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub backend_id: Option<String>,
+    pub backend_id: Option<InferenceBackend>,
     pub context_size: Option<u32>,
     pub max_output_tokens: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -298,9 +316,6 @@ pub struct LocalModelEntry {
     pub quantization: String,
     pub local_path: PathBuf,
     pub source_url: String,
-    /// Backend implementation to use for this model. Defaults to llama.cpp.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub backend_id: Option<String>,
     /// Where the model artifacts are stored. Goose keeps this registry as a
     /// lightweight settings overlay; Hugging Face cache entries are not deleted
     /// by Goose because they may be shared with other tools.
@@ -687,7 +702,6 @@ mod tests {
             quantization: "Q4_K_M".to_string(),
             local_path: PathBuf::from(format!("/tmp/{id}.gguf")),
             source_url: "https://example.test/model.gguf".to_string(),
-            backend_id: None,
             storage: LocalModelStorage::GooseManaged,
             settings: ModelSettings::default(),
             size_bytes: 0,
@@ -728,6 +742,14 @@ mod tests {
         assert!(!entry.is_downloading());
 
         get_download_manager().clear_completed(&download_id);
+    }
+
+    #[test]
+    fn legacy_mlx_backend_settings_migrate_to_eredu() {
+        let backend: InferenceBackend = serde_json::from_str("\"mlx\"").unwrap();
+
+        assert_eq!(backend, InferenceBackend::Eredu);
+        assert_eq!(serde_json::to_string(&backend).unwrap(), "\"eredu\"");
     }
 
     #[test]

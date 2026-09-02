@@ -1757,7 +1757,7 @@
     "defaultMessage": "Xóa mô hình này? Bạn có thể tải lại sau."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Tải xuống và quản lý các mô hình LLM cục bộ để suy luận mà không cần khóa API. Tìm kiếm các mô hình GGUF hoặc MLX trên HuggingFace, hoặc sử dụng các lựa chọn nổi bật bên dưới."
+    "defaultMessage": "Tải xuống và quản lý các mô hình LLM cục bộ để suy luận mà không cần khóa API. Tìm kiếm các mô hình GGUF hoặc SafeTensors trên HuggingFace, hoặc sử dụng các lựa chọn nổi bật bên dưới."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Bỏ qua"
@@ -2154,6 +2154,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Chuyển đổi mô hình"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Kích thước lô"

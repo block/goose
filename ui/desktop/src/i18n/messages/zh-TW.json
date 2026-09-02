@@ -1757,7 +1757,7 @@
     "defaultMessage": "要刪除此模型嗎？您之後可以重新下載。"
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "下載並管理本機 LLM 模型，無需 API 金鑰即可進行推論。在 HuggingFace 搜尋 GGUF 或 MLX 模型，或使用下方的精選推薦。"
+    "defaultMessage": "下載並管理本機 LLM 模型，無需 API 金鑰即可進行推論。在 HuggingFace 搜尋 GGUF 或 SafeTensors 模型，或使用下方的精選推薦。"
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "關閉"
@@ -2154,6 +2154,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "切換模型"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "批次大小"

@@ -1757,7 +1757,7 @@
     "defaultMessage": "이 모델을 삭제하시겠습니까? 나중에 다시 다운로드할 수 있습니다."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "API 키 없이 추론에 사용할 로컬 LLM 모델을 다운로드하고 관리하세요. Hugging Face에서 GGUF 또는 MLX 모델을 검색하거나 아래 추천 모델을 사용하세요."
+    "defaultMessage": "API 키 없이 추론에 사용할 로컬 LLM 모델을 다운로드하고 관리하세요. Hugging Face에서 GGUF 또는 SafeTensors 모델을 검색하거나 아래 추천 모델을 사용하세요."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "닫기"
@@ -2154,6 +2154,21 @@
   },
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "모델 전환"
+  },
+  "modelSettingsPanel.backend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.backendAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.backendDescription": {
+    "defaultMessage": "Auto prefers llama.cpp for GGUF and uses eredu for SafeTensors"
+  },
+  "modelSettingsPanel.backendEredu": {
+    "defaultMessage": "eredu"
+  },
+  "modelSettingsPanel.backendLlamaCpp": {
+    "defaultMessage": "llama.cpp"
   },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "배치 크기"
