@@ -3,9 +3,9 @@ import http from 'node:http';
 import https from 'node:https';
 import crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
+import tls from 'node:tls';
 import type { Socket } from 'node:net';
-import type { TLSSocket } from 'node:tls';
-import type { App, Session } from 'electron';
+import type { App, Cookies, Session } from 'electron';
 import {
   acpHttpUrlFromHttpBase,
   acpWebSocketUrlFromHttpBase,
@@ -13,6 +13,7 @@ import {
   statusHttpUrlFromHttpBase,
 } from './acp/url';
 import log from './utils/logger';
+import { proxyFor, type ProxyEnvironment } from './proxy';
 
 // The renderer cannot make these connections itself: Chromium aborts with
 // ERR_SSL_CLIENT_AUTH_CERT_NEEDED when a backend behind mTLS requests a client
@@ -97,15 +98,130 @@ const verify = (hostname: string, fingerprint: string): boolean => {
   return false;
 };
 
-const openRequest = (url: URL, headers: http.OutgoingHttpHeaders): http.ClientRequest => {
+let cookieJar: Cookies | null = null;
+let proxyEnvironment: ProxyEnvironment = process.env;
+
+const dialHost = (url: URL): string =>
+  url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname;
+
+const dialPort = (url: URL): number =>
+  Number(url.port || (secureProtocols.has(url.protocol) ? 443 : 80));
+
+const cookieHeader = async (url: URL): Promise<http.OutgoingHttpHeaders> => {
+  const cookies = await cookieJar?.get({ url: url.toString() }).catch(() => []);
+  return cookies?.length
+    ? { Cookie: cookies.map(({ name, value }) => `${name}=${value}`).join('; ') }
+    : {};
+};
+
+const storeCookies = (url: URL, headers: http.IncomingHttpHeaders): void => {
+  for (const cookie of headers['set-cookie'] ?? []) {
+    const [pair] = cookie.split(';');
+    const separator = pair.indexOf('=');
+    if (separator > 0) {
+      void cookieJar
+        ?.set({
+          url: url.toString(),
+          name: pair.slice(0, separator).trim(),
+          value: pair.slice(separator + 1).trim(),
+        })
+        .catch(() => undefined);
+    }
+  }
+};
+
+const connectDirectly = (url: URL): tls.TLSSocket => {
+  const socket = tls.connect({
+    host: dialHost(url),
+    port: dialPort(url),
+    servername: dialHost(url),
+    rejectUnauthorized: false,
+  });
+  socket.on('secureConnect', () => verifyPeer(socket, url));
+  return socket;
+};
+
+const verifyPeer = (socket: tls.TLSSocket, url: URL): void => {
+  const fingerprint = socket.getPeerCertificate().fingerprint256;
+  if (!fingerprint || !verify(url.hostname, fingerprint)) {
+    socket.destroy(new Error(`The backend TLS certificate for ${url.hostname} is not trusted.`));
+  }
+};
+
+const openTunnel = (url: URL, proxy: URL): Promise<Socket> =>
+  new Promise((resolve, reject) => {
+    const authority = `${dialHost(url)}:${dialPort(url)}`;
+    const request = (secureProtocols.has(proxy.protocol) ? https : http).request({
+      host: dialHost(proxy),
+      port: dialPort(proxy),
+      method: 'CONNECT',
+      path: authority,
+      headers: {
+        Host: authority,
+        ...(proxy.username
+          ? {
+              'Proxy-Authorization': `Basic ${Buffer.from(
+                `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`
+              ).toString('base64')}`,
+            }
+          : {}),
+      },
+    });
+    request.on('connect', (response, socket) => {
+      if (response.statusCode !== 200) {
+        socket.destroy();
+        reject(
+          new Error(`The proxy refused a tunnel to ${authority} (HTTP ${response.statusCode}).`)
+        );
+        return;
+      }
+      resolve(socket);
+    });
+    request.on('error', reject);
+    request.end();
+  });
+
+const openRequest = async (
+  url: URL,
+  headers: http.OutgoingHttpHeaders
+): Promise<http.ClientRequest> => {
   const secure = secureProtocols.has(url.protocol);
-  return (secure ? https : http).request({
-    host: url.hostname,
-    port: url.port || (secure ? 443 : 80),
+  const proxy = proxyFor(url, proxyEnvironment);
+  const requestHeaders = { 'User-Agent': userAgent, ...(await cookieHeader(url)), ...headers };
+
+  if (!secure) {
+    return http.request({
+      host: dialHost(proxy ?? url),
+      port: dialPort(proxy ?? url),
+      path: proxy ? url.toString() : `${url.pathname}${url.search}`,
+      method: 'GET',
+      headers: requestHeaders,
+    });
+  }
+
+  return https.request({
+    host: dialHost(url),
+    port: dialPort(url),
     path: `${url.pathname}${url.search}`,
     method: 'GET',
-    headers: { 'User-Agent': userAgent, ...headers },
-    ...(secure ? { rejectUnauthorized: false } : {}),
+    headers: requestHeaders,
+    createConnection: proxy
+      ? (_options, callback) => {
+          openTunnel(url, proxy).then(
+            (tunnel) => {
+              const socket = tls.connect({
+                socket: tunnel,
+                servername: dialHost(url),
+                rejectUnauthorized: false,
+              });
+              socket.on('secureConnect', () => verifyPeer(socket, url));
+              callback(null, socket);
+            },
+            (error: Error) => callback(error, null as unknown as Socket)
+          );
+          return undefined;
+        }
+      : () => connectDirectly(url),
   });
 };
 
@@ -114,17 +230,6 @@ const proxyNote = (headers: http.IncomingHttpHeaders): string => {
   return typeof doormanError === 'string' && doormanError !== 'none'
     ? ` A proxy in front of the backend reported "${doormanError}".`
     : '';
-};
-
-const untrustedCertificate = (socket: Socket | undefined, url: URL): string | null => {
-  if (!secureProtocols.has(url.protocol)) {
-    return null;
-  }
-
-  const fingerprint = (socket as TLSSocket | undefined)?.getPeerCertificate?.().fingerprint256;
-  return fingerprint && verify(url.hostname, fingerprint)
-    ? null
-    : `The backend TLS certificate for ${url.hostname} is not trusted.`;
 };
 
 interface BackendResponse {
@@ -146,23 +251,22 @@ const requestBackend = (
       return;
     }
 
-    const request = openRequest(url, extraHeaders);
-
-    request.on('response', (response) => {
-      response.resume();
-      const untrusted = untrustedCertificate(response.socket, url);
-      resolve(
-        untrusted
-          ? { ok: false, detail: untrusted }
-          : { ok: true, status: response.statusCode, detail: proxyNote(response.headers) }
-      );
+    openRequest(url, extraHeaders).then((request) => {
+      request.on('response', (response) => {
+        response.resume();
+        storeCookies(url, response.headers);
+        resolve({ ok: true, status: response.statusCode, detail: proxyNote(response.headers) });
+      });
+      request.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        request.destroy();
+        resolve({
+          ok: false,
+          detail: `The backend did not respond within ${REQUEST_TIMEOUT_MS}ms.`,
+        });
+      });
+      request.on('error', (error: Error) => resolve({ ok: false, detail: error.message }));
+      request.end();
     });
-    request.setTimeout(REQUEST_TIMEOUT_MS, () => {
-      request.destroy();
-      resolve({ ok: false, detail: `The backend did not respond within ${REQUEST_TIMEOUT_MS}ms.` });
-    });
-    request.on('error', (error: Error) => resolve({ ok: false, detail: error.message }));
-    request.end();
   });
 
 interface BackendSocketHandlers {
@@ -209,62 +313,65 @@ export function openBackendSocket(
     return { send: () => undefined, close: () => undefined };
   }
 
-  const request = openRequest(url, {
+  let request: http.ClientRequest | null = null;
+
+  void openRequest(url, {
     Connection: 'Upgrade',
     Upgrade: 'websocket',
     'Sec-WebSocket-Version': '13',
     'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64'),
     Origin: OPAQUE_ORIGIN,
-  });
-
-  request.on('upgrade', (_response, upgraded) => {
-    const untrusted = untrustedCertificate(upgraded, url);
-    if (untrusted) {
-      upgraded.destroy();
-      fail(untrusted);
+  }).then((pending) => {
+    if (closed) {
+      pending.destroy();
       return;
     }
+    request = pending;
 
-    socket = upgraded;
-    upgraded.setNoDelay(true);
+    pending.on('upgrade', (response, upgraded) => {
+      storeCookies(url, response.headers);
+      socket = upgraded;
+      upgraded.setNoDelay(true);
 
-    const decoder = new FrameDecoder();
-    upgraded.on('data', (chunk: Buffer) => {
-      const { messages, pings, close } = decoder.push(chunk);
-      for (const message of messages) {
-        handlers.onMessage(message);
-      }
-      for (const payload of pings) {
-        upgraded.write(encodeFrame(PONG_FRAME, payload));
-      }
-      if (close) {
-        upgraded.write(encodeFrame(CLOSE_FRAME, Buffer.alloc(0)));
-        finishClose(close.code, close.reason);
-      }
+      const decoder = new FrameDecoder();
+      upgraded.on('data', (chunk: Buffer) => {
+        const { messages, pings, close } = decoder.push(chunk);
+        for (const message of messages) {
+          handlers.onMessage(message);
+        }
+        for (const payload of pings) {
+          upgraded.write(encodeFrame(PONG_FRAME, payload));
+        }
+        if (close) {
+          upgraded.write(encodeFrame(CLOSE_FRAME, Buffer.alloc(0)));
+          finishClose(close.code, close.reason);
+        }
+      });
+
+      upgraded.on('error', (error: Error) => fail(error.message));
+      upgraded.on('close', () => finishClose(ABNORMAL_CLOSURE, 'The connection closed.'));
+      upgraded.on('end', () => finishClose(ABNORMAL_CLOSURE, 'The connection ended.'));
+
+      setImmediate(() => handlers.onOpen());
     });
 
-    upgraded.on('error', (error: Error) => fail(error.message));
-    upgraded.on('close', () => finishClose(ABNORMAL_CLOSURE, 'The connection closed.'));
-    upgraded.on('end', () => finishClose(ABNORMAL_CLOSURE, 'The connection ended.'));
+    pending.on('response', (response) => {
+      response.resume();
+      storeCookies(url, response.headers);
+      fail(
+        `The ACP WebSocket upgrade was refused with HTTP ${response.statusCode}.` +
+          proxyNote(response.headers)
+      );
+    });
 
-    setImmediate(() => handlers.onOpen());
+    if (timeoutMs) {
+      pending.setTimeout(timeoutMs, () =>
+        fail(`The WebSocket did not respond within ${timeoutMs}ms.`)
+      );
+    }
+    pending.on('error', (error: Error) => fail(error.message));
+    pending.end();
   });
-
-  request.on('response', (response) => {
-    response.resume();
-    fail(
-      `The ACP WebSocket upgrade was refused with HTTP ${response.statusCode}.` +
-        proxyNote(response.headers)
-    );
-  });
-
-  if (timeoutMs) {
-    request.setTimeout(timeoutMs, () =>
-      fail(`The WebSocket did not respond within ${timeoutMs}ms.`)
-    );
-  }
-  request.on('error', (error: Error) => fail(error.message));
-  request.end();
 
   return {
     send: (data) => socket?.write(encodeFrame(TEXT_FRAME, Buffer.from(data, 'utf8'))),
@@ -278,7 +385,7 @@ export function openBackendSocket(
         payload.write(reason, 2, 'utf8');
         socket.write(encodeFrame(CLOSE_FRAME, payload));
       }
-      request.destroy();
+      request?.destroy();
       finishClose(code, reason);
     },
   };
@@ -457,12 +564,23 @@ async function runConnectionTest(
 
     if (workingDir) {
       await step('Working directory', async () => {
+        let probeSessionId: unknown;
         try {
-          await handshake!.call('session/new', { cwd: workingDir, mcpServers: [] });
+          const session = await handshake!.call('session/new', {
+            cwd: workingDir,
+            mcpServers: [],
+          });
+          probeSessionId = session.sessionId;
         } catch (error) {
           failStep(
             `The backend rejected ${workingDir} (${error instanceof Error ? error.message : error}). It must be a directory that exists on the backend, not on this computer.`
           );
+        }
+
+        if (typeof probeSessionId === 'string') {
+          await handshake!
+            .call('session/delete', { sessionId: probeSessionId })
+            .catch(() => undefined);
         }
         return `${workingDir} exists on the backend.`;
       });
@@ -626,9 +744,13 @@ export const trustLocalBackend = (): BackendTrust => trust('127.0.0.1', null);
 
 export function installBackendTrust(
   targetApp: App,
-  targetSessions: Pick<Session, 'setCertificateVerifyProc'>[]
+  targetSessions: Pick<Session, 'setCertificateVerifyProc'>[],
+  cookies?: Cookies,
+  environment: ProxyEnvironment = process.env
 ): void {
   userAgent = `goose-desktop/${targetApp.getVersion()}`;
+  cookieJar = cookies ?? null;
+  proxyEnvironment = environment;
 
   targetApp.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
     const { hostname } = new URL(url);

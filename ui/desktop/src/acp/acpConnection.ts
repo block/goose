@@ -16,6 +16,7 @@ import {
 } from './gooseAcpClient';
 import { requestAcpPermission } from './permissionRequests';
 import { requestAcpRecipeParams } from './recipeParamRequests';
+import { AppEvents } from '../constants/events';
 
 type AcpConnection = {
   client: GooseAcpClient;
@@ -53,6 +54,7 @@ export function reconnectAcpToNewBackend(): void {
   currentConnection = null;
   pendingConnection = null;
   previousConnection?.client.connection.close();
+  window.dispatchEvent(new CustomEvent(AppEvents.BACKEND_SWITCHED));
 }
 
 export function isAcpRecovering(): boolean {

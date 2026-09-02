@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -137,6 +138,7 @@ const i18n = defineMessages({
 
 export default function ExternalBackendSection() {
   const intl = useIntl();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<ExternalBackendConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -240,6 +242,7 @@ export default function ExternalBackendSection() {
       }
       reconnectAcpToNewBackend();
       setStatus({ message: intl.formatMessage(i18n.switched), tone: 'success' });
+      navigate('/');
       return;
     }
     setStatus({

@@ -13,6 +13,7 @@ import ExternalBackendFallbackNotice from './components/ExternalBackendFallbackN
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
+import { acpChatSessionActions } from './acp/chatSessionStore';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -381,13 +382,24 @@ export function AppInner() {
       });
     };
 
+    const handleBackendSwitched = () => {
+      setActiveSessions((prev) => {
+        for (const session of prev) {
+          acpChatSessionActions.deleteSnapshot(session.sessionId);
+        }
+        return [];
+      });
+    };
+
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
     window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
     window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.BACKEND_SWITCHED, handleBackendSwitched);
     return () => {
       window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
       window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.BACKEND_SWITCHED, handleBackendSwitched);
     };
   }, []);
 

@@ -309,10 +309,8 @@ app.whenReady().then(() => {
 });
 
 app.whenReady().then(() => {
-  installBackendTrust(app, [
-    session.defaultSession,
-    session.fromPartition(RENDERER_SESSION_PARTITION),
-  ]);
+  const rendererSession = session.fromPartition(RENDERER_SESSION_PARTITION);
+  installBackendTrust(app, [session.defaultSession, rendererSession], rendererSession.cookies);
 });
 
 if (process.env.ENABLE_PLAYWRIGHT) {
