@@ -1,12 +1,13 @@
+use std::collections::VecDeque;
 #[cfg(windows)]
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(not(windows))]
 use std::sync::Arc;
 #[cfg(not(windows))]
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
@@ -17,17 +18,17 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
 #[cfg(not(windows))]
 use tokio::task::JoinHandle;
-use tokio_stream::{wrappers::SplitStream, StreamExt};
+use tokio_stream::{StreamExt, wrappers::SplitStream};
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::tool_execution::ToolCallNotificationEmitter;
 use crate::subprocess::SubprocessExt;
 
 pub use super::shell_output_streaming::{
-    parse_shell_output_notification, ShellOutputNotificationChunk, ShellOutputNotificationParams,
-    ShellOutputStream, DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
+    DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD, ShellOutputNotificationChunk,
+    ShellOutputNotificationParams, ShellOutputStream, parse_shell_output_notification,
 };
-use super::shell_output_streaming::{ShellOutputBatcher, SHELL_LIVE_OUTPUT_FLUSH_INTERVAL};
+use super::shell_output_streaming::{SHELL_LIVE_OUTPUT_FLUSH_INTERVAL, ShellOutputBatcher};
 
 /// Check if the current process is running inside a Flatpak sandbox.
 ///
@@ -161,6 +162,7 @@ const OUTPUT_PREVIEW_LINES: usize = 50;
 const OUTPUT_PREVIEW_BYTES: usize = 10_000;
 
 const OUTPUT_SLOTS: usize = 8;
+const DEFAULT_CAPTURE_LIMIT_BYTES: usize = 10 * 1024 * 1024;
 
 /// Result of truncating command output.
 struct TruncateResult {
@@ -421,8 +423,16 @@ impl ShellTool {
             Err(error) => return Self::error_result(&error, None),
         };
 
-        // Derive stdout, stderr, and interleaved display from the single tagged-line buffer
         let (raw_stdout, raw_stderr, interleaved) = split_lines(&execution.lines);
+        let interleaved = if execution.capture_dropped_bytes > 0 {
+            inject_capture_notice(
+                &interleaved,
+                execution.head_line_count,
+                execution.capture_dropped_bytes,
+            )
+        } else {
+            interleaved
+        };
 
         let output_dir = self.output_dir.path();
         let slot = self.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
@@ -487,6 +497,13 @@ impl ShellTool {
             execution.exit_code.unwrap_or(1) != 0
         };
 
+        if execution.capture_dropped_bytes > 0 {
+            rendered.push_str(&format!(
+                "\n\n[Capture limit: {} bytes of output were not captured. \
+                 The beginning and end of the output are preserved.]",
+                execution.capture_dropped_bytes
+            ));
+        }
         if execution.output_truncated {
             rendered.push_str(
                 "\n\nOutput may be incomplete because stream draining timed out after process exit.",
@@ -540,10 +557,28 @@ impl ShellTool {
 struct ExecutionOutput {
     /// Lines in arrival order, tagged by source: (is_stderr, text)
     lines: Vec<(bool, String)>,
+    head_line_count: usize,
+    capture_dropped_bytes: usize,
     exit_code: Option<i32>,
     timed_out: bool,
     output_truncated: bool,
     output_collection_error: Option<String>,
+}
+
+#[derive(Default)]
+struct DrainOutput {
+    head: Vec<(bool, String)>,
+    tail: VecDeque<(bool, String)>,
+    head_bytes: usize,
+    tail_bytes: usize,
+    total_seen: usize,
+}
+
+fn capture_limit_bytes() -> usize {
+    std::env::var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_CAPTURE_LIMIT_BYTES)
 }
 
 fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
@@ -552,6 +587,50 @@ fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
             .get_goose_default_extension_timeout()
             .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
     })
+}
+
+async fn drain_with_budget(
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<(bool, String)>,
+    budget: usize,
+) -> DrainOutput {
+    let half = budget / 2;
+    let mut out = DrainOutput::default();
+    let mut head_full = false;
+
+    while let Some((is_stderr, line)) = rx.recv().await {
+        let original_len = line.len() + 1;
+        out.total_seen += original_len;
+
+        // Without clamping, a line wider than `half` would evict the entire tail
+        // and then be stored in full, bypassing the budget.
+        let line = if original_len > half {
+            let mut s = line;
+            s.truncate(half.saturating_sub(1));
+            while !s.is_char_boundary(s.len()) {
+                s.pop();
+            }
+            s
+        } else {
+            line
+        };
+        let line_len = line.len() + 1;
+
+        if !head_full && out.head_bytes + line_len <= half {
+            out.head_bytes += line_len;
+            out.head.push((is_stderr, line));
+        } else {
+            head_full = true;
+            while !out.tail.is_empty() && out.tail_bytes + line_len > half {
+                if let Some((_, evicted)) = out.tail.pop_front() {
+                    out.tail_bytes -= evicted.len() + 1;
+                }
+            }
+            out.tail_bytes += line_len;
+            out.tail.push_back((is_stderr, line));
+        }
+    }
+
+    out
 }
 
 async fn run_command(
@@ -584,7 +663,9 @@ async fn run_command(
         .take()
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let cap = capture_limit_bytes();
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let drain_task = tokio::spawn(drain_with_budget(rx, cap));
     let output_task = tokio::spawn(collect_tagged_lines(
         child_stdout,
         child_stderr,
@@ -652,14 +733,19 @@ async fn run_command(
         }
     };
 
-    rx.close();
-    let mut lines = Vec::new();
-    while let Some(item) = rx.recv().await {
-        lines.push(item);
-    }
+    let drain = drain_task.await.unwrap_or_default();
+
+    let capture_dropped_bytes = drain
+        .total_seen
+        .saturating_sub(drain.head_bytes + drain.tail_bytes);
+    let head_line_count = drain.head.len();
+    let mut lines = drain.head;
+    lines.extend(drain.tail);
 
     Ok(ExecutionOutput {
         lines,
+        head_line_count,
+        capture_dropped_bytes,
         exit_code,
         timed_out,
         output_truncated,
@@ -765,6 +851,25 @@ fn apply_flatpak_session_environment(
         command.arg(format!("--env=AGENT_SESSION_ID={session_id}"));
     } else {
         command.arg("--unset-env=AGENT_SESSION_ID");
+    }
+}
+
+fn inject_capture_notice(interleaved: &str, head_line_count: usize, dropped: usize) -> String {
+    let notice = format!(
+        "[Capture limit reached: {dropped} bytes dropped. \
+         Showing the beginning and end of the output.]"
+    );
+    let lines: Vec<&str> = interleaved.split('\n').collect();
+    let insert_at = head_line_count.min(lines.len());
+    let (head_part, tail_part) = lines.split_at(insert_at);
+    if tail_part.is_empty() {
+        format!("{}\n{notice}", head_part.join("\n"))
+    } else {
+        format!(
+            "{}\n{notice}\n{}",
+            head_part.join("\n"),
+            tail_part.join("\n")
+        )
     }
 }
 
@@ -1122,6 +1227,50 @@ mod tests {
         assert!(
             shell_output.exit_code.is_none(),
             "cancelled process should have no exit code"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn capture_limit_preserves_head_and_tail() {
+        std::env::set_var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES", "500");
+        let tool = ShellTool::new_for_test().unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: "for i in $(seq 1 100); do \
+                    echo \"stdout-line-$i\"; \
+                    printf 'stderr-line-%d\\n' $i >&2; \
+                done"
+                    .to_string(),
+                timeout_secs: None,
+            })
+            .await;
+        std::env::remove_var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES");
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("[Capture limit"),
+            "truncation notice should appear in output"
+        );
+        let shell_output = extract_shell_output(&result);
+        assert_eq!(shell_output.exit_code, Some(0), "process should complete");
+        assert!(
+            shell_output.stdout.contains("stdout-line-1"),
+            "head should be preserved in stdout"
+        );
+        assert!(
+            shell_output.stdout.contains("stdout-line-100"),
+            "tail should be preserved in stdout"
+        );
+        assert!(
+            !shell_output.stdout.contains("[Capture limit"),
+            "truncation notice must not appear in structured stdout"
+        );
+        let captured_bytes = shell_output.stdout.len() + shell_output.stderr.len();
+        assert!(
+            captured_bytes <= 500 * 2,
+            "captured bytes should be within budget"
         );
     }
 
