@@ -6,6 +6,7 @@ on:
       - main
       - gdk-release-plz # Temporary: remove after validating this workflow
     paths:
+      # BEGIN GDK CRATE PATHS
       - "crates/goose-provider-types/**"
       - "crates/goose-sdk-types/**"
       - "crates/goose-download-manager/**"
@@ -14,6 +15,7 @@ on:
       - "crates/goose-agent/**"
       - "crates/goose-context-management/**"
       - "crates/goose-sdk/**"
+      # END GDK CRATE PATHS
       - "release-plz.toml"
       - "Cargo.lock"
   workflow_dispatch:
@@ -37,6 +39,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Activate Hermit
+        uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
 
       - name: Create or update release PR
         id: release-plz
