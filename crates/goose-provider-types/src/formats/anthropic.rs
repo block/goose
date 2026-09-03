@@ -1,5 +1,6 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
+use crate::conversation::merge_system_updates_for_request;
 use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::documents::{
@@ -66,6 +67,8 @@ pub struct AnthropicFormatOptions {
     pub cache_ttl: Option<CacheTtl>,
     pub prefix_mismatch_behavior: Option<PrefixMismatchBehavior>,
     pub strip_thinking_history: bool,
+    /// Only the native Anthropic API is known to accept `role: "system"` mid-conversation.
+    pub system_messages: bool,
 }
 
 impl AnthropicFormatOptions {
@@ -94,6 +97,8 @@ impl AnthropicFormatOptions {
             Some("off") => None,
             Some(value) => value.parse::<PrefixMismatchBehavior>().ok(),
         };
+        let system_messages =
+            self.system_messages && model_supports_system_messages(&model_config.model_name);
 
         Self {
             preserve_unsigned_thinking,
@@ -104,6 +109,7 @@ impl AnthropicFormatOptions {
             cache_ttl,
             prefix_mismatch_behavior,
             strip_thinking_history: self.strip_thinking_history,
+            system_messages,
         }
     }
 
@@ -197,6 +203,15 @@ const TEXT_TYPE: &str = "text";
 const ROLE_FIELD: &str = "role";
 const USER_ROLE: &str = "user";
 const ASSISTANT_ROLE: &str = "assistant";
+const SYSTEM_ROLE: &str = "system";
+
+/// Older models reject mid-conversation system messages with a 400.
+fn model_supports_system_messages(model_name: &str) -> bool {
+    let name = model_name.to_ascii_lowercase().replace('.', "-");
+    ["opus-5", "sonnet-5", "fable-5", "mythos-5", "opus-4-8"]
+        .iter()
+        .any(|family| name.contains(family))
+}
 const TOOL_USE_TYPE: &str = "tool_use";
 const TOOL_RESULT_TYPE: &str = "tool_result";
 const THINKING_TYPE: &str = "thinking";
@@ -252,10 +267,30 @@ fn format_messages_with_options(
     messages: &[Message],
     options: &AnthropicFormatOptions,
 ) -> Vec<Value> {
+    let folded;
+    let messages = if options.system_messages {
+        messages
+    } else {
+        folded = merge_system_updates_for_request(messages);
+        folded.as_slice()
+    };
     let mut anthropic_messages = Vec::new();
 
-    for message in messages {
+    for (index, message) in messages.iter().enumerate() {
+        // The API only accepts a system message between a user message and the
+        // next assistant turn (or at the end); anywhere else it goes as user text.
+        let next_is_assistant = messages
+            .get(index + 1)
+            .is_none_or(|next| next.role == Role::Assistant);
         let role = match message.role {
+            Role::User
+                if options.system_messages
+                    && message.is_system_update()
+                    && !anthropic_messages.is_empty()
+                    && next_is_assistant =>
+            {
+                SYSTEM_ROLE
+            }
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
         };
@@ -1672,6 +1707,87 @@ mod tests {
             .map(|(key, value)| (key.to_string(), value.clone()))
             .collect();
         ModelConfig::new("claude-opus-5").with_merged_request_params(params)
+    }
+
+    fn system_update(text: &str) -> Message {
+        Message::user().with_text(text).with_metadata(
+            crate::conversation::message::MessageMetadata::agent_only().with_system_update(),
+        )
+    }
+
+    fn system_message_options() -> AnthropicFormatOptions {
+        AnthropicFormatOptions {
+            system_messages: true,
+            ..Default::default()
+        }
+        .for_model(&ModelConfig::new("claude-opus-5"))
+    }
+
+    fn roles(messages: &[Value]) -> Vec<&str> {
+        messages
+            .iter()
+            .map(|message| message["role"].as_str().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn system_update_after_a_tool_result_is_sent_with_the_system_role() {
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({"cmd": "ls"}));
+        let messages = vec![
+            Message::user().with_text("run it"),
+            Message::assistant().with_tool_request("t1", Ok(tool_call)),
+            Message::user().with_tool_response(
+                "t1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    rmcp::model::ContentBlock::text("ok"),
+                ])),
+            ),
+            system_update("New additional instructions: end with PINEAPPLE."),
+        ];
+        let formatted = format_messages_with_options(&messages, &system_message_options());
+        assert_eq!(
+            roles(&formatted),
+            vec!["user", "assistant", "user", "system"]
+        );
+        assert_eq!(
+            formatted[3]["content"],
+            json!([{"type": "text", "text": "New additional instructions: end with PINEAPPLE."}])
+        );
+    }
+
+    #[test]
+    fn system_update_followed_by_a_user_message_falls_back_to_user_text() {
+        let messages = vec![
+            Message::user().with_text("hi"),
+            system_update("update"),
+            Message::user().with_text("<turn-context/>"),
+        ];
+        let formatted = format_messages_with_options(&messages, &system_message_options());
+        assert_eq!(roles(&formatted), vec!["user", "user", "user"]);
+    }
+
+    #[test]
+    fn system_updates_fold_into_user_text_when_unsupported() {
+        let messages = vec![Message::user().with_text("hi"), system_update("update")];
+
+        let older_model = AnthropicFormatOptions {
+            system_messages: true,
+            ..Default::default()
+        }
+        .for_model(&ModelConfig::new("claude-opus-4-7"));
+        let formatted = format_messages_with_options(&messages, &older_model);
+        assert_eq!(roles(&formatted), vec!["user"]);
+        assert_eq!(formatted[0]["content"].as_array().unwrap().len(), 2);
+
+        let compatible_endpoint =
+            AnthropicFormatOptions::default().for_model(&ModelConfig::new("claude-opus-5"));
+        assert_eq!(
+            roles(&format_messages_with_options(
+                &messages,
+                &compatible_endpoint
+            )),
+            vec!["user"]
+        );
     }
 
     #[test]

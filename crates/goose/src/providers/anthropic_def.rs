@@ -83,6 +83,7 @@ async fn from_env(
     Ok(AnthropicProviderBuilder::new(api_client)
         .format_options(AnthropicFormatOptions {
             prefix_mismatch_behavior,
+            system_messages: true,
             ..Default::default()
         })
         .build())
