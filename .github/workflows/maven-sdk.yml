@@ -172,7 +172,7 @@ jobs:
           version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
           target="$HOME/.m2/repository/io/github/aaif-goose/gdk/$version"
           mkdir -p "$target"
-          find maven-artifacts -type f -exec cp {} "$target/" +
+          find maven-artifacts -type f -exec cp -t "$target" {} +
 
       - name: Load native library in an ARM64 JVM
         shell: bash
