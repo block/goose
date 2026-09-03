@@ -136,6 +136,36 @@ crates-publish dry_run="true":
         fi; \
     done
 
+sync-package-versions:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 <<'PY'
+    import re
+    from pathlib import Path
+
+    cargo_toml = Path("crates/goose-sdk/Cargo.toml").read_text()
+    rust_version = re.search(r'(?m)^version\s*=\s*"([^"]+)"', cargo_toml).group(1)
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-alpha\.(\d+))?", rust_version)
+    if not match:
+        raise SystemExit(f"unsupported GDK version: {rust_version}")
+
+    major, minor, patch, alpha = match.groups()
+    python_version = f"{major}.{minor}.{patch}" if alpha is None else f"{major}.{minor}.{patch}a{alpha}"
+    pyproject = Path("crates/goose-sdk/python/pyproject.toml")
+    text = pyproject.read_text()
+    updated, count = re.subn(
+        r'(?m)^(\[project\]\nname\s*=\s*"goose-sdk"\nversion\s*=\s*)"[^"]+"',
+        rf'\1"{python_version}"',
+        text,
+        count=1,
+    )
+    if count != 1:
+        raise SystemExit(f"could not update [project] version in {pyproject}")
+    pyproject.write_text(updated)
+    print(f"Python package: {python_version}")
+    print(f"Maven artifact: {rust_version} (derived from goose-sdk/Cargo.toml)")
+    PY
+
 check-version rust_version:
     #!/usr/bin/env bash
     set -euo pipefail

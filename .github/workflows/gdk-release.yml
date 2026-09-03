@@ -4,18 +4,11 @@ on:
   push:
     tags:
       - "gdk-v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: GDK version to publish (for example, 0.1.0-alpha.6)
-        required: true
-        type: string
-
 permissions:
   contents: read
 
 concurrency:
-  group: gdk-release-${{ github.event_name == 'workflow_dispatch' && format('gdk-v{0}', inputs.version) || github.ref_name }}
+  group: gdk-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -31,9 +24,7 @@ jobs:
       - name: Resolve release version
         id: version
         shell: bash
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
-        run: echo "value=${INPUT_VERSION:-${GITHUB_REF_NAME#gdk-v}}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${GITHUB_REF_NAME#gdk-v}" >> "$GITHUB_OUTPUT"
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
