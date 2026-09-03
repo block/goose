@@ -62,3 +62,10 @@ jobs:
           git add crates/goose-sdk/python/pyproject.toml
           git commit -m "chore: synchronize GDK package versions"
           git push origin HEAD:"$branch"
+
+      - name: Validate package versions
+        if: steps.release-plz.outputs.prs_created == 'true'
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r \
+            '.packages[] | select(.name == "goose-sdk") | .version')
+          just --justfile crates/goose-sdk/justfile check-version "$version"
