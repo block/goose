@@ -147,6 +147,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .reply(
             Message::user().with_text("add one"),
             session_config.clone(),
+            true,
             Some(CancellationToken::new()),
         )
         .await?;

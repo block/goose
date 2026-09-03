@@ -12,7 +12,6 @@ use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
-use crate::agents::state_machine::pending_tool_confirmations;
 use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
@@ -65,7 +64,7 @@ use agent_client_protocol::{
 use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::stream::{self, StreamExt};
 use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
@@ -753,20 +752,6 @@ fn prompt_stop_reason(was_cancelled: bool, output_token_limit_reached: bool) -> 
     } else {
         StopReason::EndTurn
     }
-}
-
-#[derive(Clone)]
-struct SessionAgentTarget {
-    agent: Arc<Agent>,
-    session_id: String,
-    cancel_token: Option<CancellationToken>,
-}
-
-struct PendingToolPermission {
-    request_id: String,
-    tool_name: String,
-    arguments: serde_json::Map<String, serde_json::Value>,
-    prompt: Option<String>,
 }
 
 fn update_output_token_limit_reached(output_token_limit_reached: &mut bool, message: &Message) {

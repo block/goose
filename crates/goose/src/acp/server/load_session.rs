@@ -383,6 +383,7 @@ impl GooseAcpAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::state_machine::pending_tool_confirmations;
     use crate::conversation::message::InferenceMetadata;
     use goose_providers::thinking::{
         ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,

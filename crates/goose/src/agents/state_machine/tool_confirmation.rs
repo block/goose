@@ -1,16 +1,19 @@
+#[cfg(test)]
 use std::collections::HashSet;
 
 use anyhow::{anyhow, Result};
 
 use crate::agents::state_machine::messages_since_kickoff;
 use crate::agents::state_machine::ops_tool_approval::ApprovalState;
-use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ToolConfirmationRequest,
-};
+#[cfg(test)]
+use crate::conversation::message::{ActionRequiredData, ToolConfirmationRequest};
+use crate::conversation::message::{Message, MessageContent};
+#[cfg(test)]
 use crate::conversation::Conversation;
 use crate::permission::Permission;
 use crate::session::SessionManager;
 
+#[cfg(test)]
 fn active_turn_messages(conversation: &Conversation) -> &[Message] {
     let messages = conversation.messages();
     messages
@@ -24,6 +27,7 @@ fn active_turn_messages(conversation: &Conversation) -> &[Message] {
         .unwrap_or(messages)
 }
 
+#[cfg(test)]
 pub(crate) fn pending_tool_confirmations(
     conversation: &Conversation,
 ) -> Vec<ToolConfirmationRequest> {
@@ -67,6 +71,7 @@ pub(crate) fn pending_tool_confirmations(
         .collect()
 }
 
+#[cfg(test)]
 pub(crate) fn has_unapplied_tool_confirmation_response(conversation: &Conversation) -> bool {
     ApprovalState::from_messages(active_turn_messages(conversation))
         .has_unapplied_confirmation_response()
