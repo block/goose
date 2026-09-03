@@ -27,6 +27,7 @@ import os from 'node:os';
 import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
 import { checkBackendStatus } from './backendStatus';
+import { closeBackendProbe, probeFetch } from './backendProbe';
 import { installBackendCertificateVerifiers } from './backendCertificateVerifier';
 import { configureProxy } from './proxy';
 import { startGooseServe } from './gooseServe';
@@ -374,6 +375,8 @@ function isTrustedHost(hostname: string): boolean {
   return getBackendCertificateTrusts(hostname).length > 0;
 }
 
+const clientCertificatesByHost = new Map<string, string>();
+
 // Renderer requests: pin to the exact cert once known.
 app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
   const parsed = new URL(url);
@@ -384,6 +387,23 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
 
   event.preventDefault();
   callback(verifyBackendCertificate(parsed.hostname, certificate.fingerprint));
+});
+
+// Electron answers Chromium's client-auth callback with the first certificate the
+// server's acceptable-CA list matched, which is left in place so the full chain is
+// sent. This only records what went out so the connection test can report it.
+app.on('select-client-certificate', (_event, _webContents, url, certificates) => {
+  const [certificate] = certificates;
+  const { hostname } = new URL(url);
+  if (!certificate) {
+    clientCertificatesByHost.delete(hostname);
+    return;
+  }
+
+  clientCertificatesByHost.set(hostname, certificate.subjectName);
+  log.info(
+    `[Main] Sending client certificate "${certificate.subjectName}" to ${url} (${certificates.length} offered)`
+  );
 });
 
 app.whenReady().then(() => {
@@ -1119,7 +1139,7 @@ const createChat = async (
       const externalBackendCheck = await checkBackendStatus({
         baseUrl: externalBaseUrl,
         serverSecret,
-        fetch: net.fetch as unknown as typeof globalThis.fetch,
+        fetch: probeFetch,
       });
       if (!externalBackendCheck.ok) {
         externalCertificateTrust?.release();
@@ -2027,8 +2047,10 @@ ipcMain.handle(
   'test-external-backend',
   async (_event, params: { url: string; secret: string; certFingerprint?: string }) => {
     let certificateTrust: BackendCertificateTrustRegistration | null = null;
+    let backendHost = '';
     try {
       const { protocol, hostname } = new URL(normalizeAcpHttpBaseUrl(params.url));
+      backendHost = hostname;
       if (protocol === 'https:') {
         certificateTrust = trustBackendCertificate(hostname, params.certFingerprint ?? null);
       }
@@ -2037,11 +2059,21 @@ ipcMain.handle(
     }
 
     try {
-      return await checkBackendStatus({
+      const result = await checkBackendStatus({
         baseUrl: params.url,
         serverSecret: params.secret,
-        fetch: net.fetch as unknown as typeof globalThis.fetch,
+        fetch: probeFetch,
       });
+      const clientCertificate = clientCertificatesByHost.get(backendHost);
+      return clientCertificate
+        ? {
+            ...result,
+            steps: [
+              ...result.steps,
+              { name: 'Client certificate', ok: true, detail: clientCertificate },
+            ],
+          }
+        : result;
     } finally {
       certificateTrust?.release();
     }
@@ -3217,6 +3249,10 @@ app.on('will-quit', async () => {
   windowPowerSaveBlockers.clear();
 
   globalShortcut.unregisterAll();
+});
+
+app.on('before-quit', () => {
+  closeBackendProbe();
 });
 
 app.on('window-all-closed', () => {
