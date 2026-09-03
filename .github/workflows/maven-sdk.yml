@@ -8,12 +8,22 @@ on:
         required: false
         default: false
         type: boolean
+      smoke-test:
+        description: "Run the Kotlin GDK smoke test"
+        required: false
+        default: true
+        type: boolean
   workflow_dispatch:
     inputs:
       publish:
         description: "Publish gdk to Maven Central after building"
         required: true
         default: false
+        type: boolean
+      smoke-test:
+        description: "Run the Kotlin GDK smoke test"
+        required: true
+        default: true
         type: boolean
 
 permissions:
@@ -146,6 +156,7 @@ jobs:
   smoke-test-linux-aarch64:
     name: Smoke test Kotlin GDK (linux-aarch64)
     needs: package
+    if: inputs.smoke-test
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout code
@@ -192,7 +203,7 @@ jobs:
     name: Publish to Maven Central
     needs: [package, smoke-test-linux-aarch64]
     runs-on: ubuntu-latest
-    if: inputs.publish
+    if: inputs.publish && always() && needs.package.result == 'success' && (!inputs.smoke-test || needs.smoke-test-linux-aarch64.result == 'success')
     environment: maven-central
     concurrency:
       group: gdk-maven-release-${{ needs.package.outputs.version }}

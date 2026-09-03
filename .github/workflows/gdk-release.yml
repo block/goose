@@ -80,6 +80,7 @@ jobs:
     uses: ./.github/workflows/maven-sdk.yml
     with:
       publish: true
+      smoke-test: false
     secrets: inherit
 
   python-wheels:

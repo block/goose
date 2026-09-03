@@ -101,6 +101,17 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
 
+  kotlin-gdk-smoke-test:
+    name: Test Kotlin GDK package
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/maven-sdk.yml
+    with:
+      publish: false
+      smoke-test: true
+
   rust-build-and-test-tls:
     name: Build and Test TLS Backend (${{ matrix.tls-feature }})
     runs-on: ubuntu-latest
