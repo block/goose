@@ -955,7 +955,7 @@ mod tests {
                 .add_message(&session.id, &initial_msg)
                 .await?;
 
-            for i in 0..13 {
+            for i in 0..40 {
                 let call_id = format!("precall_{}", i);
                 let mut req_msg = Message::assistant()
                     .with_tool_request(&call_id, Ok(CallToolRequestParams::new("read_file")))

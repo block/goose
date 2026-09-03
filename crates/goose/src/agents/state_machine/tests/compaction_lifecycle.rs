@@ -338,7 +338,7 @@ async fn tool_pairs_remain_agent_visible_between_full_compactions() -> Result<()
     pipeline
         .seed([Message::user().with_text("old work")])
         .await?;
-    for n in 0..13 {
+    for n in 0..40 {
         let id = format!("call_{n}");
         pipeline
             .seed([
