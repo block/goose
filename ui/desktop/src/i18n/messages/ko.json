@@ -1229,6 +1229,12 @@
   "externalBackendSection.serverUrlHelp": {
     "defaultMessage": "HTTP(S) 기본 URL을 입력하세요. goose는 /status를 확인하고 이 기본 주소 아래의 /acp에 연결합니다."
   },
+  "externalBackendSection.test": {
+    "defaultMessage": "연결 테스트"
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "테스트 중…"
+  },
   "externalBackendSection.title": {
     "defaultMessage": "외부 백엔드 (ACP)"
   },

@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import { AlertCircle } from 'lucide-react';
+import { Button } from '../../ui/button';
+import { AlertCircle, Check, Loader2, X } from 'lucide-react';
 import { ExternalBackendConfig, defaultSettings } from '../../../utils/settings';
 import { defineMessages, useIntl } from '../../../i18n';
 import { normalizeAcpHttpBaseUrl } from '../../../acp/url';
+import type { BackendCheckResult } from '../../../backendStatus';
 
 const i18n = defineMessages({
   title: {
@@ -93,6 +95,14 @@ const i18n = defineMessages({
     defaultMessage:
       'URL must be the backend base URL before /acp, without query parameters or fragments',
   },
+  test: {
+    id: 'externalBackendSection.test',
+    defaultMessage: 'Test Connection',
+  },
+  testing: {
+    id: 'externalBackendSection.testing',
+    defaultMessage: 'Testing…',
+  },
 });
 
 export default function ExternalBackendSection() {
@@ -100,6 +110,8 @@ export default function ExternalBackendSection() {
   const [config, setConfig] = useState<ExternalBackendConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<BackendCheckResult | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -178,6 +190,22 @@ export default function ExternalBackendSection() {
   const handleCertFingerprintBlur = async () => {
     if (validateUrl(config.url)) {
       await saveConfig(config);
+    }
+  };
+
+  const runConnectionTest = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      setTestResult(
+        await window.electron.testExternalBackend({
+          url: config.url,
+          secret: config.secret,
+          certFingerprint: config.certFingerprint,
+        })
+      );
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -288,6 +316,29 @@ export default function ExternalBackendSection() {
                 <p className="text-xs text-text-secondary">
                   {intl.formatMessage(i18n.certFingerprintHelp)}
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  size="sm"
+                  onClick={runConnectionTest}
+                  disabled={isTesting || !config.url.trim()}
+                >
+                  {isTesting && <Loader2 className="size-3 animate-spin" />}
+                  {intl.formatMessage(isTesting ? i18n.testing : i18n.test)}
+                </Button>
+
+                {testResult?.steps.map((step) => (
+                  <p key={step.name} className="flex gap-2 text-xs">
+                    {step.ok ? (
+                      <Check className="size-3 mt-0.5 shrink-0 text-green-600" />
+                    ) : (
+                      <X className="size-3 mt-0.5 shrink-0 text-red-600" />
+                    )}
+                    <span className="text-text-primary">{step.name}</span>
+                    <span className="text-text-secondary break-words">{step.detail}</span>
+                  </p>
+                ))}
               </div>
 
               <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3">

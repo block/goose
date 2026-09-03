@@ -1116,20 +1116,20 @@ const createChat = async (
         );
       }
 
-      const externalBackendReady = await checkBackendStatus({
+      const externalBackendCheck = await checkBackendStatus({
         baseUrl: externalBaseUrl,
         serverSecret,
         fetch: net.fetch as unknown as typeof globalThis.fetch,
       });
-      if (!externalBackendReady) {
+      if (!externalBackendCheck.ok) {
         externalCertificateTrust?.release();
+        log.error(`External backend check failed: ${externalBackendCheck.failure}`);
         const canDisableExternalBackend = externalBackend.source === 'settings';
         const response = dialog.showMessageBoxSync({
           type: 'error',
           title: 'External Backend Unreachable',
           message: `Could not connect to external backend at ${externalBaseUrl}`,
-          detail:
-            'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+          detail: externalBackendCheck.failure ?? undefined,
           buttons: canDisableExternalBackend
             ? ['Disable External Backend & Retry', 'Quit']
             : ['Quit'],
@@ -2019,6 +2019,31 @@ ipcMain.handle('get-acp-url', async (event) => {
   }
   return gooseServeLeases.getAcpUrl(windowId) ?? null;
 });
+
+ipcMain.handle(
+  'test-external-backend',
+  async (_event, params: { url: string; secret: string; certFingerprint?: string }) => {
+    let certificateTrust: BackendCertificateTrustRegistration | null = null;
+    try {
+      const { protocol, hostname } = new URL(normalizeAcpHttpBaseUrl(params.url));
+      if (protocol === 'https:') {
+        certificateTrust = trustBackendCertificate(hostname, params.certFingerprint ?? null);
+      }
+    } catch (error) {
+      return { ok: false, steps: [{ name: 'URL', ok: false, detail: errorMessage(error) }] };
+    }
+
+    try {
+      return await checkBackendStatus({
+        baseUrl: params.url,
+        serverSecret: params.secret,
+        fetch: net.fetch as unknown as typeof globalThis.fetch,
+      });
+    } finally {
+      certificateTrust?.release();
+    }
+  }
+);
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {

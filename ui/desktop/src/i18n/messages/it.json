@@ -1229,6 +1229,12 @@
   "externalBackendSection.serverUrlHelp": {
     "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
   },
+  "externalBackendSection.test": {
+    "defaultMessage": "Prova connessione"
+  },
+  "externalBackendSection.testing": {
+    "defaultMessage": "Prova in corso…"
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Server Goose"
   },
