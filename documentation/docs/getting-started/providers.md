@@ -287,7 +287,7 @@ Install OpenLLM (the installer also starts its local service):
 curl -fsSL https://www.openllm.sh/install | bash
 ```
 
-Then choose **OpenLLM** in goose and select `ultra`, `plus`, `lite`, or another model returned by OpenLLM. You can create and reorder fallback chains in the OpenLLM dashboard. Since goose refers to the chain by name, you can change the models behind it without updating goose.
+Then choose **OpenLLM** in goose and select `ultra`, `plus`, `lite`, or another model returned by OpenLLM. No API key is needed. The service listens on `http://127.0.0.1:8787` by default; set `OPENLLM_HOST` if it runs elsewhere. You can create and reorder fallback chains in the OpenLLM dashboard. Since goose refers to the chain by name, you can change the models behind it without updating goose.
 
 To add semantic code search and persistent memory, see the [OpenLLM extension guide](/docs/mcp/openllm-mcp).
 
