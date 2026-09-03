@@ -1102,7 +1102,8 @@ const createExternalBackendLease = async (
     };
   } catch (error) {
     certificateTrust?.release();
-    return { ok: false, error: errorMessage(error), steps: [] };
+    const detail = errorMessage(error);
+    return { ok: false, error: detail, steps: [{ name: 'URL', ok: false, detail }] };
   }
 };
 
@@ -2107,32 +2108,6 @@ ipcMain.handle('disconnect-backend', async (event) => {
   await desktopFileAccess.bindWindow(window.id, local.workingDir);
   return { ok: true, workingDir: local.workingDir };
 });
-
-ipcMain.handle(
-  'test-external-backend',
-  async (_event, params: { url: string; secret: string; certFingerprint?: string }) => {
-    let certificateTrust: BackendCertificateTrustRegistration | null = null;
-    try {
-      const { protocol, hostname } = new URL(normalizeAcpHttpBaseUrl(params.url));
-      if (protocol === 'https:') {
-        certificateTrust = trustBackendCertificate(hostname, params.certFingerprint ?? null);
-      }
-    } catch {
-      certificateTrust = null;
-    }
-
-    try {
-      const result = await checkBackendStatus({
-        baseUrl: params.url,
-        serverSecret: params.secret,
-        fetch: probeFetch,
-      });
-      return { ...result, steps: withClientCertificateStep(result.steps, params.url) };
-    } finally {
-      certificateTrust?.release();
-    }
-  }
-);
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {

@@ -307,7 +307,7 @@ log(`  Cert fingerprint:      (blank = trust on first use)`);
 log(`                         pin with: ${edgeFingerprint}`);
 log('──────────────────────────────────────────────────────────────');
 log('\nExpected result:');
-if (scenario === 'plain') log('  Test Connection and Connect both succeed.');
+if (scenario === 'plain') log('  Connect succeeds and every connection check passes.');
 if (scenario === 'redirect')
   log(`  A Redirect step appears pointing at https://127.0.0.1:${redirectTargetPort}/goose.`);
 if (scenario === 'mtls') {
@@ -320,7 +320,7 @@ if (scenario === 'mtls') {
   log('  Delete it afterwards via Keychain Access ("Goose Testbed Client").');
 }
 if (scenario === 'strict-cors') {
-  log('  Test Connection FAILS with "Failed to fetch", reproducing the Blox edge:');
+  log('  Connect FAILS with "Failed to fetch", reproducing the Blox edge:');
   log('  any request carrying an Origin header is rejected.');
 }
 log('\nRequest log (Ctrl-C to stop):');

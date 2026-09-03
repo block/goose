@@ -116,13 +116,14 @@ const i18n = defineMessages({
     id: 'externalBackendSection.connectFailed',
     defaultMessage: 'Could not connect: {error}',
   },
-  test: {
-    id: 'externalBackendSection.test',
-    defaultMessage: 'Test Connection',
+  diagnosticsHeading: {
+    id: 'externalBackendSection.diagnosticsHeading',
+    defaultMessage: 'Connection checks',
   },
-  testing: {
-    id: 'externalBackendSection.testing',
-    defaultMessage: 'Testing…',
+  diagnosticsHint: {
+    id: 'externalBackendSection.diagnosticsHint',
+    defaultMessage:
+      'The first failed check above is where the connection stopped. Confirm the backend is running and reachable from this machine, that its secret key matches, and that any proxy or VPN in between allows /status and /acp.',
   },
 });
 
@@ -131,11 +132,10 @@ export default function ExternalBackendSection() {
   const [config, setConfig] = useState<ExternalBackendConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [outcome, setOutcome] = useState<{
     steps: BackendCheckStep[];
-    message: string | null;
+    message: string;
     ok: boolean;
   } | null>(null);
 
@@ -219,21 +219,6 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const runConnectionTest = async () => {
-    setIsTesting(true);
-    setOutcome(null);
-    try {
-      const result = await window.electron.testExternalBackend({
-        url: config.url,
-        secret: config.secret,
-        certFingerprint: config.certFingerprint,
-      });
-      setOutcome({ steps: result.steps, message: null, ok: result.ok });
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
   const connect = async () => {
     setIsConnecting(true);
     setOutcome(null);
@@ -290,7 +275,7 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const busy = isTesting || isConnecting || isSaving;
+  const busy = isConnecting || isSaving;
 
   return (
     <section id="external-backend" className="space-y-4 pr-4 mt-1">
@@ -374,17 +359,8 @@ export default function ExternalBackendSection() {
             </p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={runConnectionTest}
-                disabled={busy || !config.url.trim()}
-              >
-                {isTesting && <Loader2 className="size-3 animate-spin" />}
-                {intl.formatMessage(isTesting ? i18n.testing : i18n.test)}
-              </Button>
               <Button
                 size="sm"
                 onClick={config.enabled ? disconnect : connect}
@@ -403,25 +379,44 @@ export default function ExternalBackendSection() {
               </Button>
             </div>
 
-            {outcome?.steps.map((step) => (
-              <p key={step.name} className="flex gap-2 text-xs">
-                {step.ok ? (
-                  <Check className="size-3 mt-0.5 shrink-0 text-green-600" />
-                ) : (
-                  <X className="size-3 mt-0.5 shrink-0 text-red-600" />
-                )}
-                <span className="text-text-primary">{step.name}</span>
-                <span className="text-text-secondary break-words">{step.detail}</span>
-              </p>
-            ))}
+            {outcome && (
+              <div className="space-y-2">
+                <p
+                  className={`text-xs flex items-start gap-1 ${outcome.ok ? 'text-text-secondary' : 'text-red-500'}`}
+                >
+                  {outcome.ok ? (
+                    <Check className="size-3 mt-0.5 shrink-0 text-green-600" />
+                  ) : (
+                    <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                  )}
+                  <span className="break-words">{outcome.message}</span>
+                </p>
 
-            {outcome?.message && (
-              <p
-                className={`text-xs flex items-start gap-1 ${outcome.ok ? 'text-text-secondary' : 'text-red-500'}`}
-              >
-                {!outcome.ok && <AlertCircle size={12} className="mt-0.5 shrink-0" />}
-                <span className="break-words">{outcome.message}</span>
-              </p>
+                {outcome.steps.length > 0 && (
+                  <div className="rounded-md border border-border-subtle bg-background-muted p-2 space-y-1">
+                    <p className="text-xs text-text-secondary">
+                      {intl.formatMessage(i18n.diagnosticsHeading)}
+                    </p>
+                    {outcome.steps.map((step) => (
+                      <p key={step.name} className="flex gap-2 text-xs">
+                        {step.ok ? (
+                          <Check className="size-3 mt-0.5 shrink-0 text-green-600" />
+                        ) : (
+                          <X className="size-3 mt-0.5 shrink-0 text-red-600" />
+                        )}
+                        <span className="text-text-primary shrink-0">{step.name}</span>
+                        <span className="text-text-secondary break-all">{step.detail}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {!outcome.ok && (
+                  <p className="text-xs text-text-secondary">
+                    {intl.formatMessage(i18n.diagnosticsHint)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
