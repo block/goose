@@ -150,6 +150,30 @@ const config: Config = {
       {
         redirects: [
           {
+            from: "/docs/gdk/api-reference",
+            to: "/docs/gdk/sdk/api-reference",
+          },
+          {
+            from: "/docs/gdk/rust-api",
+            to: "/docs/gdk/sdk",
+          },
+          {
+            from: "/docs/gdk/rust-api/api-reference",
+            to: "/docs/gdk/sdk/api-reference",
+          },
+          {
+            from: "/docs/reference/goose-acp-reference",
+            to: "/docs/gdk/acp/reference",
+          },
+          {
+            from: "/docs/gdk/goose-acp-reference",
+            to: "/docs/gdk/acp/reference",
+          },
+          {
+            from: "/docs/guides/acp-clients",
+            to: "/docs/gdk/acp",
+          },
+          {
             from: "/docs/getting-started/using-goose-free",
             to: "/docs/getting-started/providers#using-goose-for-free",
           },

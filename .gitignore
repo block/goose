@@ -49,7 +49,7 @@ debug_*.txt
 # Generated files
 .docusaurus
 .cache-loader
-/documentation/docs/reference/goose-acp-reference.md
+/documentation/docs/gdk/acp/reference.md
 
 # Benchmark paths
 benchmark-*
