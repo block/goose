@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - gdk-release-plz # Temporary: remove after validating this workflow
     paths:
       - "crates/goose-provider-types/**"
       - "crates/goose-sdk-types/**"
