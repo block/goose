@@ -1067,11 +1067,13 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        let input_summary = serde_json::json!({
-            "tool": tool_call.name,
-            "arguments": tool_call.arguments,
-        });
-        tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        if gen_ai_telemetry::capture_message_content() {
+            let input_summary = serde_json::json!({
+                "tool": tool_call.name,
+                "arguments": tool_call.arguments,
+            });
+            tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        }
         gen_ai_telemetry::record_tool_arguments(&tracing::Span::current(), &tool_call);
 
         self.prompt_manager
@@ -2045,9 +2047,9 @@ impl Agent {
         let session_manager = self.config.session_manager.clone();
 
         let message_text_for_trace = agent_visible_message_text(&user_message);
-        tracing::Span::current().record("user_message", message_text_for_trace.as_str());
-        tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
         if gen_ai_telemetry::capture_message_content() {
+            tracing::Span::current().record("user_message", message_text_for_trace.as_str());
+            tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
             tracing::Span::current().record(
                 "gen_ai.input.messages",
                 gen_ai_telemetry::simple_input_json(&message_text_for_trace).as_str(),
@@ -3596,17 +3598,13 @@ impl Agent {
                 tokio::task::yield_now().await;
             }
 
-            if !last_assistant_text.is_empty() {
+            if !last_assistant_text.is_empty()
+                && gen_ai_telemetry::capture_message_content()
+            {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
-                if gen_ai_telemetry::capture_message_content() {
-                    let output_json =
-                        gen_ai_telemetry::simple_output_json(&last_assistant_text);
-                    tracing::Span::current().record(
-                        "gen_ai.output.messages",
-                        output_json.as_str(),
-                    );
-                    reply_span.record("gen_ai.output.messages", output_json.as_str());
-                }
+                let output_json = gen_ai_telemetry::simple_output_json(&last_assistant_text);
+                tracing::Span::current().record("gen_ai.output.messages", output_json.as_str());
+                reply_span.record("gen_ai.output.messages", output_json.as_str());
             }
             gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_total_usage);
             gen_ai_telemetry::record_usage(&reply_span, &turn_total_usage);
@@ -4352,6 +4350,50 @@ mod tests {
         (agent, session, data_dir)
     }
 
+    async fn capture_tool_dispatch_fields(
+        capture_setting: Option<&'static str>,
+    ) -> serde_json::Map<String, Value> {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::object;
+
+        let _env = match capture_setting {
+            Some(value) => {
+                clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, value)])
+            }
+            None => clear_otel_env(&[]),
+        };
+        let capture = SpanFieldCapture::new("dispatch_tool_call");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new(
+            crate::agents::platform_extensions::scheduler::MANAGE_SCHEDULE_TOOL_NAME_COMPLETE,
+        )
+        .with_arguments(object!({
+            "action": "list",
+            "api_key": "tool-input-super-secret-token",
+        }));
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "call-secret".to_string(), None, &session)
+            .await;
+        let _ = result.unwrap().result.await;
+        capture.fields()
+    }
+
+    #[tokio::test]
+    async fn tool_arguments_are_not_traced_without_content_capture() {
+        for capture_setting in [None, Some("false")] {
+            let fields = capture_tool_dispatch_fields(capture_setting).await;
+            let recorded = serde_json::to_string(&fields).unwrap();
+
+            assert!(!recorded.contains("tool-input-super-secret-token"));
+            assert!(!fields.contains_key("input"));
+            assert!(!fields.contains_key("gen_ai.tool.call.arguments"));
+            assert_eq!(fields["gen_ai.operation.name"], "execute_tool");
+            assert_eq!(fields["gen_ai.tool.call.id"], "call-secret");
+        }
+    }
+
     #[tokio::test]
     async fn tool_dispatch_records_gen_ai_span_attributes() {
         use goose_test_support::otel::clear_otel_env;
@@ -4383,6 +4425,8 @@ mod tests {
         assert_eq!(fields["gen_ai.tool.name"], tool_name);
         assert_eq!(fields["gen_ai.tool.call.id"], "call-42");
         assert_eq!(fields["gen_ai.conversation.id"], session.id);
+        let input: Value = serde_json::from_str(fields["input"].as_str().unwrap()).unwrap();
+        assert_eq!(input["arguments"]["action"], "list");
         let arguments: Value =
             serde_json::from_str(fields["gen_ai.tool.call.arguments"].as_str().unwrap()).unwrap();
         assert_eq!(arguments["action"], "list");
@@ -5257,6 +5301,118 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             )
             .await?;
         Ok((agent, session.id))
+    }
+
+    struct TraceContentProvider;
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for TraceContentProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let message = Message::assistant().with_text("output-super-secret-token");
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_name(&self) -> &str {
+            "trace-content"
+        }
+    }
+
+    async fn capture_legacy_reply_fields(
+        span_name: &'static str,
+        capture_setting: Option<&'static str>,
+    ) -> Result<serde_json::Map<String, Value>> {
+        use goose_test_support::otel::clear_otel_env;
+
+        let mut overrides = vec![("GOOSE_STATE_MACHINE", "0")];
+        if let Some(value) = capture_setting {
+            overrides.push((gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, value));
+        }
+        let _env = clear_otel_env(&overrides);
+        let capture = SpanFieldCapture::new(span_name);
+        let _subscriber = capture.clone().set_default();
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            hook_manager,
+            Arc::new(TraceContentProvider),
+        )
+        .await?;
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(1),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("input-super-secret-token"),
+                session_config,
+                None,
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+        while let Some(event) = reply_stream.next().await {
+            event?;
+        }
+
+        Ok(capture.fields())
+    }
+
+    #[tokio::test]
+    async fn legacy_reply_trace_omits_content_without_capture() -> Result<()> {
+        for capture_setting in [None, Some("false")] {
+            let reply_fields = capture_legacy_reply_fields("reply", capture_setting).await?;
+            let reply_json = serde_json::to_string(&reply_fields)?;
+            assert!(!reply_json.contains("super-secret-token"));
+            assert!(!reply_fields.contains_key("user_message"));
+            assert!(!reply_fields.contains_key("trace_input"));
+            assert!(!reply_fields.contains_key("gen_ai.input.messages"));
+            assert!(!reply_fields.contains_key("gen_ai.output.messages"));
+
+            let stream_fields =
+                capture_legacy_reply_fields("reply_stream", capture_setting).await?;
+            let stream_json = serde_json::to_string(&stream_fields)?;
+            assert!(!stream_json.contains("super-secret-token"));
+            assert!(!stream_fields.contains_key("trace_output"));
+            assert!(!stream_fields.contains_key("gen_ai.input.messages"));
+            assert!(!stream_fields.contains_key("gen_ai.output.messages"));
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_reply_trace_retains_content_with_capture() -> Result<()> {
+        let reply_fields = capture_legacy_reply_fields("reply", Some("true")).await?;
+        assert_eq!(reply_fields["user_message"], "input-super-secret-token");
+        assert_eq!(reply_fields["trace_input"], "input-super-secret-token");
+        assert!(reply_fields["gen_ai.input.messages"]
+            .as_str()
+            .unwrap()
+            .contains("input-super-secret-token"));
+        assert!(reply_fields["gen_ai.output.messages"]
+            .as_str()
+            .unwrap()
+            .contains("output-super-secret-token"));
+
+        let stream_fields = capture_legacy_reply_fields("reply_stream", Some("true")).await?;
+        assert_eq!(stream_fields["trace_output"], "output-super-secret-token");
+        assert!(stream_fields["gen_ai.input.messages"]
+            .as_str()
+            .unwrap()
+            .contains("input-super-secret-token"));
+        assert!(stream_fields["gen_ai.output.messages"]
+            .as_str()
+            .unwrap()
+            .contains("output-super-secret-token"));
+        Ok(())
     }
 
     async fn create_stop_hook_test_agent(

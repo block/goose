@@ -1,7 +1,7 @@
 {
   "versions": [
     {
-      "version": "0.1.0-alpha.6",
+      "version": "0.1.0-alpha.8",
       "docVersion": "0.1",
       "source": "crates/goose-sdk/src/bindings.rs",
       "functions": [
@@ -91,6 +91,12 @@
               "name": "token",
               "type": "String",
               "default": null,
+              "docs": ""
+            },
+            {
+              "name": "gateway_path",
+              "type": "Option<String>",
+              "default": "None",
               "docs": ""
             }
           ],

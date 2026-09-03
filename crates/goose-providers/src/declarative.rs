@@ -13,6 +13,7 @@ pub(crate) mod declarative_providers {
     use super::*;
 
     expose_declarative_providers!(
+        aimlapi,
         alibaba,
         atomic_chat,
         celeris,
@@ -182,8 +183,6 @@ pub struct DeclarativeProviderConfig {
     pub model_doc_link: Option<String>,
     #[serde(default)]
     pub setup_steps: Vec<String>,
-    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
-    pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
     /// Enables Z.AI's `clear_thinking` field, which Anthropic does not support.

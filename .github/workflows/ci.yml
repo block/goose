@@ -275,10 +275,10 @@ jobs:
           cd ui/desktop && pnpm install --frozen-lockfile
           cd ../sdk && pnpm install --frozen-lockfile
 
-      - name: Check ACP Schema is Up-to-Date
+      - name: Check ACP Artifacts are Up-to-Date
         run: |
           source ./bin/activate-hermit
-          just check-acp-schema
+          just check-acp-artifacts
 
       - name: Check ACP Client SDK
         run: |
