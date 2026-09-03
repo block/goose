@@ -257,7 +257,6 @@ impl ApprovalState {
                 .any(|request| request.id == request_id)
     }
 
-    #[cfg(test)]
     pub(super) fn has_unapplied_confirmation_response(&self) -> bool {
         self.tool_requests.iter().any(|request| {
             !self.answered.contains(&request.id)

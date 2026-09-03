@@ -275,8 +275,13 @@ impl GooseAcpAgent {
             }
         }
 
+        let mut has_unapplied_responses = false;
         for (id, tool_name, arguments, prompt) in requests {
-            if answered.contains(&id) || responses.contains(&id) {
+            if answered.contains(&id) {
+                continue;
+            }
+            if responses.contains(&id) {
+                has_unapplied_responses = true;
                 continue;
             }
             self.handle_tool_permission_request(
@@ -289,6 +294,61 @@ impl GooseAcpAgent {
                 prompt,
                 use_state_machine,
             )?;
+        }
+
+        if has_unapplied_responses && use_state_machine {
+            let server = self.clone();
+            let cx = cx.clone();
+            let agent = agent.clone();
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: None,
+                retry_config: None,
+            };
+            tokio::spawn(async move {
+                let cancel = CancellationToken::new();
+                let stream = match agent
+                    .resume_state_machine_turn(session_config, cancel)
+                    .await
+                {
+                    Ok(Some(stream)) => stream,
+                    _ => return,
+                };
+                tokio::pin!(stream);
+                let mut tool_requests = HashMap::new();
+                while let Some(event) = stream.next().await {
+                    match event {
+                        Ok(crate::agents::AgentEvent::Message(mut message)) => {
+                            populate_output_token_limit_content(&mut message);
+                            for content_item in &message.content {
+                                if let MessageContent::ToolRequest(tr) = content_item {
+                                    tool_requests.insert(tr.id.clone(), tr.clone());
+                                }
+                                if let Err(e) = server
+                                    .handle_message_content(
+                                        content_item,
+                                        &message,
+                                        &session_id,
+                                        &agent,
+                                        (&tool_requests, true),
+                                        &cx,
+                                    )
+                                    .await
+                                {
+                                    warn!("failed to forward resumed turn event: {e}");
+                                    return;
+                                }
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!("error in resumed state-machine turn: {e}");
+                            return;
+                        }
+                    }
+                }
+            });
         }
 
         Ok(())

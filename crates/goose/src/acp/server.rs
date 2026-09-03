@@ -2427,6 +2427,10 @@ impl GooseAcpAgent {
             }
         }
 
+        if cancel_token.is_cancelled() {
+            was_cancelled = true;
+        }
+
         if !was_cancelled && stream_error.is_none() {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);

@@ -32,11 +32,8 @@ use crate::agents::final_output_tool::{
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-#[cfg(test)]
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
-};
-use crate::agents::state_machine::{
     persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
     DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
     GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
@@ -1827,7 +1824,6 @@ impl Agent {
         )
     }
 
-    #[cfg(test)]
     pub(crate) async fn resume_state_machine_turn(
         self: &Arc<Self>,
         session_config: SessionConfig,
