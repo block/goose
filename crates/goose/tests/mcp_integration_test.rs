@@ -10,9 +10,9 @@ use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
 use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
+use goose::agents::GoosePlatform;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
-use goose::agents::GoosePlatform;
 use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
@@ -20,7 +20,7 @@ use test_case::test_case;
 use async_trait::async_trait;
 use goose::conversation::message::Message;
 use goose::providers::base::{
-    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
 };
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
@@ -218,7 +218,16 @@ async fn test_replayed_session(
     let mut env = HashMap::new();
 
     if matches!(mode, TestMode::Record) {
-        args.extend(command.into_iter().map(str::to_string));
+        args.extend(command.into_iter().map(|arg| {
+            if arg == "tests/fastmcp_test_server.py" {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join(arg)
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                arg.to_string()
+            }
+        }));
 
         for key in required_envs {
             match env::var(key) {
@@ -242,7 +251,7 @@ async fn test_replayed_session(
         envs,
         env_keys: vec![],
         timeout: Some(30),
-        cwd: Some(env!("CARGO_MANIFEST_DIR").to_string()),
+        cwd: None,
         bundled: Some(false),
         available_tools: vec![],
     };

@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 fn script_for_scenario(scenario: Option<&str>) -> Value {
     let context: Map<String, Value> = std::env::var("MCP_CONFORMANCE_CONTEXT")
@@ -80,8 +80,10 @@ fn script_for_scenario(scenario: Option<&str>) -> Value {
         }),
     };
 
+    // Runner 0.1.16 does not set MCP_CONFORMANCE_PROTOCOL_VERSION; default to
+    // the 2025-11-25 spec version those scenarios expect.
     let protocol_version = std::env::var("MCP_CONFORMANCE_PROTOCOL_VERSION")
-        .unwrap_or_else(|_| "2026-07-28".to_string());
+        .unwrap_or_else(|_| "2025-11-25".to_string());
     {
         script["protocolVersion"] = json!(protocol_version);
     }
