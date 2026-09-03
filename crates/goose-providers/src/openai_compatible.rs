@@ -26,6 +26,7 @@ use crate::formats::openai::{
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
+use crate::stream_idle_timeout::with_stream_idle_timeout_from_env;
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -244,6 +245,7 @@ pub fn stream_openai_compat(
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
+        let framed = with_stream_idle_timeout_from_env(framed);
 
         let message_stream = response_to_streaming_message(framed);
         pin!(message_stream);
@@ -268,6 +270,7 @@ pub fn stream_responses_compat(
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
+        let framed = with_stream_idle_timeout_from_env(framed);
 
         let message_stream = responses_api_to_streaming_message(framed);
         pin!(message_stream);
@@ -288,6 +291,91 @@ mod tests {
     use crate::model::ModelConfig;
     use serde_json::json;
     use test_case::test_case;
+
+    #[tokio::test]
+    async fn keepalive_masked_stall_errors_instead_of_hanging() {
+        use crate::retry::{should_retry, RetryConfig};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let _guard = env_lock::lock_env([("GOOSE_STREAM_TIMEOUT", Some("1"))]);
+
+        // SSE server: two healthy data frames, then keepalive comments forever —
+        // the failure signature from #11679. At the byte level this stream
+        // stays alive indefinitely, so read timeouts never fire.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    break;
+                };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 8192];
+                    let _ = sock.read(&mut buf).await;
+                    if sock
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\n\
+                              content-type: text/event-stream\r\n\
+                              transfer-encoding: chunked\r\n\r\n",
+                        )
+                        .await
+                        .is_err()
+                    {
+                        return;
+                    }
+                    let chunk = |data: &str| format!("{:x}\r\n{data}\r\n", data.len());
+                    let delta = concat!(
+                        r#"data: {"id":"1","model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}"#,
+                        "\n\n"
+                    );
+                    for data in [delta, delta] {
+                        if sock.write_all(chunk(data).as_bytes()).await.is_err() {
+                            return;
+                        }
+                    }
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        if sock
+                            .write_all(chunk(": ping\n\n").as_bytes())
+                            .await
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+
+        let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let payload = json!({"model": "m", "stream": true, "messages": []});
+        let response = http
+            .post(format!("http://{addr}/chat/completions"))
+            .json(&payload)
+            .send()
+            .await
+            .unwrap();
+        let mut stream = stream_openai_compat(response, None).unwrap();
+
+        // The watchdog must fire (~1s idle) long before this outer bound.
+        let drained = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            while let Some(item) = stream.next().await {
+                if let Err(e) = item {
+                    return Some(e);
+                }
+            }
+            None
+        })
+        .await
+        .expect("stream did not terminate within 15s");
+
+        let err = drained.expect("stream ended without an error");
+        assert!(err.to_string().contains("Stream stalled"), "got: {err}");
+        assert!(err.to_string().contains("keepalive"), "got: {err}");
+        assert!(matches!(err, ProviderError::NetworkError(_)));
+        assert!(should_retry(&err, &RetryConfig::default()));
+    }
 
     #[test_case(
         StatusCode::PAYMENT_REQUIRED,

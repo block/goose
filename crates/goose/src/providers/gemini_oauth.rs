@@ -1005,6 +1005,8 @@ impl Provider for GeminiOAuthProvider {
             let raw_lines = FramedRead::new(stream_reader, LinesCodec::new())
                 .map_ok(|line| unwrap_code_assist_sse_line(&line))
                 .map_err(anyhow::Error::from);
+            let raw_lines =
+                goose_providers::stream_idle_timeout::with_stream_idle_timeout_from_env(raw_lines);
 
             let message_stream = response_to_streaming_message(raw_lines);
             pin!(message_stream);

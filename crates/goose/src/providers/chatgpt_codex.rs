@@ -1023,6 +1023,8 @@ impl Provider for ChatGptCodexProvider {
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+            let framed =
+                goose_providers::stream_idle_timeout::with_stream_idle_timeout_from_env(framed);
 
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);

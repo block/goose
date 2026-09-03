@@ -455,6 +455,8 @@ impl Provider for KimiCodeProvider {
                 tokio_util::codec::LinesCodec::new(),
             )
             .map_err(anyhow::Error::from);
+            let framed =
+                goose_providers::stream_idle_timeout::with_stream_idle_timeout_from_env(framed);
 
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
