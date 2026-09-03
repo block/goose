@@ -112,9 +112,8 @@ where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     Box::pin(async_stream::try_stream! {
-        match stream.next().await {
-            Some(item) => yield item?,
-            None => return,
+        if let Some(item) = stream.next().await {
+            yield item?;
         }
         let mut watched = with_stream_idle_timeout(stream, idle);
         while let Some(item) = watched.next().await {
@@ -153,14 +152,22 @@ mod tests {
         )
     }
 
-    async fn drain_until_stall(stream: LineStream, idle: Duration) -> anyhow::Error {
-        let mut watched = with_stream_idle_timeout(stream, idle);
+    async fn first_stall_error(mut watched: LineStream) -> anyhow::Error {
         while let Some(item) = watched.next().await {
             if let Err(e) = item {
                 return e;
             }
         }
         panic!("stream ended without a stall error");
+    }
+
+    fn assert_keepalive_masked_stall(err: &anyhow::Error) {
+        let message = err.to_string();
+        assert!(message.contains("Stream stalled"), "got: {message}");
+        assert!(message.contains("keepalive"), "got: {message}");
+        let provider_error = err.downcast_ref::<ProviderError>().expect("ProviderError");
+        assert!(matches!(provider_error, ProviderError::NetworkError(_)));
+        assert!(should_retry(provider_error, &RetryConfig::default()));
     }
 
     #[tokio::test(start_paused = true)]
@@ -175,18 +182,13 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn keepalive_comments_do_not_reset_the_timer() {
-        let err = drain_until_stall(
+        let err = first_stall_error(with_stream_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ": ping"),
             Duration::from_secs(150),
-        )
+        ))
         .await;
-        let message = err.to_string();
-        assert!(message.contains("Stream stalled"), "got: {message}");
-        assert!(message.contains("keepalive"), "got: {message}");
-        assert!(message.contains("150"), "got: {message}");
-        let provider_error = err.downcast_ref::<ProviderError>().expect("ProviderError");
-        assert!(matches!(provider_error, ProviderError::NetworkError(_)));
-        assert!(should_retry(provider_error, &RetryConfig::default()));
+        assert_keepalive_masked_stall(&err);
+        assert!(err.to_string().contains("150"), "got: {err}");
     }
 
     #[tokio::test(start_paused = true)]
@@ -211,20 +213,7 @@ mod tests {
             Duration::from_secs(150),
         );
         assert_eq!(watched.next().await.unwrap().unwrap(), ": ping");
-        let err = loop {
-            match watched.next().await {
-                Some(Err(e)) => break e,
-                Some(Ok(_)) => continue,
-                None => panic!("stream ended without a stall error"),
-            }
-        };
-        let message = err.to_string();
-        assert!(message.contains("Stream stalled"), "got: {message}");
-        assert!(message.contains("keepalive"), "got: {message}");
-        assert!(matches!(
-            err.downcast_ref::<ProviderError>(),
-            Some(ProviderError::NetworkError(_))
-        ));
+        assert_keepalive_masked_stall(&first_stall_error(watched).await);
     }
 
     #[tokio::test(start_paused = true)]
@@ -239,7 +228,11 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn silent_stall_reports_silence() {
-        let err = drain_until_stall(silent_after_data(), Duration::from_secs(150)).await;
+        let err = first_stall_error(with_stream_idle_timeout(
+            silent_after_data(),
+            Duration::from_secs(150),
+        ))
+        .await;
         let message = err.to_string();
         assert!(message.contains("went silent"), "got: {message}");
         assert!(!message.contains("keepalive"), "got: {message}");
@@ -247,10 +240,10 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn blank_lines_do_not_reset_the_timer() {
-        let err = drain_until_stall(
+        let err = first_stall_error(with_stream_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ""),
             Duration::from_secs(150),
-        )
+        ))
         .await;
         assert!(err.to_string().contains("Stream stalled"));
     }
