@@ -22,9 +22,9 @@ use crate::agents::AgentEvent;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::hints::load_hints::SubdirectoryHintTracker;
 use crate::hooks::{HookChainOutcome, HookContext, HookEvent, HookManager};
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
+use goose_agent::prompt::{InstructionDiscovery, InstructionDiscoveryOptions};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -775,7 +775,10 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
         session: &Session,
         conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
-        let mut hints = SubdirectoryHintTracker::new();
+        let mut hints = InstructionDiscovery::new(InstructionDiscoveryOptions {
+            filenames: crate::hints::get_context_filenames(),
+            ..Default::default()
+        });
         for message in conversation.messages() {
             for content in &message.content {
                 if let MessageContent::ToolRequest(request) = content {
@@ -785,7 +788,11 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
                 }
             }
         }
-        let mut prompt_parts = hints.load_new_hints(&session.working_dir);
+        let mut prompt_parts = hints
+            .discover_new_subdirectory_instructions(&session.working_dir)?
+            .into_iter()
+            .map(|instruction| (instruction.key, instruction.content))
+            .collect();
 
         #[cfg(feature = "code-mode")]
         if self

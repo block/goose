@@ -1,6 +1,9 @@
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::Utc;
+use goose_agent::prompt::{
+    InstructionDiscovery, InstructionDiscoveryOptions, PromptComposer, PromptContext, PromptSource,
+};
 use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
@@ -8,7 +11,7 @@ use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
 use crate::hints::load_hints::build_gitignore;
-use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
+use crate::hints::{get_context_filenames, load_hint_files};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -18,9 +21,9 @@ use std::path::Path;
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
-    system_prompt_extras: IndexMap<String, String>,
+    prompt_composer: PromptComposer,
     current_date_timestamp: String,
-    subdirectory_hint_tracker: SubdirectoryHintTracker,
+    instruction_discovery: InstructionDiscovery,
 }
 
 impl Default for PromptManager {
@@ -146,7 +149,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
         });
 
-        let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
+        let mut system_prompt_extras = self.manager.prompt_composer.extras().clone();
         system_prompt_extras.extend(self.prompt_extras);
 
         // Add hints if provided
@@ -162,20 +165,16 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             );
         }
 
-        if system_prompt_extras.is_empty() {
-            base_prompt
-        } else {
-            let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
-                .into_values()
-                .map(|extra| sanitize_unicode_tags(&extra))
-                .collect();
-
-            format!(
-                "{}\n\n# Additional Instructions:\n\n{}",
-                base_prompt,
-                sanitized_system_prompt_extras.join("\n\n")
-            )
-        }
+        let prompt_context = PromptContext {
+            current_date_time: context.current_date_time.clone(),
+            goose_mode: context.goose_mode,
+            variables: serde_json::Map::new(),
+        };
+        PromptComposer::new(PromptSource::Literal(base_prompt))
+            .render(&prompt_context, system_prompt_extras)
+            .unwrap_or_else(|_| {
+                "You are a general-purpose AI agent called goose, created by Block".to_string()
+            })
     }
 }
 
@@ -183,11 +182,14 @@ impl PromptManager {
     pub fn new() -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: IndexMap::new(),
+            prompt_composer: PromptComposer::new(PromptSource::Literal(String::new())),
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00 %:z").to_string(),
-            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
+            instruction_discovery: InstructionDiscovery::new(InstructionDiscoveryOptions {
+                filenames: get_context_filenames(),
+                ..Default::default()
+            }),
         }
     }
 
@@ -195,20 +197,23 @@ impl PromptManager {
     pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: IndexMap::new(),
+            prompt_composer: PromptComposer::new(PromptSource::Literal(String::new())),
             current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S %:z").to_string(),
-            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
+            instruction_discovery: InstructionDiscovery::new(InstructionDiscoveryOptions {
+                filenames: get_context_filenames(),
+                ..Default::default()
+            }),
         }
     }
 
     /// Add an additional instruction to the system prompt with a key
     /// Using the same key will replace the previous instruction
     pub fn add_system_prompt_extra(&mut self, key: String, instruction: String) {
-        self.system_prompt_extras.insert(key, instruction);
+        self.prompt_composer.add_extra(key, instruction);
     }
 
     pub fn remove_system_prompt_extra(&mut self, key: &str) {
-        self.system_prompt_extras.shift_remove(key);
+        self.prompt_composer.remove_extra(key);
     }
 
     pub fn record_tool_arguments(
@@ -216,17 +221,20 @@ impl PromptManager {
         arguments: &Option<serde_json::Map<String, serde_json::Value>>,
         working_dir: &Path,
     ) {
-        self.subdirectory_hint_tracker
+        self.instruction_discovery
             .record_tool_arguments(arguments, working_dir);
     }
 
-    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
-        let new_hints = self.subdirectory_hint_tracker.load_new_hints(working_dir);
+    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> anyhow::Result<bool> {
+        let new_hints = self
+            .instruction_discovery
+            .discover_new_subdirectory_instructions(working_dir)?;
         let has_new = !new_hints.is_empty();
-        for (key, content) in new_hints {
-            self.system_prompt_extras.insert(key, content);
+        for instruction in new_hints {
+            self.prompt_composer
+                .add_extra(instruction.key, instruction.content);
         }
-        has_new
+        Ok(has_new)
     }
 
     pub fn build_system_prompt(
@@ -235,7 +243,7 @@ impl PromptManager {
         prompt_parts: Vec<(String, String)>,
         goose_mode: GooseMode,
     ) -> String {
-        self.load_subdirectory_hints(working_dir);
+        let _ = self.load_subdirectory_hints(working_dir);
         self.builder()
             .with_prompt_extras(prompt_parts)
             .with_hints(working_dir)
