@@ -1591,12 +1591,8 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = session_id.clone();
 
-        let tool_call_update = build_permission_tool_call_update(
-            &request_id,
-            &tool_name,
-            arguments,
-            prompt,
-        );
+        let tool_call_update =
+            build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
 
         fn option(kind: PermissionOptionKind) -> PermissionOption {
             let id = serde_json::to_value(kind)
