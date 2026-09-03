@@ -203,7 +203,7 @@ jobs:
     name: Publish to Maven Central
     needs: [package, smoke-test-linux-aarch64]
     runs-on: ubuntu-latest
-    if: inputs.publish && always() && needs.package.result == 'success' && (!inputs.smoke-test || needs.smoke-test-linux-aarch64.result == 'success')
+    if: inputs.publish && !cancelled() && needs.package.result == 'success' && (!inputs.smoke-test || needs.smoke-test-linux-aarch64.result == 'success')
     environment: maven-central
     concurrency:
       group: gdk-maven-release-${{ needs.package.outputs.version }}
