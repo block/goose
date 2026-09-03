@@ -271,3 +271,4 @@ bump-version rust_version:
     PY
     cargo update --workspace
     cargo fmt --all
+    python3 documentation/automation/gdk-api/generate.py
