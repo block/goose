@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Synchronize Python package version
+      - name: Synchronize GDK release artifacts
         if: steps.release-plz.outputs.prs_created == 'true'
         env:
           RELEASE_PR: ${{ steps.release-plz.outputs.pr }}
@@ -61,12 +61,14 @@ jobs:
           branch=$(jq -r '.head_branch' <<< "$RELEASE_PR")
           git fetch origin "$branch"
           git switch "$branch"
-          just --justfile crates/goose-sdk/justfile sync-package-versions
+          just --justfile crates/goose-sdk/justfile sync-release-artifacts
           if git diff --quiet; then
             exit 0
           fi
-          git add crates/goose-sdk/python/pyproject.toml
-          git commit -m "chore: synchronize GDK package versions"
+          git add \
+            crates/goose-sdk/python/pyproject.toml \
+            documentation/src/data/gdk-api.json
+          git commit -m "chore: synchronize GDK release artifacts"
           git push origin HEAD:"$branch"
 
       - name: Validate package versions

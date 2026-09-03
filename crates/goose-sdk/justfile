@@ -128,6 +128,9 @@ crates-publish dry_run="true":
         fi; \
     done < <(python3 crates/goose-sdk/scripts/gdk-release.py crates)
 
+sync-release-artifacts: sync-package-versions
+    python3 documentation/automation/gdk-api/generate.py
+
 sync-package-versions:
     #!/usr/bin/env bash
     set -euo pipefail

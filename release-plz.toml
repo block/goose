@@ -1,5 +1,6 @@
 [workspace]
 release = false
+pr_name = "chore(GDK): release{% if version %} v{{ version }}{% endif %}"
 git_tag_enable = false
 git_release_enable = false
 
