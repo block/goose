@@ -2096,14 +2096,13 @@ mod tests {
             Ok(())
         }
 
-        /// Regression for the Anthropic 400: signed thinking arriving in a
-        /// separate chunk before the tool calls must be stored once per
-        /// tool-call message and never as an extra standalone message. When the
-        /// Anthropic formatter serializes the persisted history, each assistant
-        /// turn must carry exactly one thinking block — a duplicate signed block
-        /// is rejected with `thinking blocks ... cannot be modified`.
+        /// Signed thinking streamed before the tool calls must reach Anthropic
+        /// once, ahead of the tool calls it produced.
         #[tokio::test]
         async fn test_signed_thinking_not_duplicated_for_anthropic() -> Result<()> {
+            use goose::conversation::{
+                fix_conversation, merge_consecutive_messages_for_request, Conversation,
+            };
             use goose_providers::formats::anthropic::format_messages as anthropic_format;
 
             let temp_dir = tempfile::tempdir()?;
@@ -2159,38 +2158,44 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            // No standalone thinking-only assistant message should be persisted —
-            // thinking lives on the tool-call messages.
-            let standalone_thinking = messages.iter().any(|m| {
-                m.role == rmcp::model::Role::Assistant
-                    && !m.content.is_empty()
-                    && m.content
-                        .iter()
-                        .all(|c| matches!(c, MessageContent::Thinking(_)))
-            });
-            assert!(
-                !standalone_thinking,
-                "thinking must not be persisted as a standalone message: {messages:#?}"
+            let (fixed, _) = fix_conversation(Conversation::new_unvalidated(messages));
+            let spec = anthropic_format(&merge_consecutive_messages_for_request(
+                fixed.messages().to_vec(),
+            ));
+            let thinking_blocks = |msg: &serde_json::Value| {
+                msg["content"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|c| c["type"] == "thinking")
+                    .count()
+            };
+            let total_thinking: usize = spec.iter().map(thinking_blocks).sum();
+            assert_eq!(
+                total_thinking, 1,
+                "signed thinking must be replayed exactly once: {spec:#?}"
             );
 
-            // Every serialized Anthropic assistant message must contain at most
-            // one thinking block; a duplicate is what triggers the 400.
-            let spec = anthropic_format(&messages);
-            for msg in &spec {
-                if msg.get("role") == Some(&serde_json::json!("assistant")) {
-                    if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
-                        let thinking_blocks = content
-                            .iter()
-                            .filter(|c| c.get("type") == Some(&serde_json::json!("thinking")))
-                            .count();
-                        assert!(
-                            thinking_blocks <= 1,
-                            "assistant message has {thinking_blocks} thinking blocks, \
-                             Anthropic rejects duplicates: {msg}"
-                        );
-                    }
-                }
-            }
+            let tool_turn = spec
+                .iter()
+                .find(|msg| {
+                    msg["role"] == "assistant"
+                        && msg["content"]
+                            .as_array()
+                            .is_some_and(|c| c.iter().any(|b| b["type"] == "tool_use"))
+                })
+                .expect("a tool-call assistant message is sent");
+            let block_types: Vec<&str> = tool_turn["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|b| b["type"].as_str())
+                .collect();
+            assert_eq!(
+                block_types.first().copied(),
+                Some("thinking"),
+                "thinking must precede the tool calls it produced: {block_types:?}"
+            );
 
             Ok(())
         }
