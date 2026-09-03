@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
 fn script_for_scenario(scenario: Option<&str>) -> Value {
     let context: Map<String, Value> = std::env::var("MCP_CONFORMANCE_CONTEXT")
