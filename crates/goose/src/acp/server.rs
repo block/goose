@@ -12,6 +12,7 @@ use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
+use crate::agents::state_machine::persist_tool_confirmation_decision;
 use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
@@ -1643,12 +1644,40 @@ impl GooseAcpAgent {
                     if confirmation.permission == Permission::Cancel {
                         batch.cancelled = true;
                     } else {
-                        batch.responses.push((request_id, confirmation.permission));
+                        batch
+                            .responses
+                            .push((request_id.clone(), confirmation.permission));
                     }
                     if batch.cancelled {
-                        if batch.pending.is_empty() {
-                            batches.remove(session_id.0.as_ref());
-                        }
+                        let ids_to_deny: Vec<String> = if batch.pending.is_empty() {
+                            let removed = batches.remove(session_id.0.as_ref());
+                            std::iter::once(request_id.clone())
+                                .chain(
+                                    removed
+                                        .into_iter()
+                                        .flat_map(|b| b.responses.into_iter().map(|(id, _)| id)),
+                                )
+                                .collect()
+                        } else {
+                            vec![request_id.clone()]
+                        };
+                        drop(batches);
+                        let sm = server.session_manager.clone();
+                        let sid = session_id.0.to_string();
+                        tokio::spawn(async move {
+                            for id in ids_to_deny {
+                                if let Err(e) = persist_tool_confirmation_decision(
+                                    &sm,
+                                    &sid,
+                                    &id,
+                                    &Permission::DenyOnce,
+                                )
+                                .await
+                                {
+                                    warn!("failed to persist cancellation for {id}: {e}");
+                                }
+                            }
+                        });
                         return Ok(());
                     }
                     if !batch.pending.is_empty() {
