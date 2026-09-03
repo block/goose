@@ -391,7 +391,6 @@ mod tests {
             self.max_tool_responses = Some(max);
             self
         }
-
     }
 
     #[async_trait]
@@ -854,5 +853,4 @@ mod tests {
             result.err()
         );
     }
-
 }

@@ -1014,7 +1014,10 @@ mod tests {
                 .filter(|m| m.metadata.agent_visible && (m.is_tool_call() || m.is_tool_response()))
                 .count();
 
-            assert_eq!(visible_tool_pairs, 26, "All 13 tool pairs (26 messages) must stay visible");
+            assert_eq!(
+                visible_tool_pairs, 26,
+                "All 13 tool pairs (26 messages) must stay visible"
+            );
 
             Ok(())
         }

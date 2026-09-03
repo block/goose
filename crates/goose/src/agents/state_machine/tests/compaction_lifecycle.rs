@@ -329,3 +329,48 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
 
     Ok(())
 }
+
+#[tokio::test]
+async fn tool_pairs_remain_agent_visible_between_full_compactions() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("carry on").reply("done");
+
+    pipeline
+        .seed([Message::user().with_text("old work")])
+        .await?;
+    for n in 0..13 {
+        let id = format!("call_{n}");
+        pipeline
+            .seed([
+                Message::assistant().with_tool_request(
+                    &id,
+                    Ok(CallToolRequestParams::new(ADD).with_arguments(serde_json::Map::new())),
+                ),
+                Message::user().with_tool_response(
+                    &id,
+                    Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                        "result {n}"
+                    ))])),
+                ),
+            ])
+            .await?;
+    }
+
+    let result = pipeline.run(["carry on"]).await?;
+    result.assert_message(-1, Agent, "done");
+
+    let invisible_tool_msgs = result
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|m| !m.is_agent_visible() && (m.is_tool_call() || m.is_tool_response()))
+        .count();
+
+    assert_eq!(
+        invisible_tool_msgs, 0,
+        "Tool pairs must remain agent-visible between full compactions"
+    );
+    assert_eq!(api.call_count(), 1);
+
+    Ok(())
+}
