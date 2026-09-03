@@ -11,6 +11,7 @@ use crate::formats::ollama::{create_request, response_to_streaming_message_ollam
 use crate::images::ImageFormat;
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
+use crate::stream_idle_timeout::with_stream_idle_timeout_after_first_line;
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -63,7 +64,7 @@ pub struct OllamaOptions {
     pub stream_usage: bool,
     /// Per-chunk stream timeout in seconds, resolved from
     /// `OLLAMA_STREAM_TIMEOUT` > `GOOSE_STREAM_TIMEOUT` > `OLLAMA_TIMEOUT` >
-    /// default (120s).
+    /// default (120s). `0` disables the stream watchdog.
     pub chunk_timeout_secs: u64,
 }
 
@@ -239,8 +240,8 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, _model_con
         // Gate stream_options behind OLLAMA_STREAM_USAGE (default: true).
         // Older Ollama builds that don't support stream_options may stall before
         // emitting any SSE data, blocking until the client timeout (600s).
-        // with_line_timeout() only protects after the first line arrives, so
-        // users on older builds should set OLLAMA_STREAM_USAGE=false.
+        // with_comment_aware_line_timeout() only protects after the first line
+        // arrives, so users on older builds should set OLLAMA_STREAM_USAGE=false.
         if !options.stream_usage {
             obj.remove("stream_options");
         }
@@ -483,50 +484,30 @@ impl Provider for OllamaProvider {
 /// Default per-chunk timeout for Ollama streaming responses (seconds).
 /// Configurable via OLLAMA_STREAM_TIMEOUT, GOOSE_STREAM_TIMEOUT, or falls back
 /// to OLLAMA_TIMEOUT. Set high to accommodate slower models (CPU inference,
-/// large parameter counts, complex reasoning).
+/// large parameter counts, complex reasoning). An explicit `0` on either
+/// stream variable disables the watchdog.
 pub const OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS: u64 = 120;
 
-/// Wraps a line stream with a per-item timeout at the raw SSE level.
-/// This detects dead connections without false-positive stalls during long
-/// tool-call generations where response_to_streaming_message_ollama buffers.
-fn with_line_timeout(
+/// Wraps a line stream with a comment-aware idle timeout: the deadline resets
+/// only on data-bearing lines, so SSE keepalive comments cannot mask a stall.
+/// The first line is exempt so time-to-first-token stays governed by the
+/// request timeout, matching the slow-model behavior this path has always had.
+fn with_comment_aware_line_timeout(
     stream: impl futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
     timeout_secs: u64,
 ) -> std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<String>> + Send>> {
-    let timeout = Duration::from_secs(timeout_secs);
-    Box::pin(try_stream! {
-        let mut stream = stream;
-
-        // Allow time-to-first-token to be governed by the request timeout.
-        // Only enforce per-chunk timeout after first SSE line arrives.
-        match stream.next().await {
-            Some(first_item) => yield first_item?,
-            None => return,
-        }
-        loop {
-            match tokio::time::timeout(timeout, stream.next()).await {
-                Ok(Some(item)) => yield item?,
-                Ok(None) => break,
-                Err(_) => {
-                    Err::<(), anyhow::Error>(anyhow::anyhow!(
-                        "Ollama stream stalled: no data received for {}s. \
-                         This may indicate the model is overwhelmed by the request payload. \
-                         Try a smaller model, reduce the number of tools, or increase the \
-                         timeout via OLLAMA_STREAM_TIMEOUT, GOOSE_STREAM_TIMEOUT, or \
-                         OLLAMA_TIMEOUT in your config.",
-                        timeout_secs
-                    ))?;
-                }
-            }
-        }
-    })
+    if timeout_secs == 0 {
+        return Box::pin(stream);
+    }
+    with_stream_idle_timeout_after_first_line(stream, Duration::from_secs(timeout_secs))
 }
 
 /// Ollama-specific streaming handler with XML tool call fallback.
 /// Uses the Ollama format module which buffers text when XML tool calls are detected,
 /// preventing duplicate content from being emitted to the UI.
-/// Timeout is applied at the raw SSE line level via with_line_timeout so that
-/// buffering inside response_to_streaming_message_ollama does not cause false stalls.
+/// Timeout is applied at the raw SSE line level via
+/// with_comment_aware_line_timeout so that buffering inside
+/// response_to_streaming_message_ollama does not cause false stalls.
 fn stream_ollama(
     response: Response,
     chunk_timeout: u64,
@@ -539,7 +520,7 @@ fn stream_ollama(
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
 
-        let timed_lines = with_line_timeout(framed, chunk_timeout);
+        let timed_lines = with_comment_aware_line_timeout(framed, chunk_timeout);
         let message_stream = response_to_streaming_message_ollama(timed_lines);
         pin!(message_stream);
 

@@ -157,16 +157,12 @@ pub fn options_from_config() -> OllamaOptions {
 
 /// Resolve the per-chunk stream timeout from config.
 /// Priority: OLLAMA_STREAM_TIMEOUT > GOOSE_STREAM_TIMEOUT > OLLAMA_TIMEOUT > default (120s).
-/// Zero values are treated as invalid and skipped, since a zero timeout would
-/// cause every chunk after the first to be treated as a stall.
+/// An explicit 0 on either stream variable disables the watchdog, matching
+/// `GOOSE_STREAM_TIMEOUT=0` elsewhere; zero values of the general
+/// OLLAMA_TIMEOUT are ignored (they are not stream-specific opt-outs).
 fn resolve_ollama_chunk_timeout(config: &crate::config::Config) -> u64 {
-    if let Ok(val) = config.get_param::<u64>("OLLAMA_STREAM_TIMEOUT") {
-        if val > 0 {
-            return val;
-        }
-    }
-    if let Ok(val) = config.get_param::<u64>("GOOSE_STREAM_TIMEOUT") {
-        if val > 0 {
+    for key in ["OLLAMA_STREAM_TIMEOUT", "GOOSE_STREAM_TIMEOUT"] {
+        if let Ok(val) = config.get_param::<u64>(key) {
             return val;
         }
     }
@@ -228,21 +224,32 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_ollama_chunk_timeout_skips_zero_values() {
+    fn test_resolve_ollama_chunk_timeout_zero_disables() {
         let _guard = env_lock::lock_env([
             ("OLLAMA_STREAM_TIMEOUT", Some("0")),
             ("GOOSE_STREAM_TIMEOUT", Some("0")),
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 300);
+        assert_eq!(resolve_ollama_chunk_timeout(config), 0);
     }
 
     #[test]
-    fn test_resolve_ollama_chunk_timeout_skips_all_zero_to_default() {
+    fn test_resolve_ollama_chunk_timeout_zero_goose_stream_disables() {
         let _guard = env_lock::lock_env([
-            ("OLLAMA_STREAM_TIMEOUT", Some("0")),
+            ("OLLAMA_STREAM_TIMEOUT", None::<&str>),
             ("GOOSE_STREAM_TIMEOUT", Some("0")),
+            ("OLLAMA_TIMEOUT", Some("300")),
+        ]);
+        let config = crate::config::Config::global();
+        assert_eq!(resolve_ollama_chunk_timeout(config), 0);
+    }
+
+    #[test]
+    fn test_resolve_ollama_chunk_timeout_zero_ollama_timeout_falls_back() {
+        let _guard = env_lock::lock_env([
+            ("OLLAMA_STREAM_TIMEOUT", None::<&str>),
+            ("GOOSE_STREAM_TIMEOUT", None::<&str>),
             ("OLLAMA_TIMEOUT", Some("0")),
         ]);
         let config = crate::config::Config::global();

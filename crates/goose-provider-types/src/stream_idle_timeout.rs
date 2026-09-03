@@ -102,6 +102,27 @@ where
     })
 }
 
+/// Like [`with_stream_idle_timeout`], except the idle deadline is not enforced
+/// until the stream yields its first line: time-to-first-line stays governed by
+/// the request timeout. This preserves slow local inference (large models can
+/// take minutes before the first token) while still catching mid-stream stalls
+/// that keepalive comments would otherwise mask.
+pub fn with_stream_idle_timeout_after_first_line<S>(mut stream: S, idle: Duration) -> LineStream
+where
+    S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    Box::pin(async_stream::try_stream! {
+        match stream.next().await {
+            Some(item) => yield item?,
+            None => return,
+        }
+        let mut watched = with_stream_idle_timeout(stream, idle);
+        while let Some(item) = watched.next().await {
+            yield item?;
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,6 +187,54 @@ mod tests {
         let provider_error = err.downcast_ref::<ProviderError>().expect("ProviderError");
         assert!(matches!(provider_error, ProviderError::NetworkError(_)));
         assert!(should_retry(provider_error, &RetryConfig::default()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn first_line_is_exempt_from_the_idle_deadline() {
+        // The stream stays pending long past the idle window before its first
+        // line; the watchdog must not fire until after that line arrives.
+        let slow_start = Box::pin(async_stream::stream! {
+            tokio::time::sleep(Duration::from_secs(600)).await;
+            yield Ok("data: {\"a\":1}".to_string());
+            yield Ok("data: [DONE]".to_string());
+        });
+        let watched =
+            with_stream_idle_timeout_after_first_line(slow_start, Duration::from_secs(150));
+        let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
+        assert_eq!(collected, ["data: {\"a\":1}", "data: [DONE]"]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn keepalives_after_first_line_do_not_reset_the_timer() {
+        let mut watched = with_stream_idle_timeout_after_first_line(
+            data_then_repeating(": ping", ": ping"),
+            Duration::from_secs(150),
+        );
+        assert_eq!(watched.next().await.unwrap().unwrap(), ": ping");
+        let err = loop {
+            match watched.next().await {
+                Some(Err(e)) => break e,
+                Some(Ok(_)) => continue,
+                None => panic!("stream ended without a stall error"),
+            }
+        };
+        let message = err.to_string();
+        assert!(message.contains("Stream stalled"), "got: {message}");
+        assert!(message.contains("keepalive"), "got: {message}");
+        assert!(matches!(
+            err.downcast_ref::<ProviderError>(),
+            Some(ProviderError::NetworkError(_))
+        ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn empty_stream_passes_through() {
+        let watched = with_stream_idle_timeout_after_first_line(
+            finite_lines(vec![]),
+            Duration::from_secs(150),
+        );
+        let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
+        assert!(collected.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
