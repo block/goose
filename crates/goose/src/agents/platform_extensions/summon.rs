@@ -6,7 +6,7 @@ use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -516,6 +516,18 @@ fn current_epoch_millis() -> u64 {
         .as_millis() as u64
 }
 
+/// The agent yields progress and status banners as assistant messages carrying only
+/// `SystemNotification` content, and does not persist them - see the branch in
+/// `Agent::reply` that forwards such a response and continues without recording it.
+/// They are not part of the conversation, so they neither open nor close a turn.
+fn is_transient_notification(message: &Message) -> bool {
+    !message.content.is_empty()
+        && message
+            .content
+            .iter()
+            .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+}
+
 /// Streaming counterpart of `assistant_turn_count`: an agent turn opens when an
 /// assistant message follows a non-assistant one. Consecutive assistant messages -
 /// streamed fragments of a single response, or a tool request and the text that
@@ -524,6 +536,9 @@ fn current_epoch_millis() -> u64 {
 /// Roles are the only input, so a provider that reports no usage metadata is
 /// counted the same as one that does.
 fn opens_agent_turn(message: &Message, in_assistant_turn: &AtomicBool) -> bool {
+    if is_transient_notification(message) {
+        return false;
+    }
     let is_assistant = message.role == rmcp::model::Role::Assistant;
     let turn_was_open = in_assistant_turn.swap(is_assistant, Ordering::Relaxed);
     is_assistant && !turn_was_open
@@ -2253,6 +2268,7 @@ fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, an
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::SystemNotificationType;
     use futures::StreamExt;
     use rmcp::model::CallToolRequestParams;
     use serial_test::serial;
@@ -2351,6 +2367,57 @@ mod tests {
 
         let retry = Message::assistant().with_text("here it is, corrected");
         assert!(opens_agent_turn(&retry, &in_assistant_turn));
+    }
+
+    #[test]
+    fn compaction_banners_do_not_open_turns_of_their_own() {
+        let in_assistant_turn = AtomicBool::new(false);
+        let mut turns = 0;
+
+        // Proactive compaction: two banners, then the history swap, then a third.
+        let before_swap = [
+            Message::user().with_text("summarize the whole thread"),
+            Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                "Exceeded auto-compact threshold of 80%. Performing auto-compaction...",
+            ),
+            Message::assistant().with_system_notification(
+                SystemNotificationType::ProgressMessage,
+                "goose is compacting the conversation...",
+            ),
+        ];
+        for message in &before_swap {
+            if opens_agent_turn(message, &in_assistant_turn) {
+                turns += 1;
+            }
+        }
+
+        in_assistant_turn.store(false, Ordering::Relaxed);
+
+        let after_swap = [
+            Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                "Compaction complete",
+            ),
+            Message::assistant().with_text("here is the summary"),
+        ];
+        for message in &after_swap {
+            if opens_agent_turn(message, &in_assistant_turn) {
+                turns += 1;
+            }
+        }
+
+        assert_eq!(turns, 1);
+    }
+
+    #[test]
+    fn a_message_that_carries_content_beside_a_banner_still_counts() {
+        let in_assistant_turn = AtomicBool::new(false);
+        let mixed = Message::assistant()
+            .with_system_notification(SystemNotificationType::InlineMessage, "heads up")
+            .with_text("and the answer");
+
+        assert!(opens_agent_turn(&mixed, &in_assistant_turn));
     }
 
     #[test]
