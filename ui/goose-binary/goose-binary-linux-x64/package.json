@@ -19,6 +19,9 @@
   "cpu": [
     "x64"
   ],
+  "bin": {
+    "goose-binary-linux-x64": "./bin/goose"
+  },
   "files": [
     "bin/goose"
   ]

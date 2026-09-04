@@ -68,13 +68,36 @@ assert_version() {
   fi
 }
 
+current_platform() {
+  "$repo_root/bin/node" -p '`${process.platform}-${process.arch}`'
+}
+
+current_platform_binary() {
+  local platform
+  local executable="goose"
+  platform="$(current_platform)"
+
+  case "$platform" in
+    darwin-arm64 | darwin-x64 | linux-arm64 | linux-x64) ;;
+    win32-x64) executable="goose.exe" ;;
+    *)
+      echo "No Goose npm binary is available for $platform" >&2
+      return 1
+      ;;
+  esac
+
+  echo "$repo_root/ui/goose-binary/goose-binary-$platform/bin/$executable"
+}
+
 verify_release_versions() {
+  local binary
+  binary="$(current_platform_binary)"
+
   "$repo_root/bin/node" "$repo_root/ui/scripts/npm-versions.mjs" \
     check-release "$release_version"
 
-  assert_version "Linux x64 binary" \
-    "$("$repo_root/ui/goose-binary/goose-binary-linux-x64/bin/goose" \
-      --version | xargs)"
+  assert_version "Current-platform binary" \
+    "$("$binary" --version | xargs)"
 }
 
 pack_packages() {
@@ -107,11 +130,14 @@ pack_packages() {
 }
 
 verify_packed_wrapper() {
+  local platform
+  platform="$(current_platform)"
+
   (
     cd "$smoke_dir"
     "$repo_root/bin/npm" init --yes >/dev/null
     "$repo_root/bin/pnpm" add \
-      "$output_dir/aaif-goose-binary-linux-x64-$release_version.tgz" \
+      "$output_dir/aaif-goose-binary-$platform-$release_version.tgz" \
       "$output_dir/aaif-goose-acp-$release_version.tgz"
 
     assert_version "Packed wrapper" \

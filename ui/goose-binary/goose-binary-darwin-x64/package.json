@@ -19,6 +19,9 @@
   "cpu": [
     "x64"
   ],
+  "bin": {
+    "goose-binary-darwin-x64": "./bin/goose"
+  },
   "files": [
     "bin/goose"
   ]

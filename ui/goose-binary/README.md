@@ -18,8 +18,9 @@ This directory contains the npm package scaffolding for distributing the
 These are platform-specific implementation dependencies and are not intended
 to be installed directly. Install `@aaif/goose-acp` instead. It installs the
 appropriate package automatically and provides the `goose` command. Each
-binary package contains its native executable but intentionally provides no
-command of its own.
+binary package contains its native executable. Its platform-specific internal
+command preserves executable permissions during npm packing;
+`@aaif/goose-acp` remains the sole owner of the supported `goose` command.
 
 ## Release preparation
 
