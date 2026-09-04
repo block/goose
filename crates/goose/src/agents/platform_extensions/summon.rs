@@ -3875,6 +3875,7 @@ You review code."#;
         let client = SummonClient::new(context).unwrap();
         let token = CancellationToken::new();
         let task_id = session_id.as_str();
+        let spawned_task_id = session_id.clone();
         let notification_sink = buffered_notification_sink(Vec::new());
         let task_notification_sink = Arc::clone(&notification_sink);
         let task_token = token.clone();
@@ -3893,7 +3894,7 @@ You review code."#;
                         task_notification_sink
                             .lock()
                             .await
-                            .route(test_tool_notification("cancel", task_id));
+                            .route(test_tool_notification("cancel", &spawned_task_id));
                         Ok("cancelled gracefully".to_string())
                     }),
                     cancellation_token: token.clone(),
