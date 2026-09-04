@@ -2299,6 +2299,46 @@ mod tests {
         }
     }
 
+    /// A context whose session store is a temp dir, together with a delegate session
+    /// holding `turns` finished exchanges. Turn counts are now read from that session,
+    /// so a task fabricated without one would report zero.
+    async fn context_with_delegate_session(
+        turns: usize,
+    ) -> (PlatformExtensionContext, String, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            dir.path().to_path_buf(),
+        ));
+        let session = session_manager
+            .create_session(
+                dir.path().to_path_buf(),
+                "delegate".to_string(),
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+
+        let mut messages = Vec::new();
+        for step in 0..turns {
+            messages.push(Message::user().with_text(format!("step {step}")));
+            messages.push(Message::assistant().with_text(format!("done {step}")));
+        }
+        session_manager
+            .replace_conversation(&session.id, &Conversation::new_unvalidated(messages))
+            .await
+            .unwrap();
+
+        let context = PlatformExtensionContext {
+            extension_manager: None,
+            session_manager,
+            scheduler: None,
+            session: None,
+            use_login_shell_path: false,
+        };
+        (context, session.id, dir)
+    }
+
     fn conversation(messages: Vec<Message>) -> Conversation {
         Conversation::new_unvalidated(messages)
     }
@@ -3831,9 +3871,10 @@ You review code."#;
 
     #[tokio::test]
     async fn test_cancel_running_task() {
-        let client = SummonClient::new(create_test_context()).unwrap();
+        let (context, session_id, _store) = context_with_delegate_session(3).await;
+        let client = SummonClient::new(context).unwrap();
         let token = CancellationToken::new();
-        let task_id = "20260204_1";
+        let task_id = session_id.as_str();
         let notification_sink = buffered_notification_sink(Vec::new());
         let task_notification_sink = Arc::clone(&notification_sink);
         let task_token = token.clone();
@@ -4002,14 +4043,16 @@ You review code."#;
 
     #[tokio::test]
     async fn test_peek_running_task() {
-        let client = SummonClient::new(create_test_context()).unwrap();
+        let (context, session_id, _store) = context_with_delegate_session(7).await;
+        let client = SummonClient::new(context).unwrap();
+        let task_id = session_id.as_str();
 
         {
             let mut running = client.background_tasks.lock().await;
             running.insert(
-                "20260204_1".to_string(),
+                task_id.to_string(),
                 BackgroundTask {
-                    id: "20260204_1".to_string(),
+                    id: task_id.to_string(),
                     description: "Long running analysis".to_string(),
                     started_at: Instant::now(),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
@@ -4025,20 +4068,16 @@ You review code."#;
 
         // Peek should return status without removing the task
         let result = client
-            .handle_load_task_result("20260204_1", false, true, None)
+            .handle_load_task_result(task_id, false, true, None)
             .await
             .unwrap();
         let text = extract_text(&result.content[0]);
         assert!(text.contains("Running"));
         assert!(text.contains("Long running analysis"));
-        assert!(text.contains("7")); // turns taken
+        assert_eq!(result.turns, Some(7));
 
         // Task should still be in background_tasks (not consumed)
-        assert!(client
-            .background_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(client.background_tasks.lock().await.contains_key(task_id));
     }
 
     #[tokio::test]
