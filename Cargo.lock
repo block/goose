@@ -106,7 +106,7 @@ dependencies = [
  "futures",
  "serde_json",
  "tokio",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "uuid",
 ]
@@ -5264,7 +5264,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "rubato",
  "rustls",
  "schemars 1.2.2",
@@ -5293,7 +5293,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tower",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "tracing-appender",
  "tracing-futures",
@@ -5336,7 +5336,7 @@ dependencies = [
  "async-trait",
  "futures",
  "goose-provider-types",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -5385,7 +5385,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5419,7 +5419,7 @@ dependencies = [
  "goose-providers",
  "include_dir",
  "minijinja",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde",
  "serde_json",
  "tokio",
@@ -5461,7 +5461,7 @@ dependencies = [
  "minijinja",
  "pulldown-cmark",
  "regex",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5487,7 +5487,7 @@ dependencies = [
  "lopdf",
  "once_cell",
  "process-wrap",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -5515,7 +5515,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5546,7 +5546,7 @@ dependencies = [
  "pem 4.0.0",
  "pkcs8 0.11.0",
  "reqwest 0.13.4",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "sec1 0.8.1",
  "serde",
  "serde_json",
@@ -5593,7 +5593,7 @@ dependencies = [
  "goose-context-management",
  "goose-providers",
  "goose-sdk-types",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
@@ -5627,7 +5627,7 @@ dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp 3.1.4",
+ "rmcp 3.2.0",
  "serde_json",
  "tokio",
 ]
@@ -7012,9 +7012,9 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.52.0"
+version = "0.52.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ee5867390f14ee43278d8d05d3af5f5314eeccb4684e6049033f2ba4ae3d4ae"
+checksum = "93e842fa72fd1e50ca4676a527641c13f5ee0d423ac699bfe1cd2afa3a4fdbac"
 dependencies = [
  "ahash",
  "bytecount",
@@ -8058,9 +8058,9 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.45.3"
+version = "0.45.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0ba32ce43631188586469ba1a4c40bcfa63641f1ad5de89ef77f74d801cc17a"
+checksum = "67bacf4195a119bc55d576ec6b54cc103723cb46fff5f907b8bdac8fd29ac4a0"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -10306,9 +10306,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.4"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a15bc53261a9dc37e105df006e4656c598379a8f9581f8950debb130f27a7cf"
+checksum = "42b6914fac0be956fe704a38239c3f44a9f841d1b06a5713d2f638065593f5b5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -10327,7 +10327,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros 3.1.4",
+ "rmcp-macros 3.2.0",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -10357,9 +10357,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.4"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85d45508e9b4ba024fe996c2638799635d75b6dd0ba8f32ccf08f8026f0c780"
+checksum = "cdf1c49bd4d52014b94db0877410db273c2008f01628b0252a2e9460ad9b7fda"
 dependencies = [
  "darling 0.24.0",
  "proc-macro2",
@@ -13556,9 +13556,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b11f75e912b0c2be01b63d8cf8057b8c3f97cf34abb3d431a3a4c8675498e233"
+checksum = "08a05a66a4fdd61cbbe0a1d755ffe0ca6aba159dd4820936a0ff8a8278245b9c"
 dependencies = [
  "bitflags 2.13.0",
  "bytes",
