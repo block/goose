@@ -11,7 +11,8 @@ const RTL_RANGES: readonly Range[] = [
   [0x0780, 0x07bf], // Thaana
   [0x07c0, 0x082f], // NKo, Samaritan
   [0x0840, 0x085f], // Mandaic
-  [0x08a0, 0x08ff], // Arabic extended-B
+  [0x0870, 0x089f], // Arabic extended-B
+  [0x08a0, 0x08ff], // Arabic extended-A
   [0xfb1d, 0xfdff], // Hebrew and Arabic presentation forms
   [0xfe70, 0xfeff], // Arabic presentation forms-B
 ];

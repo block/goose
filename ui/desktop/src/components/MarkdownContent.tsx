@@ -88,10 +88,12 @@ const DIRECTIONAL_BLOCK_TAGS = new Set([
 ]);
 
 function collectText(node: HastNode): string {
-  // Code is language-neutral and always rendered LTR, so it doesn't vote on
-  // the direction of the prose block containing it.
-  if (node.type === 'element' && (node.tagName === 'code' || node.tagName === 'pre')) {
-    return '';
+  // Code and KaTeX output are language-neutral (both render LTR internally),
+  // so they don't vote on the direction of the prose block containing them.
+  if (node.type === 'element') {
+    if (node.tagName === 'code' || node.tagName === 'pre') return '';
+    const classNames = node.properties?.className;
+    if (Array.isArray(classNames) && classNames.includes('katex')) return '';
   }
   let text = node.type === 'text' ? (node.value ?? '') : '';
   for (const child of node.children ?? []) {

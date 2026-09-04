@@ -14,6 +14,10 @@ describe('getTextDirection', () => {
     expect(getTextDirection('این یک پیام آزمایشی است.')).toBe('rtl');
   });
 
+  it('detects RTL for Arabic Extended-B letters', () => {
+    expect(getTextDirection(String.fromCodePoint(0x0870, 0x0871, 0x0872))).toBe('rtl');
+  });
+
   it('detects LTR for English text', () => {
     expect(getTextDirection('Hello, world!')).toBe('ltr');
   });

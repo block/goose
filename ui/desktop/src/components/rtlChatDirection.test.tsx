@@ -82,6 +82,16 @@ describe('RTL chat direction', () => {
       expect(container.querySelector('li')?.getAttribute('dir')).toBe('rtl');
     });
 
+    it('does not let a long KaTeX formula flip an RTL paragraph', async () => {
+      const content = 'القيمة المحسوبة $$\\text{calculateTotalSumOfAllItems}$$ في القائمة';
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container.querySelector('p')).toBeInTheDocument();
+      });
+      expect(container.querySelector('p')?.getAttribute('dir')).toBe('rtl');
+    });
+
     it('renders inline code LTR inside an RTL paragraph', async () => {
       const { container } = renderWithIntl(
         <MarkdownContent content={`${arabicText} مع \`some code\``} />
