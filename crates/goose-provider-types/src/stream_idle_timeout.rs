@@ -8,14 +8,17 @@
 //! which a stalled stream never produces, and surface a retryable
 //! [`ProviderError::NetworkError`] when the stream goes idle.
 //!
-//! Non-data means: comment frames (`: ...`), blank separators, SSE control
-//! fields (`event:`, `id:`, `retry:`), and `data:` fields with an empty
-//! payload — none of which the downstream parsers can turn into progress, so
-//! none of them may hold the watchdog off. Payload-bearing events do reset
-//! the timer, including protocol-level pings such as Anthropic's
-//! `data: {"type":"ping"}`: telling those apart from real progress needs
-//! per-provider payload knowledge, which this line-level watchdog
-//! deliberately does not have.
+//! Non-data means: comment frames (`: ...`), blank separators, and every
+//! SSE field line that is not a payload-bearing `data:` field — control
+//! fields (`event:`, `id:`, `retry:`), unknown extension fields
+//! (`x-heartbeat: ...`), and `data:` fields with an empty payload — none of
+//! which the downstream parsers can turn into progress, so none of them may
+//! hold the watchdog off. Lines that are not field-shaped at all (bare JSON
+//! frames, Ollama's NDJSON) are payloads and do reset the timer.
+//! Payload-bearing events also reset it, including protocol-level pings such
+//! as Anthropic's `data: {"type":"ping"}`: telling those apart from real
+//! progress needs per-provider payload knowledge, which this line-level
+//! watchdog deliberately does not have.
 //!
 //! The idle deadline is never enforced before the stream's first line, so
 //! time-to-first-line stays governed by the request timeout — preserving slow
@@ -45,33 +48,41 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
     (secs > 0).then(|| Duration::from_secs(secs))
 }
 
-/// SSE field names that never carry payload. A live stream always pairs
-/// them with a `data:` line, so exempting them from the idle deadline cannot
-/// turn a slow-but-live stream into a stall.
-const SSE_CONTROL_FIELDS: &[&str] = &["event", "id", "retry"];
-
-/// The value of an SSE `name: value` field line, with the single leading
-/// space the spec allows stripped; `None` when `line` is not that field.
-fn sse_field<'a>(line: &'a str, name: &str) -> Option<&'a str> {
-    let value = line.strip_prefix(name)?.strip_prefix(':')?;
-    Some(value.strip_prefix(' ').unwrap_or(value))
+/// Parse a line per the SSE grammar and return its field name:
+/// - `field: value` / `field:value` -> `Some(field)`
+/// - `field` (no colon, empty value) -> `Some(field)`
+/// - `: comment` -> `Some("")`
+///
+/// Returns `None` when the line does not look like an SSE field (e.g. a
+/// bare JSON payload such as `{"type": ...}`), so callers can treat it as
+/// payload rather than an ignorable control field.
+pub(crate) fn sse_field_name(line: &str) -> Option<&str> {
+    let field = line.split_once(':').map_or(line, |(name, _)| name);
+    if field.is_empty() {
+        return Some("");
+    }
+    let field_like = !field.contains(char::is_whitespace)
+        && field
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
+    field_like.then_some(field)
 }
 
+/// Whether a line is progress a downstream parser can consume: a
+/// payload-bearing `data:` field, or a line that is not SSE-field-shaped at
+/// all (bare JSON frames, Ollama's NDJSON). Comment frames, blank
+/// separators, control fields, and unknown extension fields are not.
 fn is_data_line(line: &str) -> bool {
     let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed.starts_with(':') {
+    if trimmed.is_empty() {
         return false;
     }
-    if SSE_CONTROL_FIELDS
-        .iter()
-        .any(|field| sse_field(trimmed, field).is_some())
-    {
-        return false;
-    }
-    // An empty `data:` payload dispatches an event the parsers skip, so it
-    // is not progress either.
-    match sse_field(trimmed, "data") {
-        Some(value) => !value.trim().is_empty(),
+    match sse_field_name(trimmed) {
+        Some("data") => trimmed
+            .strip_prefix("data")
+            .and_then(|rest| rest.strip_prefix(':'))
+            .is_some_and(|value| !value.trim().is_empty()),
+        Some(_) => false,
         None => true,
     }
 }
@@ -145,8 +156,8 @@ where
                         }
                     } else if !line.trim().is_empty() {
                         // Any non-blank line that carries no payload —
-                        // comment frames, control fields, empty data fields —
-                        // is a keepalive.
+                        // comment frames, non-data fields, empty data
+                        // fields — is a keepalive.
                         keepalive_frames += 1;
                     }
                     yield line;
@@ -242,6 +253,8 @@ mod tests {
                 "data:",
                 "id: 7",
                 "retry: 3000",
+                "x-heartbeat: ping",
+                "{\"chunk\":0}",
                 "",
                 "data: [DONE]",
             ]),
@@ -258,6 +271,8 @@ mod tests {
                 "data:",
                 "id: 7",
                 "retry: 3000",
+                "x-heartbeat: ping",
+                "{\"chunk\":0}",
                 "",
                 "data: [DONE]"
             ]
@@ -281,7 +296,16 @@ mod tests {
         // Gateways that heartbeat with control fields or empty data fields
         // instead of comments must not mask a stall either: the parsers skip
         // all of these shapes.
-        for heartbeat in ["event: ping", "id: 7", "retry: 3000", "data:", "data:   "] {
+        for heartbeat in [
+            "event: ping",
+            "id: 7",
+            "retry: 3000",
+            "data:",
+            "data:   ",
+            "x-heartbeat: ping",
+            "x_heartbeat: 1",
+            "ping",
+        ] {
             let err = first_stall_error(with_stream_idle_timeout(
                 data_then_repeating("data: {\"a\":1}", heartbeat),
                 Duration::from_secs(150),
@@ -290,6 +314,27 @@ mod tests {
             .await;
             assert_keepalive_masked_stall(&err);
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn lines_without_sse_framing_reset_the_timer() {
+        // Payload lines that carry no `data:` prefix — bare JSON frames
+        // (Responses API) and Ollama's NDJSON — are progress and must hold
+        // the watchdog off: five lines 100s apart span 500s, well past the
+        // 150s idle window, yet the stream must end cleanly.
+        let bare_payloads = Box::pin(async_stream::stream! {
+            for i in 0..5 {
+                tokio::time::sleep(Duration::from_secs(100)).await;
+                yield Ok(format!(r#"{{"chunk":{i}}}"#));
+            }
+        });
+        let watched = with_stream_idle_timeout(
+            bare_payloads,
+            Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
+        );
+        let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
+        assert_eq!(collected.len(), 5);
     }
 
     #[tokio::test(start_paused = true)]

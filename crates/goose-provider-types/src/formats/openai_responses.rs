@@ -11,6 +11,7 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
+use crate::stream_idle_timeout::sse_field_name;
 use crate::utils::{sanitize_unicode_tags, strip_unicode_tags};
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -979,26 +980,6 @@ fn output_token_limit_marker(id: Option<String>) -> Message {
     }
     message.metadata.output_token_limit_reached = true;
     message
-}
-
-/// Parse a line per the SSE grammar and return its field name:
-/// - `field: value` / `field:value` -> `Some(field)`
-/// - `field` (no colon, empty value) -> `Some(field)`
-/// - `: comment` -> `Some("")`
-///
-/// Returns `None` when the line does not look like an SSE field (e.g. a
-/// bare JSON payload such as `{"type": ...}`), so callers can fall back
-/// to parsing it as JSON.
-fn sse_field_name(line: &str) -> Option<&str> {
-    let field = line.split_once(':').map_or(line, |(name, _)| name);
-    if field.is_empty() {
-        return Some("");
-    }
-    let field_like = !field.contains(char::is_whitespace)
-        && field
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
-    field_like.then_some(field)
 }
 
 pub fn responses_api_to_streaming_message<S>(
