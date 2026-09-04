@@ -29,6 +29,7 @@ const customOneDarkTheme = {
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
 import { BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
+import { getTextDirection } from '../utils/textDirection';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
@@ -53,6 +54,63 @@ interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttrib
 interface MarkdownContentProps {
   content: string;
   className?: string;
+}
+
+// Minimal hast node shape; avoids importing @types/hast just for this plugin.
+interface HastNode {
+  type?: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown> | null;
+  children?: HastNode[];
+}
+
+// Block-level elements that get their own computed dir so mixed-direction
+// markdown (e.g. an English paragraph inside an Arabic message) resolves
+// punctuation placement per block instead of inheriting the message direction.
+const DIRECTIONAL_BLOCK_TAGS = new Set([
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'li',
+  'blockquote',
+  'dd',
+  'dt',
+  'td',
+  'th',
+  'figcaption',
+  'caption',
+  'summary',
+]);
+
+function collectText(node: HastNode): string {
+  let text = node.type === 'text' ? (node.value ?? '') : '';
+  for (const child of node.children ?? []) {
+    text += collectText(child);
+  }
+  return text;
+}
+
+function applyPerBlockDirection(node: HastNode): void {
+  if (node.type === 'element' && node.tagName && DIRECTIONAL_BLOCK_TAGS.has(node.tagName)) {
+    const direction = getTextDirection(collectText(node));
+    if (direction) {
+      node.properties = { ...node.properties, dir: direction };
+    }
+  }
+  for (const child of node.children ?? []) {
+    applyPerBlockDirection(child);
+  }
+}
+
+function rehypePerBlockDirection(): (tree: HastNode) => void {
+  return (tree) => {
+    if (tree) applyPerBlockDirection(tree);
+  };
 }
 
 // Memoized CodeBlock component to prevent re-rendering when props haven't changed
@@ -131,7 +189,7 @@ const CodeBlock = memo(function CodeBlock({
   }, [language, children]);
 
   return (
-    <div className="relative group w-full">
+    <div className="relative group w-full" dir="ltr">
       <button
         onClick={handleCopy}
         className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300 font-sans text-sm
@@ -162,7 +220,12 @@ const MarkdownCode = memo(
     return isBlockLevelCode ? (
       <CodeBlock language={match ? match[1] : 'text'}>{codeContent.replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
+      <code
+        ref={ref}
+        {...props}
+        dir="ltr"
+        className="break-all bg-inline-code whitespace-pre-wrap font-mono"
+      >
         {children}
       </code>
     );
@@ -217,7 +280,7 @@ const MarkdownContent = memo(function MarkdownContent({
 
   return (
     <div
-      className={`w-full overflow-x-hidden prose prose-sm text-text-primary dark:prose-invert max-w-full word-break font-sans
+      className={`w-full overflow-x-hidden prose prose-sm text-start text-text-primary dark:prose-invert max-w-full word-break font-sans
         prose-pre:p-0 prose-pre:m-0 !p-0
         prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
         prose-a:break-all prose-a:overflow-wrap-anywhere
@@ -246,6 +309,7 @@ const MarkdownContent = memo(function MarkdownContent({
               strict: false,
             },
           ],
+          rehypePerBlockDirection,
         ]}
         components={{
           a: (props) => {
