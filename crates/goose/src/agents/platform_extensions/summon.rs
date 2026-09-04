@@ -74,7 +74,21 @@ pub struct BackgroundTask {
     pub last_activity: Arc<AtomicU64>,
     pub handle: JoinHandle<Result<String>>,
     pub cancellation_token: CancellationToken,
+    completion_token: CancellationToken,
     notification_sink: SharedNotificationSink,
+}
+
+fn spawn_background_task<F>(future: F) -> (JoinHandle<Result<String>>, CancellationToken)
+where
+    F: Future<Output = Result<String>> + Send + 'static,
+{
+    let completion_token = CancellationToken::new();
+    let completion_guard = completion_token.clone().drop_guard();
+    let handle = tokio::spawn(async move {
+        let _completion_guard = completion_guard;
+        future.await
+    });
+    (handle, completion_token)
 }
 
 pub struct CompletedTask {
@@ -1156,50 +1170,22 @@ impl SummonClient {
 
             // Wait for the running task to complete, keeping the tool call
             // alive so notifications (subagent tool calls) stream in real time.
-            let notification_sink = Arc::clone(&running.get(task_id).unwrap().notification_sink);
-            Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
-            let mut task = running.remove(task_id).unwrap();
+            let task = running.get(task_id).unwrap();
+            let notification_sink = Arc::clone(&task.notification_sink);
+            let completion_token = task.completion_token.clone();
             drop(running);
+            Self::attach_notification_emitter(&notification_sink, notification_emitter).await;
 
             tokio::select! {
-                result = &mut task.handle => {
-                    let (output, status_key) = match result {
-                        Ok(Ok(s)) => (s, "completed"),
-                        Ok(Err(e)) => (format!("Error: {}", e), "failed"),
-                        Err(e) => (format!("Task panicked: {}", e), "panicked"),
-                    };
-
-                    let turns_taken = self
-                        .refresh_task_turns(task_id, &task.turns)
-                        .await;
-                    let elapsed = task.started_at.elapsed();
-                    let status_display = match status_key {
-                        "completed" => "✓ Completed",
-                        "panicked" => "✗ Panicked",
-                        _ => "✗ Failed",
-                    };
-                    return Ok(TaskLoadResult {
-                        content: vec![ContentBlock::text(format!(
-                            "# Background Task Result: {}\n\n\
-                             **Task:** {}\n\
-                             **Status:** {}\n\
-                             **Duration:** {} ({} turns)\n\n\
-                             ## Output\n\n{}",
-                            task_id,
-                            task.description,
-                            status_display,
-                            round_duration(elapsed),
-                            turns_taken,
-                            output
-                        ))],
-                        status: status_key,
-                        turns: Some(turns_taken),
-                        duration_secs: Some(elapsed.as_secs()),
-                    });
+                _ = self.wait_for_background_task_completion(task_id, &completion_token) => {
+                    self.cleanup_completed_tasks().await;
+                    return Box::pin(
+                        self.handle_load_task_result(task_id, false, false, None)
+                    )
+                    .await;
                 }
                 _ = tokio::time::sleep(Duration::from_secs(300)) => {
-                    task.notification_sink.lock().await.detach();
-                    self.background_tasks.lock().await.insert(task_id.to_string(), task);
+                    notification_sink.lock().await.detach();
 
                     return Err(format!(
                         "Task '{task_id}' is still running after waiting 5 min. \
@@ -1929,6 +1915,27 @@ impl SummonClient {
         refreshed
     }
 
+    async fn wait_for_background_task_completion(
+        &self,
+        task_id: &str,
+        completion_token: &CancellationToken,
+    ) {
+        completion_token.cancelled().await;
+        loop {
+            let finished_or_moved = self
+                .background_tasks
+                .lock()
+                .await
+                .get(task_id)
+                .map(|task| task.handle.is_finished())
+                .unwrap_or(true);
+            if finished_or_moved {
+                return;
+            }
+            tokio::task::yield_now().await;
+        }
+    }
+
     async fn cleanup_completed_tasks(&self) {
         let finished: Vec<(String, Arc<AtomicU32>)> = self
             .background_tasks
@@ -2068,7 +2075,7 @@ impl SummonClient {
         let notification_sink = Self::notification_sink(None);
         let task_notification_sink = Arc::clone(&notification_sink);
 
-        let handle = tokio::spawn(async move {
+        let (handle, completion_token) = spawn_background_task(async move {
             let params = SubagentRunParams {
                 config: agent_config,
                 recipe,
@@ -2095,6 +2102,7 @@ impl SummonClient {
             last_activity,
             handle,
             cancellation_token: task_token,
+            completion_token,
             notification_sink,
         };
 
@@ -3692,6 +3700,10 @@ You review code."#;
         {
             let notification_sink =
                 buffered_notification_sink(vec![test_tool_notification("req1", "20260204_1")]);
+            let (handle, completion_token) = spawn_background_task(async {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                Ok("done".to_string())
+            });
 
             let mut running = client.background_tasks.lock().await;
             running.insert(
@@ -3702,11 +3714,9 @@ You review code."#;
                     started_at: Instant::now(),
                     turns: Arc::new(AtomicU32::new(2)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
-                    handle: tokio::spawn(async {
-                        tokio::time::sleep(Duration::from_millis(50)).await;
-                        Ok("done".to_string())
-                    }),
+                    handle,
                     cancellation_token: CancellationToken::new(),
+                    completion_token,
                     notification_sink,
                 },
             );
@@ -3857,6 +3867,7 @@ You review code."#;
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle,
                 cancellation_token: CancellationToken::new(),
+                completion_token: CancellationToken::new(),
                 notification_sink: buffered_notification_sink(Vec::new()),
             },
         );
@@ -3928,6 +3939,7 @@ You review code."#;
                         Ok("cancelled gracefully".to_string())
                     }),
                     cancellation_token: token.clone(),
+                    completion_token: CancellationToken::new(),
                     notification_sink,
                 },
             );
@@ -3974,6 +3986,7 @@ You review code."#;
                     Ok("cancelled gracefully".to_string())
                 }),
                 cancellation_token: token.clone(),
+                completion_token: CancellationToken::new(),
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -4020,6 +4033,10 @@ You review code."#;
         let client = Arc::new(SummonClient::new(create_test_context()).unwrap());
         let task_id = "20260204_1";
         let (finish_tx, finish_rx) = tokio::sync::oneshot::channel();
+        let (handle, completion_token) = spawn_background_task(async move {
+            finish_rx.await.unwrap();
+            Ok("done".to_string())
+        });
 
         client.background_tasks.lock().await.insert(
             task_id.to_string(),
@@ -4029,11 +4046,9 @@ You review code."#;
                 started_at: Instant::now(),
                 turns: Arc::new(AtomicU32::new(1)),
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
-                handle: tokio::spawn(async move {
-                    finish_rx.await.unwrap();
-                    Ok("done".to_string())
-                }),
+                handle,
                 cancellation_token: CancellationToken::new(),
+                completion_token,
                 notification_sink: buffered_notification_sink(vec![
                     test_tool_notification("inner-0", task_id),
                     test_tool_notification("inner-1", task_id),
@@ -4075,6 +4090,78 @@ You review code."#;
     }
 
     #[tokio::test]
+    async fn test_dropped_waiting_load_during_turn_refresh_remains_retrievable() {
+        let temp_dir = TempDir::new().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().join("sessions"),
+        ));
+        let task_id = create_test_subagent_session(
+            &session_manager,
+            temp_dir.path(),
+            &[
+                Message::user().with_text("Analyse the project"),
+                Message::assistant().with_text("done"),
+            ],
+        )
+        .await;
+        let client = SummonClient::new(create_test_context_with_session_manager(Arc::clone(
+            &session_manager,
+        )))
+        .unwrap();
+
+        let (handle, completion_token) = spawn_background_task(async { Ok("done".to_string()) });
+        while !handle.is_finished() {
+            tokio::task::yield_now().await;
+        }
+        client.background_tasks.lock().await.insert(
+            task_id.clone(),
+            BackgroundTask {
+                id: task_id.clone(),
+                description: "Finished task".to_string(),
+                started_at: Instant::now(),
+                turns: Arc::new(AtomicU32::new(1)),
+                last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                handle,
+                cancellation_token: CancellationToken::new(),
+                completion_token,
+                notification_sink: buffered_notification_sink(Vec::new()),
+            },
+        );
+
+        let pool = session_manager.storage().pool().await.unwrap().clone();
+        let mut held_connections = Vec::new();
+        for _ in 0..pool.options().get_max_connections() {
+            held_connections.push(pool.acquire().await.unwrap());
+        }
+        tokio::task::yield_now().await;
+
+        let mut load = Box::pin(client.handle_load_task_result(&task_id, false, false, None));
+        let first_poll = std::future::poll_fn(|cx| {
+            std::task::Poll::Ready(std::future::Future::poll(load.as_mut(), cx))
+        })
+        .await;
+        assert!(first_poll.is_pending());
+        drop(load);
+
+        assert!(
+            client.completed_tasks.lock().await.contains_key(&task_id)
+                || client.background_tasks.lock().await.contains_key(&task_id),
+            "cancelling a load must not orphan a completed task"
+        );
+
+        drop(held_connections);
+        let result = client
+            .handle_load_task_result(&task_id, false, false, None)
+            .await
+            .unwrap();
+        assert_eq!(result.status, "completed");
+        assert_eq!(result.turns, Some(1));
+        assert!(extract_text(&result.content[0]).contains("done"));
+        assert!(!client.completed_tasks.lock().await.contains_key(&task_id));
+        assert!(!client.background_tasks.lock().await.contains_key(&task_id));
+    }
+
+    #[tokio::test]
     async fn test_peek_running_task() {
         let temp_dir = TempDir::new().unwrap();
         let session_manager = Arc::new(crate::session::SessionManager::new(
@@ -4108,6 +4195,7 @@ You review code."#;
                         Ok("eventual result".to_string())
                     }),
                     cancellation_token: CancellationToken::new(),
+                    completion_token: CancellationToken::new(),
                     notification_sink: buffered_notification_sink(Vec::new()),
                 },
             );
