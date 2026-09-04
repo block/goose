@@ -7,6 +7,11 @@
 //! retry. The wrappers here reset their timer only on *data-bearing* lines,
 //! which a stalled stream never produces, and surface a retryable
 //! [`ProviderError::NetworkError`] when the stream goes idle.
+//!
+//! The idle deadline is never enforced before the stream's first line, so
+//! time-to-first-line stays governed by the request timeout — preserving slow
+//! starts (reasoning models, queued gateways, large local models) while still
+//! catching keepalive-masked stalls, which by definition send lines.
 
 use crate::errors::ProviderError;
 use futures::{Stream, StreamExt};
@@ -51,12 +56,13 @@ fn stall_error(idle: Duration, keepalive_frames: u64) -> anyhow::Error {
 
 /// Wrap a framed SSE line stream with the idle watchdog configured via
 /// [`STREAM_TIMEOUT_ENV_VAR`]. Returns the stream unchanged when disabled.
-pub fn with_stream_idle_timeout_from_env<S>(stream: S) -> LineStream
+/// The idle deadline is not enforced until the first line arrives.
+pub fn with_stream_idle_timeout_after_first_line_from_env<S>(stream: S) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     match resolve_stream_idle_timeout() {
-        Some(idle) => with_stream_idle_timeout(stream, idle),
+        Some(idle) => with_stream_idle_timeout_after_first_line(stream, idle),
         None => Box::pin(stream),
     }
 }
@@ -64,6 +70,10 @@ where
 /// Pass lines through untouched, but error when no data-bearing line has
 /// arrived for `idle` since the previous one (or since stream start). SSE
 /// comment frames (`: ...`) and blank separators do not extend the deadline.
+///
+/// This is the eager core: the deadline applies from the first poll. Prefer
+/// [`with_stream_idle_timeout_after_first_line`], which exempts time to first
+/// line, for provider streams.
 ///
 /// The timer is poll-driven (the deadline is only evaluated while the stream
 /// is being polled), so a consumer that stops polling cannot trip it.
@@ -90,7 +100,7 @@ where
                         if let Some(next) = tokio::time::Instant::now().checked_add(idle) {
                             deadline = next;
                         }
-                    } else {
+                    } else if line.starts_with(':') {
                         keepalive_frames += 1;
                     }
                     yield line;
@@ -104,9 +114,10 @@ where
 
 /// Like [`with_stream_idle_timeout`], except the idle deadline is not enforced
 /// until the stream yields its first line: time-to-first-line stays governed by
-/// the request timeout. This preserves slow local inference (large models can
-/// take minutes before the first token) while still catching mid-stream stalls
-/// that keepalive comments would otherwise mask.
+/// the request timeout. This preserves slow starts — reasoning models, queued
+/// gateways, large local models can all take minutes before the first token —
+/// while still catching stalls that keepalive comments would otherwise mask,
+/// since those comments are lines that arm the timer.
 pub fn with_stream_idle_timeout_after_first_line<S>(mut stream: S, idle: Duration) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
@@ -245,7 +256,11 @@ mod tests {
             Duration::from_secs(150),
         ))
         .await;
-        assert!(err.to_string().contains("Stream stalled"));
+        let message = err.to_string();
+        assert!(message.contains("Stream stalled"), "got: {message}");
+        // Blank separators are not keepalive frames; the diagnostic must not
+        // claim any arrived.
+        assert!(!message.contains("keepalive"), "got: {message}");
     }
 
     #[test]

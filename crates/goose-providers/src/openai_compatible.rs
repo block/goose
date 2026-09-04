@@ -26,7 +26,7 @@ use crate::formats::openai::{
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
-use crate::stream_idle_timeout::with_stream_idle_timeout_from_env;
+use crate::stream_idle_timeout::with_stream_idle_timeout_after_first_line_from_env;
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -245,7 +245,7 @@ pub fn stream_openai_compat(
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
-        let framed = with_stream_idle_timeout_from_env(framed);
+        let framed = with_stream_idle_timeout_after_first_line_from_env(framed);
 
         let message_stream = response_to_streaming_message(framed);
         pin!(message_stream);
@@ -270,7 +270,7 @@ pub fn stream_responses_compat(
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
-        let framed = with_stream_idle_timeout_from_env(framed);
+        let framed = with_stream_idle_timeout_after_first_line_from_env(framed);
 
         let message_stream = responses_api_to_streaming_message(framed);
         pin!(message_stream);

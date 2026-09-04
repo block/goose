@@ -32,7 +32,7 @@ use crate::providers::retry::RetryConfig;
 use goose_providers::errors::ProviderError;
 use goose_providers::http_status::read_error_body;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
-use goose_providers::stream_idle_timeout::with_stream_idle_timeout_from_env;
+use goose_providers::stream_idle_timeout::with_stream_idle_timeout_after_first_line_from_env;
 use rmcp::model::Tool;
 
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
@@ -661,7 +661,7 @@ impl Provider for GcpVertexAIProvider {
                 tokio_util::codec::LinesCodec::new(),
             )
             .map_err(anyhow::Error::from);
-            let framed = with_stream_idle_timeout_from_env(framed);
+            let framed = with_stream_idle_timeout_after_first_line_from_env(framed);
 
             let mut message_stream = response_to_streaming_message(framed, &context_clone);
 
