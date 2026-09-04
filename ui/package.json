@@ -2,6 +2,7 @@
   "private": true,
   "workspaces": [
     "sdk",
+    "goose-acp-client",
     "desktop",
     "goose-binary/*"
   ],

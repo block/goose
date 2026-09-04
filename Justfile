@@ -156,7 +156,7 @@ check-acp-artifacts: generate-acp-types generate-acp-docs
     #!/usr/bin/env bash
     set -e
     echo "🔍 Checking generated ACP artifacts are up-to-date..."
-    if ! git diff --exit-code crates/goose/acp-schema.json crates/goose/acp-meta.json ui/sdk/src/generated/; then
+    if ! git diff --exit-code crates/goose/acp-schema.json crates/goose/acp-meta.json ui/sdk/src/generated/ ui/goose-acp-client/src/generated/; then
       echo ""
       echo "❌ ACP generated files are out of date!"
       echo ""
@@ -175,7 +175,8 @@ generate-acp-schema:
 generate-acp-types: generate-acp-schema
     @echo "Generating ACP TypeScript types..."
     cd ui/sdk && npx tsx generate-schema.ts
-    @echo "ACP TypeScript types generated in ui/sdk/src/generated/"
+    cd ui/goose-acp-client && npx tsx generate-schema.ts
+    @echo "ACP TypeScript types generated for the SDK and ACP client packages."
 
 # Generate ACP documentation from the existing JSON schema and metadata
 generate-acp-docs:
