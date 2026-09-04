@@ -3,6 +3,7 @@
   "workspaces": [
     "sdk",
     "goose-acp-client",
+    "goose-acp",
     "desktop",
     "goose-binary/*"
   ],
