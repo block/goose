@@ -1000,31 +1000,28 @@ where
         let mut output_token_limit_reached = false;
 
         'outer: while let Some(response) = stream.next().await {
-            let response_str = response?;
-
-            // Skip empty lines
-            if response_str.trim().is_empty() {
+            let response = response?;
+            let line = response.trim();
+            if line.is_empty() {
                 continue;
             }
-            if response_str.starts_with(':') {
+            if line.starts_with(':') {
                 continue;
             }
 
-            // Parse SSE format: "event: <type>\ndata: <json>"
-            // For now, we only care about the data line
-            // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
-            let data_line = if response_str.starts_with("data: ") {
-                response_str.strip_prefix("data: ").unwrap()
-            } else if response_str.starts_with("data:") {
-                response_str.strip_prefix("data:").unwrap()
-            } else if sse_field_name(&response_str).is_some_and(|f| f != "data") {
-                // Skip payload-free SSE fields: event, id, retry, comments,
-                // colon-less fields with empty values, and unknown extension
-                // fields — the SSE spec requires all of these to be ignored.
+            // "data: value" and "data:value" are both valid SSE.
+            let data_line = if let Some(value) = line.strip_prefix("data: ") {
+                value
+            } else if let Some(value) = line.strip_prefix("data:") {
+                value
+            } else if sse_field_name(line).is_some_and(|f| f != "data") {
+                // Payload-free SSE fields — event, id, retry, comments,
+                // colon-less fields, unknown extension fields — must be
+                // ignored per the spec.
                 continue;
             } else {
-                // Try to parse as-is when there's no prefix (bare JSON frames)
-                &response_str
+                // Not field-shaped: a bare JSON frame.
+                line
             };
 
             if data_line == "[DONE]" {
@@ -1307,13 +1304,15 @@ mod tests {
             "id".to_string(),
             "x-trace: abc123".to_string(),
             "x.heartbeat: 1".to_string(),
+            "  x.trace: 1".to_string(),
             "retry: 100".to_string(),
             ": keepalive comment".to_string(),
             r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"qwen3.8-max","output":[]}}"#.to_string(),
             "event: response.output_text.delta".to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
-            r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
-            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"qwen3.8-max","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            r#"   {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"!"}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":5,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"qwen3.8-max","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
             "data: [DONE]".to_string(),
         ];
 
@@ -1333,7 +1332,7 @@ mod tests {
             }
         }
 
-        assert_eq!(text_parts.concat(), "Hello world");
+        assert_eq!(text_parts.concat(), "Hello! world");
         Ok(())
     }
 
