@@ -31,8 +31,7 @@
     "build:ts": "tsc",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
-    "format": "prettier --write src/ generate-schema.ts scripts/",
-    "check:compat": "node scripts/check-binary-compat.mjs"
+    "format": "prettier --write src/ generate-schema.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^0.3.1",

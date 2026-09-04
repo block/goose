@@ -62,11 +62,3 @@ pnpm run build
 ```
 
 The generated TypeScript types come from the Rust schemas in `crates/goose`.
-To check them against a separately built Goose executable:
-
-```bash
-GOOSE_BINARY=/path/to/goose pnpm run check:compat
-```
-
-`GOOSE_BINARY` is used only by this compatibility test harness and is not part
-of the published client API.
