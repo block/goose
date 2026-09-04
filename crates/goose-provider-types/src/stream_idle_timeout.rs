@@ -8,30 +8,31 @@
 //! which a stalled stream never produces, and surface a retryable
 //! [`ProviderError::NetworkError`] when the stream goes idle.
 //!
-//! Non-data means: every line that is not a payload-bearing `data:` field
-//! and does not parse as JSON — comment frames (`: ...`), blank
-//! separators, control fields (`event:`, `id:`, `retry:`), `data:` fields
-//! with an empty payload, and unknown extension fields of any shape
-//! (`x-heartbeat: ...`, `x.heartbeat: ...`, `{heartbeat}: ...`,
-//! ` data: ...`: the grammar puts no restriction on field-name characters,
-//! leading whitespace included, and none of these parse as JSON). None of
-//! those can be turned into progress by the downstream parsers, so none
-//! may hold the watchdog off. Lines that parse as JSON — the Responses
-//! API's bare frames and Ollama's NDJSON, leading whitespace
-//! notwithstanding — are payloads and do reset the timer, as do
-//! payload-bearing events including protocol-level pings such as
-//! Anthropic's `data: {"type":"ping"}` and a heartbeat that is itself a
-//! complete JSON object: telling those apart from real progress needs
+//! Payload means a line that carries syntactically valid JSON: a line
+//! that itself parses as JSON (the Responses API's bare frames and
+//! Ollama's NDJSON, leading whitespace notwithstanding), or a `data:`
+//! field at the start of the line whose value is `[DONE]` or parses as
+//! JSON. Only payload resets the timer. Everything else — comment frames
+//! (`: ...`), blank separators, control fields (`event:`, `id:`,
+//! `retry:`), `data:` fields whose value is empty or not JSON
+//! (`data: ping` — the Anthropic and Google parsers discard such values
+//! during decoding), and unknown extension fields of any shape
+//! (`x-heartbeat: ...`, `{heartbeat}: ...`, ` data: ...`: the grammar
+//! puts no restriction on field-name characters, leading whitespace
+//! included) — is a keepalive: no downstream parser can turn it into
+//! progress. One boundary remains: a payload-bearing heartbeat such as
+//! Anthropic's `data: {"type":"ping"}` or a bare JSON object keepalive
+//! still resets the timer — telling it apart from real progress needs
 //! per-provider payload knowledge, which this line-level watchdog
 //! deliberately does not have.
 //!
-//! The same line-level boundary applies to providers that reassemble a JSON
-//! event split across several lines (Google's parser buffers continuation
-//! fragments): such a fragment can be field-shaped and is then counted as a
-//! keepalive, because telling it apart from an extension heartbeat field
-//! would require the parser's reassembly state. If a split event ever spans
-//! the idle window, the watchdog fires a remediable error rather than
-//! letting the stream hang.
+//! The same line-level boundary applies to providers that reassemble a
+//! JSON event split across several lines (Google's parser buffers
+//! continuation fragments): each fragment line carries no complete JSON
+//! payload on its own and is counted as a keepalive, because telling it
+//! apart from a heartbeat would require the parser's reassembly state.
+//! If a split event ever spans the idle window, the watchdog fires a
+//! remediable error rather than letting the stream hang.
 //!
 //! The idle deadline is never enforced before the stream's first line, so
 //! time-to-first-line stays governed by the request timeout — preserving slow
@@ -61,18 +62,17 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
     (secs > 0).then(|| Duration::from_secs(secs))
 }
 
-/// Whether a line is progress a downstream parser can consume: a
-/// payload-bearing `data:` field at the start of the line, or a line that
-/// parses as JSON — the shapes the bare-payload transports emit (the
-/// Responses API's bare frames, Ollama's NDJSON). Anything else — comment
-/// frames, blank separators, control fields, and unknown extension fields,
-/// whose names per the grammar may contain any characters and leading
-/// whitespace — is not.
+/// Whether a line carries payload a downstream parser can consume: a
+/// line that parses as JSON, or a `data:` field at the start of the line
+/// whose value is `[DONE]` or parses as JSON. Everything else — comments,
+/// blanks, control and unknown fields with any grammar-allowed name, and
+/// non-JSON `data:` values — is a keepalive.
 fn is_data_line(line: &str) -> bool {
-    if let Some(value) = line.strip_prefix("data:") {
-        return !value.trim().is_empty();
-    }
-    serde_json::from_str::<serde_json::Value>(line).is_ok()
+    let Some(value) = line.strip_prefix("data:") else {
+        return serde_json::from_str::<serde_json::Value>(line).is_ok();
+    };
+    let value = value.trim();
+    value == "[DONE]" || serde_json::from_str::<serde_json::Value>(value).is_ok()
 }
 
 fn stall_error(idle: Duration, keepalive_frames: u64, env_var: &str) -> anyhow::Error {
@@ -242,6 +242,7 @@ mod tests {
             "x.heartbeat: ping",
             " data: ping",
             "{heartbeat}: ping",
+            "data: ping",
             "{\"chunk\":0}",
             "  {\"chunk\":1}",
             "",
@@ -288,6 +289,8 @@ mod tests {
             "   data: {\"beat\":1}",
             "{heartbeat}: ping",
             "[heartbeat]: 1",
+            "data: ping",
+            "data: OPENROUTER PROCESSING",
         ] {
             let err = first_stall_error(with_stream_idle_timeout(
                 data_then_repeating("data: {\"a\":1}", heartbeat),
@@ -297,6 +300,23 @@ mod tests {
             .await;
             assert_keepalive_masked_stall(&err);
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn json_data_values_reset_the_timer() {
+        // `data:` values that parse as JSON are payload: five of them
+        // 100s apart span 500s, well past the 150s idle window, and must
+        // not stall.
+        let payloads = Box::pin(async_stream::stream! {
+            for i in 0..5 {
+                tokio::time::sleep(Duration::from_secs(100)).await;
+                yield Ok(format!(r#"data: {{"chunk":{i}}}"#));
+            }
+        });
+        let watched =
+            with_stream_idle_timeout(payloads, Duration::from_secs(150), STREAM_TIMEOUT_ENV_VAR);
+        let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
+        assert_eq!(collected.len(), 5);
     }
 
     #[tokio::test(start_paused = true)]
