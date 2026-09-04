@@ -1306,6 +1306,7 @@ mod tests {
             "id:1".to_string(),
             "id".to_string(),
             "x-trace: abc123".to_string(),
+            "x.heartbeat: 1".to_string(),
             "retry: 100".to_string(),
             ": keepalive comment".to_string(),
             r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"qwen3.8-max","output":[]}}"#.to_string(),

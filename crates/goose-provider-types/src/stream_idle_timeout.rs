@@ -11,9 +11,10 @@
 //! Non-data means: comment frames (`: ...`), blank separators, and every
 //! SSE field line that is not a payload-bearing `data:` field — control
 //! fields (`event:`, `id:`, `retry:`), unknown extension fields
-//! (`x-heartbeat: ...`), and `data:` fields with an empty payload — none of
-//! which the downstream parsers can turn into progress, so none of them may
-//! hold the watchdog off. Lines that are not field-shaped at all (bare JSON
+//! (`x-heartbeat: ...`, `x.heartbeat: ...`), and `data:` fields with an
+//! empty payload — none of which the downstream parsers can turn into
+//! progress, so none of them may hold the watchdog off. Lines that are
+//! not fields at all because they carry their own framing (bare JSON
 //! frames, Ollama's NDJSON) are payloads and do reset the timer.
 //! Payload-bearing events also reset it, including protocol-level pings such
 //! as Anthropic's `data: {"type":"ping"}`: telling those apart from real
@@ -53,19 +54,19 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
 /// - `field` (no colon, empty value) -> `Some(field)`
 /// - `: comment` -> `Some("")`
 ///
-/// Returns `None` when the line does not look like an SSE field (e.g. a
-/// bare JSON payload such as `{"type": ...}`), so callers can treat it as
-/// payload rather than an ignorable control field.
+/// The grammar puts no restriction on field-name characters — everything
+/// before the first colon is the name, so `x.heartbeat` is as valid as
+/// `event` — and compliant consumers ignore every field other than `data`.
+/// `None` therefore marks lines that are not fields at all: payload lines
+/// that carry their own framing, i.e. bare JSON frames and NDJSON, so
+/// callers can treat them as payload rather than ignorable control fields.
 pub(crate) fn sse_field_name(line: &str) -> Option<&str> {
     let field = line.split_once(':').map_or(line, |(name, _)| name);
     if field.is_empty() {
         return Some("");
     }
-    let field_like = !field.contains(char::is_whitespace)
-        && field
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
-    field_like.then_some(field)
+    let json_payload = field.starts_with('{') || field.starts_with('[');
+    (!json_payload).then_some(field)
 }
 
 /// Whether a line is progress a downstream parser can consume: a
@@ -254,6 +255,7 @@ mod tests {
                 "id: 7",
                 "retry: 3000",
                 "x-heartbeat: ping",
+                "x.heartbeat: ping",
                 "{\"chunk\":0}",
                 "",
                 "data: [DONE]",
@@ -272,6 +274,7 @@ mod tests {
                 "id: 7",
                 "retry: 3000",
                 "x-heartbeat: ping",
+                "x.heartbeat: ping",
                 "{\"chunk\":0}",
                 "",
                 "data: [DONE]"
@@ -304,6 +307,8 @@ mod tests {
             "data:   ",
             "x-heartbeat: ping",
             "x_heartbeat: 1",
+            "x.heartbeat: ping",
+            "~heartbeat: 1",
             "ping",
         ] {
             let err = first_stall_error(with_stream_idle_timeout(
@@ -419,6 +424,31 @@ mod tests {
         // Blank separators are not keepalive frames; the diagnostic must not
         // claim any arrived.
         assert!(!message.contains("keepalive"), "got: {message}");
+    }
+
+    #[test]
+    fn sse_field_name_classifies_fields_vs_payloads() {
+        // Per the SSE grammar a field name is everything before the first
+        // colon, with no restriction on its characters; only lines that
+        // carry their own framing (bare JSON, NDJSON) are not fields.
+        for (line, field) in [
+            ("data: {\"a\":1}", "data"),
+            ("data:", "data"),
+            ("event: ping", "event"),
+            ("id: 7", "id"),
+            ("retry: 3000", "retry"),
+            (": comment", ""),
+            ("ping", "ping"),
+            ("x-heartbeat: ping", "x-heartbeat"),
+            ("x.heartbeat: ping", "x.heartbeat"),
+            ("x~heartbeat: 1", "x~heartbeat"),
+            ("foo bar: 1", "foo bar"),
+        ] {
+            assert_eq!(sse_field_name(line), Some(field), "line: {line}");
+        }
+        for payload in ["{\"a\":1}", "{}", "{\"a\":1}\n", "[DONE]", "[1,2]"] {
+            assert_eq!(sse_field_name(payload), None, "payload: {payload}");
+        }
     }
 
     #[test]
