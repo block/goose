@@ -21,11 +21,6 @@ use tracing::{debug, info};
 
 pub type OnMessageCallback = Arc<dyn Fn(&Message) + Send + Sync>;
 
-/// Invoked when the agent replaces the conversation, which a recipe retry and a
-/// recovery compaction both do before the next inference. Callers that derive state
-/// from the message stream need the boundary; the messages alone do not carry it.
-pub type OnHistoryReplacedCallback = Arc<dyn Fn() + Send + Sync>;
-
 #[derive(Serialize)]
 pub struct SubagentPromptContext {
     pub max_turns: usize,
@@ -46,7 +41,6 @@ pub struct SubagentRunParams {
     pub session_id: String,
     pub cancellation_token: Option<CancellationToken>,
     pub on_message: Option<OnMessageCallback>,
-    pub on_history_replaced: Option<OnHistoryReplacedCallback>,
     pub notification_tx: Option<tokio::sync::mpsc::UnboundedSender<ServerNotification>>,
 }
 
@@ -133,7 +127,6 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
             session_id,
             cancellation_token,
             on_message,
-            on_history_replaced,
             notification_tx,
             ..
         } = params;
@@ -230,9 +223,6 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                 Ok(AgentEvent::MessageUsage { .. }) => {}
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                    if let Some(ref callback) = on_history_replaced {
-                        callback();
-                    }
                     conversation = updated_conversation;
                 }
                 Err(e) => {

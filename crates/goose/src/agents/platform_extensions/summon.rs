@@ -6,7 +6,7 @@ use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -17,6 +17,7 @@ use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
+use goose_agent::operation::assistant_turn_count;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
@@ -26,7 +27,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -70,7 +71,6 @@ pub struct BackgroundTask {
     pub id: String,
     pub description: String,
     pub started_at: Instant,
-    pub turns: Arc<AtomicU32>,
     pub last_activity: Arc<AtomicU64>,
     pub handle: JoinHandle<Result<String>>,
     pub cancellation_token: CancellationToken,
@@ -516,32 +516,13 @@ fn current_epoch_millis() -> u64 {
         .as_millis() as u64
 }
 
-/// The agent yields progress and status banners as assistant messages carrying only
-/// `SystemNotification` content, and does not persist them - see the branch in
-/// `Agent::reply` that forwards such a response and continues without recording it.
-/// They are not part of the conversation, so they neither open nor close a turn.
-fn is_transient_notification(message: &Message) -> bool {
-    !message.content.is_empty()
-        && message
-            .content
-            .iter()
-            .all(|content| matches!(content, MessageContent::SystemNotification(_)))
-}
-
-/// Streaming counterpart of `assistant_turn_count`: an agent turn opens when an
-/// assistant message follows a non-assistant one. Consecutive assistant messages -
-/// streamed fragments of a single response, or a tool request and the text that
-/// accompanies it - belong to the turn that is already open.
-///
-/// Roles are the only input, so a provider that reports no usage metadata is
-/// counted the same as one that does.
-fn opens_agent_turn(message: &Message, in_assistant_turn: &AtomicBool) -> bool {
-    if is_transient_notification(message) {
-        return false;
-    }
-    let is_assistant = message.role == rmcp::model::Role::Assistant;
-    let turn_was_open = in_assistant_turn.swap(is_assistant, Ordering::Relaxed);
-    is_assistant && !turn_was_open
+/// Turns are read from the delegate's own session rather than counted from the event
+/// stream. `assistant_turn_count` is the definition `MaxTurnsOperation` enforces the
+/// budget with, and the persisted conversation carries boundaries the stream does not:
+/// a stop-hook denial appends a hidden user message without emitting it, streamed
+/// fragments never reach it, and progress banners are emitted without being persisted.
+fn turns_in(conversation: &Conversation) -> u32 {
+    assistant_turn_count(conversation.messages())
 }
 
 /// Get maximum number of concurrent background tasks
@@ -1100,7 +1081,6 @@ impl SummonClient {
             if peek {
                 let task = running.get(task_id).unwrap();
                 let elapsed = task.started_at.elapsed();
-                let turns_taken = task.turns.load(Ordering::Relaxed);
                 let now = current_epoch_millis();
                 let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
                 let description = task.description.clone();
@@ -1108,6 +1088,8 @@ impl SummonClient {
                 let buffered_count = task.notification_sink.lock().await.buffered_len();
 
                 drop(running);
+
+                let turns_taken = self.turns_taken(task_id).await;
 
                 let mut output = format!(
                     "# Background Task Status: {}\n\n**Task:** {}\n**Status:** ⏳ Running\n**Elapsed:** {}\n**Turns taken:** {}\n**Idle:** {}\n**Buffered tool calls:** {}",
@@ -1140,7 +1122,6 @@ impl SummonClient {
                 task.cancellation_token.cancel();
 
                 let duration = task.started_at.elapsed();
-                let turns_taken = task.turns.load(Ordering::Relaxed);
 
                 let mut handle = task.handle;
                 let output = tokio::select! {
@@ -1156,6 +1137,8 @@ impl SummonClient {
                         "Task did not stop in time (aborted)".to_string()
                     }
                 };
+
+                let turns_taken = self.turns_taken(task_id).await;
 
                 return Ok(TaskLoadResult {
                     content: vec![ContentBlock::text(format!(
@@ -1191,7 +1174,7 @@ impl SummonClient {
                         Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
 
-                    let turns_taken = task.turns.load(Ordering::Relaxed);
+                    let turns_taken = self.turns_taken(task_id).await;
                     let elapsed = task.started_at.elapsed();
                     let status_display = match status_key {
                         "completed" => "✓ Completed",
@@ -1427,7 +1410,6 @@ impl SummonClient {
             session_id: subagent_session.id,
             cancellation_token: Some(cancellation_token),
             on_message: None,
-            on_history_replaced: None,
             notification_tx: None,
         };
         let result = Self::run_subagent_with_notifications(
@@ -1923,7 +1905,6 @@ impl SummonClient {
 
         for (id, task) in finished {
             let duration = task.started_at.elapsed();
-            let turns_taken = task.turns.load(Ordering::Relaxed);
 
             let result = match task.handle.await {
                 Ok(Ok(output)) => {
@@ -1939,6 +1920,10 @@ impl SummonClient {
                     Err(format!("Task panicked: {}", e))
                 }
             };
+
+            // Read after the join: the conversation is only complete once the
+            // delegate's last message is persisted.
+            let turns_taken = self.turns_taken(&id).await;
 
             completed.insert(
                 id.clone(),
@@ -1965,6 +1950,20 @@ impl SummonClient {
             (None, Some(instructions)) => instructions.clone(),
             (None, None) => "Unknown task".to_string(),
         }
+    }
+
+    /// Zero for a session that cannot be read: a delegate that has not written its
+    /// first message yet is indistinguishable from one whose store read failed, and
+    /// neither should surface as an error in a status line.
+    async fn turns_taken(&self, task_id: &str) -> u32 {
+        self.context
+            .session_manager
+            .get_session(task_id, true)
+            .await
+            .ok()
+            .and_then(|session| session.conversation)
+            .map(|conversation| turns_in(&conversation))
+            .unwrap_or(0)
     }
 
     async fn handle_async_delegate(
@@ -2020,18 +2019,10 @@ impl SummonClient {
 
         let task_id = subagent_session.id.clone();
 
-        let turns = Arc::new(AtomicU32::new(0));
         let last_activity = Arc::new(AtomicU64::new(current_epoch_millis()));
-
-        let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
-        let in_assistant_turn = Arc::new(AtomicBool::new(false));
-        let in_assistant_turn_reset = Arc::clone(&in_assistant_turn);
 
-        let on_message: OnMessageCallback = Arc::new(move |msg| {
-            if opens_agent_turn(msg, &in_assistant_turn) {
-                turns_clone.fetch_add(1, Ordering::Relaxed);
-            }
+        let on_message: OnMessageCallback = Arc::new(move |_msg| {
             last_activity_clone.store(current_epoch_millis(), Ordering::Relaxed);
         });
 
@@ -2050,9 +2041,6 @@ impl SummonClient {
                 session_id: subagent_session.id,
                 cancellation_token: Some(task_token_clone),
                 on_message: Some(on_message),
-                on_history_replaced: Some(Arc::new(move || {
-                    in_assistant_turn_reset.store(false, Ordering::Relaxed);
-                })),
                 notification_tx: None,
             };
             Self::run_subagent_with_notifications(task_notification_sink, move |notification_tx| {
@@ -2067,7 +2055,6 @@ impl SummonClient {
             id: task_id.clone(),
             description: description.clone(),
             started_at: Instant::now(),
-            turns,
             last_activity,
             handle,
             cancellation_token: task_token,
@@ -2179,54 +2166,79 @@ impl McpClientTrait for SummonClient {
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
         self.cleanup_completed_tasks().await;
 
-        let running = self.background_tasks.lock().await;
-        let completed = self.completed_tasks.lock().await;
+        let now = current_epoch_millis();
 
-        if running.is_empty() && completed.is_empty() {
+        let running_rows: Vec<(String, String, Duration, u64)> = {
+            let running = self.background_tasks.lock().await;
+            let mut rows: Vec<_> = running
+                .values()
+                .map(|task| {
+                    (
+                        task.id.clone(),
+                        task.description.clone(),
+                        task.started_at.elapsed(),
+                        now.saturating_sub(task.last_activity.load(Ordering::Relaxed)),
+                    )
+                })
+                .collect();
+            rows.sort_by(|left, right| left.0.cmp(&right.0));
+            rows
+        };
+
+        let completed_rows: Vec<(String, String, bool, Duration, u32)> = {
+            let completed = self.completed_tasks.lock().await;
+            let mut rows: Vec<_> = completed
+                .values()
+                .map(|task| {
+                    (
+                        task.id.clone(),
+                        task.description.clone(),
+                        task.result.is_ok(),
+                        task.duration,
+                        task.turns_taken,
+                    )
+                })
+                .collect();
+            rows.sort_by(|left, right| left.0.cmp(&right.0));
+            rows
+        };
+
+        if running_rows.is_empty() && completed_rows.is_empty() {
             return None;
         }
 
         let mut lines = vec!["Background tasks:".to_string()];
-        let now = current_epoch_millis();
 
-        let mut sorted_running: Vec<_> = running.values().collect();
-        sorted_running.sort_by_key(|t| &t.id);
-
-        for task in sorted_running {
-            let elapsed = task.started_at.elapsed();
-            let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
+        // The locks are released before this loop: reading a delegate's turn count
+        // touches the session store, and the task maps are on the hot path of every
+        // tool call.
+        for (id, description, elapsed, idle_ms) in &running_rows {
+            let turns_taken = self.turns_taken(id).await;
 
             lines.push(format!(
                 "• {}: \"{}\" - running {}, {} turns, idle {}",
-                task.id,
-                task.description,
-                round_duration(elapsed),
-                task.turns.load(Ordering::Relaxed),
-                round_duration(Duration::from_millis(idle_ms)),
+                id,
+                description,
+                round_duration(*elapsed),
+                turns_taken,
+                round_duration(Duration::from_millis(*idle_ms)),
             ));
         }
 
-        let mut sorted_completed: Vec<_> = completed.values().collect();
-        sorted_completed.sort_by_key(|t| &t.id);
-
-        for task in sorted_completed {
-            let status = if task.result.is_ok() {
-                "completed"
-            } else {
-                "failed"
-            };
+        for (id, description, succeeded, duration, turns_taken) in &completed_rows {
+            let status = if *succeeded { "completed" } else { "failed" };
             lines.push(format!(
                 "• {}: \"{}\" - {} in {} ({} turns) - use load(\"{}\") to get result",
-                task.id,
-                task.description,
+                id,
+                description,
                 status,
-                round_duration(task.duration),
-                task.turns_taken,
-                task.id
+                round_duration(*duration),
+                turns_taken,
+                id
             ));
         }
 
-        if !running.is_empty() {
+        if !running_rows.is_empty() {
             lines.push(
                 "\n→ Use load(source: \"<id>\") to wait for a task, or load(source: \"<id>\", cancel: true) to stop it"
                     .to_string(),
@@ -2268,7 +2280,7 @@ fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, an
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::SystemNotificationType;
+    use crate::conversation::message::Message;
     use futures::StreamExt;
     use rmcp::model::CallToolRequestParams;
     use serial_test::serial;
@@ -2287,42 +2299,23 @@ mod tests {
         }
     }
 
-    fn count_turns(messages: &[Message]) -> u32 {
-        let in_assistant_turn = AtomicBool::new(false);
-        let mut turns = 0;
-        for message in messages {
-            if opens_agent_turn(message, &in_assistant_turn) {
-                turns += 1;
-            }
-        }
-        turns
-    }
-
-    #[test]
-    fn streamed_fragments_of_one_answer_count_as_one_turn() {
-        let messages = [
-            Message::user().with_text("summarize the log"),
-            Message::assistant().with_text("check"),
-            Message::assistant().with_text("ing the"),
-            Message::assistant().with_text(" log"),
-        ];
-
-        assert_eq!(count_turns(&messages), 1);
+    fn conversation(messages: Vec<Message>) -> Conversation {
+        Conversation::new_unvalidated(messages)
     }
 
     #[test]
     fn one_prompt_and_one_answer_count_as_one_turn() {
-        let messages = [
+        let conversation = conversation(vec![
             Message::user().with_text("ping"),
             Message::assistant().with_text("pong"),
-        ];
+        ]);
 
-        assert_eq!(count_turns(&messages), 1);
+        assert_eq!(turns_in(&conversation), 1);
     }
 
     #[test]
     fn a_tool_call_and_the_answer_after_it_count_as_two_turns() {
-        let messages = [
+        let conversation = conversation(vec![
             Message::user().with_text("read the file"),
             Message::assistant().with_tool_request(
                 "call_1",
@@ -2333,91 +2326,42 @@ mod tests {
                 Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
             ),
             Message::assistant().with_text("the file is empty"),
-        ];
+        ]);
 
-        assert_eq!(count_turns(&messages), 2);
+        assert_eq!(turns_in(&conversation), 2);
     }
 
     #[test]
-    fn a_worker_whose_provider_reports_no_usage_does_not_report_zero_turns() {
-        let messages = [
+    fn a_hidden_stop_hook_denial_closes_the_turn_it_interrupts() {
+        // The denial context is a user message the agent persists without emitting,
+        // which is why counting the event stream missed this boundary.
+        let denial = Message::user()
+            .with_text("Stop hook `policy` blocked ending this turn.")
+            .with_visibility(false, true);
+        let conversation = conversation(vec![
+            Message::user().with_text("ship it"),
+            Message::assistant().with_text("done"),
+            denial,
+            Message::assistant().with_text("addressed the policy and done"),
+        ]);
+
+        assert_eq!(turns_in(&conversation), 2);
+    }
+
+    #[test]
+    fn a_worker_whose_provider_reports_no_usage_still_reports_its_turn() {
+        let conversation = conversation(vec![
             Message::user().with_text("ping"),
             Message::assistant().with_text("pong"),
-        ];
-        assert!(messages[1].metadata.usage.is_none());
+        ]);
+        assert!(conversation.messages()[1].metadata.usage.is_none());
 
-        assert_eq!(count_turns(&messages), 1);
+        assert_eq!(turns_in(&conversation), 1);
     }
 
     #[test]
-    fn a_retry_that_replaces_the_conversation_opens_a_new_turn() {
-        let in_assistant_turn = AtomicBool::new(false);
-        let first_attempt = [
-            Message::user().with_text("write the report"),
-            Message::assistant().with_text("here it is"),
-        ];
-        for message in &first_attempt {
-            opens_agent_turn(message, &in_assistant_turn);
-        }
-
-        // The recipe success check fails, the agent replaces the conversation and
-        // runs again. Only `HistoryReplaced` marks that boundary, so without the
-        // reset the retry would read as more of the previous answer.
-        in_assistant_turn.store(false, Ordering::Relaxed);
-
-        let retry = Message::assistant().with_text("here it is, corrected");
-        assert!(opens_agent_turn(&retry, &in_assistant_turn));
-    }
-
-    #[test]
-    fn compaction_banners_do_not_open_turns_of_their_own() {
-        let in_assistant_turn = AtomicBool::new(false);
-        let mut turns = 0;
-
-        // Proactive compaction: two banners, then the history swap, then a third.
-        let before_swap = [
-            Message::user().with_text("summarize the whole thread"),
-            Message::assistant().with_system_notification(
-                SystemNotificationType::InlineMessage,
-                "Exceeded auto-compact threshold of 80%. Performing auto-compaction...",
-            ),
-            Message::assistant().with_system_notification(
-                SystemNotificationType::ProgressMessage,
-                "goose is compacting the conversation...",
-            ),
-        ];
-        for message in &before_swap {
-            if opens_agent_turn(message, &in_assistant_turn) {
-                turns += 1;
-            }
-        }
-
-        in_assistant_turn.store(false, Ordering::Relaxed);
-
-        let after_swap = [
-            Message::assistant().with_system_notification(
-                SystemNotificationType::InlineMessage,
-                "Compaction complete",
-            ),
-            Message::assistant().with_text("here is the summary"),
-        ];
-        for message in &after_swap {
-            if opens_agent_turn(message, &in_assistant_turn) {
-                turns += 1;
-            }
-        }
-
-        assert_eq!(turns, 1);
-    }
-
-    #[test]
-    fn a_message_that_carries_content_beside_a_banner_still_counts() {
-        let in_assistant_turn = AtomicBool::new(false);
-        let mixed = Message::assistant()
-            .with_system_notification(SystemNotificationType::InlineMessage, "heads up")
-            .with_text("and the answer");
-
-        assert!(opens_agent_turn(&mixed, &in_assistant_turn));
+    fn an_empty_conversation_reports_no_turns() {
+        assert_eq!(turns_in(&Conversation::empty()), 0);
     }
 
     #[test]
@@ -3770,7 +3714,6 @@ You review code."#;
                     id: "20260204_1".to_string(),
                     description: "Running task".to_string(),
                     started_at: Instant::now(),
-                    turns: Arc::new(AtomicU32::new(2)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -3903,7 +3846,6 @@ You review code."#;
                     id: task_id.to_string(),
                     description: "Cancellable task".to_string(),
                     started_at: Instant::now(),
-                    turns: Arc::new(AtomicU32::new(3)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async move {
                         task_token.cancelled().await;
@@ -3953,7 +3895,6 @@ You review code."#;
                 id: task_id.to_string(),
                 description: "Cancellable task".to_string(),
                 started_at: Instant::now(),
-                turns: Arc::new(AtomicU32::new(1)),
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     task_token.cancelled().await;
@@ -4013,7 +3954,6 @@ You review code."#;
                 id: task_id.to_string(),
                 description: "Running task".to_string(),
                 started_at: Instant::now(),
-                turns: Arc::new(AtomicU32::new(1)),
                 last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                 handle: tokio::spawn(async move {
                     finish_rx.await.unwrap();
@@ -4072,7 +4012,6 @@ You review code."#;
                     id: "20260204_1".to_string(),
                     description: "Long running analysis".to_string(),
                     started_at: Instant::now(),
-                    turns: Arc::new(AtomicU32::new(7)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_secs(1000)).await;
