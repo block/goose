@@ -299,8 +299,13 @@ bump-version version:
     @just validate {{ version }} || exit 1
     @uvx --from=toml-cli toml set --toml-path=Cargo.toml "workspace.package.version" {{ version }}
     @cd ui/desktop && npm pkg set "version={{ version }}"
+    @node ui/scripts/npm-versions.mjs set {{ version }}
     # update Cargo.lock after bumping versions in Cargo.toml
     @cargo update --workspace
+    @just check-npm-versions
+
+check-npm-versions:
+    @node ui/scripts/npm-versions.mjs check
 
 # rebuild canonical model registry and mapping report from models.dev
 build-canonical-models:
@@ -314,6 +319,9 @@ prepare-release version:
         Cargo.toml \
         Cargo.lock \
         ui/desktop/package.json \
+        ui/goose-acp-client/package.json \
+        ui/goose-acp/package.json \
+        ui/goose-binary/*/package.json \
         ui/pnpm-lock.yaml \
         crates/goose-provider-types/src/canonical/data/canonical_models.json \
         crates/goose-provider-types/src/canonical/data/provider_metadata.json

@@ -1,6 +1,6 @@
 {
   "name": "@aaif/goose-acp",
-  "version": "0.20.2",
+  "version": "1.49.0",
   "description": "Install and resolve the Goose executable through npm",
   "license": "Apache-2.0",
   "repository": {
@@ -38,11 +38,11 @@
     "prepack": "npm run build"
   },
   "optionalDependencies": {
-    "@aaif/goose-binary-darwin-arm64": "workspace:0.20.2",
-    "@aaif/goose-binary-darwin-x64": "workspace:0.20.2",
-    "@aaif/goose-binary-linux-arm64": "workspace:0.20.2",
-    "@aaif/goose-binary-linux-x64": "workspace:0.20.2",
-    "@aaif/goose-binary-win32-x64": "workspace:0.20.2"
+    "@aaif/goose-binary-darwin-arm64": "workspace:*",
+    "@aaif/goose-binary-darwin-x64": "workspace:*",
+    "@aaif/goose-binary-linux-arm64": "workspace:*",
+    "@aaif/goose-binary-linux-x64": "workspace:*",
+    "@aaif/goose-binary-win32-x64": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
