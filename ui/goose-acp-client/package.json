@@ -31,7 +31,7 @@
     "build:ts": "tsc",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
-    "format": "prettier --write src/",
+    "format": "prettier --write src/ generate-schema.ts scripts/",
     "check:compat": "node scripts/check-binary-compat.mjs"
   },
   "dependencies": {

@@ -45,12 +45,13 @@ async function connectToGoose(stream: Stream) {
     clientCapabilities: {},
   });
 
-  return goose.providersList_unstable({ providerIds: [] });
+  return { connection, goose };
 }
 ```
 
 The application creates and owns the `stream`, including its connection and
-process lifecycle.
+process lifecycle. Call `connection.close()` when the application no longer
+needs the connection.
 
 ## Development
 

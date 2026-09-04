@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import test from "node:test";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import * as publicApi from "../dist/index.js";
 import { resolveGooseBinaryForRuntime } from "../dist/resolve-binary.js";
@@ -13,6 +15,18 @@ const supportedPlatforms = [
   ["win32", "x64", "@aaif/goose-binary-win32-x64", "goose.exe"],
 ];
 
+function setGooseBinary(t, value) {
+  const original = process.env.GOOSE_BINARY;
+  process.env.GOOSE_BINARY = value;
+  t.after(() => {
+    if (original === undefined) {
+      delete process.env.GOOSE_BINARY;
+    } else {
+      process.env.GOOSE_BINARY = original;
+    }
+  });
+}
+
 for (const [
   platform,
   arch,
@@ -22,11 +36,12 @@ for (const [
   test(`resolves ${platform}-${arch}`, () => {
     let resolvedSpecifier;
     let checkedPath;
+    const fixturePackageRoot = join("/fixtures", packageName);
 
     const result = resolveGooseBinaryForRuntime(platform, arch, {
       resolvePackageJson(specifier) {
         resolvedSpecifier = specifier;
-        return `/fixtures/${packageName}/package.json`;
+        return join(fixturePackageRoot, "package.json");
       },
       isFile(path) {
         checkedPath = path;
@@ -35,7 +50,7 @@ for (const [
     });
 
     assert.equal(resolvedSpecifier, `${packageName}/package.json`);
-    assert.equal(result, `/fixtures/${packageName}/bin/${executableName}`);
+    assert.equal(result, resolve(fixturePackageRoot, "bin", executableName));
     assert.equal(checkedPath, result);
     assert.equal(isAbsolute(result), true);
   });
@@ -43,6 +58,28 @@ for (const [
 
 test("exports only the public resolver from the package root", () => {
   assert.deepEqual(Object.keys(publicApi), ["resolveGooseBinary"]);
+});
+
+test("uses GOOSE_BINARY as an explicit override", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "goose-acp-override-"));
+  const binaryPath = join(directory, "goose");
+  writeFileSync(binaryPath, "");
+  setGooseBinary(t, relative(process.cwd(), binaryPath));
+
+  t.after(() => {
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  assert.equal(publicApi.resolveGooseBinary(), binaryPath);
+});
+
+test("rejects an invalid GOOSE_BINARY override", (t) => {
+  setGooseBinary(t, "missing-goose-binary");
+
+  assert.throws(
+    () => publicApi.resolveGooseBinary(),
+    /GOOSE_BINARY does not point to a file/,
+  );
 });
 
 test("reports unsupported platform and architecture combinations", () => {
@@ -80,7 +117,10 @@ test("reports a missing executable in an installed platform package", () => {
     () =>
       resolveGooseBinaryForRuntime("darwin", "arm64", {
         resolvePackageJson() {
-          return "/fixtures/@aaif/goose-binary-darwin-arm64/package.json";
+          return join(
+            "/fixtures",
+            "@aaif/goose-binary-darwin-arm64/package.json",
+          );
         },
         isFile() {
           return false;

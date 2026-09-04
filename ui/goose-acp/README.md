@@ -13,16 +13,37 @@ npm install @aaif/goose-acp
 
 ## Usage
 
+Run the Goose CLI installed by the package:
+
+```bash
+npx goose acp
+npx goose serve
+```
+
+The launcher forwards arguments and standard input, output, and error streams to
+the native executable. It preserves the executable's exit status and forwards
+termination signals.
+
+Resolve the executable path programmatically:
+
 ```typescript
 import { resolveGooseBinary } from "@aaif/goose-acp";
 
 const binaryPath = resolveGooseBinary();
 ```
 
-`resolveGooseBinary()` selects the package matching `process.platform` and
-`process.arch`, verifies that its executable exists, and returns an absolute
-path. It resolves only the npm-provided executable and does not read
-`GOOSE_BINARY`.
+`resolveGooseBinary()` first uses `GOOSE_BINARY` when it is set. Otherwise, it
+selects the package matching `process.platform` and `process.arch`. In both
+cases it verifies that the executable exists and returns an absolute path.
+
+Use the override to run a locally built or custom Goose executable:
+
+```bash
+GOOSE_BINARY=/path/to/goose npx goose acp
+```
+
+`GOOSE_BINARY` must point directly to a native Goose executable, not a
+`node_modules/.bin/goose` command shim.
 
 Supported platforms:
 

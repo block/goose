@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Compatibility smoke test: boot the freshly-built goose binary via `goose acp`
-// and call every read-only ACP method through the freshly-built SDK. The
+// and call every read-only ACP method through the freshly-built client. The
 // generated client validates every response with Zod, so any schema drift
 // between the binary and the client fails this check and blocks the
 // publish.
@@ -16,8 +16,9 @@ import { mkdtempSync, rmSync, existsSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const CLIENT_ROOT = resolve(new URL("..", import.meta.url).pathname);
+const CLIENT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CLIENT_DIST = join(CLIENT_ROOT, "dist");
 
 if (!existsSync(CLIENT_DIST)) {
@@ -35,7 +36,9 @@ if (!GOOSE_BINARY || !existsSync(GOOSE_BINARY)) {
   process.exit(1);
 }
 
-const { GooseExtClient } = await import(join(CLIENT_DIST, "index.js"));
+const { GooseExtClient } = await import(
+  pathToFileURL(join(CLIENT_DIST, "index.js")).href
+);
 const {
   client: createAcpClient,
   methods,
@@ -193,7 +196,7 @@ if (failed > 0) {
     "[compat] This means the generated client schema doesn't match what",
   );
   console.error(
-    "[compat] the goose binary returns. Regenerate the SDK or fix the server DTO.",
+    "[compat] the goose binary returns. Regenerate the client or fix the server DTO.",
   );
   process.exit(1);
 }

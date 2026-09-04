@@ -23,14 +23,18 @@
       "default": "./dist/index.js"
     }
   },
+  "bin": {
+    "goose": "./bin/goose.mjs"
+  },
   "files": [
+    "bin",
     "dist"
   ],
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test test/*.test.mjs",
     "lint": "tsc --noEmit",
-    "format": "prettier --write src/ test/",
+    "format": "prettier --write src/ test/ bin/",
     "prepack": "npm run build"
   },
   "optionalDependencies": {

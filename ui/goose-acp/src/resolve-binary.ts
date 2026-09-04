@@ -29,6 +29,15 @@ const resolverDependencies: BinaryResolverDependencies = {
 };
 
 export function resolveGooseBinary(): string {
+  const override = process.env.GOOSE_BINARY?.trim();
+  if (override) {
+    const binaryPath = resolve(override);
+    if (!resolverDependencies.isFile(binaryPath)) {
+      throw new Error(`GOOSE_BINARY does not point to a file: ${binaryPath}.`);
+    }
+    return binaryPath;
+  }
+
   return resolveGooseBinaryForRuntime(
     process.platform,
     process.arch,
