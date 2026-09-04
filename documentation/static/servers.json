@@ -233,6 +233,17 @@
     "environmentVariables": []
   },
   {
+    "id": "deja",
+    "name": "deja-vu",
+    "description": "Memory from the coding sessions already on this machine \u2014 Goose, Claude Code, Codex, Cursor and 18 more \u2014 searchable and recalled before a turn; no model, no API key",
+    "command": "deja mcp",
+    "link": "https://vshulcz.github.io/deja-vu/guide/memory-for-goose.html",
+    "installation_notes": "Install the deja binary first: brew install deja-vu (or go install github.com/vshulcz/deja-vu/cmd/deja@latest). The first call indexes the session history already on the machine.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "developer",
     "name": "Developer",
     "description": "Built-in developer tools for file editing and shell command execution",
