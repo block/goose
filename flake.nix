@@ -38,7 +38,7 @@
         ];
         
         buildInputs = commonInputs
-          ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin darwinInputs;
       in
       {
         packages = rec {
@@ -92,7 +92,7 @@
               cacert       # CA certificates for tests
               libxcb       # Required for xcap screenshot functionality
               dbus         # Required for system integration features
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin darwinInputs;
 
             # Build only the CLI package
             cargoBuildFlags = [ "--package" "goose-cli" ];
@@ -130,8 +130,8 @@
               pname = "goose-ui";
               inherit version;
               src = ./ui;
-              fetcherVersion = 3;
-              hash = "sha256-FpnWCJsytxJ5w9yqWayU2ZNDCm7RgubU34ouIeNWqfA=";
+              fetcherVersion = 4;
+              hash = "sha256-HzteTM6tdzi+bApkSrwFuBp8Sd62m0pHA3d1KVSh+5o=";
             };
 
             nativeBuildInputs = with pkgs; [
@@ -153,11 +153,11 @@
               cd desktop
               pnpm run i18n:compile
 
-              echo "=== Building Main Process ==="
-              node scripts/build-main.js
-
               echo "=== Building Preload ==="
               pnpm exec vite build --config vite.preload.config.mts
+
+              echo "=== Building Main Process ==="
+              node scripts/build-main.js
 
               echo "=== Building Renderer ==="
               pnpm exec vite build --config vite.renderer.config.mts --outDir .vite/renderer/main_window
@@ -168,28 +168,36 @@
             installPhase = ''
               runHook preInstall
 
+              cd "$NIX_BUILD_TOP/source/ui/desktop"
+
               mkdir -p $out/share/goose $out/share/goose/resources/bin $out/share/goose/src/bin $out/bin
 
-              # Copy built frontend assets and images
+              # Copy built frontend assets, package manifest, and images
               cp -r .vite package.json src/images $out/share/goose/
-              mkdir -p $out/share/goose/src
+              mkdir -p $out/share/goose/src $out/share/goose/.vite/build
               cp -r src/images $out/share/goose/src/
               cp -r src/images $out/share/goose/images
-
+              cp -r src/images $out/share/goose/.vite/images
+              cp -r src/images $out/share/goose/.vite/build/images
               # Inject compiled goose CLI backend binary
               cp ${goose-cli}/bin/goose $out/share/goose/resources/bin/goose
               cp ${goose-cli}/bin/goose $out/share/goose/src/bin/goose
               chmod +x $out/share/goose/resources/bin/goose $out/share/goose/src/bin/goose
 
-              # Copy runtime modules if present
-              if [ -d "node_modules/electron-squirrel-startup" ]; then
-                mkdir -p $out/share/goose/node_modules
-                cp -r node_modules/electron-squirrel-startup $out/share/goose/node_modules/
+              # Provide electron-squirrel-startup runtime module
+              mkdir -p $out/share/goose/node_modules
+              if [ -e "node_modules/electron-squirrel-startup" ]; then
+                cp -rL node_modules/electron-squirrel-startup $out/share/goose/node_modules/
+              else
+                mkdir -p $out/share/goose/node_modules/electron-squirrel-startup
+                echo 'module.exports = false;' > $out/share/goose/node_modules/electron-squirrel-startup/index.js
+                echo '{"name":"electron-squirrel-startup","version":"1.0.0","main":"index.js"}' > $out/share/goose/node_modules/electron-squirrel-startup/package.json
               fi
 
-              # Wrap with system Electron
+              # Wrap with system Electron pointing to app directory
               makeWrapper ${pkgs.electron}/bin/electron $out/bin/goose-desktop \
-                --add-flags "$out/share/goose/.vite/build/main.js" \
+                --add-flags "$out/share/goose" \
+                --set GOOSE_BINARY "$out/share/goose/resources/bin/goose" \
                 --prefix PATH : ${pkgs.lib.makeBinPath (with pkgs; [ git uv ])}
 
               # Install desktop icons

@@ -35,6 +35,9 @@ async function buildMain() {
             'util'
           ]
         }
+      },
+      ssr: {
+        noExternal: true
       }
     });
 
