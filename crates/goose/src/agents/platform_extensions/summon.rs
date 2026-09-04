@@ -16,11 +16,11 @@ use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_agent::operation::assistant_turn_count;
+use goose_agent::operation::messages_since_kickoff;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    MetaObject, ServerCapabilities, ServerNotification, Tool,
+    MetaObject, Role, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -40,6 +40,31 @@ pub static EXTENSION_NAME: &str = "summon";
 const SUBAGENT_DESCRIPTION_BUDGET: usize = 160;
 
 const TASK_LABEL_BUDGET: usize = 60;
+
+fn durable_assistant_turn_count(conversation: &crate::conversation::Conversation) -> u32 {
+    let Ok(messages) = messages_since_kickoff(conversation) else {
+        return 0;
+    };
+    let mut turns = 0;
+    let mut in_assistant_block = false;
+    for message in messages.iter().rev() {
+        // Compaction summaries and continuation prompts are assistant-role
+        // scaffolding, but are not user-visible task turns. Ignore them
+        // without merging across a hidden user replay below.
+        if message.role == Role::Assistant && !message.is_user_visible() {
+            continue;
+        }
+        if message.role == Role::Assistant {
+            if !in_assistant_block {
+                turns += 1;
+                in_assistant_block = true;
+            }
+        } else {
+            in_assistant_block = false;
+        }
+    }
+    turns
+}
 
 fn kind_plural(kind: SourceType) -> &'static str {
     match kind {
@@ -1871,8 +1896,8 @@ impl SummonClient {
             .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
     }
 
-    /// Count durable assistant-role blocks rather than transient stream events.
-    /// This is the same turn definition used by state-machine max-turn checks.
+    /// Count durable, user-visible assistant blocks in the active task turn,
+    /// excluding assistant-only compaction scaffolding.
     async fn refresh_task_turns(&self, task_id: &str, cached_turns: &AtomicU32) -> u32 {
         match self
             .context
@@ -1884,7 +1909,7 @@ impl SummonClient {
                 let turns = session
                     .conversation
                     .as_ref()
-                    .map(|conversation| assistant_turn_count(conversation.messages()))
+                    .map(durable_assistant_turn_count)
                     .unwrap_or_default();
                 cached_turns.store(turns, Ordering::Relaxed);
                 turns
@@ -3889,6 +3914,66 @@ You review code."#;
             meta.0.get("task_status"),
             Some(&serde_json::json!("completed"))
         );
+    }
+
+    #[test]
+    fn test_durable_turn_count_ignores_compaction_scaffolding() {
+        let compacted_tool_loop = crate::conversation::Conversation::new_unvalidated(vec![
+            Message::user()
+                .with_text("Previous task")
+                .with_visibility(true, false),
+            Message::assistant()
+                .with_text("Previous result")
+                .with_visibility(true, false),
+            Message::user()
+                .with_text("Inspect the project")
+                .with_visibility(true, false),
+            Message::assistant()
+                .with_tool_request(
+                    "tool-1",
+                    Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                )
+                .with_visibility(true, false),
+            Message::user()
+                .with_tool_response(
+                    "tool-1",
+                    Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+                )
+                .with_visibility(true, false),
+            // A later compaction archives its earlier agent-only scaffold.
+            Message::assistant()
+                .with_text("<older summary>")
+                .with_visibility(false, false),
+            Message::user()
+                .with_text("Inspect the project")
+                .with_visibility(false, false),
+            Message::assistant()
+                .with_text("<summary of earlier work>")
+                .with_text("Continue from the compacted context")
+                .agent_only(),
+            Message::user()
+                .with_text("Inspect the project")
+                .agent_only(),
+            Message::assistant().with_text("Inspection complete"),
+        ]);
+        assert_eq!(durable_assistant_turn_count(&compacted_tool_loop), 2);
+
+        // Keep the hidden projected user message as a role boundary. Dropping
+        // every agent-only message would merge the failed and retried replies.
+        let compacted_retry = crate::conversation::Conversation::new_unvalidated(vec![
+            Message::user()
+                .with_text("Inspect the project")
+                .with_visibility(true, false),
+            Message::assistant()
+                .with_text("Context window exceeded")
+                .with_visibility(true, false),
+            Message::assistant().with_text("<summary>").agent_only(),
+            Message::user()
+                .with_text("Inspect the project")
+                .agent_only(),
+            Message::assistant().with_text("Inspection complete"),
+        ]);
+        assert_eq!(durable_assistant_turn_count(&compacted_retry), 2);
     }
 
     #[tokio::test]
