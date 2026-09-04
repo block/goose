@@ -8,6 +8,15 @@
 //! which a stalled stream never produces, and surface a retryable
 //! [`ProviderError::NetworkError`] when the stream goes idle.
 //!
+//! Non-data means: comment frames (`: ...`), blank separators, SSE control
+//! fields (`event:`, `id:`, `retry:`), and `data:` fields with an empty
+//! payload — none of which the downstream parsers can turn into progress, so
+//! none of them may hold the watchdog off. Payload-bearing events do reset
+//! the timer, including protocol-level pings such as Anthropic's
+//! `data: {"type":"ping"}`: telling those apart from real progress needs
+//! per-provider payload knowledge, which this line-level watchdog
+//! deliberately does not have.
+//!
 //! The idle deadline is never enforced before the stream's first line, so
 //! time-to-first-line stays governed by the request timeout — preserving slow
 //! starts (reasoning models, queued gateways, large local models) while still
@@ -36,11 +45,38 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
     (secs > 0).then(|| Duration::from_secs(secs))
 }
 
-fn is_data_line(line: &str) -> bool {
-    !line.trim().is_empty() && !line.starts_with(':')
+/// SSE field names that never carry payload. A live stream always pairs
+/// them with a `data:` line, so exempting them from the idle deadline cannot
+/// turn a slow-but-live stream into a stall.
+const SSE_CONTROL_FIELDS: &[&str] = &["event", "id", "retry"];
+
+/// The value of an SSE `name: value` field line, with the single leading
+/// space the spec allows stripped; `None` when `line` is not that field.
+fn sse_field<'a>(line: &'a str, name: &str) -> Option<&'a str> {
+    let value = line.strip_prefix(name)?.strip_prefix(':')?;
+    Some(value.strip_prefix(' ').unwrap_or(value))
 }
 
-fn stall_error(idle: Duration, keepalive_frames: u64) -> anyhow::Error {
+fn is_data_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed.starts_with(':') {
+        return false;
+    }
+    if SSE_CONTROL_FIELDS
+        .iter()
+        .any(|field| sse_field(trimmed, field).is_some())
+    {
+        return false;
+    }
+    // An empty `data:` payload dispatches an event the parsers skip, so it
+    // is not progress either.
+    match sse_field(trimmed, "data") {
+        Some(value) => !value.trim().is_empty(),
+        None => true,
+    }
+}
+
+fn stall_error(idle: Duration, keepalive_frames: u64, env_var: &str) -> anyhow::Error {
     let detail = if keepalive_frames > 0 {
         format!("{keepalive_frames} keepalive frames kept arriving")
     } else {
@@ -48,8 +84,8 @@ fn stall_error(idle: Duration, keepalive_frames: u64) -> anyhow::Error {
     };
     anyhow::Error::new(ProviderError::NetworkError(format!(
         "Stream stalled: no data received for {}s ({detail}). \
-         Raise {STREAM_TIMEOUT_ENV_VAR} if this provider queues requests \
-         slowly, or set it to 0 to disable this watchdog.",
+         Raise {env_var} if this provider streams data slowly, or set it to \
+         0 to disable this watchdog.",
         idle.as_secs()
     )))
 }
@@ -62,22 +98,29 @@ where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     match resolve_stream_idle_timeout() {
-        Some(idle) => with_stream_idle_timeout_after_first_line(stream, idle),
+        Some(idle) => {
+            with_stream_idle_timeout_after_first_line(stream, idle, STREAM_TIMEOUT_ENV_VAR)
+        }
         None => Box::pin(stream),
     }
 }
 
 /// Pass lines through untouched, but error when no data-bearing line has
 /// arrived for `idle` since the previous one (or since stream start). SSE
-/// comment frames (`: ...`) and blank separators do not extend the deadline.
+/// comment frames (`: ...`), blank separators, control fields (`event:`,
+/// `id:`, `retry:`), and empty `data:` fields do not extend the deadline.
 ///
 /// This is the eager core: the deadline applies from the first poll. Prefer
 /// [`with_stream_idle_timeout_after_first_line`], which exempts time to first
 /// line, for provider streams.
 ///
+/// `env_var` is the variable named in the stall error's remediation; callers
+/// that resolve the timeout from a different variable pass its name so the
+/// advice points at a knob that actually takes effect.
+///
 /// The timer is poll-driven (the deadline is only evaluated while the stream
 /// is being polled), so a consumer that stops polling cannot trip it.
-pub fn with_stream_idle_timeout<S>(stream: S, idle: Duration) -> LineStream
+pub fn with_stream_idle_timeout<S>(stream: S, idle: Duration, env_var: &'static str) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -100,13 +143,16 @@ where
                         if let Some(next) = tokio::time::Instant::now().checked_add(idle) {
                             deadline = next;
                         }
-                    } else if line.starts_with(':') {
+                    } else if !line.trim().is_empty() {
+                        // Any non-blank line that carries no payload —
+                        // comment frames, control fields, empty data fields —
+                        // is a keepalive.
                         keepalive_frames += 1;
                     }
                     yield line;
                 }
                 Ok(None) => break,
-                Err(_) => Err::<(), anyhow::Error>(stall_error(idle, keepalive_frames))?,
+                Err(_) => Err::<(), anyhow::Error>(stall_error(idle, keepalive_frames, env_var))?,
             }
         }
     })
@@ -116,17 +162,22 @@ where
 /// until the stream yields its first line: time-to-first-line stays governed by
 /// the request timeout. This preserves slow starts — reasoning models, queued
 /// gateways, large local models can all take minutes before the first token —
-/// while still catching stalls that keepalive comments would otherwise mask,
-/// since those comments are lines that arm the timer.
-pub fn with_stream_idle_timeout_after_first_line<S>(mut stream: S, idle: Duration) -> LineStream
+/// while still catching stalls that keepalive lines would otherwise mask,
+/// since those lines arm the timer.
+pub fn with_stream_idle_timeout_after_first_line<S>(
+    stream: S,
+    idle: Duration,
+    env_var: &'static str,
+) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     Box::pin(async_stream::try_stream! {
+        let mut stream = stream;
         if let Some(item) = stream.next().await {
             yield item?;
         }
-        let mut watched = with_stream_idle_timeout(stream, idle);
+        let mut watched = with_stream_idle_timeout(stream, idle, env_var);
         while let Some(item) = watched.next().await {
             yield item?;
         }
@@ -184,11 +235,33 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn flowing_stream_passes_all_lines_through() {
         let watched = with_stream_idle_timeout(
-            finite_lines(vec!["data: {\"a\":1}", ": ping", "", "data: [DONE]"]),
+            finite_lines(vec![
+                "event: message_start",
+                "data: {\"a\":1}",
+                ": ping",
+                "data:",
+                "id: 7",
+                "retry: 3000",
+                "",
+                "data: [DONE]",
+            ]),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         );
         let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
-        assert_eq!(collected, ["data: {\"a\":1}", ": ping", "", "data: [DONE]"]);
+        assert_eq!(
+            collected,
+            [
+                "event: message_start",
+                "data: {\"a\":1}",
+                ": ping",
+                "data:",
+                "id: 7",
+                "retry: 3000",
+                "",
+                "data: [DONE]"
+            ]
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -196,10 +269,27 @@ mod tests {
         let err = first_stall_error(with_stream_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ": ping"),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         ))
         .await;
         assert_keepalive_masked_stall(&err);
         assert!(err.to_string().contains("150"), "got: {err}");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sse_control_heartbeats_do_not_reset_the_timer() {
+        // Gateways that heartbeat with control fields or empty data fields
+        // instead of comments must not mask a stall either: the parsers skip
+        // all of these shapes.
+        for heartbeat in ["event: ping", "id: 7", "retry: 3000", "data:", "data:   "] {
+            let err = first_stall_error(with_stream_idle_timeout(
+                data_then_repeating("data: {\"a\":1}", heartbeat),
+                Duration::from_secs(150),
+                STREAM_TIMEOUT_ENV_VAR,
+            ))
+            .await;
+            assert_keepalive_masked_stall(&err);
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -211,8 +301,11 @@ mod tests {
             yield Ok("data: {\"a\":1}".to_string());
             yield Ok("data: [DONE]".to_string());
         });
-        let watched =
-            with_stream_idle_timeout_after_first_line(slow_start, Duration::from_secs(150));
+        let watched = with_stream_idle_timeout_after_first_line(
+            slow_start,
+            Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
+        );
         let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
         assert_eq!(collected, ["data: {\"a\":1}", "data: [DONE]"]);
     }
@@ -222,6 +315,7 @@ mod tests {
         let mut watched = with_stream_idle_timeout_after_first_line(
             data_then_repeating(": ping", ": ping"),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         );
         assert_eq!(watched.next().await.unwrap().unwrap(), ": ping");
         assert_keepalive_masked_stall(&first_stall_error(watched).await);
@@ -232,6 +326,7 @@ mod tests {
         let watched = with_stream_idle_timeout_after_first_line(
             finite_lines(vec![]),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         );
         let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
         assert!(collected.is_empty());
@@ -242,6 +337,7 @@ mod tests {
         let err = first_stall_error(with_stream_idle_timeout(
             silent_after_data(),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         ))
         .await;
         let message = err.to_string();
@@ -250,10 +346,27 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn stall_error_names_the_configured_env_var() {
+        // Paths that resolve the timeout from a provider-specific variable
+        // (Ollama: OLLAMA_STREAM_TIMEOUT) must have the stall error point at
+        // that variable, not the shared one.
+        let err = first_stall_error(with_stream_idle_timeout(
+            silent_after_data(),
+            Duration::from_secs(150),
+            "OLLAMA_STREAM_TIMEOUT",
+        ))
+        .await;
+        let message = err.to_string();
+        assert!(message.contains("OLLAMA_STREAM_TIMEOUT"), "got: {message}");
+        assert!(!message.contains("GOOSE_STREAM_TIMEOUT"), "got: {message}");
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn blank_lines_do_not_reset_the_timer() {
         let err = first_stall_error(with_stream_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ""),
             Duration::from_secs(150),
+            STREAM_TIMEOUT_ENV_VAR,
         ))
         .await;
         let message = err.to_string();

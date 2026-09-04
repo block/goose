@@ -148,10 +148,12 @@ pub fn options_from_config() -> OllamaOptions {
         }
     };
 
+    let (chunk_timeout_secs, chunk_timeout_env) = resolve_ollama_chunk_timeout(config);
     OllamaOptions {
         input_limit,
         stream_usage,
-        chunk_timeout_secs: resolve_ollama_chunk_timeout(config),
+        chunk_timeout_secs,
+        chunk_timeout_env,
     }
 }
 
@@ -160,16 +162,22 @@ pub fn options_from_config() -> OllamaOptions {
 /// An explicit 0 on either stream variable disables the watchdog, matching
 /// `GOOSE_STREAM_TIMEOUT=0` elsewhere; zero values of the general
 /// OLLAMA_TIMEOUT are ignored (they are not stream-specific opt-outs).
-fn resolve_ollama_chunk_timeout(config: &crate::config::Config) -> u64 {
+/// Also returns the stream variable that won, so stall errors name the knob
+/// that actually takes effect; when OLLAMA_TIMEOUT or the default wins, that
+/// knob is GOOSE_STREAM_TIMEOUT, which outranks both.
+fn resolve_ollama_chunk_timeout(config: &crate::config::Config) -> (u64, &'static str) {
     for key in ["OLLAMA_STREAM_TIMEOUT", "GOOSE_STREAM_TIMEOUT"] {
         if let Ok(val) = config.get_param::<u64>(key) {
-            return val;
+            return (val, key);
         }
     }
-    match config.get_param::<u64>("OLLAMA_TIMEOUT") {
-        Ok(val) if val > 0 => val,
-        _ => OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS,
-    }
+    (
+        match config.get_param::<u64>("OLLAMA_TIMEOUT") {
+            Ok(val) if val > 0 => val,
+            _ => OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS,
+        },
+        "GOOSE_STREAM_TIMEOUT",
+    )
 }
 
 #[cfg(test)]
@@ -184,7 +192,10 @@ mod tests {
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 300);
+        assert_eq!(
+            resolve_ollama_chunk_timeout(config),
+            (300, "GOOSE_STREAM_TIMEOUT")
+        );
     }
 
     #[test]
@@ -195,7 +206,10 @@ mod tests {
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 60);
+        assert_eq!(
+            resolve_ollama_chunk_timeout(config),
+            (60, "OLLAMA_STREAM_TIMEOUT")
+        );
     }
 
     #[test]
@@ -206,7 +220,10 @@ mod tests {
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 90);
+        assert_eq!(
+            resolve_ollama_chunk_timeout(config),
+            (90, "GOOSE_STREAM_TIMEOUT")
+        );
     }
 
     #[test]
@@ -219,7 +236,7 @@ mod tests {
         let config = crate::config::Config::global();
         assert_eq!(
             resolve_ollama_chunk_timeout(config),
-            OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS
+            (OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, "GOOSE_STREAM_TIMEOUT")
         );
     }
 
@@ -231,7 +248,10 @@ mod tests {
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 0);
+        assert_eq!(
+            resolve_ollama_chunk_timeout(config),
+            (0, "OLLAMA_STREAM_TIMEOUT")
+        );
     }
 
     #[test]
@@ -242,7 +262,10 @@ mod tests {
             ("OLLAMA_TIMEOUT", Some("300")),
         ]);
         let config = crate::config::Config::global();
-        assert_eq!(resolve_ollama_chunk_timeout(config), 0);
+        assert_eq!(
+            resolve_ollama_chunk_timeout(config),
+            (0, "GOOSE_STREAM_TIMEOUT")
+        );
     }
 
     #[test]
@@ -255,7 +278,7 @@ mod tests {
         let config = crate::config::Config::global();
         assert_eq!(
             resolve_ollama_chunk_timeout(config),
-            OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS
+            (OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, "GOOSE_STREAM_TIMEOUT")
         );
     }
 }
