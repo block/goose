@@ -31,7 +31,8 @@
     "build:ts": "tsc",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
-    "format": "prettier --write src/ generate-schema.ts"
+    "format": "prettier --write src/ generate-schema.ts",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^0.3.1",

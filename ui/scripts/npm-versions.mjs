@@ -99,16 +99,41 @@ function checkVersions() {
   console.log(`Goose versions are aligned at ${expectedVersion}`);
 }
 
-const [command, version] = process.argv.slice(2);
+function checkPackedWrapper(path) {
+  const expectedVersion = readCargoVersion();
+  const wrapper = readJson(resolve(path));
+  const errors = [];
+
+  for (const packageName of binaryPackages) {
+    const actualSpecifier = wrapper.optionalDependencies?.[packageName];
+    if (actualSpecifier !== expectedVersion) {
+      errors.push(
+        `${packageName} uses ${actualSpecifier ?? "no specifier"}; expected ${expectedVersion}`,
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Packed Goose wrapper version check failed:\n- ${errors.join("\n- ")}`,
+    );
+  }
+
+  console.log(`Packed Goose wrapper uses binary version ${expectedVersion}`);
+}
+
+const [command, argument] = process.argv.slice(2);
 
 try {
-  if (command === "set" && version) {
-    setVersions(version);
-  } else if (command === "check" && !version) {
+  if (command === "set" && argument) {
+    setVersions(argument);
+  } else if (command === "check" && !argument) {
     checkVersions();
+  } else if (command === "check-packed-wrapper" && argument) {
+    checkPackedWrapper(argument);
   } else {
     throw new Error(
-      "Usage: node ui/scripts/npm-versions.mjs <set VERSION|check>",
+      "Usage: node ui/scripts/npm-versions.mjs <set VERSION|check|check-packed-wrapper PATH>",
     );
   }
 } catch (error) {
