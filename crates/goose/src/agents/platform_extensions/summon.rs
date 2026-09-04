@@ -1412,6 +1412,7 @@ impl SummonClient {
             session_id: subagent_session.id,
             cancellation_token: Some(cancellation_token),
             on_message: None,
+            on_history_replaced: None,
             notification_tx: None,
         };
         let result = Self::run_subagent_with_notifications(
@@ -2010,6 +2011,7 @@ impl SummonClient {
         let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
         let in_assistant_turn = Arc::new(AtomicBool::new(false));
+        let in_assistant_turn_reset = Arc::clone(&in_assistant_turn);
 
         let on_message: OnMessageCallback = Arc::new(move |msg| {
             if opens_agent_turn(msg, &in_assistant_turn) {
@@ -2033,6 +2035,9 @@ impl SummonClient {
                 session_id: subagent_session.id,
                 cancellation_token: Some(task_token_clone),
                 on_message: Some(on_message),
+                on_history_replaced: Some(Arc::new(move || {
+                    in_assistant_turn_reset.store(false, Ordering::Relaxed);
+                })),
                 notification_tx: None,
             };
             Self::run_subagent_with_notifications(task_notification_sink, move |notification_tx| {
@@ -2326,6 +2331,26 @@ mod tests {
         assert!(messages[1].metadata.usage.is_none());
 
         assert_eq!(count_turns(&messages), 1);
+    }
+
+    #[test]
+    fn a_retry_that_replaces_the_conversation_opens_a_new_turn() {
+        let in_assistant_turn = AtomicBool::new(false);
+        let first_attempt = [
+            Message::user().with_text("write the report"),
+            Message::assistant().with_text("here it is"),
+        ];
+        for message in &first_attempt {
+            opens_agent_turn(message, &in_assistant_turn);
+        }
+
+        // The recipe success check fails, the agent replaces the conversation and
+        // runs again. Only `HistoryReplaced` marks that boundary, so without the
+        // reset the retry would read as more of the previous answer.
+        in_assistant_turn.store(false, Ordering::Relaxed);
+
+        let retry = Message::assistant().with_text("here it is, corrected");
+        assert!(opens_agent_turn(&retry, &in_assistant_turn));
     }
 
     #[test]
