@@ -88,6 +88,11 @@ const DIRECTIONAL_BLOCK_TAGS = new Set([
 ]);
 
 function collectText(node: HastNode): string {
+  // Code is language-neutral and always rendered LTR, so it doesn't vote on
+  // the direction of the prose block containing it.
+  if (node.type === 'element' && (node.tagName === 'code' || node.tagName === 'pre')) {
+    return '';
+  }
   let text = node.type === 'text' ? (node.value ?? '') : '';
   for (const child of node.children ?? []) {
     text += collectText(child);

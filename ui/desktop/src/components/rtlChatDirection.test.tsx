@@ -56,6 +56,32 @@ describe('RTL chat direction', () => {
       expect(container.querySelector('p')?.getAttribute('dir')).toBe(null);
     });
 
+    it('does not let a long inline identifier flip an RTL paragraph', async () => {
+      const { container } = renderWithIntl(
+        <MarkdownContent content="شغّل `getPredefinedModelsFromEnv` في المجلد" />
+      );
+
+      await waitFor(() => {
+        expect(container.querySelector('p')).toBeInTheDocument();
+      });
+      expect(container.querySelector('p')?.getAttribute('dir')).toBe('rtl');
+    });
+
+    it('does not let a fenced code block flip a list item direction', async () => {
+      const content = `- هذه قائمة بالعربية
+
+  \`\`\`js
+  const veryLongEnglishCode = 1;
+  \`\`\`
+`;
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container.querySelector('li')).toBeInTheDocument();
+      });
+      expect(container.querySelector('li')?.getAttribute('dir')).toBe('rtl');
+    });
+
     it('renders inline code LTR inside an RTL paragraph', async () => {
       const { container } = renderWithIntl(
         <MarkdownContent content={`${arabicText} مع \`some code\``} />
