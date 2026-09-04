@@ -11,11 +11,14 @@
 //! Non-data means: comment frames (`: ...`), blank separators, and every
 //! SSE field line that is not a payload-bearing `data:` field — control
 //! fields (`event:`, `id:`, `retry:`), unknown extension fields
-//! (`x-heartbeat: ...`, `x.heartbeat: ...`), and `data:` fields with an
-//! empty payload — none of which the downstream parsers can turn into
-//! progress, so none of them may hold the watchdog off. Lines that are
-//! not fields at all because they carry their own framing (bare JSON
-//! frames, Ollama's NDJSON) are payloads and do reset the timer.
+//! (`x-heartbeat: ...`, `x.heartbeat: ...`, ` data: ...`: the field name
+//! is everything before the first colon, leading whitespace included, so
+//! the parsers that match `data:` at byte zero discard such lines), and
+//! `data:` fields with an empty payload — none of which the downstream
+//! parsers can turn into progress, so none of them may hold the watchdog
+//! off. Lines that are not fields at all because they carry their own
+//! framing (bare JSON frames, Ollama's NDJSON — leading whitespace
+//! notwithstanding) are payloads and do reset the timer.
 //! Payload-bearing events also reset it, including protocol-level pings such
 //! as Anthropic's `data: {"type":"ping"}`: telling those apart from real
 //! progress needs per-provider payload knowledge, which this line-level
@@ -64,30 +67,34 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
 ///
 /// The grammar puts no restriction on field-name characters — everything
 /// before the first colon is the name, so `x.heartbeat` is as valid as
-/// `event` — and compliant consumers ignore every field other than `data`.
-/// `None` therefore marks lines that are not fields at all: payload lines
-/// that carry their own framing, i.e. bare JSON frames and NDJSON, so
-/// callers can treat them as payload rather than ignorable control fields.
+/// `event`, and leading whitespace belongs to the name (` data` is an
+/// unknown field, not `data`). Compliant consumers ignore every field
+/// other than `data`. `None` therefore marks lines that are not fields at
+/// all: payload lines that carry their own framing, i.e. bare JSON frames
+/// and NDJSON — leading whitespace notwithstanding — so callers can treat
+/// them as payload rather than ignorable control fields.
 pub(crate) fn sse_field_name(line: &str) -> Option<&str> {
     let field = line.split_once(':').map_or(line, |(name, _)| name);
     if field.is_empty() {
         return Some("");
     }
-    let json_payload = field.starts_with('{') || field.starts_with('[');
+    let after_whitespace = field.trim_start();
+    let json_payload = after_whitespace.starts_with('{') || after_whitespace.starts_with('[');
     (!json_payload).then_some(field)
 }
 
 /// Whether a line is progress a downstream parser can consume: a
 /// payload-bearing `data:` field, or a line that is not SSE-field-shaped at
 /// all (bare JSON frames, Ollama's NDJSON). Comment frames, blank
-/// separators, control fields, and unknown extension fields are not.
+/// separators, control fields, and unknown extension fields — which per
+/// the grammar include whitespace-prefixed `data:` lines, since the
+/// leading space is part of the field name — are not.
 fn is_data_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
+    if line.trim().is_empty() {
         return false;
     }
-    match sse_field_name(trimmed) {
-        Some("data") => trimmed
+    match sse_field_name(line) {
+        Some("data") => line
             .strip_prefix("data:")
             .is_some_and(|value| !value.trim().is_empty()),
         Some(_) => false,
@@ -260,7 +267,9 @@ mod tests {
             "retry: 3000",
             "x-heartbeat: ping",
             "x.heartbeat: ping",
+            " data: ping",
             "{\"chunk\":0}",
+            "  {\"chunk\":1}",
             "",
             "data: [DONE]",
         ];
@@ -301,6 +310,8 @@ mod tests {
             "x.heartbeat: ping",
             "~heartbeat: 1",
             "ping",
+            " data: ping",
+            "   data: {\"beat\":1}",
         ] {
             let err = first_stall_error(with_stream_idle_timeout(
                 data_then_repeating("data: {\"a\":1}", heartbeat),
@@ -317,11 +328,12 @@ mod tests {
         // Payload lines that carry no `data:` prefix — bare JSON frames
         // (Responses API) and Ollama's NDJSON — are progress and must hold
         // the watchdog off: five lines 100s apart span 500s, well past the
-        // 150s idle window, yet the stream must end cleanly.
+        // 150s idle window, yet the stream must end cleanly. Leading
+        // whitespace must not demote them to fields.
         let bare_payloads = Box::pin(async_stream::stream! {
             for i in 0..5 {
                 tokio::time::sleep(Duration::from_secs(100)).await;
-                yield Ok(format!(r#"{{"chunk":{i}}}"#));
+                yield Ok(format!(r#"  {{"chunk":{i}}}"#));
             }
         });
         let watched = with_stream_idle_timeout(
@@ -434,10 +446,20 @@ mod tests {
             ("x.heartbeat: ping", "x.heartbeat"),
             ("x~heartbeat: 1", "x~heartbeat"),
             ("foo bar: 1", "foo bar"),
+            (" data: ping", " data"),
+            ("\tdata: ping", "\tdata"),
         ] {
             assert_eq!(sse_field_name(line), Some(field), "line: {line}");
         }
-        for payload in ["{\"a\":1}", "{}", "{\"a\":1}\n", "[DONE]", "[1,2]"] {
+        for payload in [
+            "{\"a\":1}",
+            "{}",
+            "{\"a\":1}\n",
+            "[DONE]",
+            "[1,2]",
+            "  {\"a\":1}",
+            "  [1,2]",
+        ] {
             assert_eq!(sse_field_name(payload), None, "payload: {payload}");
         }
     }

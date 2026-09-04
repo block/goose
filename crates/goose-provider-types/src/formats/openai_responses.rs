@@ -1001,27 +1001,26 @@ where
 
         'outer: while let Some(response) = stream.next().await {
             let response = response?;
-            let line = response.trim();
-            if line.is_empty() {
+            if response.trim().is_empty() {
                 continue;
             }
-            if line.starts_with(':') {
+            if response.starts_with(':') {
                 continue;
             }
 
             // "data: value" and "data:value" are both valid SSE.
-            let data_line = if let Some(value) = line.strip_prefix("data: ") {
+            let data_line = if let Some(value) = response.strip_prefix("data: ") {
                 value
-            } else if let Some(value) = line.strip_prefix("data:") {
+            } else if let Some(value) = response.strip_prefix("data:") {
                 value
-            } else if sse_field_name(line).is_some_and(|f| f != "data") {
-                // Payload-free SSE fields — event, id, retry, comments,
-                // colon-less fields, unknown extension fields — must be
-                // ignored per the spec.
+            } else if sse_field_name(&response).is_some_and(|f| f != "data") {
+                // Payload-free or unknown SSE fields — event, id, retry,
+                // comments, whitespace-prefixed fields — must be ignored
+                // per the spec.
                 continue;
             } else {
                 // Not field-shaped: a bare JSON frame.
-                line
+                &response
             };
 
             if data_line == "[DONE]" {
@@ -1305,6 +1304,7 @@ mod tests {
             "x-trace: abc123".to_string(),
             "x.heartbeat: 1".to_string(),
             "  x.trace: 1".to_string(),
+            " data: ping".to_string(),
             "retry: 100".to_string(),
             ": keepalive comment".to_string(),
             r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"qwen3.8-max","output":[]}}"#.to_string(),
