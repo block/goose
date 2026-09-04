@@ -6,6 +6,7 @@ import { XIcon } from 'lucide-react';
 
 import { cn } from '../../utils';
 import { defineMessages, useIntl } from '../../i18n';
+import { scheduleBodyPointerEventsRelease } from '../../utils/radixPointerEvents';
 
 const i18n = defineMessages({
   close: {
@@ -29,17 +30,26 @@ function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    data-slot="dialog-overlay"
-    className={cn(
-      'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-40 bg-black/50',
-      className
-    )}
-    {...props}
-  />
-));
+>(({ className, ...props }, ref) => {
+  // The overlay lives inside the portal, so it unmounts when the dialog closes - unlike
+  // `DialogContent`, which stays mounted for the life of the `Dialog`. Two copies of
+  // Radix's dismissable layer are installed, so a dialog opened from a dropdown menu can
+  // otherwise leave `pointer-events: none` on the body and freeze every click in the
+  // window. See `releaseStuckBodyPointerEvents`.
+  React.useEffect(() => () => scheduleBodyPointerEventsRelease(), []);
+
+  return (
+    <DialogPrimitive.Overlay
+      ref={ref}
+      data-slot="dialog-overlay"
+      className={cn(
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-40 bg-black/50',
+        className
+      )}
+      {...props}
+    />
+  );
+});
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 function DialogContent({
