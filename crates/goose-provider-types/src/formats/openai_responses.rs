@@ -11,7 +11,6 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use crate::stream_idle_timeout::sse_field_name;
 use crate::utils::{sanitize_unicode_tags, strip_unicode_tags};
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -982,6 +981,29 @@ fn output_token_limit_marker(id: Option<String>) -> Message {
     message
 }
 
+/// Parse a line per the SSE grammar and return its field name:
+/// - `field: value` / `field:value` -> `Some(field)`
+/// - `field` (no colon, empty value) -> `Some(field)`
+/// - `: comment` -> `Some("")`
+///
+/// The grammar puts no restriction on field-name characters — everything
+/// before the first colon is the name, so `x.heartbeat` is as valid as
+/// `event`, and leading whitespace belongs to the name (` data` is an
+/// unknown field, not `data`). Compliant consumers ignore every field
+/// other than `data`. `None` therefore marks lines that are not fields at
+/// all: payload lines that carry their own framing — text before the
+/// first colon starts a JSON value, leading whitespace aside, i.e. bare
+/// JSON frames — so they can be parsed instead of skipped.
+fn sse_field_name(line: &str) -> Option<&str> {
+    let field = line.split_once(':').map_or(line, |(name, _)| name);
+    if field.is_empty() {
+        return Some("");
+    }
+    let after_whitespace = field.trim_start();
+    let json_payload = after_whitespace.starts_with('{') || after_whitespace.starts_with('[');
+    (!json_payload).then_some(field)
+}
+
 pub fn responses_api_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -1294,6 +1316,32 @@ mod tests {
         assert_eq!(usage.usage.cache_write_input_tokens, None);
 
         Ok(())
+    }
+
+    #[test]
+    fn sse_field_name_classifies_fields_vs_payloads() {
+        // Per the grammar a field name is everything before the first
+        // colon, whitespace included; only lines that carry their own
+        // JSON framing are not fields.
+        for (line, field) in [
+            ("data: {\"a\":1}", "data"),
+            ("data:", "data"),
+            ("event: ping", "event"),
+            ("id: 7", "id"),
+            ("retry: 3000", "retry"),
+            (": comment", ""),
+            ("ping", "ping"),
+            ("x-heartbeat: ping", "x-heartbeat"),
+            ("x.heartbeat: ping", "x.heartbeat"),
+            (" data: ping", " data"),
+            ("\tdata: ping", "\tdata"),
+            ("  x.trace: 1", "  x.trace"),
+        ] {
+            assert_eq!(sse_field_name(line), Some(field), "line: {line}");
+        }
+        for payload in ["{\"a\":1}", "{}", "[1,2]", "  {\"a\":1}", "  [1,2]"] {
+            assert_eq!(sse_field_name(payload), None, "payload: {payload}");
+        }
     }
 
     #[tokio::test]
