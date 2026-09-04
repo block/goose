@@ -18,9 +18,9 @@ importers:
 
   desktop:
     dependencies:
-      '@aaif/goose-sdk':
+      '@aaif/goose-acp-client':
         specifier: workspace:*
-        version: link:../sdk
+        version: link:../goose-acp-client
       '@agentclientprotocol/sdk':
         specifier: 1.3.0
         version: 1.3.0(zod@4.4.3)

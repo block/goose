@@ -7,7 +7,7 @@ import type {
   RefreshProviderInventoryResponse_unstable,
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
-} from '@aaif/goose-sdk';
+} from '@aaif/goose-acp-client';
 import { methods } from '@agentclientprotocol/sdk';
 import type {
   ProviderDetails,
