@@ -79,6 +79,20 @@ describe('RTL chat direction', () => {
       await waitFor(() => {
         expect(container.querySelector('li')).toBeInTheDocument();
       });
+      // Loose list: the item's prose lives in a <p> with its own direction;
+      // the outer li carries no dir and inherits the message direction.
+      expect(container.querySelector('li')?.getAttribute('dir')).toBe(null);
+      expect(container.querySelector('li p')?.getAttribute('dir')).toBe('rtl');
+    });
+
+    it('does not let a nested sublist flip a list item direction', async () => {
+      const content =
+        '- هذه قائمة عربية قصيرة\n  - a fairly long english nested sublist entry here';
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container.querySelector('li')).toBeInTheDocument();
+      });
       expect(container.querySelector('li')?.getAttribute('dir')).toBe('rtl');
     });
 
@@ -150,6 +164,13 @@ describe('RTL chat direction', () => {
     it('sets dir on the queued message preview', () => {
       renderQueueWith(arabicText);
       expect(screen.getByText(arabicText).getAttribute('dir')).toBe('rtl');
+    });
+
+    it('applies direction to the collapsed queue preview', () => {
+      renderQueueWith(arabicText);
+      fireEvent.click(screen.getByTitle('Collapse queue'));
+
+      expect(screen.getByTitle(arabicText).getAttribute('dir')).toBe('rtl');
     });
 
     it('follows the direction while editing a queued message', () => {

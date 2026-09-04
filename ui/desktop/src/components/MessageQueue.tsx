@@ -226,7 +226,11 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
 
             {/* Next message preview */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-muted-foreground truncate" title={nextMessage.content}>
+              <p
+                dir={getTextDirection(nextMessage.content) ?? undefined}
+                className="text-sm text-muted-foreground truncate"
+                title={nextMessage.content}
+              >
                 {nextMessage.content.length > 40
                   ? `${nextMessage.content.substring(0, 40)}...`
                   : nextMessage.content}

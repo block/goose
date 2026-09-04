@@ -97,6 +97,11 @@ function collectText(node: HastNode): string {
   }
   let text = node.type === 'text' ? (node.value ?? '') : '';
   for (const child of node.children ?? []) {
+    // Nested blocks compute their own direction and don't vote on the parent,
+    // so a long sublist can't flip the list item containing it.
+    if (child.type === 'element' && child.tagName && DIRECTIONAL_BLOCK_TAGS.has(child.tagName)) {
+      continue;
+    }
     text += collectText(child);
   }
   return text;
