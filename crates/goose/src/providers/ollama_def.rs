@@ -19,6 +19,7 @@ use goose_providers::{
         OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME,
         OLLAMA_TIMEOUT,
     },
+    stream_idle_timeout::STREAM_TIMEOUT_ENV_VAR,
 };
 
 pub struct OllamaProviderDef;
@@ -157,27 +158,25 @@ pub fn options_from_config() -> OllamaOptions {
     }
 }
 
-/// Resolve the per-chunk stream timeout from config.
-/// Priority: OLLAMA_STREAM_TIMEOUT > GOOSE_STREAM_TIMEOUT > OLLAMA_TIMEOUT > default (120s).
-/// An explicit 0 on either stream variable disables the watchdog, matching
-/// `GOOSE_STREAM_TIMEOUT=0` elsewhere; zero values of the general
-/// OLLAMA_TIMEOUT are ignored (they are not stream-specific opt-outs).
-/// Also returns the stream variable that won, so stall errors name the knob
-/// that actually takes effect; when OLLAMA_TIMEOUT or the default wins, that
-/// knob is GOOSE_STREAM_TIMEOUT, which outranks both.
+/// Resolve the per-chunk stream timeout from config, paired with the stream
+/// variable that won resolution so stall errors name the knob that actually
+/// takes effect. Priority: OLLAMA_STREAM_TIMEOUT > GOOSE_STREAM_TIMEOUT >
+/// OLLAMA_TIMEOUT > default (120s). An explicit `0` on either stream variable
+/// disables the watchdog; a zero OLLAMA_TIMEOUT is not a stream opt-out and is
+/// ignored. When OLLAMA_TIMEOUT or the default wins, that knob is
+/// GOOSE_STREAM_TIMEOUT, which outranks both.
 fn resolve_ollama_chunk_timeout(config: &crate::config::Config) -> (u64, &'static str) {
     for key in ["OLLAMA_STREAM_TIMEOUT", "GOOSE_STREAM_TIMEOUT"] {
         if let Ok(val) = config.get_param::<u64>(key) {
             return (val, key);
         }
     }
-    (
-        match config.get_param::<u64>("OLLAMA_TIMEOUT") {
-            Ok(val) if val > 0 => val,
-            _ => OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS,
-        },
-        "GOOSE_STREAM_TIMEOUT",
-    )
+    let secs = config
+        .get_param::<u64>("OLLAMA_TIMEOUT")
+        .ok()
+        .filter(|secs| *secs > 0)
+        .unwrap_or(OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS);
+    (secs, STREAM_TIMEOUT_ENV_VAR)
 }
 
 #[cfg(test)]

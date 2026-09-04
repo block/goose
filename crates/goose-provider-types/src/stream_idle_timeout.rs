@@ -62,11 +62,8 @@ fn resolve_stream_idle_timeout() -> Option<Duration> {
     (secs > 0).then(|| Duration::from_secs(secs))
 }
 
-/// Whether a line carries payload a downstream parser can consume: a
-/// line that parses as JSON, or a `data:` field at the start of the line
-/// whose value is `[DONE]` or parses as JSON. Everything else — comments,
-/// blanks, control and unknown fields with any grammar-allowed name, and
-/// non-JSON `data:` values — is a keepalive.
+/// Whether a line carries payload a downstream parser can consume; see the
+/// module docs for the full keepalive classification.
 fn is_data_line(line: &str) -> bool {
     let Some(value) = line.strip_prefix("data:") else {
         return serde_json::from_str::<serde_json::Value>(line).is_ok();
@@ -91,27 +88,23 @@ fn stall_error(idle: Duration, keepalive_frames: u64, env_var: &str) -> anyhow::
 
 /// Wrap a framed SSE line stream with the idle watchdog configured via
 /// [`STREAM_TIMEOUT_ENV_VAR`]. Returns the stream unchanged when disabled.
-/// The idle deadline is not enforced until the first line arrives.
-pub fn with_stream_idle_timeout_after_first_line_from_env<S>(stream: S) -> LineStream
+pub fn with_idle_timeout_from_env<S>(stream: S) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     match resolve_stream_idle_timeout() {
-        Some(idle) => {
-            with_stream_idle_timeout_after_first_line(stream, idle, STREAM_TIMEOUT_ENV_VAR)
-        }
+        Some(idle) => with_idle_timeout_after_first_line(stream, idle, STREAM_TIMEOUT_ENV_VAR),
         None => Box::pin(stream),
     }
 }
 
 /// Pass lines through untouched, but error when no data-bearing line has
-/// arrived for `idle` since the previous one (or since stream start). SSE
-/// comment frames (`: ...`), blank separators, control fields (`event:`,
-/// `id:`, `retry:`), and empty `data:` fields do not extend the deadline.
+/// arrived for `idle` since the previous one (or since stream start); keepalive
+/// lines do not extend the deadline (see module docs).
 ///
 /// This is the eager core: the deadline applies from the first poll. Prefer
-/// [`with_stream_idle_timeout_after_first_line`], which exempts time to first
-/// line, for provider streams.
+/// [`with_idle_timeout_after_first_line`], which exempts time to first line,
+/// for provider streams.
 ///
 /// `env_var` is the variable named in the stall error's remediation; callers
 /// that resolve the timeout from a different variable pass its name so the
@@ -119,7 +112,7 @@ where
 ///
 /// The timer is poll-driven (the deadline is only evaluated while the stream
 /// is being polled), so a consumer that stops polling cannot trip it.
-pub fn with_stream_idle_timeout<S>(stream: S, idle: Duration, env_var: &'static str) -> LineStream
+pub(crate) fn with_idle_timeout<S>(stream: S, idle: Duration, env_var: &'static str) -> LineStream
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -155,13 +148,11 @@ where
     })
 }
 
-/// Like [`with_stream_idle_timeout`], except the idle deadline is not enforced
-/// until the stream yields its first line: time-to-first-line stays governed by
-/// the request timeout. This preserves slow starts — reasoning models, queued
-/// gateways, large local models can all take minutes before the first token —
-/// while still catching stalls that keepalive lines would otherwise mask,
-/// since those lines arm the timer.
-pub fn with_stream_idle_timeout_after_first_line<S>(
+/// Like [`with_idle_timeout`], except the deadline is not enforced until the
+/// stream yields its first line: time-to-first-line stays governed by the
+/// request timeout, while keepalive-masked stalls are still caught because
+/// those lines arm the timer.
+pub fn with_idle_timeout_after_first_line<S>(
     stream: S,
     idle: Duration,
     env_var: &'static str,
@@ -174,7 +165,7 @@ where
         if let Some(item) = stream.next().await {
             yield item?;
         }
-        let mut watched = with_stream_idle_timeout(stream, idle, env_var);
+        let mut watched = with_idle_timeout(stream, idle, env_var);
         while let Some(item) = watched.next().await {
             yield item?;
         }
@@ -248,7 +239,7 @@ mod tests {
             "",
             "data: [DONE]",
         ];
-        let watched = with_stream_idle_timeout(
+        let watched = with_idle_timeout(
             finite_lines(lines.clone()),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -259,7 +250,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn keepalive_comments_do_not_reset_the_timer() {
-        let err = first_stall_error(with_stream_idle_timeout(
+        let err = first_stall_error(with_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ": ping"),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -292,7 +283,7 @@ mod tests {
             "data: ping",
             "data: OPENROUTER PROCESSING",
         ] {
-            let err = first_stall_error(with_stream_idle_timeout(
+            let err = first_stall_error(with_idle_timeout(
                 data_then_repeating("data: {\"a\":1}", heartbeat),
                 Duration::from_secs(150),
                 STREAM_TIMEOUT_ENV_VAR,
@@ -313,8 +304,7 @@ mod tests {
                 yield Ok(format!(r#"data: {{"chunk":{i}}}"#));
             }
         });
-        let watched =
-            with_stream_idle_timeout(payloads, Duration::from_secs(150), STREAM_TIMEOUT_ENV_VAR);
+        let watched = with_idle_timeout(payloads, Duration::from_secs(150), STREAM_TIMEOUT_ENV_VAR);
         let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
         assert_eq!(collected.len(), 5);
     }
@@ -332,7 +322,7 @@ mod tests {
                 yield Ok(format!(r#"  {{"chunk":{i}}}"#));
             }
         });
-        let watched = with_stream_idle_timeout(
+        let watched = with_idle_timeout(
             bare_payloads,
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -350,7 +340,7 @@ mod tests {
             yield Ok("data: {\"a\":1}".to_string());
             yield Ok("data: [DONE]".to_string());
         });
-        let watched = with_stream_idle_timeout_after_first_line(
+        let watched = with_idle_timeout_after_first_line(
             slow_start,
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -361,7 +351,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn keepalives_after_first_line_do_not_reset_the_timer() {
-        let mut watched = with_stream_idle_timeout_after_first_line(
+        let mut watched = with_idle_timeout_after_first_line(
             data_then_repeating(": ping", ": ping"),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -372,7 +362,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn empty_stream_passes_through() {
-        let watched = with_stream_idle_timeout_after_first_line(
+        let watched = with_idle_timeout_after_first_line(
             finite_lines(vec![]),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -383,7 +373,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn silent_stall_reports_silence() {
-        let err = first_stall_error(with_stream_idle_timeout(
+        let err = first_stall_error(with_idle_timeout(
             silent_after_data(),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
@@ -399,7 +389,7 @@ mod tests {
         // Paths that resolve the timeout from a provider-specific variable
         // (Ollama: OLLAMA_STREAM_TIMEOUT) must have the stall error point at
         // that variable, not the shared one.
-        let err = first_stall_error(with_stream_idle_timeout(
+        let err = first_stall_error(with_idle_timeout(
             silent_after_data(),
             Duration::from_secs(150),
             "OLLAMA_STREAM_TIMEOUT",
@@ -412,7 +402,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn blank_lines_do_not_reset_the_timer() {
-        let err = first_stall_error(with_stream_idle_timeout(
+        let err = first_stall_error(with_idle_timeout(
             data_then_repeating("data: {\"a\":1}", ""),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,

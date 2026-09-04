@@ -996,12 +996,7 @@ fn output_token_limit_marker(id: Option<String>) -> Message {
 /// JSON frames — so they can be parsed instead of skipped.
 fn sse_field_name(line: &str) -> Option<&str> {
     let field = line.split_once(':').map_or(line, |(name, _)| name);
-    if field.is_empty() {
-        return Some("");
-    }
-    let after_whitespace = field.trim_start();
-    let json_payload = after_whitespace.starts_with('{') || after_whitespace.starts_with('[');
-    (!json_payload).then_some(field)
+    (!field.trim_start().starts_with(['{', '['])).then_some(field)
 }
 
 pub fn responses_api_to_streaming_message<S>(
