@@ -6,6 +6,7 @@ use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
+use crate::conversation::message::Message;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -25,7 +26,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -513,6 +514,19 @@ fn current_epoch_millis() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+/// Streaming counterpart of `assistant_turn_count`: an agent turn opens when an
+/// assistant message follows a non-assistant one. Consecutive assistant messages -
+/// streamed fragments of a single response, or a tool request and the text that
+/// accompanies it - belong to the turn that is already open.
+///
+/// Roles are the only input, so a provider that reports no usage metadata is
+/// counted the same as one that does.
+fn opens_agent_turn(message: &Message, in_assistant_turn: &AtomicBool) -> bool {
+    let is_assistant = message.role == rmcp::model::Role::Assistant;
+    let turn_was_open = in_assistant_turn.swap(is_assistant, Ordering::Relaxed);
+    is_assistant && !turn_was_open
 }
 
 /// Get maximum number of concurrent background tasks
@@ -1995,9 +2009,12 @@ impl SummonClient {
 
         let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
+        let in_assistant_turn = Arc::new(AtomicBool::new(false));
 
-        let on_message: OnMessageCallback = Arc::new(move |_msg| {
-            turns_clone.fetch_add(1, Ordering::Relaxed);
+        let on_message: OnMessageCallback = Arc::new(move |msg| {
+            if opens_agent_turn(msg, &in_assistant_turn) {
+                turns_clone.fetch_add(1, Ordering::Relaxed);
+            }
             last_activity_clone.store(current_epoch_millis(), Ordering::Relaxed);
         });
 
@@ -2232,6 +2249,7 @@ fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, an
 mod tests {
     use super::*;
     use futures::StreamExt;
+    use rmcp::model::CallToolRequestParams;
     use serial_test::serial;
     use std::collections::{HashMap, HashSet};
     use std::fs;
@@ -2246,6 +2264,68 @@ mod tests {
             session: None,
             use_login_shell_path: false,
         }
+    }
+
+    fn count_turns(messages: &[Message]) -> u32 {
+        let in_assistant_turn = AtomicBool::new(false);
+        let mut turns = 0;
+        for message in messages {
+            if opens_agent_turn(message, &in_assistant_turn) {
+                turns += 1;
+            }
+        }
+        turns
+    }
+
+    #[test]
+    fn streamed_fragments_of_one_answer_count_as_one_turn() {
+        let messages = [
+            Message::user().with_text("summarize the log"),
+            Message::assistant().with_text("check"),
+            Message::assistant().with_text("ing the"),
+            Message::assistant().with_text(" log"),
+        ];
+
+        assert_eq!(count_turns(&messages), 1);
+    }
+
+    #[test]
+    fn one_prompt_and_one_answer_count_as_one_turn() {
+        let messages = [
+            Message::user().with_text("ping"),
+            Message::assistant().with_text("pong"),
+        ];
+
+        assert_eq!(count_turns(&messages), 1);
+    }
+
+    #[test]
+    fn a_tool_call_and_the_answer_after_it_count_as_two_turns() {
+        let messages = [
+            Message::user().with_text("read the file"),
+            Message::assistant().with_tool_request(
+                "call_1",
+                Ok(CallToolRequestParams::new("developer__shell".to_string())),
+            ),
+            Message::user().with_tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+            ),
+            Message::assistant().with_text("the file is empty"),
+        ];
+
+        assert_eq!(count_turns(&messages), 2);
+    }
+
+    #[test]
+    fn a_worker_whose_provider_reports_no_usage_does_not_report_zero_turns() {
+        let messages = [
+            Message::user().with_text("ping"),
+            Message::assistant().with_text("pong"),
+        ];
+        assert!(messages[1].metadata.usage.is_none());
+
+        assert_eq!(count_turns(&messages), 1);
     }
 
     #[test]
