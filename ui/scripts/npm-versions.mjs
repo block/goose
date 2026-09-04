@@ -97,6 +97,18 @@ function checkVersions() {
   }
 
   console.log(`Goose versions are aligned at ${expectedVersion}`);
+  return expectedVersion;
+}
+
+function checkReleaseVersion(version) {
+  const expectedVersion = checkVersions();
+  if (version !== expectedVersion) {
+    throw new Error(
+      `Release is ${version}; expected ${expectedVersion} from Cargo.toml`,
+    );
+  }
+
+  console.log(`Goose versions match release ${version}`);
 }
 
 function checkPackedWrapper(path) {
@@ -129,11 +141,13 @@ try {
     setVersions(argument);
   } else if (command === "check" && !argument) {
     checkVersions();
+  } else if (command === "check-release" && argument) {
+    checkReleaseVersion(argument);
   } else if (command === "check-packed-wrapper" && argument) {
     checkPackedWrapper(argument);
   } else {
     throw new Error(
-      "Usage: node ui/scripts/npm-versions.mjs <set VERSION|check|check-packed-wrapper PATH>",
+      "Usage: node ui/scripts/npm-versions.mjs <set VERSION|check|check-release VERSION|check-packed-wrapper PATH>",
     );
   }
 } catch (error) {

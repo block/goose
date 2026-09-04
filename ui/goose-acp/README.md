@@ -11,6 +11,10 @@ dependencies. It does not contain or depend on the Goose ACP client.
 npm install @aaif/goose-acp
 ```
 
+The matching `@aaif/goose-binary-*` package is installed automatically. Do not
+install a platform package directly; `@aaif/goose-acp` provides the supported
+`goose` command.
+
 ## Usage
 
 Run the Goose CLI installed by the package:
