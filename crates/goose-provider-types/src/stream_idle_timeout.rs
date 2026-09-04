@@ -21,6 +21,14 @@
 //! progress needs per-provider payload knowledge, which this line-level
 //! watchdog deliberately does not have.
 //!
+//! The same line-level boundary applies to providers that reassemble a JSON
+//! event split across several lines (Google's parser buffers continuation
+//! fragments): such a fragment can be field-shaped and is then counted as a
+//! keepalive, because telling it apart from an extension heartbeat field
+//! would require the parser's reassembly state. If a split event ever spans
+//! the idle window, the watchdog fires a remediable error rather than
+//! letting the stream hang.
+//!
 //! The idle deadline is never enforced before the stream's first line, so
 //! time-to-first-line stays governed by the request timeout — preserving slow
 //! starts (reasoning models, queued gateways, large local models) while still
@@ -80,8 +88,7 @@ fn is_data_line(line: &str) -> bool {
     }
     match sse_field_name(trimmed) {
         Some("data") => trimmed
-            .strip_prefix("data")
-            .and_then(|rest| rest.strip_prefix(':'))
+            .strip_prefix("data:")
             .is_some_and(|value| !value.trim().is_empty()),
         Some(_) => false,
         None => true,
@@ -156,9 +163,7 @@ where
                             deadline = next;
                         }
                     } else if !line.trim().is_empty() {
-                        // Any non-blank line that carries no payload —
-                        // comment frames, non-data fields, empty data
-                        // fields — is a keepalive.
+                        // Blank separators are neither payload nor keepalive.
                         keepalive_frames += 1;
                     }
                     yield line;
@@ -246,40 +251,26 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn flowing_stream_passes_all_lines_through() {
+        let lines = vec![
+            "event: message_start",
+            "data: {\"a\":1}",
+            ": ping",
+            "data:",
+            "id: 7",
+            "retry: 3000",
+            "x-heartbeat: ping",
+            "x.heartbeat: ping",
+            "{\"chunk\":0}",
+            "",
+            "data: [DONE]",
+        ];
         let watched = with_stream_idle_timeout(
-            finite_lines(vec![
-                "event: message_start",
-                "data: {\"a\":1}",
-                ": ping",
-                "data:",
-                "id: 7",
-                "retry: 3000",
-                "x-heartbeat: ping",
-                "x.heartbeat: ping",
-                "{\"chunk\":0}",
-                "",
-                "data: [DONE]",
-            ]),
+            finite_lines(lines.clone()),
             Duration::from_secs(150),
             STREAM_TIMEOUT_ENV_VAR,
         );
         let collected: Vec<String> = watched.map(|item| item.unwrap()).collect().await;
-        assert_eq!(
-            collected,
-            [
-                "event: message_start",
-                "data: {\"a\":1}",
-                ": ping",
-                "data:",
-                "id: 7",
-                "retry: 3000",
-                "x-heartbeat: ping",
-                "x.heartbeat: ping",
-                "{\"chunk\":0}",
-                "",
-                "data: [DONE]"
-            ]
-        );
+        assert_eq!(collected, lines);
     }
 
     #[tokio::test(start_paused = true)]
