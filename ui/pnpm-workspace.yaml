@@ -1,5 +1,4 @@
 packages:
-  - 'sdk'
   - 'goose-acp-client'
   - 'goose-acp'
   - 'desktop'

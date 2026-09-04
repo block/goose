@@ -156,7 +156,7 @@ check-acp-artifacts: generate-acp-types generate-acp-docs
     #!/usr/bin/env bash
     set -e
     echo "🔍 Checking generated ACP artifacts are up-to-date..."
-    if ! git diff --exit-code crates/goose/acp-schema.json crates/goose/acp-meta.json ui/sdk/src/generated/ ui/goose-acp-client/src/generated/; then
+    if ! git diff --exit-code crates/goose/acp-schema.json crates/goose/acp-meta.json ui/goose-acp-client/src/generated/; then
       echo ""
       echo "❌ ACP generated files are out of date!"
       echo ""
@@ -174,9 +174,8 @@ generate-acp-schema:
 # Generate ACP TypeScript types from JSON schema (requires generate-acp-schema first)
 generate-acp-types: generate-acp-schema
     @echo "Generating ACP TypeScript types..."
-    cd ui/sdk && npx tsx generate-schema.ts
     cd ui/goose-acp-client && npx tsx generate-schema.ts
-    @echo "ACP TypeScript types generated for the SDK and ACP client packages."
+    @echo "ACP TypeScript types generated for the ACP client package."
 
 # Generate ACP documentation from the existing JSON schema and metadata
 generate-acp-docs:
@@ -184,11 +183,11 @@ generate-acp-docs:
     node documentation/scripts/generate-acp-docs.js
     @echo "ACP documentation generated for the docs build."
 
-# Build SDK TypeScript package (schema + types + compile)
-build-sdk: generate-acp-types
+# Build ACP client TypeScript package (schema + types + compile)
+build-acp-client: generate-acp-types
     @echo "Compiling ACP TypeScript..."
-    cd ui/sdk && pnpm run build:ts
-    @echo "ACP package built."
+    cd ui/goose-acp-client && pnpm run build:ts
+    @echo "ACP client package built."
 
 # Generate manpages for the CLI
 generate-manpages:

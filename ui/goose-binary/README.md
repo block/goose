@@ -21,30 +21,6 @@ appropriate package automatically and provides the `goose` command. Each
 binary package contains its native executable but intentionally provides no
 command of its own.
 
-## Building
-
-From the repository root:
-
-```bash
-# Build for current platform only
-cd ui/sdk
-npm run build:native
-
-# Build for all platforms (requires cross-compilation toolchains)
-npm run build:native:all
-
-# Build for specific platform(s)
-npx tsx scripts/build-native.ts darwin-arm64 linux-x64
-```
-
-The built binaries are placed into `ui/goose-binary/goose-binary-{platform}/bin/`.
-These directories are git-ignored.
-
-Linux native binaries are built with local inference Vulkan support. Linux build
-hosts need Vulkan headers and `glslc`; Linux runtime hosts need the Vulkan loader
-package, such as `libvulkan1` on Debian/Ubuntu or `vulkan-loader` on RPM-based
-distributions.
-
 ## Release preparation
 
 The `.github/workflows/publish-npm.yml` workflow downloads the binaries from an

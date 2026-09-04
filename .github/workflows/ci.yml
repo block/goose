@@ -307,7 +307,6 @@ jobs:
         run: |
           source ./bin/activate-hermit
           cd ui/desktop && pnpm install --frozen-lockfile
-          cd ../sdk && pnpm install --frozen-lockfile
 
       - name: Check ACP Artifacts are Up-to-Date
         run: |
@@ -317,7 +316,7 @@ jobs:
       - name: Check ACP Client SDK
         run: |
           source ./bin/activate-hermit
-          cd ui/sdk
+          cd ui/goose-acp-client
           pnpm run lint
 
   gdk-api-docs-check:
