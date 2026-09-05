@@ -22,7 +22,16 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 
-import { Dialog, DialogContent, DialogTitle } from './dialog';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogOverlay,
+  DialogPointerEventsRecovery,
+  DialogPortal,
+  DialogTitle,
+} from './dialog';
 import { IntlTestWrapper } from '../../i18n/test-utils';
 
 function JsonDialog({ open }: { open: boolean }) {
@@ -32,6 +41,30 @@ function JsonDialog({ open }: { open: boolean }) {
         <DialogContent>
           <DialogTitle>Session JSON</DialogTitle>
         </DialogContent>
+      </Dialog>
+    </IntlTestWrapper>
+  );
+}
+
+/**
+ * Overlay and content have separate presence lifecycles, and the content's exit animation
+ * (`duration-200`) outlasts the overlay's (150ms by default). `forceMount` on the portal and
+ * the content stands in for that here: closing the dialog unmounts only the overlay, and the
+ * content is taken down in a later step, the way the real exit animations order it.
+ */
+function SplitExitDialog({ open, contentMounted }: { open: boolean; contentMounted: boolean }) {
+  return (
+    <IntlTestWrapper>
+      <Dialog open={open}>
+        <DialogPortal forceMount>
+          <DialogOverlay />
+          {contentMounted && (
+            <DialogPrimitive.Content forceMount>
+              <DialogPointerEventsRecovery />
+              <DialogTitle>Session JSON</DialogTitle>
+            </DialogPrimitive.Content>
+          )}
+        </DialogPortal>
       </Dialog>
     </IntlTestWrapper>
   );
@@ -78,6 +111,23 @@ describe('a dialog opened while a dropdown menu still holds the body lock', () =
     expect(document.body.style.pointerEvents).toBe('none');
 
     rerender(<JsonDialog open={false} />);
+    await nextFrames();
+
+    expect(document.body.style.pointerEvents).not.toBe('none');
+  });
+
+  it('leaves the body clickable when the content outlives the overlay', async () => {
+    document.body.style.pointerEvents = 'none';
+
+    const { rerender } = render(<SplitExitDialog open contentMounted />);
+    document.body.style.removeProperty('pointer-events');
+
+    // The overlay's exit animation ends first: only the overlay unmounts.
+    rerender(<SplitExitDialog open={false} contentMounted />);
+    await nextFrames();
+
+    // Then the content's does, and its layer restores the stale `none` it snapshotted.
+    rerender(<SplitExitDialog open={false} contentMounted={false} />);
     await nextFrames();
 
     expect(document.body.style.pointerEvents).not.toBe('none');
