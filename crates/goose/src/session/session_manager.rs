@@ -2544,15 +2544,21 @@ impl SessionStorage {
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         let pool = self.pool().await?;
-        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
-            .bind(session_id)
-            .bind(timestamp)
-            .execute(pool)
-            .await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        self.clear_conversation_derived_extension_data(session_id, pool)
-            .await?;
+        let result =
+            sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+                .bind(session_id)
+                .bind(timestamp)
+                .execute(&mut *tx)
+                .await?;
 
+        if result.rows_affected() > 0 {
+            self.clear_conversation_derived_extension_data(session_id, &mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -3331,12 +3337,18 @@ mod tests {
         .await
         .unwrap();
 
+        set_message_timestamp(&sm, &session.id, "msg1", "2026-01-01T00:00:00Z").await;
+        set_message_timestamp(&sm, &session.id, "msg2", "2026-01-01T00:00:01Z").await;
+
         let before = sm.get_session(&session.id, false).await.unwrap();
         assert!(TodoState::from_extension_data(&before.extension_data).is_some());
         assert!(EnabledExtensionsState::from_extension_data(&before.extension_data).is_some());
 
-        let second_msg_ts = before.created_at.timestamp_millis() + 1000;
-        sm.truncate_conversation(&session.id, second_msg_ts)
+        // Truncate at the first message's timestamp (seconds) — deletes both messages.
+        let truncate_ts = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+            .unwrap()
+            .timestamp();
+        sm.truncate_conversation(&session.id, truncate_ts)
             .await
             .unwrap();
 
@@ -3349,6 +3361,59 @@ mod tests {
             EnabledExtensionsState::from_extension_data(&after.extension_data).is_some(),
             "enabled_extensions should be preserved after truncation"
         );
+    }
+
+    #[tokio::test]
+    async fn test_truncate_conversation_preserves_todo_when_no_messages_deleted() {
+        use crate::session::extension_data::{ExtensionState, TodoState};
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "No-op truncation".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let mut ext_data = session.extension_data.clone();
+        TodoState::new("- Important task".to_string())
+            .to_extension_data(&mut ext_data)
+            .unwrap();
+
+        sm.update(&session.id)
+            .extension_data(ext_data)
+            .apply()
+            .await
+            .unwrap();
+
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("hello").with_id("msg1"),
+        )
+        .await
+        .unwrap();
+
+        set_message_timestamp(&sm, &session.id, "msg1", "2026-01-01T00:00:00Z").await;
+
+        // Truncate with a future timestamp that matches no messages.
+        let future_ts = chrono::DateTime::parse_from_rfc3339("2099-01-01T00:00:00Z")
+            .unwrap()
+            .timestamp();
+        sm.truncate_conversation(&session.id, future_ts)
+            .await
+            .unwrap();
+
+        let after = sm.get_session(&session.id, true).await.unwrap();
+        assert!(
+            TodoState::from_extension_data(&after.extension_data).is_some(),
+            "todo state should be preserved when no messages were deleted"
+        );
+        let msgs = after.conversation.unwrap().messages().to_vec();
+        assert_eq!(msgs.len(), 1, "message should still exist");
     }
 
     #[tokio::test]
