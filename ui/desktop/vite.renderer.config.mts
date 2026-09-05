@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config
 export default defineConfig({
+  base: './',
   define: {
     'process.env.GOOSE_TUNNEL': JSON.stringify(process.env.GOOSE_TUNNEL !== 'no' && process.env.GOOSE_TUNNEL !== 'none'),
   },

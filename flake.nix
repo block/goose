@@ -160,7 +160,7 @@
               node scripts/build-main.js
 
               echo "=== Building Renderer ==="
-              pnpm exec vite build --config vite.renderer.config.mts --outDir .vite/renderer/main_window
+              pnpm exec vite build --config vite.renderer.config.mts --base ./ --outDir .vite/renderer/main_window
 
               runHook postBuild
             '';
