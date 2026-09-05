@@ -957,7 +957,7 @@
     "env": [
       "META_MODEL_API_KEY"
     ],
-    "model_count": 3
+    "model_count": 5
   },
   {
     "id": "meta-llama",

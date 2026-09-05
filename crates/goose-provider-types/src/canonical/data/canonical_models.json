@@ -110770,6 +110770,72 @@
     }
   },
   {
+  "id": "meta/muse-spark-1.3",
+  "name": "Muse Spark 1.3",
+  "family": "muse",
+  "attachment": true,
+  "reasoning": true,
+  "tool_call": true,
+  "temperature": true,
+  "release_date": "2026-09-02",
+  "last_updated": "2026-09-02",
+  "modalities": {
+    "input": [
+      "text",
+      "image",
+      "video",
+      "pdf",
+      "audio"
+    ],
+    "output": [
+      "text"
+    ]
+  },
+  "open_weights": false,
+  "cost": {
+    "input": 1.25,
+    "output": 4.25,
+    "cache_read": 0.15
+  },
+  "limit": {
+    "context": 1048576,
+    "output": 131072
+  }
+},
+  {
+  "id": "meta/muse-spark-1.3-contributor",
+  "name": "Muse Spark 1.3 Contributor",
+  "family": "muse",
+  "attachment": true,
+  "reasoning": true,
+  "tool_call": true,
+  "temperature": true,
+  "release_date": "2026-09-02",
+  "last_updated": "2026-09-02",
+  "modalities": {
+    "input": [
+      "text",
+      "image",
+      "video",
+      "pdf",
+      "audio"
+    ],
+    "output": [
+      "text"
+    ]
+  },
+  "open_weights": false,
+  "cost": {
+    "input": 0.1,
+    "output": 0.2,
+    "cache_read": 0.002
+  },
+  "limit": {
+    "context": 1048576,
+    "output": 131072
+  }
+},
+  {
     "id": "minimax-cn-coding-plan/MiniMax-M2",
     "name": "MiniMax-M2",
     "family": "minimax",
