@@ -14,9 +14,14 @@
  * Clearing the property is safe only once no modal layer is left, which is what the
  * selector below checks. Any still-open dialog, menu, select or popover keeps its own
  * lock and re-applies it on its own unmount.
+ *
+ * The check goes by role and open state, not by Radix's `[data-radix-popper-content-wrapper]`.
+ * Tooltips ride the same popper wrapper without ever taking the body lock, and a tooltip can
+ * still be showing while the dialog closes - its trigger keeps focus after keyboard
+ * navigation, say. Nothing reschedules the release when that tooltip later goes away, so
+ * letting it block the check would leave the body locked for good.
  */
 const OPEN_LAYER_SELECTOR = [
-  '[data-radix-popper-content-wrapper]',
   '[role="dialog"][data-state="open"]',
   '[role="alertdialog"][data-state="open"]',
   '[role="menu"][data-state="open"]',

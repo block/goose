@@ -34,11 +34,46 @@ describe('releaseStuckBodyPointerEvents', () => {
 
   it('leaves the lock alone while a popper-backed menu is still open', () => {
     document.body.style.pointerEvents = 'none';
-    document.body.innerHTML = '<div data-radix-popper-content-wrapper></div>';
+    document.body.innerHTML =
+      '<div data-radix-popper-content-wrapper><div role="menu" data-state="open"></div></div>';
 
     releaseStuckBodyPointerEvents(document);
 
     expect(document.body.style.pointerEvents).toBe('none');
+  });
+
+  it('leaves the lock alone while a select listbox is still open', () => {
+    document.body.style.pointerEvents = 'none';
+    document.body.innerHTML =
+      '<div data-radix-popper-content-wrapper><div role="listbox" data-state="open"></div></div>';
+
+    releaseStuckBodyPointerEvents(document);
+
+    expect(document.body.style.pointerEvents).toBe('none');
+  });
+
+  it('is not blocked by a tooltip that is still showing', () => {
+    // Tooltips ride the same popper wrapper as menus but never take the body lock, and
+    // nothing re-runs the check when they hide.
+    document.body.style.pointerEvents = 'none';
+    document.body.innerHTML =
+      '<div data-radix-popper-content-wrapper>' +
+      '<div data-slot="tooltip-content" data-state="delayed-open"><span role="tooltip">Copy</span></div>' +
+      '</div>';
+
+    releaseStuckBodyPointerEvents(document);
+
+    expect(document.body.style.pointerEvents).toBe('');
+  });
+
+  it('ignores a menu that is animating closed', () => {
+    document.body.style.pointerEvents = 'none';
+    document.body.innerHTML =
+      '<div data-radix-popper-content-wrapper><div role="menu" data-state="closed"></div></div>';
+
+    releaseStuckBodyPointerEvents(document);
+
+    expect(document.body.style.pointerEvents).toBe('');
   });
 
   it('ignores a closed dialog left in the tree', () => {
