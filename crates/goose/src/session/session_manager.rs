@@ -2889,6 +2889,8 @@ mod tests {
 
     struct StatefulNamingTestProvider;
 
+    struct LocalNamingTestProvider;
+
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
         fn get_name(&self) -> &str {
@@ -2936,6 +2938,27 @@ mod tests {
         }
 
         fn manages_own_context(&self) -> bool {
+            true
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for LocalNamingTestProvider {
+        fn get_name(&self) -> &str {
+            "local-naming-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("local session naming must not call the provider")
+        }
+
+        fn uses_local_session_naming(&self) -> bool {
             true
         }
     }
@@ -3538,6 +3561,41 @@ mod tests {
             .unwrap();
 
         assert_eq!(update.name, "investigate session naming with");
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_uses_local_name_for_stateless_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("investigate local naming without provider completion"),
+        )
+        .await
+        .unwrap();
+
+        let update = sm
+            .maybe_update_name(&session.id, Arc::new(LocalNamingTestProvider))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(update.name, "investigate local naming without");
     }
 
     #[tokio::test]
