@@ -43,6 +43,15 @@ describe('getTextDirection', () => {
     expect(getTextDirection('٣٤٥٦ مرحبا')).toBe('rtl');
   });
 
+  it('treats Arabic separators as neutral', () => {
+    expect(getTextDirection('٣٬٤٥٦')).toBe(null);
+    expect(getTextDirection('٣٬٤٥٦ مرحبا')).toBe('rtl');
+  });
+
+  it('counts strong Arabic punctuation as RTL', () => {
+    expect(getTextDirection('ما هذا؟')).toBe('rtl');
+  });
+
   it('returns null for text without strong directional characters', () => {
     expect(getTextDirection('')).toBe(null);
     expect(getTextDirection('12345 !!! ...')).toBe(null);

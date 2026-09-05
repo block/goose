@@ -97,9 +97,17 @@ function collectText(node: HastNode): string {
   }
   let text = node.type === 'text' ? (node.value ?? '') : '';
   for (const child of node.children ?? []) {
-    // Nested blocks compute their own direction and don't vote on the parent,
-    // so a long sublist can't flip the list item containing it.
-    if (child.type === 'element' && child.tagName && DIRECTIONAL_BLOCK_TAGS.has(child.tagName)) {
+    // Nested blocks other than paragraphs compute their own direction and
+    // don't vote on the parent, so a long sublist can't flip the list item
+    // containing it. Prose <p> children still count: loose list items and
+    // blockquotes hold their own text in direct <p> children, and their
+    // marker/indent side follows the parent's own direction.
+    if (
+      child.type === 'element' &&
+      child.tagName &&
+      child.tagName !== 'p' &&
+      DIRECTIONAL_BLOCK_TAGS.has(child.tagName)
+    ) {
       continue;
     }
     text += collectText(child);

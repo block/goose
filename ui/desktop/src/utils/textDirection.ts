@@ -3,9 +3,21 @@ export type TextDirection = 'rtl' | 'ltr';
 type Range = readonly [start: number, end: number];
 
 // Blocks whose characters have strong RTL direction (bidi class R or AL).
+// The Arabic block is enumerated as strong sub-ranges only: digits,
+// separators (066B-066C, 06DD), the Arabic comma (060C, bidi CS) and
+// combining marks are weak/neutral, so text made only of them (e.g.
+// "٣٬٤٥٦") must not flip direction.
 const RTL_RANGES: readonly Range[] = [
   [0x0590, 0x05ff], // Hebrew
-  [0x0600, 0x06ff], // Arabic
+  [0x061b, 0x061b], // Arabic semicolon
+  [0x061c, 0x061c], // Arabic letter mark
+  [0x061f, 0x061f], // Arabic question mark
+  [0x0620, 0x064a], // Arabic letters (incl. tatweel)
+  [0x066e, 0x066f], // Arabic letters (dotless forms)
+  [0x0671, 0x06d3], // Arabic letters
+  [0x06e5, 0x06e6], // Arabic small waw, small ya
+  [0x06fa, 0x06fc], // Arabic letters
+  [0x06ff, 0x06ff], // Arabic letter heh with inverted v
   [0x0700, 0x074f], // Syriac
   [0x0750, 0x077f], // Arabic supplement
   [0x0780, 0x07bf], // Thaana
@@ -15,13 +27,6 @@ const RTL_RANGES: readonly Range[] = [
   [0x08a0, 0x08ff], // Arabic extended-A
   [0xfb1d, 0xfdff], // Hebrew and Arabic presentation forms
   [0xfe70, 0xfeff], // Arabic presentation forms-B
-];
-
-// Digits inside RTL blocks are weak (bidi class AN/EN), not strong RTL, so a
-// message made only of digits must not flip direction.
-const WEAK_RTL_RANGES: readonly Range[] = [
-  [0x0660, 0x0669], // Arabic-Indic digits
-  [0x06f0, 0x06f9], // Extended Arabic-Indic digits
 ];
 
 // Blocks with strong LTR direction. Checked after RTL_RANGES, so overlaps with
@@ -69,7 +74,6 @@ export function getTextDirection(text: string): TextDirection | null {
   let ltrCount = 0;
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
-    if (inRanges(code, WEAK_RTL_RANGES)) continue;
     if (inRanges(code, RTL_RANGES)) {
       rtlCount++;
     } else if (inRanges(code, LTR_RANGES)) {

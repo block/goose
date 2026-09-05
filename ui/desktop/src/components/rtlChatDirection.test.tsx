@@ -79,10 +79,21 @@ describe('RTL chat direction', () => {
       await waitFor(() => {
         expect(container.querySelector('li')).toBeInTheDocument();
       });
-      // Loose list: the item's prose lives in a <p> with its own direction;
-      // the outer li carries no dir and inherits the message direction.
-      expect(container.querySelector('li')?.getAttribute('dir')).toBe(null);
+      // Loose list: the item's prose lives in a <p>, and the li's own vote
+      // counts it, so the marker side follows the prose direction.
+      expect(container.querySelector('li')?.getAttribute('dir')).toBe('rtl');
       expect(container.querySelector('li p')?.getAttribute('dir')).toBe('rtl');
+    });
+
+    it('tags loose list items even when the message-level vote is LTR', async () => {
+      const content =
+        'A fairly long English intro paragraph that tips the raw message text towards LTR.\n\n- عنصر عربي\n\n- عنصر آخر';
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container.querySelector('li')).toBeInTheDocument();
+      });
+      expect(container.querySelector('li')?.getAttribute('dir')).toBe('rtl');
     });
 
     it('does not let a nested sublist flip a list item direction', async () => {
