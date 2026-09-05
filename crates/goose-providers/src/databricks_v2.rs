@@ -172,15 +172,19 @@ impl DatabricksV2Provider {
     }
 
     fn route_for_model(model_name: &str) -> DatabricksV2Route {
-        if Self::is_model_service_fqn(model_name) {
-            // UC namespaces are user-defined and cannot select a native API.
-            return DatabricksV2Route::MlflowChatCompletions;
-        }
-        let (clean_name, _) = extract_reasoning_effort(model_name);
+        let is_model_service = Self::is_model_service_fqn(model_name);
+        let routing_name = if is_model_service {
+            model_name.rsplit('.').next().unwrap_or(model_name)
+        } else {
+            model_name
+        };
+        let (clean_name, _) = extract_reasoning_effort(routing_name);
         let lower = clean_name.to_lowercase();
 
         if is_openai_responses_model(&clean_name) || Self::looks_like_gpt5(&lower) {
             DatabricksV2Route::OpenAiResponses
+        } else if is_model_service {
+            DatabricksV2Route::MlflowChatCompletions
         } else if Self::is_claude_model(&lower) {
             DatabricksV2Route::AnthropicMessages
         } else {
@@ -569,7 +573,11 @@ mod tests {
 
     #[test]
     fn routes_known_model_families() {
-        for model in ["databricks-gpt-5-5", "databricks-gpt5"] {
+        for model in [
+            "databricks-gpt-5-5",
+            "databricks-gpt5",
+            "data_workflow_tools.goose.goose-gpt-6-astra",
+        ] {
             assert_eq!(
                 DatabricksV2Provider::route_for_model(model),
                 DatabricksV2Route::OpenAiResponses,
@@ -587,6 +595,10 @@ mod tests {
 
         assert_eq!(
             DatabricksV2Provider::route_for_model("custom-model"),
+            DatabricksV2Route::MlflowChatCompletions
+        );
+        assert_eq!(
+            DatabricksV2Provider::route_for_model("catalog.schema.claude-alias"),
             DatabricksV2Route::MlflowChatCompletions
         );
     }
