@@ -116,7 +116,12 @@ impl GooseAcpAgent {
         );
         let tool_result = agent
             .extension_manager
-            .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
+            .dispatch_app_tool_call(
+                &ctx,
+                tool_call,
+                &req.extension_name,
+                CancellationToken::new(),
+            )
             .await
             .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
 
