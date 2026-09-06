@@ -1015,8 +1015,8 @@ mod tests {
                 .count();
 
             assert_eq!(
-                visible_tool_pairs, 26,
-                "All 13 tool pairs (26 messages) must stay visible"
+                visible_tool_pairs, 80,
+                "All 40 tool pairs (80 messages) must stay visible"
             );
 
             Ok(())
