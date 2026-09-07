@@ -248,8 +248,10 @@ pub async fn check_if_compaction_needed(
         crate::context_limit::get_context_limit(provider, &model_config.model_name).await?;
 
     let (current_tokens, _token_source) = match session.usage.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
-        None => {
+        Some(tokens) if !messages.last().is_some_and(Message::is_tool_response) => {
+            (tokens as usize, "session metadata")
+        }
+        _ => {
             let token_counter = create_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;

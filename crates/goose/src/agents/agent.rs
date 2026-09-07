@@ -3556,6 +3556,74 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
+                if !exit_chat && conversation.last().is_some_and(Message::is_tool_response) {
+                    let current_session = session_manager
+                        .get_session(&session_config.id, true)
+                        .await?;
+                    if check_if_compaction_needed(
+                        self.provider().await?.as_ref(),
+                        &conversation,
+                        None,
+                        &current_session,
+                    )
+                    .await?
+                    {
+                        let threshold = Config::global()
+                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                        let threshold_percentage = (threshold * 100.0) as u32;
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                format!(
+                                    "Exceeded auto-compact threshold of {threshold_percentage}%. Performing auto-compaction..."
+                                ),
+                            ),
+                        );
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::ProgressMessage,
+                                COMPACTION_PROGRESS_TEXT,
+                            ),
+                        );
+
+                        match compact_messages(
+                            self.provider().await?.as_ref(),
+                            &model_config,
+                            &session_config.id,
+                            &conversation,
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(compaction) => {
+                                session_manager
+                                    .replace_conversation(
+                                        &session_config.id,
+                                        &compaction.conversation,
+                                    )
+                                    .await?;
+                                self.update_session_metrics(
+                                    &session_config.id,
+                                    session_config.schedule_id.clone(),
+                                    &compaction.usage,
+                                    Some(compaction.retained_context_tokens),
+                                )
+                                .await?;
+                                conversation = compaction.conversation;
+                                yield AgentEvent::HistoryReplaced(conversation.clone());
+                                continue;
+                            }
+                            Err(e) => {
+                                yield AgentEvent::Message(Message::assistant().with_text(format!(
+                                    "Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session"
+                                )));
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;
                 }

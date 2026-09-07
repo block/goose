@@ -77,6 +77,9 @@ impl CompactionOperation {
     }
 
     async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
+        if conversation.last().is_some_and(Message::is_tool_response) {
+            return crate::context_mgmt::count_context_tokens(conversation).await;
+        }
         match session.usage.total_tokens {
             Some(tokens) => Ok(tokens),
             None => crate::context_mgmt::count_context_tokens(conversation).await,
@@ -244,7 +247,10 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            if last_effective_role(messages)? != EffectiveRole::User {
+            if !matches!(
+                last_effective_role(messages)?,
+                EffectiveRole::User | EffectiveRole::Tool
+            ) {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;
