@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "取消"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "此配方將執行的指令："
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "此配方啟動時會在你的電腦上執行以下指令。只有在你信任來源時才繼續。"
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "說明："
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "配方預覽："
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "無法檢查此配方將執行的內容。請取消並重試。"
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "正在檢查此配方將執行的內容…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ 安全性警告"

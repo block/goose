@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Отмена"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Команды, которые выполнит этот рецепт:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "При запуске этот рецепт выполнит на вашем компьютере следующие команды. Продолжайте, только если доверяете источнику."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Описание:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Предпросмотр рецепта:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Не удалось проверить, что выполнит этот рецепт. Отмените и повторите попытку."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Проверяем, что выполнит этот рецепт…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Предупреждение безопасности"

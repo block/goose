@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "रद्द करें"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "यह रेसिपी जो कमांड चलाएगी:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "शुरू होने पर यह रेसिपी आपकी मशीन पर निम्नलिखित कमांड चलाएगी। केवल तभी जारी रखें जब आप स्रोत पर भरोसा करते हों।"
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "विवरण:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "पकाने की विधि पूर्वावलोकन:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "यह जाँच नहीं की जा सकी कि यह रेसिपी क्या चलाएगी। रद्द करें और फिर से प्रयास करें।"
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "जाँच की जा रही है कि यह रेसिपी क्या चलाएगी…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ सुरक्षा चेतावनी"

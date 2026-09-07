@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Batal"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Arahan yang akan dijalankan resipi ini:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "Resipi ini akan menjalankan arahan berikut pada mesin anda semasa ia bermula. Teruskan hanya jika anda mempercayai sumbernya."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Perihalan:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Pratonton Resipi:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Tidak dapat memeriksa perkara yang akan dijalankan resipi ini. Batalkan dan cuba lagi."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Memeriksa perkara yang akan dijalankan resipi ini…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Amaran Keselamatan"
