@@ -96,6 +96,40 @@ impl ProviderError {
             .downcast()
             .unwrap_or_else(ProviderError::stream_decode_error)
     }
+
+    /// True when the HTTP body ended without a complete frame — a dropped
+    /// chunked connection, an incomplete gzip stream, a reset. Distinct from a
+    /// JSON parse failure on a well-formed frame.
+    pub fn is_truncated_http_stream(error: &anyhow::Error) -> bool {
+        error.chain().any(|cause| {
+            if let Some(io_error) = cause.downcast_ref::<std::io::Error>() {
+                if matches!(
+                    io_error.kind(),
+                    std::io::ErrorKind::UnexpectedEof
+                        | std::io::ErrorKind::BrokenPipe
+                        | std::io::ErrorKind::ConnectionReset
+                        | std::io::ErrorKind::ConnectionAborted
+                ) {
+                    return true;
+                }
+            }
+            if let Some(reqwest_error) = cause.downcast_ref::<reqwest::Error>() {
+                if reqwest_error.is_decode() || reqwest_error.is_body() {
+                    return true;
+                }
+            }
+            is_truncated_http_stream_message(&cause.to_string())
+        })
+    }
+}
+
+fn is_truncated_http_stream_message(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    message.contains("error decoding response body")
+        || message.contains("incomplete message")
+        || message.contains("unexpected eof")
+        || message.contains("connection reset")
+        || message.contains("broken pipe")
 }
 
 fn is_network_error(err: &reqwest::Error) -> bool {
@@ -267,6 +301,24 @@ mod tests {
         assert!(!message.contains("url-password"));
         assert!(message.contains("status: 401 Unauthorized"));
         assert!(message.contains(&format!("http://{address}/chat")));
+    }
+
+    #[test]
+    fn truncated_http_stream_matches_reqwest_decode_message() {
+        let error = anyhow::anyhow!("error decoding response body");
+        assert!(ProviderError::is_truncated_http_stream(&error));
+        assert!(!ProviderError::is_truncated_http_stream(&anyhow::anyhow!(
+            "Failed to parse streaming chunk: missing field `choices`"
+        )));
+    }
+
+    #[test]
+    fn truncated_http_stream_matches_unexpected_eof() {
+        let error = anyhow::Error::from(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "end of file",
+        ));
+        assert!(ProviderError::is_truncated_http_stream(&error));
     }
 }
 

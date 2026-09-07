@@ -1255,9 +1255,22 @@ where
         let mut output_token_limit_reached = false;
         let mut output_token_limit_metadata_emitted = false;
         let mut usage_emitted = false;
+        let mut received_payload = false;
 
         'outer: while let Some(response) = stream.next().await {
-            let response_str = response?;
+            let response_str = match response {
+                Ok(s) => s,
+                Err(error)
+                    if received_payload && ProviderError::is_truncated_http_stream(&error) =>
+                {
+                    tracing::warn!(
+                        error = %error,
+                        "Provider stream truncated after tokens; treating as complete"
+                    );
+                    break 'outer;
+                }
+                Err(error) => Err(error)?,
+            };
             let line = strip_data_prefix(&response_str);
 
             if line.is_some_and(|l| l == "[DONE]") {
@@ -1273,6 +1286,7 @@ where
             )? else {
                 continue  // metadata-only frame
             };
+            received_payload = true;
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
             }
@@ -3489,6 +3503,63 @@ data: [DONE]
         );
         assert_usage_yielded_once(&result, 10, 5, 15);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_http_body_after_tokens_is_complete() -> anyhow::Result<()> {
+        let response_lines = [
+            Ok(
+                r#"data: {"id":"chatcmpl-cut","model":"auto","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello from auto"},"finish_reason":null}]}"#
+                    .to_string(),
+            ),
+            Err(anyhow::anyhow!("error decoding response body")),
+        ];
+        let response_stream = tokio_stream::iter(response_lines);
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut text = String::new();
+        let mut errors = Vec::new();
+        while let Some(item) = messages.next().await {
+            match item {
+                Ok((Some(msg), _)) => {
+                    for content in &msg.content {
+                        if let MessageContentBlock::Text(t) = content {
+                            text.push_str(&t.text);
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => errors.push(error.to_string()),
+            }
+        }
+
+        assert_eq!(text, "Hello from auto");
+        assert!(
+            errors.is_empty(),
+            "truncated HTTP body after tokens must not fail the turn: {errors:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_http_body_before_tokens_is_error() -> anyhow::Result<()> {
+        let response_stream = tokio_stream::iter(vec![Err(anyhow::anyhow!(
+            "error decoding response body"
+        ))]);
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let first = messages
+            .next()
+            .await
+            .expect("empty-stream truncation should surface as an error");
+        assert!(first.is_err());
+        assert!(first
+            .expect_err("expected decode error")
+            .to_string()
+            .contains("error decoding response body"));
         Ok(())
     }
 

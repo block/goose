@@ -1017,9 +1017,22 @@ where
         let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
         let mut is_text_response = false;
         let mut output_token_limit_reached = false;
+        let mut received_payload = false;
 
         'outer: while let Some(response) = stream.next().await {
-            let response_str = response?;
+            let response_str = match response {
+                Ok(s) => s,
+                Err(error)
+                    if received_payload && ProviderError::is_truncated_http_stream(&error) =>
+                {
+                    tracing::warn!(
+                        error = %error,
+                        "Provider stream truncated after tokens; treating as complete"
+                    );
+                    break 'outer;
+                }
+                Err(error) => Err(error)?,
+            };
 
             // Skip empty lines
             if response_str.trim().is_empty() {
@@ -1053,6 +1066,7 @@ where
             let Some(event) = parse_responses_stream_event(data_line)? else {
                 continue;
             };
+            received_payload = true;
 
             match event {
                 ResponsesStreamEvent::ResponseCreated { response, .. } |
@@ -1704,6 +1718,51 @@ mod tests {
             .to_string()
             .contains("Responses API error"));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_truncated_http_body_after_tokens_is_complete()
+    -> anyhow::Result<()> {
+        let lines = vec![
+            Ok(
+                r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_cut","object":"response","created_at":1737368310,"status":"in_progress","model":"auto","output":[]}}"#
+                    .to_string(),
+            ),
+            Ok(
+                r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello from auto"}"#
+                    .to_string(),
+            ),
+            Err(anyhow::anyhow!("error decoding response body")),
+        ];
+        let response_stream = tokio_stream::iter(lines);
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text = String::new();
+        let mut errors = Vec::new();
+        while let Some(item) = messages.next().await {
+            match item {
+                Ok((Some(msg), _)) => {
+                    for content in &msg.content {
+                        if let MessageContentBlock::Text(t) = content {
+                            text.push_str(&t.text);
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => errors.push(error.to_string()),
+            }
+        }
+
+        assert!(
+            text.contains("Hello from auto"),
+            "expected yielded text, got {text:?}"
+        );
+        assert!(
+            errors.is_empty(),
+            "truncated HTTP body after tokens must not fail the turn: {errors:?}"
+        );
         Ok(())
     }
 

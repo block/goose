@@ -583,7 +583,16 @@ impl<'a> ApiRequestBuilder<'a> {
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(headers);
 
-        if !self.streaming {
+        if self.streaming {
+            // Compressed SSE is a common source of "error decoding response body"
+            // when a proxy or router drops the connection mid-frame: gzip then
+            // fails the whole stream even though tokens already arrived. Ask for
+            // identity so a truncated body is still line-readable.
+            request = request.header(
+                reqwest::header::ACCEPT_ENCODING,
+                HeaderValue::from_static("identity"),
+            );
+        } else {
             request = request.timeout(self.client.timeout);
         }
 
@@ -746,6 +755,25 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
+    async fn spawn_header_echo_server() -> (SocketAddr, tokio::sync::oneshot::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
+            let mut buf = [0u8; 8192];
+            let n = sock.read(&mut buf).await.unwrap_or(0);
+            let request = String::from_utf8_lossy(&buf[..n]).to_string();
+            let _ = tx.send(request);
+            let _ = sock
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                .await;
+        });
+        (addr, rx)
+    }
+
     async fn spawn_chunked_server(gap_ms: u64, chunks: usize) -> SocketAddr {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -886,6 +914,45 @@ mod tests {
 
         let count = drain_counting_data_lines(response).await.unwrap();
         assert_eq!(count, 12);
+    }
+
+    #[tokio::test]
+    async fn streaming_request_asks_for_identity_encoding() {
+        let (addr, headers) = spawn_header_echo_server().await;
+        let client = client_with_timeout(addr, 400);
+
+        let _ = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await;
+
+        let request = headers.await.expect("server should capture request");
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .contains("accept-encoding: identity"),
+            "streaming requests must disable compression, got:\n{request}"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_streaming_request_does_not_force_identity_encoding() {
+        let (addr, headers) = spawn_header_echo_server().await;
+        let client = client_with_timeout(addr, 400);
+
+        let _ = client
+            .request("v1/messages")
+            .response_post(&serde_json::json!({}))
+            .await;
+
+        let request = headers.await.expect("server should capture request");
+        assert!(
+            !request
+                .to_ascii_lowercase()
+                .contains("accept-encoding: identity"),
+            "non-streaming requests should keep default compression, got:\n{request}"
+        );
     }
 
     #[tokio::test]
