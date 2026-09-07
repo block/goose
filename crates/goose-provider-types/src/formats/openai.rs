@@ -3545,9 +3545,8 @@ data: [DONE]
 
     #[tokio::test]
     async fn test_streaming_truncated_http_body_before_tokens_is_error() -> anyhow::Result<()> {
-        let response_stream = tokio_stream::iter(vec![Err(anyhow::anyhow!(
-            "error decoding response body"
-        ))]);
+        let response_stream =
+            tokio_stream::iter(vec![Err(anyhow::anyhow!("error decoding response body"))]);
         let messages = response_to_streaming_message(response_stream);
         pin!(messages);
 

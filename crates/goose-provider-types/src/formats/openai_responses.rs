@@ -1722,8 +1722,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_responses_stream_truncated_http_body_after_tokens_is_complete()
-    -> anyhow::Result<()> {
+    async fn test_responses_stream_truncated_http_body_after_tokens_is_complete(
+    ) -> anyhow::Result<()> {
         let lines = vec![
             Ok(
                 r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_cut","object":"response","created_at":1737368310,"status":"in_progress","model":"auto","output":[]}}"#
