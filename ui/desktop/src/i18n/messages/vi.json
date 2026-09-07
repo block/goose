@@ -3693,7 +3693,7 @@
     "defaultMessage": "Đã sao chép JSON của phiên"
   },
   "sessionActionsHeader.copiedModelInteractions": {
-    "defaultMessage": "Recent model interactions copied"
+    "defaultMessage": "Đã sao chép tương tác mô hình gần đây"
   },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Đã sao chép văn bản"
@@ -3726,10 +3726,10 @@
     "defaultMessage": "Đang tải JSON..."
   },
   "sessionActionsHeader.modelInteractionsFailed": {
-    "defaultMessage": "Failed to load model interactions: {error}"
+    "defaultMessage": "Không thể tải tương tác mô hình: {error}"
   },
   "sessionActionsHeader.modelInteractionsTitle": {
-    "defaultMessage": "Recent model interactions"
+    "defaultMessage": "Tương tác mô hình gần đây"
   },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Không thể đổi tên phiên: {error}"
@@ -3756,7 +3756,7 @@
     "defaultMessage": "Xem JSON của phiên"
   },
   "sessionActionsHeader.viewModelInteractions": {
-    "defaultMessage": "View recent model interactions"
+    "defaultMessage": "Xem tương tác mô hình gần đây"
   },
   "sessionIndicators.error": {
     "defaultMessage": "Phiên gặp lỗi"
