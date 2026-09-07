@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Abbrechen"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Befehle, die dieses Rezept ausführt:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "Dieses Rezept führt beim Start die folgenden Befehle auf deinem Rechner aus. Fahre nur fort, wenn du der Quelle vertraust."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Beschreibung:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Rezeptvorschau:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Es konnte nicht geprüft werden, was dieses Rezept ausführt. Brich ab und versuche es erneut."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Es wird geprüft, was dieses Rezept ausführt …"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Sicherheitswarnung"

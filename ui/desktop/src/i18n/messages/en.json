@@ -3092,6 +3092,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Cancel"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Commands this recipe will run:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "This recipe will run the following commands on your machine when it starts. Only continue if you trust the source."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Description:"
   },
@@ -3109,6 +3115,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Recipe Preview:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Could not check what this recipe will run. Cancel and try again."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Checking what this recipe will run…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Security Warning"

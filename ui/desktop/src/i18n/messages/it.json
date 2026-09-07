@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Annulla"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Comandi che questa ricetta eseguirà:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "Questa ricetta eseguirà i seguenti comandi sul tuo computer all’avvio. Continua solo se ti fidi della fonte."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Descrizione:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Anteprima ricetta:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Impossibile verificare cosa eseguirà questa ricetta. Annulla e riprova."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Verifica di cosa eseguirà questa ricetta…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Avviso di sicurezza"

@@ -4228,7 +4228,19 @@
       "type": "object",
       "properties": {
         "has_security_warnings": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Hidden/obfuscated content (unicode tags). Blocks saving, unlike `commands`."
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeCommandDto"
+          },
+          "default": []
+        },
+        "requires_approval": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
@@ -4236,6 +4248,21 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/recipes/scan"
+    },
+    "RecipeCommandDto": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "command"
+      ]
     },
     "ListRecipesRequest_unstable": {
       "type": "object",

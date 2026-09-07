@@ -3044,6 +3044,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "İptal"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Bu tarifin çalıştıracağı komutlar:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "Bu tarif başladığında makinenizde aşağıdaki komutları çalıştıracak. Yalnızca kaynağa güveniyorsanız devam edin."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Açıklama:"
   },
@@ -3061,6 +3067,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Tarif Önizlemesi:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Bu tarifin ne çalıştıracağı kontrol edilemedi. İptal edip tekrar deneyin."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Bu tarifin ne çalıştıracağı kontrol ediliyor…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Güvenlik Uyarısı"
