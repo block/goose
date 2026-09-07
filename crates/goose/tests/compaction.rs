@@ -6,8 +6,7 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
-use goose::permission::permission_confirmation::PrincipalType;
-use goose::permission::{Permission, PermissionConfirmation};
+use goose::permission::Permission;
 use goose::providers::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
@@ -530,8 +529,6 @@ impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
             model_doc_link: "".to_string(),
             config_keys: vec![],
             setup_steps: vec![],
-            model_selection_hint: None,
-            fast_model: None,
             setup: None,
             deprecated: None,
         }
@@ -1194,14 +1191,8 @@ async fn run_reply_approving_tools(agent: &Agent, session: &Session) -> Result<(
                         } = &action.data
                         {
                             agent
-                                .handle_confirmation(
-                                    id.clone(),
-                                    PermissionConfirmation {
-                                        principal_type: PrincipalType::Tool,
-                                        permission: Permission::AllowOnce,
-                                    },
-                                )
-                                .await;
+                                .submit_tool_confirmation(&session.id, id, Permission::AllowOnce)
+                                .await?;
                         }
                     }
                 }

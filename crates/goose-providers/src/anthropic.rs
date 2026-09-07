@@ -26,7 +26,6 @@ use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
-pub const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-opus-5",
     "claude-sonnet-5",
@@ -305,7 +304,6 @@ impl ProviderDescriptor for AnthropicProvider {
                 ),
             ],
         )
-        .with_fast_model(ANTHROPIC_DEFAULT_FAST_MODEL)
         .with_setup_steps(vec![
             "Go to https://platform.claude.com/settings/keys",
             "Click 'Create Key'",
@@ -419,6 +417,8 @@ pub fn from_declarative_config(
             config.name
         ));
     }
+
+    config.validate_auth()?;
 
     let api_key = if config.api_key_env.is_empty() {
         None

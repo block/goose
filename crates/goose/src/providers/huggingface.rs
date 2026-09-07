@@ -3,6 +3,7 @@ use super::base::{
     ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
+use super::command_auth::CommandAuthProvider;
 use super::huggingface_auth;
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
@@ -84,7 +85,15 @@ impl HuggingFaceProvider {
             ));
         }
 
-        let auth_method = custom_auth_method(&config)?;
+        config.validate_auth()?;
+        let auth_method = match config.auth.as_ref() {
+            Some(auth_config) => AuthMethod::Custom(Box::new(CommandAuthProvider::new(
+                auth_config,
+                "Authorization",
+                "Bearer ",
+            ))),
+            None => custom_auth_method(&config)?,
+        };
         let (host, completions_prefix, query_params) =
             openai_compatible_endpoint_parts(&config.base_url, config.base_path.as_deref())?;
 
@@ -465,6 +474,21 @@ mod tests {
     }
 
     #[test]
+    fn custom_provider_accepts_command_auth_without_huggingface_token() {
+        let mut config = test_config();
+        config.api_key_env.clear();
+        config.auth = Some(goose_providers::declarative::AuthConfig {
+            command: "echo".to_string(),
+            args: vec!["token".to_string()],
+            refresh_interval: 3600,
+            timeout_seconds: None,
+            cwd: None,
+        });
+
+        HuggingFaceProvider::from_custom_config(config, None).unwrap();
+    }
+
+    #[test]
     fn custom_provider_requires_static_models_when_dynamic_models_disabled() {
         let mut config = test_config();
         config.requires_auth = false;
@@ -552,11 +576,11 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: vec![],
-            fast_model: None,
             preserves_thinking: true,
             emit_clear_thinking: false,
             setup: None,
