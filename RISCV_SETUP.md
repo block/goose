@@ -8,6 +8,28 @@ This document describes how to build goose-cli for RISC-V 64-bit systems with fu
 - RISC-V cross-compilation toolchain: `gcc-riscv64-linux-gnu`
 - Target: `rustup target add riscv64gc-unknown-linux-gnu`
 
+### Linker Configuration
+
+Building **on** RISC-V hardware needs nothing extra - the native linker is
+used automatically.
+
+**Cross-compiling** (e.g. from x86_64) needs the cross linker, otherwise
+rustc invokes the host `cc` and linking fails. Either export:
+
+```bash
+export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc
+```
+
+or add to `.cargo/config.toml` (or `~/.cargo/config.toml`):
+
+```toml
+[target.riscv64gc-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+```
+
+Adjust the binary name if your distribution ships the cross gcc under a
+different name.
+
 ## Overview
 
 V8 152.2.0 is the first version with pre-built RISC-V binaries. However:
@@ -199,6 +221,14 @@ icu_locale = { version = ">=2.1", default-features = false }
 
 Once RISC-V assets are added to the release pipeline, remove that bail
 block and drop `not(target_arch = "riscv64")` from the main branch.
+
+Because the bail makes the rest of the module cfg-disabled on riscv64,
+the file also carries a module-level allow so `clippy -D warnings` stays
+clean for RISC-V builds (inert on other targets):
+
+```rust
+#![cfg_attr(target_arch = "riscv64", allow(dead_code, unused_imports, unused_variables))]
+```
 
 ### 9. Update Dependencies
 

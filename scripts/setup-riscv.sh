@@ -104,19 +104,15 @@ sed -i 's/js_event_loop_tick_cb\.as_ref()\.unwrap()\.open(tc_scope);/unsafe { js
 # Fix ops_builtin_v8.rs - multiline sed
 sed -i '/cb_handle$/{ N; s/cb_handle\n      \.open(scope)/unsafe { cb_handle.open(scope) }/; }' "$VENDOR_DIR/deno_core/ops_builtin_v8.rs"
 
-# Disable fast-call path in bindings.rs
-cat > /tmp/bindings_patch.txt << 'PATCH'
-  // Disable fast path for v8 152 - causes SIGILL on RISC-V snapshot creation
-  let template = builder.build(scope);
-PATCH
-
-# Find and replace the fast_function block (lines ~600-605)
-sed -i '/let template = if let Some(fast_function)/,/};/{
-  /let template = if let Some(fast_function)/c\
+# Disable fast-call path in bindings.rs: replace the whole if/else block
+# with the fallback assignment (c on an address range replaces all of it)
+sed -i '/let template = if let Some(fast_function)/,/};/c\
   // Disable fast path for v8 152 - causes SIGILL on RISC-V snapshot creation\
-  let template = builder.build(scope);
-  /^  }/d
-}' "$VENDOR_DIR/deno_core/runtime/bindings.rs"
+  let template = builder.build(scope);' "$VENDOR_DIR/deno_core/runtime/bindings.rs"
+
+# With the fast path disabled, the fast_fn binding above is unused; silence
+# the resulting warning so clippy -D warnings stays clean.
+sed -i 's/^  let (slow_fn, fast_fn) = /  let (slow_fn, _fast_fn) = /' "$VENDOR_DIR/deno_core/runtime/bindings.rs"
 
 # Update WasmStreaming generic
 sed -i 's/pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming>);/pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming<false>>);/' "$VENDOR_DIR/deno_core/ops_builtin.rs"
@@ -133,26 +129,46 @@ echo "   ✓ Done"
 echo "8. Updating root Cargo.toml..."
 cd "$REPO_ROOT"
 
-# Add rusty_v8 to workspace exclusions (after members line)
+# Add rusty_v8 to workspace exclusions (after the members array).
+# Use awk for portability: sed multi-line behaviour differs between
+# GNU and BSD implementations.
 if ! grep -q 'exclude = \["vendor/rusty_v8"\]' Cargo.toml; then
-    # Insert exclude after the members array closing bracket
-    sed -i '/^members = \[/,/^\]$/s/^\]$/]\nexclude = ["vendor/rusty_v8"]/' Cargo.toml
+    awk '
+        /^members = \[/ { in_members = 1 }
+        in_members && /^\]$/ {
+            print
+            print "exclude = [\"vendor/rusty_v8\"]"
+            in_members = 0
+            next
+        }
+        { print }
+    ' Cargo.toml > Cargo.toml.new
+    mv Cargo.toml.new Cargo.toml
 fi
 
 # Relax ICU pins
 sed -i 's/icu_calendar = { version = "=2\.1\.1"/icu_calendar = { version = ">=2.1"/' Cargo.toml
 sed -i 's/icu_locale = { version = "=2\.1\.1"/icu_locale = { version = ">=2.1"/' Cargo.toml
 
-# Add patches for deno_core and serde_v8 (insert after [patch.crates-io])
-if ! grep -q 'deno_core = { path = "vendor/deno_core" }' Cargo.toml; then
-    sed -i '/\[patch\.crates-io\]/a\
-deno_core = { path = "vendor/deno_core" }\
-serde_v8 = { path = "vendor/serde_v8" }' Cargo.toml
-fi
-
-# Replace the existing v8 patch entry (a second v8 key would be a TOML error)
-if grep -q '^v8 = { path = "vendor/v8" }$' Cargo.toml; then
-    sed -i 's|^v8 = { path = "vendor/v8" }$|v8 = { package = "v8-wrapper", path = "vendor/v8" }|' Cargo.toml
+# Add patches for deno_core and serde_v8 (insert after [patch.crates-io]),
+# and replace the existing v8 patch entry.  Multi-line sed `a\` is fragile
+# across sed implementations, so rewrite the whole [patch.crates-io] block
+# with awk instead.
+if ! grep -q 'v8-wrapper' Cargo.toml; then
+    awk '
+        /^\[patch\.crates-io\]$/ {
+            print
+            print "deno_core = { path = \"vendor/deno_core\" }"
+            print "serde_v8 = { path = \"vendor/serde_v8\" }"
+            next
+        }
+        /^v8 = \{ path = "vendor\/v8" \}$/ {
+            print "v8 = { package = \"v8-wrapper\", path = \"vendor/v8\" }"
+            next
+        }
+        { print }
+    ' Cargo.toml > Cargo.toml.new
+    mv Cargo.toml.new Cargo.toml
 fi
 
 echo "   ✓ Done"
@@ -171,6 +187,20 @@ echo "10. Updating Cargo dependencies..."
 cd "$REPO_ROOT"
 cargo update --quiet
 echo "   ✓ Done"
+
+# 11. Verify toolchain is available.
+echo "11. Checking RISC-V toolchain..."
+if [ "$(uname -m)" = "riscv64" ]; then
+    echo "   ✓ native RISC-V build - no cross toolchain needed"
+elif command -v riscv64-linux-gnu-gcc > /dev/null 2>&1; then
+    echo "   ✓ riscv64-linux-gnu-gcc found"
+    echo "     For cross-compiling, export before building:"
+    echo "     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc"
+else
+    echo "   ⚠ riscv64-linux-gnu-gcc not found"
+    echo "     Install it (e.g. 'sudo apt install gcc-riscv64-linux-gnu') and set:"
+    echo "     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc"
+fi
 
 echo ""
 echo "=== Setup complete! ==="
