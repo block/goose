@@ -17,6 +17,7 @@ pub(crate) mod declarative_providers {
         alibaba,
         atomic_chat,
         cerebras,
+        daoxe,
         deepseek,
         empiriolabs,
         fireworks,
