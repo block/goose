@@ -1,0 +1,672 @@
+#!/usr/bin/env node
+
+import {
+  chmodSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+import {
+  coreAssignees,
+  firstHumanCommentAfter,
+  getOpenIssues,
+  getProjectIssues,
+  linkedPullRequestForVerification,
+  readCoreTeam,
+} from "./github_manager.mjs";
+
+const managedPhases = new Set(["Accepted / design", "Ready"]);
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const issueDetailsQuery = `
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      number
+      title
+      url
+      assignees(first: 100) { nodes { login } }
+      projectItems(first: 20) {
+        nodes {
+          id
+          project { id }
+          fieldValues(first: 50) {
+            nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name
+                updatedAt
+                field { ... on ProjectV2FieldCommon { id } }
+              }
+            }
+          }
+        }
+      }
+      closedByPullRequestsReferences(first: 100) {
+        pageInfo { hasNextPage }
+        nodes {
+          number
+          title
+          url
+          state
+          isDraft
+          repository { nameWithOwner }
+          assignees(first: 100) { nodes { login } }
+        }
+      }
+    }
+  }
+}`;
+const options = parseArguments(process.argv.slice(2));
+if (options.help) {
+  printHelp();
+  process.exit(0);
+}
+
+const configHome = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+const buzzHome = process.env.GOOSE_BUZZ_HOME || join(configHome, "goose", "buzz");
+const identityDirectory = join(buzzHome, "github-manager");
+const repositorySlug = options.repository
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-");
+const statePath = join(
+  identityDirectory,
+  `issue-lifecycle-${repositorySlug}-project-${options.projectNumber}.json`,
+);
+const coreTeamPath =
+  process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
+const gh = process.env.GH_BIN || "gh";
+const coreTeam = readCoreTeamOrFail();
+const coreGithubHandles = new Set(coreTeam.people.map((person) => person.github));
+const projectMetadata = getProjectMetadata();
+const { project } = getProjectIssuesOrFail();
+const openIssuesByNumber = new Map(
+  getOpenIssuesOrFail().map((issue) => [issue.number, issue]),
+);
+const projectIssues = project.items.filter(
+  (item) =>
+    item.content?.type === "Issue" &&
+    item.content.repository?.toLowerCase() === options.repository.toLowerCase() &&
+    openIssuesByNumber.has(item.content.number),
+);
+const state = readLifecycleState();
+const checkedAt = new Date().toISOString();
+
+if (!state) {
+  const initializedState = {
+    version: 1,
+    repository: options.repository,
+    project_id: projectMetadata.id,
+    checked_at: checkedAt,
+    issues: {},
+  };
+  for (const item of projectIssues) {
+    const entry = newStateEntry(item.status || null, checkedAt, []);
+    if (item.status === "Ready") {
+      const details = getIssueDetails(item.content.number, item.status);
+      entry.ignored_pull_requests = activePullRequestUrls(details.pullRequests);
+    }
+    initializedState.issues[String(item.content.number)] = entry;
+  }
+  if (!options.dryRun) {
+    writeLifecycleState(initializedState);
+  }
+  console.log(
+    JSON.stringify(
+      {
+        repository: options.repository,
+        project: options.projectTitle,
+        dry_run: options.dryRun,
+        status: options.dryRun ? "would-initialize" : "initialized",
+        issues_initialized: projectIssues.length,
+        transitions: [],
+        agent_work: [],
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
+
+if (
+  state.repository.toLowerCase() !== options.repository.toLowerCase() ||
+  state.project_id !== projectMetadata.id
+) {
+  fail(`${statePath} belongs to a different repository or project.`);
+}
+
+const transitions = [];
+const agentWork = [];
+
+for (const item of projectIssues.sort(
+  (left, right) => left.content.number - right.content.number,
+)) {
+  const issueNumber = item.content.number;
+  const stateKey = String(issueNumber);
+  const currentPhase = item.status || null;
+  let entry = state.issues[stateKey] || null;
+  let details = null;
+  let transitioned = false;
+
+  if (!entry || entry.phase !== currentPhase) {
+    transitioned = true;
+    const previousPhase = entry?.phase || null;
+    const previousShepherds = entry?.previous_shepherds || [];
+    let phaseUpdatedAt = checkedAt;
+    let shepherds = previousShepherds;
+    let pending = [];
+
+    if (managedPhases.has(currentPhase)) {
+      details = getIssueDetails(issueNumber, currentPhase);
+      phaseUpdatedAt = details.status.updatedAt;
+      const assignedCore = coreAssignees(
+        details.issue.assignees.nodes,
+        coreGithubHandles,
+      );
+      if (assignedCore.length > 0) {
+        shepherds = assignedCore;
+        pending = assignedCore;
+      }
+    }
+
+    entry = newStateEntry(currentPhase, phaseUpdatedAt, shepherds);
+    entry.unassignment_pending = pending;
+    state.issues[stateKey] = entry;
+    persistState();
+    transitions.push({
+      issue: issueNumber,
+      from: previousPhase,
+      to: currentPhase,
+      previous_shepherds: shepherds,
+      actions: pending.map(() =>
+        options.dryRun ? "would-unassign-core-shepherd" : "unassign-core-shepherd",
+      ),
+    });
+  }
+
+  if (entry.unassignment_pending.length > 0) {
+    details ||= getIssueDetails(issueNumber, currentPhase);
+    const assignedHandles = new Set(
+      details.issue.assignees.nodes.map((assignee) =>
+        assignee.login.toLowerCase(),
+      ),
+    );
+    let changedAssignments = false;
+    for (const handle of [...entry.unassignment_pending]) {
+      if (!options.dryRun) {
+        if (assignedHandles.has(handle.toLowerCase())) {
+          runCommand(gh, [
+            "issue",
+            "edit",
+            String(issueNumber),
+            "--repo",
+            options.repository,
+            "--remove-assignee",
+            handle,
+          ]);
+          changedAssignments = true;
+        }
+        entry.unassignment_pending = entry.unassignment_pending.filter(
+          (pending) => pending.toLowerCase() !== handle.toLowerCase(),
+        );
+        persistState();
+      }
+    }
+    if (changedAssignments) {
+      details = null;
+    }
+  }
+
+  if (!managedPhases.has(currentPhase)) {
+    continue;
+  }
+
+  details ||= getIssueDetails(issueNumber, currentPhase);
+  const pendingHandles = new Set(
+    entry.unassignment_pending.map((handle) => handle.toLowerCase()),
+  );
+  const assignedCore = coreAssignees(
+    details.issue.assignees.nodes,
+    coreGithubHandles,
+  ).filter((handle) => !pendingHandles.has(handle.toLowerCase()));
+
+  if (currentPhase === "Accepted / design") {
+    const comments = getIssueComments(issueNumber, entry.phase_updated_at);
+    const trigger = firstHumanCommentAfter(comments, entry.phase_updated_at);
+    if (trigger && entry.design_comment_id === null) {
+      entry.design_comment_id = trigger.id;
+      persistState();
+    }
+    if (
+      entry.design_comment_id !== null &&
+      assignedCore.length > 0 &&
+      !entry.design_assignment_complete
+    ) {
+      entry.design_assignment_complete = true;
+      persistState();
+    }
+    if (
+      entry.design_comment_id !== null &&
+      assignedCore.length === 0 &&
+      !entry.design_assignment_complete
+    ) {
+      const comment = comments.find(
+        (candidate) => candidate.id === entry.design_comment_id,
+      );
+      agentWork.push({
+        kind: "design-shepherd",
+        issue: issueRecord(details.issue, currentPhase),
+        previous_shepherds: entry.previous_shepherds,
+        trigger: comment
+          ? {
+              comment_id: comment.id,
+              author: comment.user.login,
+              url: comment.html_url,
+              created_at: comment.created_at,
+            }
+          : { comment_id: entry.design_comment_id },
+      });
+    }
+    continue;
+  }
+
+  let pullRequest;
+  try {
+    pullRequest = linkedPullRequestForVerification(
+      details.pullRequests,
+      options.repository,
+      entry.ignored_pull_requests,
+    );
+  } catch (error) {
+    fail(`Issue #${issueNumber}: ${error.message}`);
+  }
+  if (pullRequest) {
+    agentWork.push({
+      kind: "verification",
+      issue: issueRecord(details.issue, currentPhase),
+      pull_request: {
+        number: pullRequest.number,
+        title: pullRequest.title,
+        url: pullRequest.url,
+        state: pullRequest.state,
+        draft: pullRequest.isDraft,
+        assignees: pullRequest.assignees.nodes.map((assignee) => assignee.login),
+      },
+      previous_shepherds: entry.previous_shepherds,
+      project_item: {
+        id: details.projectItem.id,
+        project_id: projectMetadata.id,
+        status_field_id: projectMetadata.statusField.id,
+        verification_option_id: projectMetadata.verificationOption.id,
+      },
+    });
+  }
+
+  if (transitioned && options.dryRun) {
+    entry.unassignment_pending = [];
+  }
+}
+
+if (!options.dryRun) {
+  state.checked_at = checkedAt;
+  writeLifecycleState(state);
+}
+
+console.log(
+  JSON.stringify(
+    {
+      repository: options.repository,
+      project: options.projectTitle,
+      dry_run: options.dryRun,
+      status: "reconciled",
+      transitions,
+      agent_work: agentWork,
+    },
+    null,
+    2,
+  ),
+);
+
+function newStateEntry(phase, phaseUpdatedAt, previousShepherds) {
+  return {
+    phase,
+    phase_updated_at: phaseUpdatedAt,
+    previous_shepherds: previousShepherds,
+    unassignment_pending: [],
+    design_comment_id: null,
+    design_assignment_complete: false,
+    ignored_pull_requests: [],
+  };
+}
+
+function issueRecord(issue, phase) {
+  return {
+    number: issue.number,
+    title: issue.title,
+    url: issue.url,
+    status: phase,
+    assignees: issue.assignees.nodes.map((assignee) => assignee.login),
+  };
+}
+
+function activePullRequestUrls(pullRequests) {
+  return pullRequests
+    .filter(
+      (pullRequest) =>
+        pullRequest.repository.nameWithOwner.toLowerCase() ===
+          options.repository.toLowerCase() && pullRequest.state !== "CLOSED",
+    )
+    .map((pullRequest) => pullRequest.url);
+}
+
+function getProjectMetadata() {
+  const project = runJson(gh, [
+    "project",
+    "view",
+    String(options.projectNumber),
+    "--owner",
+    options.projectOwner,
+    "--format",
+    "json",
+  ]);
+  if (project.title !== options.projectTitle) {
+    fail(
+      `Project ${options.projectOwner}/${options.projectNumber} is ${JSON.stringify(project.title)}, not ${JSON.stringify(options.projectTitle)}.`,
+    );
+  }
+  const fields = runJson(gh, [
+    "project",
+    "field-list",
+    String(options.projectNumber),
+    "--owner",
+    options.projectOwner,
+    "--limit",
+    "100",
+    "--format",
+    "json",
+  ]);
+  if (fields.totalCount > 100 || fields.fields.length !== fields.totalCount) {
+    fail("GitHub returned an incomplete project field list.");
+  }
+  const statusField = fields.fields.find(
+    (field) => field.name === "Status" && field.type === "ProjectV2SingleSelectField",
+  );
+  const verificationOption = statusField?.options?.find(
+    (option) => option.name === "Verification",
+  );
+  if (!project.id || !statusField?.id || !verificationOption?.id) {
+    fail("The project must have a Status field with a Verification option.");
+  }
+  return { id: project.id, statusField, verificationOption };
+}
+
+function getProjectIssuesOrFail() {
+  try {
+    return getProjectIssues(runJson, {
+      command: gh,
+      projectNumber: options.projectNumber,
+      projectOwner: options.projectOwner,
+      projectLimit: options.projectLimit,
+      repository: options.repository,
+    });
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+function getOpenIssuesOrFail() {
+  try {
+    return getOpenIssues(runJson, {
+      command: gh,
+      repository: options.repository,
+    });
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+function getIssueDetails(issueNumber, expectedPhase) {
+  const repositoryParts = options.repository.split("/");
+  if (repositoryParts.length !== 2 || repositoryParts.some((part) => !part)) {
+    fail(`Invalid GitHub repository: ${options.repository}`);
+  }
+  const response = runJson(gh, [
+    "api",
+    "graphql",
+    "-F",
+    `owner=${repositoryParts[0]}`,
+    "-F",
+    `name=${repositoryParts[1]}`,
+    "-F",
+    `number=${issueNumber}`,
+    "-f",
+    `query=${issueDetailsQuery}`,
+  ]);
+  const issue = response.data?.repository?.issue;
+  if (!issue || issue.closedByPullRequestsReferences?.pageInfo?.hasNextPage) {
+    fail(`GitHub returned incomplete lifecycle data for issue #${issueNumber}.`);
+  }
+  const projectItem = issue.projectItems.nodes.find(
+    (item) => item.project.id === projectMetadata.id,
+  );
+  const status = projectItem?.fieldValues.nodes.find(
+    (value) => value.field?.id === projectMetadata.statusField.id,
+  );
+  if (
+    !projectItem ||
+    !status ||
+    typeof status.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(status.updatedAt))
+  ) {
+    fail(`Could not read the project status update time for issue #${issueNumber}.`);
+  }
+  if (status.name !== expectedPhase) {
+    fail(
+      `Issue #${issueNumber} changed from ${JSON.stringify(expectedPhase)} to ${JSON.stringify(status.name)} during reconciliation. Retry the run.`,
+    );
+  }
+  return {
+    issue,
+    projectItem,
+    status,
+    pullRequests: issue.closedByPullRequestsReferences.nodes,
+  };
+}
+
+function getIssueComments(issueNumber, since) {
+  const pages = runJson(gh, [
+    "api",
+    "--method",
+    "GET",
+    "--paginate",
+    "--slurp",
+    `repos/${options.repository}/issues/${issueNumber}/comments`,
+    "-f",
+    `since=${since}`,
+    "-f",
+    "per_page=100",
+  ]);
+  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+    fail(`GitHub returned invalid comments for issue #${issueNumber}.`);
+  }
+  return pages.flat();
+}
+
+function readCoreTeamOrFail() {
+  try {
+    return readCoreTeam(coreTeamPath);
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+function readLifecycleState() {
+  if (!existsSync(statePath)) {
+    return null;
+  }
+  chmodSync(statePath, 0o600);
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(statePath, "utf8"));
+  } catch (error) {
+    fail(`Could not read ${statePath}: ${error.message}`);
+  }
+  if (
+    parsed.version !== 1 ||
+    typeof parsed.repository !== "string" ||
+    typeof parsed.project_id !== "string" ||
+    !parsed.issues ||
+    typeof parsed.issues !== "object" ||
+    Array.isArray(parsed.issues) ||
+    Object.entries(parsed.issues).some(
+      ([number, entry]) => !/^[1-9]\d*$/.test(number) || !validStateEntry(entry),
+    )
+  ) {
+    fail(`Invalid issue lifecycle state in ${statePath}.`);
+  }
+  return parsed;
+}
+
+function validStateEntry(entry) {
+  return (
+    entry &&
+    (entry.phase === null || typeof entry.phase === "string") &&
+    typeof entry.phase_updated_at === "string" &&
+    Number.isFinite(Date.parse(entry.phase_updated_at)) &&
+    stringArray(entry.previous_shepherds) &&
+    stringArray(entry.unassignment_pending) &&
+    (entry.design_comment_id === null ||
+      Number.isSafeInteger(entry.design_comment_id)) &&
+    typeof entry.design_assignment_complete === "boolean" &&
+    stringArray(entry.ignored_pull_requests)
+  );
+}
+
+function stringArray(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function persistState() {
+  if (!options.dryRun) {
+    state.checked_at = checkedAt;
+    writeLifecycleState(state);
+  }
+}
+
+function writeLifecycleState(value) {
+  const temporaryPath = `${statePath}.${process.pid}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  chmodSync(temporaryPath, 0o600);
+  renameSync(temporaryPath, statePath);
+  chmodSync(statePath, 0o600);
+}
+
+function runJson(command, arguments_) {
+  const result = runCommand(command, arguments_);
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    fail(`${command} returned invalid JSON: ${result.stdout.trim()}`);
+  }
+}
+
+function runCommand(command, arguments_) {
+  const result = spawnSync(command, arguments_, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.error) {
+    fail(`Could not run ${command}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const message = result.stderr.trim() || result.stdout.trim();
+    fail(`${command} failed${message ? `: ${message}` : "."}`);
+  }
+  return result;
+}
+
+function parseArguments(arguments_) {
+  const parsed = {
+    repository: "aaif-goose/goose",
+    projectOwner: "aaif-goose",
+    projectNumber: 1,
+    projectTitle: "Goose Issues",
+    projectLimit: 1000,
+    dryRun: false,
+    help: false,
+  };
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === "--repo") {
+      parsed.repository = requiredValue(arguments_, ++index, argument);
+    } else if (argument === "--project-owner") {
+      parsed.projectOwner = requiredValue(arguments_, ++index, argument);
+    } else if (argument === "--project-number") {
+      parsed.projectNumber = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+    } else if (argument === "--project") {
+      parsed.projectTitle = requiredValue(arguments_, ++index, argument);
+    } else if (argument === "--project-limit") {
+      parsed.projectLimit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+    } else if (argument === "--dry-run") {
+      parsed.dryRun = true;
+    } else if (argument === "--help" || argument === "-h") {
+      parsed.help = true;
+    } else {
+      fail(`Unknown option: ${argument}`);
+    }
+  }
+  return parsed;
+}
+
+function requiredValue(arguments_, index, option) {
+  const value = arguments_[index];
+  if (!value || value.startsWith("--")) {
+    fail(`${option} requires a value.`);
+  }
+  return value;
+}
+
+function positiveInteger(value, option) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    fail(`${option} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function printHelp() {
+  console.log(`Usage:
+  manage_issue_lifecycle [options]
+
+Options:
+  --repo <owner/repo>       GitHub repository (default: aaif-goose/goose)
+  --project-owner <owner>   GitHub project owner (default: aaif-goose)
+  --project-number <number> GitHub project number (default: 1)
+  --project <title>         GitHub project title (default: Goose Issues)
+  --project-limit <number>  Maximum project items (default: 1000)
+  --dry-run                 Report changes without writing GitHub or state
+  -h, --help                Show this help
+
+Detects transitions into Accepted / design and Ready, clears core-team issue
+assignees once, and reports design-comment or linked-PR work for the Goose
+manager. The first non-dry run initializes state without changing existing
+issues.`);
+}
