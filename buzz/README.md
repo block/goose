@@ -19,7 +19,8 @@ added so people can find and manage them in Buzz Desktop.
 - Node.js
 - [GitHub CLI](https://cli.github.com/) authenticated with access to the
   repository and its project board; the recipe also needs permission to assign
-  issues and pull requests and to update the project Status field
+  issues and pull requests, edit and close pull requests, post pull request
+  comments, and update the project Status field
 - Buzz Desktop on macOS, or a `buzz` CLI on `PATH`
 - Goose CLI with a configured model provider
 - A running public Buzz community
@@ -276,6 +277,26 @@ Manager identity. Always inspect a dry run first:
 ./buzz/manage_issue_lifecycle
 ```
 
+### `list_pull_request_work`
+
+Lists open pull requests that need issue-link review. It returns pull requests
+that mention an issue without using GitHub closing language, plus non-draft
+external pull requests with no issue mention. For issue-first notices it reports
+whether no notice has been posted, the notice is waiting, someone replied, or
+the unanswered notice is at least three days old. Drafts, bots, repository
+owners, members, collaborators, and configured core-team members are never
+eligible for a notice or automatic closure. The recipe also applies the
+documented exemptions for automated dependency and release work, urgent
+security fixes, and work directed by the core team. Dependabot pull requests
+are ignored completely, including closing-language corrections.
+
+The notice contains a stable marker so repeated runs do not post it twice. The
+script only reads GitHub; the recipe makes and rechecks any changes.
+
+```sh
+./buzz/list_pull_request_work
+```
+
 ### `syncissues`
 
 Fetches all open GitHub issues and all Buzz channels, matches issue channels by
@@ -349,7 +370,8 @@ target another repository or project.
 
 ### `github_issue_manager.yaml`
 
-This Goose recipe manages the full phase-aware issue loop:
+This Goose recipe manages the phase-aware issue loop and issue-first pull
+requests:
 
 1. Reconcile phase transitions and collect design or verification work.
 2. List unassigned Inbox issues and unresolved work from `issues to add`.
@@ -365,11 +387,17 @@ This Goose recipe manages the full phase-aware issue loop:
    continuity, interest, and rolling normalized load. Verification owners are
    assigned to both the issue and linked pull request before the project item is
    moved to `Verification`.
-8. Run `syncissues`.
+8. Fix pull request descriptions that claim to implement an issue without using
+   GitHub closing language.
+9. Post the issue-first notice on eligible pull requests with no issue mention.
+10. Close a pull request when that notice remains its latest comment for three
+   days and it still has no issue mention.
+11. Run `syncissues`.
 
 Issue bodies and comments are treated as untrusted data. The recipe is allowed
-only the assignment and Verification project-field writes described above; it
-does not edit bodies, post GitHub comments, close work, or change labels.
+only the lifecycle and pull request changes above. It does not edit issue
+bodies, post issue comments, change labels, or make unrelated pull request
+changes. Dependabot pull requests are ignored.
 
 Run it once with:
 

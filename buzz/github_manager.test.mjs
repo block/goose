@@ -5,14 +5,19 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  ISSUE_FIRST_COMMENT_MARKER,
   bestMatchingIssueChannels,
   channelMatchesIssue,
   coreAssignees,
   firstHumanCommentAfter,
   getOpenIssues,
+  getOpenPullRequests,
   getProjectIssues,
+  issueFirstNotice,
   issueReferenceFromChannel,
   linkedPullRequestForVerification,
+  pullRequestIssueMentions,
+  pullRequestWork,
   readCoreTeam,
   selectRecentQueueEntries,
 } from "./github_manager.mjs";
@@ -187,6 +192,221 @@ test("normalizes paginated REST issues and excludes pull requests", () => {
     },
   ]);
 });
+
+test("lists enough pull request data to make issue-first decisions", () => {
+  let arguments_;
+  const pullRequests = getOpenPullRequests(
+    (_command, receivedArguments) => {
+      if (receivedArguments[0] === "pr") {
+        arguments_ = receivedArguments;
+        return [{ number: 123 }];
+      }
+      return [[{ number: 123, author_association: "NONE" }]];
+    },
+    { command: "gh", repository: "aaif-goose/goose", limit: 1000 },
+  );
+  assert.deepEqual(pullRequests, [
+    { number: 123, authorAssociation: "NONE" },
+  ]);
+  assert.deepEqual(arguments_.slice(0, 8), [
+    "pr",
+    "list",
+    "--repo",
+    "aaif-goose/goose",
+    "--state",
+    "open",
+    "--limit",
+    "1000",
+  ]);
+  assert.match(arguments_.at(-1), /closingIssuesReferences/);
+  assert.match(arguments_.at(-1), /comments/);
+});
+
+test("finds same-repository issue references in pull request bodies", () => {
+  assert.deepEqual(
+    pullRequestIssueMentions(
+      [
+        "Addresses #123.",
+        "Implements aaif-goose/goose#124.",
+        "See https://github.com/aaif-goose/goose/issues/125.",
+        "Not https://github.com/example/elsewhere/issues/126.",
+      ].join("\n"),
+      "aaif-goose/goose",
+    ),
+    [123, 124, 125],
+  );
+});
+
+test("builds the marked issue-first notice for the repository", () => {
+  const notice = issueFirstNotice("aaif-goose/goose");
+  assert.match(notice, new RegExp(ISSUE_FIRST_COMMENT_MARKER));
+  assert.match(notice, /Closes #ISSUE_NUMBER/);
+  assert.match(
+    notice,
+    /aaif-goose\/goose\/blob\/main\/CONTRIBUTING\.md#from-issue-to-pull-request/,
+  );
+});
+
+test("omits pull requests that already close a repository issue", () => {
+  const work = pullRequestWork(
+    {
+      number: 123,
+      closingIssuesReferences: [
+        {
+          number: 456,
+          repository: { owner: { login: "aaif-goose" }, name: "goose" },
+        },
+      ],
+    },
+    pullRequestOptions(),
+  );
+  assert.equal(work, null);
+});
+
+test("returns an unclosed mention when another issue already closes", () => {
+  const work = pullRequestWork(
+    pullRequest({
+      body: "Fixes #456. Also implements #789.",
+      closingIssuesReferences: [
+        {
+          number: 456,
+          url: "https://github.com/aaif-goose/goose/issues/456",
+          repository: { owner: { login: "aaif-goose" }, name: "goose" },
+        },
+      ],
+    }),
+    pullRequestOptions(),
+  );
+  assert.deepEqual(work.unclosed_issue_mentions, [789]);
+  assert.equal(work.eligible_for_issue_first, false);
+});
+
+test("returns issue mentions that need closing-language review", () => {
+  const work = pullRequestWork(
+    pullRequest({ body: "This implements #456." }),
+    pullRequestOptions(),
+  );
+  assert.deepEqual(work.issue_mentions, [456]);
+  assert.equal(work.eligible_for_issue_first, true);
+  assert.equal(work.warning_state, "not-commented");
+});
+
+test("marks an unanswered issue-first notice stale after three days", () => {
+  const warning = comment({
+    id: "warning",
+    body: `${ISSUE_FIRST_COMMENT_MARKER}\nPlease read CONTRIBUTING.md.`,
+    createdAt: "2026-09-04T00:00:00Z",
+    author: { login: "DOsinga" },
+    viewerDidAuthor: true,
+  });
+  const stale = pullRequestWork(
+    pullRequest({ comments: [warning] }),
+    pullRequestOptions(),
+  );
+  assert.equal(stale.warning_state, "stale");
+
+  const answered = pullRequestWork(
+    pullRequest({
+      comments: [
+        warning,
+        comment({
+          id: "answer",
+          createdAt: "2026-09-07T12:00:00Z",
+          author: { login: "contributor" },
+        }),
+      ],
+    }),
+    pullRequestOptions(),
+  );
+  assert.equal(answered.warning_state, "answered");
+});
+
+test("does not issue-first police drafts, internal PRs, or bot PRs", () => {
+  assert.equal(
+    pullRequestWork(pullRequest({ isDraft: true }), pullRequestOptions()),
+    null,
+  );
+  assert.equal(
+    pullRequestWork(
+      pullRequest({ author: { login: "core", is_bot: false } }),
+      pullRequestOptions(),
+    ),
+    null,
+  );
+  assert.equal(
+    pullRequestWork(
+      pullRequest({ author: { login: "dependabot[bot]", is_bot: true } }),
+      pullRequestOptions(),
+    ),
+    null,
+  );
+  assert.equal(
+    pullRequestWork(
+      pullRequest({ authorAssociation: "COLLABORATOR" }),
+      pullRequestOptions(),
+    ),
+    null,
+  );
+  assert.equal(
+    pullRequestWork(
+      pullRequest({ authorAssociation: "UNKNOWN" }),
+      pullRequestOptions(),
+    ),
+    null,
+  );
+});
+
+test("ignores Dependabot even when its body mentions an unclosed issue", () => {
+  assert.equal(
+    pullRequestWork(
+      pullRequest({
+        author: { login: "dependabot[bot]", is_bot: true },
+        body: "Updates a dependency for #456.",
+      }),
+      pullRequestOptions(),
+    ),
+    null,
+  );
+});
+
+function pullRequest(overrides = {}) {
+  return {
+    number: 123,
+    title: "A change",
+    url: "https://github.com/aaif-goose/goose/pull/123",
+    body: "No issue here.",
+    createdAt: "2026-09-01T00:00:00Z",
+    updatedAt: "2026-09-01T00:00:00Z",
+    isDraft: false,
+    author: { login: "contributor", is_bot: false },
+    authorAssociation: "NONE",
+    comments: [],
+    closingIssuesReferences: [],
+    ...overrides,
+  };
+}
+
+function comment(overrides = {}) {
+  return {
+    id: "comment",
+    body: "A comment",
+    createdAt: "2026-09-01T00:00:00Z",
+    url: "https://github.com/aaif-goose/goose/pull/123#issuecomment-1",
+    author: { login: "contributor" },
+    viewerDidAuthor: false,
+    ...overrides,
+  };
+}
+
+function pullRequestOptions() {
+  return {
+    repository: "aaif-goose/goose",
+    coreTeamGithub: new Set(["core"]),
+    viewerLogin: "DOsinga",
+    now: Date.parse("2026-09-08T00:00:00Z"),
+    staleAfterMilliseconds: 3 * 24 * 60 * 60 * 1000,
+  };
+}
 
 test("uses one complete core-team schema", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "buzz-core-team-"));
