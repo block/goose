@@ -81,8 +81,8 @@ group is registered:
 
 | Group | What you get |
 |---|---|
-| `core` | The recommended default: files, SQL databases, documents, forms, websites, brand kits, images, and web search |
-| `web` | Search, and read pages that block ordinary scrapers — plus structured extraction and crawling |
+| `core` | The recommended default: the full web toolset (search, unblocked fetching, extraction, crawling) plus files, SQL databases, documents, forms, websites, brand kits and images |
+| `web` | The web toolset on its own, with nothing else — for an agent that only needs to read the internet |
 | `sandbox` | Firecracker microVMs — spawn, run commands, expose ports, snapshot, suspend, destroy |
 | `hosting` | Deploy and run an app on an always-on microVM with a public URL |
 | `design` | Documents as universal design (letter, social, 16:9 slides), brand kits, images |
@@ -153,7 +153,8 @@ marketplace that serves one thing to a browser and another to `curl`. EasyBits
 routes those requests through unblocking infrastructure, so `web_fetch` comes
 back with the real page as clean text instead of an interstitial.
 
-With `--tools web` you get:
+These ship in `core`, so the default install already has them; `--tools web`
+gives you the same set with nothing else attached:
 
 | Tool | What it does |
 |---|---|
