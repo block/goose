@@ -194,6 +194,15 @@ fn package_config(
             package.version.as_deref(),
             "@",
         )),
+        "cargo" => {
+            anyhow::ensure!(
+                package.runtime_hint.is_none(),
+                "cargo packages do not support runtimeHint"
+            );
+        }
+        "mcpb" => bail!(
+            "MCPB packages require bundle download, SHA-256 verification, extraction, and manifest processing; Goose does not yet support importing them"
+        ),
         _other if package.runtime_hint.is_some() => args.push(package.identifier.clone()),
         other => bail!("unsupported registryType '{other}'; a runtimeHint is required"),
     }
@@ -225,6 +234,10 @@ fn runtime(package: &Package) -> Result<(String, Vec<String>)> {
         "pypi" => ("uvx".into(), vec![]),
         "oci" => ("docker".into(), vec!["run".into()]),
         "nuget" => ("dnx".into(), vec![]),
+        "cargo" => (package.identifier.clone(), vec![]),
+        "mcpb" => bail!(
+            "MCPB packages require bundle download, SHA-256 verification, extraction, and manifest processing; Goose does not yet support importing them"
+        ),
         other => bail!("unsupported registryType '{other}'"),
     })
 }
