@@ -439,6 +439,22 @@ fn configured_client(
     Ok(client)
 }
 
+/// Usage chunks carry the model name the inference surface echoes back — the
+/// deployment alias, or a value the endpoint invented — but cost estimation
+/// needs the underlying model the alias resolves to, so re-tag each chunk.
+fn retag_usage_model(stream: MessageStream, model: &str) -> MessageStream {
+    let model = model.to_string();
+    Box::pin(stream.map(move |item| {
+        item.map(|(message, usage)| {
+            let usage = usage.map(|mut usage| {
+                usage.model.clone_from(&model);
+                usage
+            });
+            (message, usage)
+        })
+    }))
+}
+
 #[async_trait]
 impl Provider for AzureFoundryProvider {
     fn get_name(&self) -> &str {
@@ -607,19 +623,7 @@ impl Provider for AzureFoundryProvider {
                     .await
             }
         }?;
-        // Usage lands in the ledger under the model name the surface echoes back — the
-        // deployment alias, or a value the endpoint made up. Cost estimation needs the
-        // underlying model the alias resolves to, so re-tag each chunk's usage.
-        let usage_model = underlying_model.to_string();
-        Ok(Box::pin(stream.map(move |item| {
-            item.map(|(message, usage)| {
-                let usage = usage.map(|mut usage| {
-                    usage.model.clone_from(&usage_model);
-                    usage
-                });
-                (message, usage)
-            })
-        })))
+        Ok(retag_usage_model(stream, underlying_model))
     }
 }
 

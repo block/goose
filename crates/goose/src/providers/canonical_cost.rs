@@ -207,10 +207,8 @@ mod tests {
         }
     }
 
-    /// Regression matrix for the issue's deployment scenarios, priced at 1M input +
-    /// 1M output tokens. Covers the OpenAI catalog via the `chatgpt_codex` alias, the
-    /// Anthropic / DeepSeek / Mistral publisher inference behind Azure Foundry, the
-    /// Microsoft Phi host row, and open-weight models priced from the host catalog.
+    /// Prices 1M input + 1M output tokens, so `expected` reads as the model's
+    /// input-plus-output rate per million tokens.
     fn assert_cost(provider: &str, model: &str, expected: f64) {
         let used = usage(Some(1_000_000), Some(1_000_000), None);
         let actual = estimate_model_cost(provider, model, &used)

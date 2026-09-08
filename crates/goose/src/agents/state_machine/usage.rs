@@ -4,6 +4,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage as TokenUs
 use crate::agents::state_machine::{ConversationEffect, GooseEffect};
 use crate::conversation::message::MessageUsage;
 use crate::conversation::Conversation;
+use crate::providers::canonical_cost::resolve_usage_cost;
 use crate::session::{Session, SessionManager};
 
 fn attach_to_last_assistant(effects: &mut [GooseEffect], usage: &ProviderUsage) {
@@ -29,10 +30,7 @@ pub(super) fn enrich(session: &Session, effects: &mut [GooseEffect]) {
             } => (usage.clone(), true),
             _ => continue,
         };
-        let (cost, cost_source) = crate::providers::canonical_cost::resolve_usage_cost(
-            session.provider_name.as_deref(),
-            &usage,
-        );
+        let (cost, cost_source) = resolve_usage_cost(session.provider_name.as_deref(), &usage);
 
         let mut enriched = usage.clone();
         enriched.cost = cost;

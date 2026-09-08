@@ -134,17 +134,13 @@ pub fn map_to_canonical_model(
     // so models that DO infer (e.g. databricks-claude-* -> anthropic/*) keep
     // resolving to the richer first-party catalog entry.
     if is_meta_provider(provider) {
-        if let Some(canonical) = registry.get(registry_provider, model) {
-            return Some(canonical.id.clone());
-        }
         let normalized_model = strip_version_suffix(model);
-        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
-            return Some(canonical.id.clone());
-        }
-        if let Some(canonical) =
-            registry.get(registry_provider, &normalized_model.to_ascii_lowercase())
-        {
-            return Some(canonical.id.clone());
+        let lowercased_model = normalized_model.to_ascii_lowercase();
+        // Registry keys are lowercase; deployment names may carry mixed case ("Phi-4").
+        for key in [model, normalized_model.as_str(), lowercased_model.as_str()] {
+            if let Some(canonical) = registry.get(registry_provider, key) {
+                return Some(canonical.id.clone());
+            }
         }
     }
 

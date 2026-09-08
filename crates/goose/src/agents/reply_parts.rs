@@ -19,6 +19,7 @@ use crate::conversation::{fix_conversation, merge_consecutive_messages_for_reque
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
+use crate::providers::canonical_cost::resolve_usage_cost;
 use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
@@ -750,10 +751,7 @@ impl Agent {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
 
-        let (chunk_cost, cost_source) = crate::providers::canonical_cost::resolve_usage_cost(
-            session.provider_name.as_deref(),
-            usage,
-        );
+        let (chunk_cost, cost_source) = resolve_usage_cost(session.provider_name.as_deref(), usage);
 
         let mut enriched = usage.clone();
         enriched.cost = chunk_cost;
