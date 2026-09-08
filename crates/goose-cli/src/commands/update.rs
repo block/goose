@@ -1,7 +1,10 @@
 // On riscv64, update() bails early because no release artifacts are published,
 // so the implementation below (and most of this module) is cfg-disabled and
 // would otherwise trigger dead_code/unused warnings that fail clippy.
-#![cfg_attr(target_arch = "riscv64", allow(dead_code, unused_imports, unused_variables))]
+#![cfg_attr(
+    target_arch = "riscv64",
+    allow(dead_code, unused_imports, unused_variables)
+)]
 
 use anyhow::{bail, Context, Result};
 use reqwest::{
