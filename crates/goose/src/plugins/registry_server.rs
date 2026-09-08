@@ -68,40 +68,99 @@ struct Argument {
     variables: HashMap<String, Input>,
 }
 
-pub fn import_server_json(
-    json: &str,
-    selection: Option<usize>,
-    values: &HashMap<String, String>,
-) -> Result<ExtensionEntry> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServerSelection {
+    Package(usize),
+    Remote(usize),
+}
+
+pub fn server_json_choices(json: &str) -> Result<Vec<(ServerSelection, String)>> {
     let document: ServerDocument =
         serde_json::from_str(json).context("invalid MCP registry server.json")?;
-    let name = document
-        .name
-        .rsplit('/')
-        .next()
-        .unwrap_or(&document.name)
-        .to_string();
-    let config = if !document.packages.is_empty() {
-        let index = selection.unwrap_or(0);
-        let package = document
-            .packages
-            .get(index)
-            .with_context(|| format!("package index {index} is out of range"))?;
-        package_config(name, document.description, package, values)?
-    } else if !document.remotes.is_empty() {
-        let index = selection.unwrap_or(0);
-        let remote = document
-            .remotes
-            .get(index)
-            .with_context(|| format!("remote index {index} is out of range"))?;
-        remote_config(name, document.description, remote, values)?
-    } else {
-        bail!("server.json contains no packages or remotes")
-    };
-    Ok(ExtensionEntry {
-        enabled: true,
-        config,
-    })
+    let packages = document
+        .packages
+        .iter()
+        .enumerate()
+        .map(|(index, package)| {
+            (
+                ServerSelection::Package(index),
+                format!(
+                    "Package {index}: {} {} ({})",
+                    package.identifier,
+                    package.version.as_deref().unwrap_or(""),
+                    package.registry_type
+                ),
+            )
+        });
+    let remotes = document.remotes.iter().enumerate().map(|(index, remote)| {
+        (
+            ServerSelection::Remote(index),
+            format!(
+                "Remote {index}: {} ({})",
+                remote.url.as_deref().unwrap_or("missing URL"),
+                remote.kind
+            ),
+        )
+    });
+    Ok(packages.chain(remotes).collect())
+}
+
+pub fn import_server_json(
+    json: &str,
+    selections: &[ServerSelection],
+    values: &HashMap<String, String>,
+) -> Result<Vec<ExtensionEntry>> {
+    let document: ServerDocument =
+        serde_json::from_str(json).context("invalid MCP registry server.json")?;
+    if selections.is_empty() {
+        bail!("no package or remote selected")
+    }
+    let base_name = document.name.rsplit('/').next().unwrap_or(&document.name);
+    let multiple = selections.len() > 1;
+    selections
+        .iter()
+        .map(|selection| {
+            let (name, config) = match *selection {
+                ServerSelection::Package(index) => {
+                    let package = document
+                        .packages
+                        .get(index)
+                        .with_context(|| format!("package index {index} is out of range"))?;
+                    let name = if multiple {
+                        format!("{base_name}-package-{index}")
+                    } else {
+                        base_name.to_string()
+                    };
+                    let config = package_config(
+                        name.clone(),
+                        document.description.clone(),
+                        package,
+                        values,
+                    )?;
+                    (name, config)
+                }
+                ServerSelection::Remote(index) => {
+                    let remote = document
+                        .remotes
+                        .get(index)
+                        .with_context(|| format!("remote index {index} is out of range"))?;
+                    let name = if multiple {
+                        format!("{base_name}-remote-{index}")
+                    } else {
+                        base_name.to_string()
+                    };
+                    let config =
+                        remote_config(name.clone(), document.description.clone(), remote, values)?;
+                    (name, config)
+                }
+            };
+            let _ = name;
+            Ok(ExtensionEntry {
+                enabled: true,
+                config,
+            })
+        })
+        .collect()
 }
 
 fn package_config(
