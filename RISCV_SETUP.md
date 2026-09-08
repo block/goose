@@ -1,0 +1,241 @@
+# Building goose for RISC-V (riscv64gc-unknown-linux-gnu)
+
+This document describes how to build goose-cli for RISC-V 64-bit systems with full V8/code-mode support.
+
+## Prerequisites
+
+- Rust 1.96.1+ (no toolchain upgrade needed)
+- RISC-V cross-compilation toolchain: `gcc-riscv64-linux-gnu`
+- Target: `rustup target add riscv64gc-unknown-linux-gnu`
+
+## Overview
+
+V8 152.2.0 is the first version with pre-built RISC-V binaries. However:
+- Current goose uses v8 145.0.0 via deno_core 0.381.1 (no RISC-V support)
+- Upgrading requires patching deno_core and serde_v8 for V8 152 API changes
+- These patches are intrusive and affect all platforms if applied via Cargo.toml patches
+
+## Setup Steps
+
+### 1. Clone rusty_v8 v152.2.0
+
+```bash
+cd vendor
+git clone --depth 1 --branch v152.2.0 https://github.com/denoland/rusty_v8.git
+rm -rf rusty_v8/.git
+```
+
+This provides v8 152.2.0 with RISC-V support. Cargo will download pre-built binaries automatically.
+
+### 2. Vendor deno_core 0.381.1
+
+```bash
+cd vendor
+wget https://static.crates.io/crates/deno_core/deno_core-0.381.1.crate
+tar xzf deno_core-0.381.1.crate
+mv deno_core-0.381.1 deno_core
+rm deno_core-0.381.1.crate
+```
+
+### 3. Vendor serde_v8 0.290.0
+
+```bash
+cd vendor
+wget https://static.crates.io/crates/serde_v8/serde_v8-0.290.0.crate
+tar xzf serde_v8-0.290.0.crate
+mv serde_v8-0.290.0 serde_v8
+rm serde_v8-0.290.0.crate
+```
+
+### 4. Apply Patches
+
+#### vendor/v8/Cargo.toml
+
+Change from v8-goose to local rusty_v8:
+
+```toml
+[package]
+name = "v8-wrapper"  # Avoid conflict
+version = "152.2.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+v8-local = { package = "v8", path = "../rusty_v8" }
+
+[features]
+default = ["use_custom_libcxx"]
+use_custom_libcxx = ["v8-local/use_custom_libcxx"]
+v8_enable_pointer_compression = ["v8-local/v8_enable_pointer_compression"]
+v8_enable_sandbox = ["v8-local/v8_enable_sandbox"]
+v8_enable_v8_checks = ["v8-local/v8_enable_v8_checks"]
+```
+
+#### vendor/v8/src/lib.rs
+
+```rust
+pub use v8_local::*;
+```
+
+#### vendor/deno_core/Cargo.toml
+
+Update v8 dependency:
+
+```toml
+[dependencies.v8]
+version = "152.2.0"  # was 145.0.0
+default-features = false
+```
+
+#### vendor/serde_v8/Cargo.toml
+
+Update v8 dependency:
+
+```toml
+[dependencies.v8]
+version = "152.2.0"  # was 145.0.0
+default-features = false
+```
+
+### 5. Source Patches to vendor/deno_core
+
+These patches adapt deno_core 0.381.1 to V8 152 API changes.
+
+#### Wrap `v8::Global::open()` calls in `unsafe {}`
+
+V8 152 marked `Global::open()` as unsafe. Affected files:
+- `error.rs` (2 locations)
+- `modules/map.rs` (9 locations)
+- `runtime/jsrealm.rs` (1 location)
+- `runtime/jsruntime.rs` (3 locations)
+- `ops_builtin_v8.rs` (1 location)
+
+Example:
+```rust
+// Before:
+let cb = callback.open(scope);
+
+// After:
+let cb = unsafe { callback.open(scope) };
+```
+
+#### Disable fast-call path in `runtime/bindings.rs`
+
+Fast-call API causes SIGILL on RISC-V during snapshot creation:
+
+```rust
+// Replace lines ~600-605:
+let template = builder.build(scope);
+// (Remove the if/else with fast_function)
+```
+
+#### Update `WasmStreaming` in `ops_builtin.rs`
+
+```rust
+// Before:
+pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming>);
+
+// After:
+pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming<false>>);
+```
+
+#### Update ICU data in `runtime/setup.rs`
+
+```rust
+// Line ~19:
+v8::icu::set_common_data_78(deno_core_icudata::ICU_DATA).unwrap();
+// was: set_common_data_77
+
+// Line ~24 - remove this line:
+" --no-validate-asm",  // Remove - V8 13+ doesn't support this flag
+```
+
+### 6. Update Root Cargo.toml
+
+Add workspace exclusion and patches:
+
+```toml
+[workspace]
+members = ["crates/*", "vendor/v8"]
+exclude = ["vendor/rusty_v8"]  # Avoid nested workspace
+resolver = "2"
+
+# Relax ICU pins (temporal 0.2.6 handles this):
+icu_calendar = { version = ">=2.1", default-features = false }
+icu_locale = { version = ">=2.1", default-features = false }
+
+[patch.crates-io]
+deno_core = { path = "vendor/deno_core" }
+serde_v8 = { path = "vendor/serde_v8" }
+v8 = { package = "v8-wrapper", path = "vendor/v8" }
+# ... existing patches
+```
+
+### 7. Update crates/goose/Cargo.toml
+
+Relax ICU pins:
+
+```toml
+icu_calendar = { version = ">=2.1", default-features = false }
+icu_locale = { version = ">=2.1", default-features = false }
+```
+
+### 8. Add RISC-V to Update Command
+
+In `crates/goose-cli/src/commands/update.rs`, add after aarch64-musl case:
+
+```rust
+#[cfg(all(target_os = "linux", target_arch = "riscv64"))]
+{
+    "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
+}
+```
+
+### 9. Update Dependencies
+
+```bash
+cargo update
+```
+
+Expected changes:
+- v8: 145.0.0 → 152.2.0 (local)
+- temporal_rs: 0.1.2 → 0.2.6
+- icu_calendar: 2.1.1 → 2.3.0
+
+### 10. Build
+
+```bash
+cargo build --release --target riscv64gc-unknown-linux-gnu -p goose-cli --bin goose
+```
+
+Output: `target/riscv64gc-unknown-linux-gnu/release/goose`
+
+## Complete Patch Script
+
+See `scripts/setup-riscv.sh` for automated setup.
+
+## Known Issues
+
+- Fast-call optimization disabled (SIGILL on RISC-V snapshot creation)
+- Patches affect all platforms when using vendored deno_core
+- Adds ~2.6MB vendor dependencies to repository
+
+## Alternative: Conditional Compilation
+
+For production PR, consider:
+1. Keep deno_core/serde_v8 patches in separate git branch
+2. Document manual setup steps
+3. Only commit minimal changes (update.rs, CI workflow)
+4. Let users apply patches locally for RISC-V builds
+
+## Verification
+
+```bash
+# Check architecture
+file target/riscv64gc-unknown-linux-gnu/release/goose
+# Output: ELF 64-bit LSB pie executable, UCB RISC-V
+
+# Test execution (on RISC-V hardware)
+./target/riscv64gc-unknown-linux-gnu/release/goose --version
+./target/riscv64gc-unknown-linux-gnu/release/goose doctor
+```
