@@ -104,7 +104,7 @@ publishes the same document at a public URL.
 
 ```
 Research the current pricing of the three biggest managed Postgres providers,
-then build me a one-page comparison document with our brand kit applied,
+then build me a comparison document with our brand kit applied,
 export it as a PDF, and publish it so I can share the link.
 ```
 
@@ -121,7 +121,7 @@ pages for all three providers, including the two that block plain HTTP clients.
 pages: an intro, a side-by-side pricing table, and a recommendation. Your
 default brand kit was applied, so it uses your palette and typefaces.
 
-**3. Export** — `export_document` produced the PDF (4 pages, letter format).
+**3. Export** — `export_document` produced the PDF — three pages, letter format.
 
 **4. Publish** — `deploy_document` put it online.
 
