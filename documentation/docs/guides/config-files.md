@@ -52,6 +52,9 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 | No |
 | `GOOSE_PLANNER_PROVIDER` | Provider for [planning mode](/docs/guides/context-engineering/creating-plans) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
 | `GOOSE_PLANNER_MODEL` | Model for planning mode | Model name | Falls back to `GOOSE_MODEL` | No |
+| `GOOSE_SUPERVISOR_MODEL` | Supervisor model for the supervised CLI workflow | Model name | None | No |
+| `GOOSE_IMPLEMENTER_MODEL` | Implementer model for the supervised CLI workflow | Model name | None | No |
+| `GOOSE_SUPERVISED_TIME_LIMIT_SECONDS` | Implementation time limit for the supervised CLI workflow | Positive integer | 900 | No |
 | `GOOSE_TOOLSHIM` | Enable tool interpretation | true/false | false | No |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
 | `GOOSE_INPUT_LIMIT` | Override input token limit for Ollama (maps to `num_ctx`) | Positive integer | Model default | No |
@@ -90,6 +93,11 @@ GOOSE_TEMPERATURE: 0.7
 # Planning Configuration
 GOOSE_PLANNER_PROVIDER: "openai"
 GOOSE_PLANNER_MODEL: "gpt-4"
+
+# Setting all three model names enables the supervised CLI workflow
+GOOSE_SUPERVISOR_MODEL: "gpt-4"
+GOOSE_IMPLEMENTER_MODEL: "gpt-4"
+GOOSE_SUPERVISED_TIME_LIMIT_SECONDS: 900
 
 # Tool Configuration
 GOOSE_MODE: "smart_approve"

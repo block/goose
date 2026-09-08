@@ -565,7 +565,7 @@ impl Agent {
         }
     }
 
-    async fn steer_queue(&self, session_id: &str) -> SteerQueue {
+    pub(super) async fn steer_queue(&self, session_id: &str) -> SteerQueue {
         self.steer_queues
             .lock()
             .await
@@ -1603,6 +1603,7 @@ impl Agent {
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
+        report_operation: Option<Arc<dyn Operation<Session, GooseEffect> + '_>>,
     ) -> StateMachine<'_, Session, GooseEffect> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()
@@ -1649,6 +1650,9 @@ impl Agent {
                 context_limit,
                 compaction_threshold,
             )));
+        }
+        if let Some(report_operation) = report_operation {
+            operations.push(report_operation);
         }
         let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
@@ -1788,6 +1792,7 @@ impl Agent {
             session_config.max_turns,
             cancel.clone(),
             steer_queue,
+            None,
         );
         let reply_span = tracing::Span::current();
 
@@ -1899,6 +1904,20 @@ impl Agent {
                     })?;
                     return Ok(Box::pin(futures::stream::empty()));
                 }
+            }
+        }
+
+        if matches!(self.config.goose_platform, GoosePlatform::GooseCli) {
+            if let Some(models) = super::state_machine::configured_supervised_models() {
+                tracing::info!("dispatching reply via supervised state machines");
+                return self
+                    .reply_with_supervised_state_machines(
+                        user_message,
+                        session_config,
+                        cancel_token,
+                        models,
+                    )
+                    .await;
             }
         }
 

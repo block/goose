@@ -1,0 +1,505 @@
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use anyhow::{anyhow, Context, Result};
+use futures::stream::BoxStream;
+use serde::Deserialize;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::AbortOnDropHandle;
+
+use crate::agents::state_machine::{
+    run_goose, submitted_report, Emitter, GooseEffect, PlanOperation, StateMachine,
+    SupervisorOperation, SUBMIT_FEEDBACK_TOOL_NAME, SUBMIT_PLAN_TOOL_NAME,
+};
+use crate::agents::{Agent, AgentEvent, SessionConfig};
+use crate::config::Config;
+use crate::conversation::message::Message;
+use crate::model_config::model_config_from_user_config;
+use crate::providers::base::Provider;
+use crate::providers::create_with_working_dir;
+use crate::session::{Session, SessionManager, SessionType};
+
+const PLANNER_MODEL: &str = "GOOSE_PLANNER_MODEL";
+const SUPERVISOR_MODEL: &str = "GOOSE_SUPERVISOR_MODEL";
+const IMPLEMENTER_MODEL: &str = "GOOSE_IMPLEMENTER_MODEL";
+const TIME_LIMIT_SECONDS: &str = "GOOSE_SUPERVISED_TIME_LIMIT_SECONDS";
+const DEFAULT_TIME_LIMIT_SECONDS: u64 = 900;
+
+pub(crate) struct SupervisedModels {
+    planner: String,
+    supervisor: String,
+    implementer: String,
+}
+
+fn complete_models(
+    planner: Option<String>,
+    supervisor: Option<String>,
+    implementer: Option<String>,
+) -> Option<SupervisedModels> {
+    let present = |model: Option<String>| model.filter(|model| !model.trim().is_empty());
+    Some(SupervisedModels {
+        planner: present(planner)?,
+        supervisor: present(supervisor)?,
+        implementer: present(implementer)?,
+    })
+}
+
+pub(super) fn configured_models() -> Option<SupervisedModels> {
+    let config = Config::global();
+    complete_models(
+        config.get_param::<String>(PLANNER_MODEL).ok(),
+        config.get_param::<String>(SUPERVISOR_MODEL).ok(),
+        config.get_param::<String>(IMPLEMENTER_MODEL).ok(),
+    )
+}
+
+#[derive(Deserialize)]
+struct SupervisorReport {
+    requires_action: bool,
+    feedback: String,
+}
+
+async fn run_hidden(
+    machine: &StateMachine<'_, Session, GooseEffect>,
+    runtime: &SessionManager,
+    session_id: &str,
+    prompt: String,
+    cancel: CancellationToken,
+) -> Result<Session> {
+    runtime
+        .add_message(session_id, &Message::user().with_text(prompt))
+        .await?;
+    let (tx, mut rx) = mpsc::channel(32);
+    let emit = Emitter::new(tx, cancel);
+    let session = {
+        let run = run_goose(machine, runtime, session_id, &emit);
+        tokio::pin!(run);
+        loop {
+            tokio::select! {
+                event = rx.recv() => {
+                    if event.is_none() {
+                        return Err(anyhow!("hidden state-machine event stream closed"));
+                    }
+                }
+                result = &mut run => break result?,
+            }
+        }
+    };
+    drop(emit);
+    while rx.recv().await.is_some() {}
+    Ok(session)
+}
+
+fn report_value(session: &Session, tool_name: &str) -> Result<serde_json::Value> {
+    let conversation = session
+        .conversation
+        .as_ref()
+        .ok_or_else(|| anyhow!("state-machine session has no conversation"))?;
+    submitted_report(conversation, tool_name)?.ok_or_else(|| anyhow!("{tool_name} was not called"))
+}
+
+fn plan_from(session: &Session) -> Result<String> {
+    report_value(session, SUBMIT_PLAN_TOOL_NAME)?
+        .get("plan")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| anyhow!("submit_plan returned no plan"))
+}
+
+fn feedback_from(session: &Session) -> Result<SupervisorReport> {
+    serde_json::from_value(report_value(session, SUBMIT_FEEDBACK_TOOL_NAME)?)
+        .context("invalid supervisor feedback")
+}
+
+async fn create_role_session(
+    runtime: &SessionManager,
+    parent: &Session,
+    name: &str,
+    provider_name: &str,
+    model_config: goose_providers::model::ModelConfig,
+) -> Result<Session> {
+    let session = runtime
+        .create_session(
+            parent.working_dir.clone(),
+            name.to_string(),
+            SessionType::Hidden,
+            parent.goose_mode,
+        )
+        .await?;
+    runtime
+        .update(&session.id)
+        .parent_session_id(Some(parent.id.clone()))
+        .provider_name(provider_name)
+        .model_config(model_config)
+        .extension_data(parent.extension_data.clone())
+        .apply()
+        .await?;
+    runtime.get_session(&session.id, false).await
+}
+
+async fn context_limit(
+    provider: &Arc<dyn Provider>,
+    model_config: &goose_providers::model::ModelConfig,
+) -> usize {
+    provider
+        .get_context_limit(model_config)
+        .await
+        .unwrap_or_else(|_| model_config.context_limit())
+}
+
+impl Agent {
+    pub(crate) async fn reply_with_supervised_state_machines(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+        models: SupervisedModels,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let runtime = self.config.session_manager.clone();
+        let cancel = cancel_token.unwrap_or_default();
+        let parent = runtime.get_session(&session_config.id, false).await?;
+        if let Some(schedule_id) = session_config.schedule_id.clone() {
+            runtime
+                .update(&session_config.id)
+                .schedule_id(Some(schedule_id))
+                .apply()
+                .await?;
+        }
+        runtime
+            .add_message(&session_config.id, &user_message)
+            .await?;
+
+        let provider_name = parent
+            .provider_name
+            .clone()
+            .or_else(|| Config::global().get_goose_provider().ok())
+            .ok_or_else(|| anyhow!("supervised state machines require a configured provider"))?;
+        let planner_model = model_config_from_user_config(&provider_name, &models.planner)?;
+        let supervisor_model = model_config_from_user_config(&provider_name, &models.supervisor)?;
+        let implementer_model = model_config_from_user_config(&provider_name, &models.implementer)?;
+        let extension_configs = self.get_extension_configs().await;
+        let planner_provider = create_with_working_dir(
+            &provider_name,
+            extension_configs.clone(),
+            parent.working_dir.clone(),
+        )
+        .await?;
+        let supervisor_provider = create_with_working_dir(
+            &provider_name,
+            extension_configs,
+            parent.working_dir.clone(),
+        )
+        .await?;
+        let implementer_provider = self.provider().await?;
+
+        let planner_session = create_role_session(
+            runtime.as_ref(),
+            &parent,
+            "Planner",
+            &provider_name,
+            planner_model.clone(),
+        )
+        .await?;
+        let supervisor_session = create_role_session(
+            runtime.as_ref(),
+            &parent,
+            "Supervisor",
+            &provider_name,
+            supervisor_model.clone(),
+        )
+        .await?;
+        runtime
+            .update(&session_config.id)
+            .provider_name(&provider_name)
+            .model_config(implementer_model.clone())
+            .apply()
+            .await?;
+
+        let planner_machine = self.create_state_machine(
+            planner_provider.clone(),
+            planner_model.clone(),
+            context_limit(&planner_provider, &planner_model).await,
+            session_config.max_turns,
+            cancel.child_token(),
+            self.steer_queue(&planner_session.id).await,
+            Some(Arc::new(PlanOperation)),
+        );
+        let supervisor_machine = self.create_state_machine(
+            supervisor_provider.clone(),
+            supervisor_model.clone(),
+            context_limit(&supervisor_provider, &supervisor_model).await,
+            session_config.max_turns,
+            cancel.child_token(),
+            self.steer_queue(&supervisor_session.id).await,
+            Some(Arc::new(SupervisorOperation)),
+        );
+        let implementer_cancel = cancel.child_token();
+        let implementer_steer = self.steer_queue(&session_config.id).await;
+        let implementer_machine = self.create_state_machine(
+            implementer_provider.clone(),
+            implementer_model.clone(),
+            context_limit(&implementer_provider, &implementer_model).await,
+            session_config.max_turns,
+            implementer_cancel.clone(),
+            implementer_steer.clone(),
+            None,
+        );
+        let problem = user_message.agent_visible_content().as_concat_text();
+        let time_limit = Duration::from_secs(
+            Config::global()
+                .get_param::<u64>(TIME_LIMIT_SECONDS)
+                .unwrap_or(DEFAULT_TIME_LIMIT_SECONDS),
+        );
+        let main_session_id = session_config.id.clone();
+
+        Ok(Box::pin(async_stream::try_stream! {
+            let planned = run_hidden(
+                &planner_machine,
+                runtime.as_ref(),
+                &planner_session.id,
+                format!(
+                    "Investigate this software task and submit an implementation plan. Do not change the working tree.\n\n{problem}"
+                ),
+                cancel.child_token(),
+            )
+            .await?;
+            let plan = plan_from(&planned)?;
+
+            let criticized = run_hidden(
+                &supervisor_machine,
+                runtime.as_ref(),
+                &supervisor_session.id,
+                format!(
+                    "Critique the proposed plan for this task. Inspect the repository independently, identify incorrect assumptions and missing work, and recommend concrete corrections.\n\nTask:\n{problem}\n\nProposed plan:\n{plan}"
+                ),
+                cancel.child_token(),
+            )
+            .await?;
+            let critique = feedback_from(&criticized)?;
+
+            let revised = run_hidden(
+                &planner_machine,
+                runtime.as_ref(),
+                &planner_session.id,
+                format!(
+                    "Revise your plan in response to this critique. Verify the criticism against the repository and submit a complete replacement plan.\n\nCritique:\n{}",
+                    critique.feedback
+                ),
+                cancel.child_token(),
+            )
+            .await?;
+            let revised_plan = plan_from(&revised)?;
+            runtime
+                .add_message(
+                    &main_session_id,
+                    &Message::user()
+                        .with_text(format!(
+                            "Implement the task using this reviewed plan. Treat the repository and tests as authoritative and adjust the plan when necessary.\n\n{revised_plan}"
+                        ))
+                        .with_visibility(false, true),
+                )
+                .await?;
+
+            let implementation_started = Instant::now();
+            let supervision_at = time_limit.mul_f32(0.3);
+            let finalization_at = time_limit.mul_f32(0.8);
+            let mut supervised = false;
+            let mut finalization_sent = false;
+            let (tx, mut rx) = mpsc::channel(32);
+            let emit = Emitter::new(tx, implementer_cancel.clone());
+            let timeout_cancel = implementer_cancel.clone();
+            let timeout = AbortOnDropHandle::new(tokio::spawn(async move {
+                tokio::time::sleep(time_limit).await;
+                timeout_cancel.cancel();
+            }));
+
+            loop {
+                let session = runtime.get_session(&main_session_id, true).await?;
+                let result = {
+                    let step = implementer_machine.step(&session, &emit);
+                    tokio::pin!(step);
+                    loop {
+                        tokio::select! {
+                            event = rx.recv() => {
+                                if let Some(event) = event {
+                                    yield event;
+                                } else {
+                                    Err(anyhow!("implementer event stream closed"))?;
+                                }
+                            }
+                            result = &mut step => break result?,
+                        }
+                    }
+                };
+                let Some(mut result) = result else {
+                    break;
+                };
+                {
+                    let apply = implementer_machine.apply(
+                        runtime.as_ref(),
+                        &session,
+                        &mut result,
+                        &emit,
+                    );
+                    tokio::pin!(apply);
+                    loop {
+                        tokio::select! {
+                            event = rx.recv() => {
+                                if let Some(event) = event {
+                                    yield event;
+                                } else {
+                                    Err(anyhow!("implementer event stream closed"))?;
+                                }
+                            }
+                            result = &mut apply => {
+                                result?;
+                                break;
+                            }
+                        }
+                    }
+                }
+                while let Ok(event) = rx.try_recv() {
+                    yield event;
+                }
+                if result.yield_to_client {
+                    break;
+                }
+
+                let elapsed = implementation_started.elapsed();
+                if !supervised && elapsed >= supervision_at {
+                    let progress = runtime.get_session(&main_session_id, true).await?;
+                    let recent = progress
+                        .conversation
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|conversation| conversation.messages().iter().rev())
+                        .map(Message::agent_visible_content)
+                        .map(|message| message.as_concat_text())
+                        .filter(|text| !text.trim().is_empty())
+                        .map(|text| crate::utils::safe_truncate(&text, 2_000))
+                        .take(8)
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev()
+                        .collect::<Vec<_>>()
+                        .join("\n\n");
+                    let checked = run_hidden(
+                        &supervisor_machine,
+                        runtime.as_ref(),
+                        &supervisor_session.id,
+                        format!(
+                            "Review the implementer's progress and provide a short steering message. Inspect the current working tree. About 70% of the implementation time remains.\n\nRevised plan:\n{revised_plan}\n\nRecent progress:\n{recent}"
+                        ),
+                        cancel.child_token(),
+                    )
+                    .await?;
+                    let feedback = feedback_from(&checked)?;
+                    if feedback.requires_action {
+                        implementer_steer
+                            .lock()
+                            .await
+                            .push_back(Message::user().with_text(format!(
+                                "Supervisor steering:\n\n{}",
+                                feedback.feedback
+                            )));
+                    }
+                    supervised = true;
+                }
+                let elapsed = implementation_started.elapsed();
+                if !finalization_sent && elapsed >= finalization_at {
+                    implementer_steer.lock().await.push_back(Message::user().with_text(
+                        "The time limit is approaching. Stop broad exploration, finish the smallest correct patch, run the most relevant tests available, and report the result.",
+                    ));
+                    finalization_sent = true;
+                }
+                if elapsed >= time_limit {
+                    implementer_cancel.cancel();
+                    break;
+                }
+            }
+            drop(emit);
+            while let Some(event) = rx.recv().await {
+                yield event;
+            }
+            drop(timeout);
+
+            let reviewed = run_hidden(
+                &supervisor_machine,
+                runtime.as_ref(),
+                &supervisor_session.id,
+                format!(
+                    "Review the completed implementation against the task and revised plan. Inspect the current diff and test evidence in the working tree. Identify only changes required for correctness.\n\nTask:\n{problem}\n\nRevised plan:\n{revised_plan}"
+                ),
+                cancel.child_token(),
+            )
+            .await?;
+            let review = feedback_from(&reviewed)?;
+            if review.requires_action && !implementer_cancel.is_cancelled() {
+                implementer_steer
+                    .lock()
+                    .await
+                    .push_back(Message::user().with_text(format!(
+                        "Address this final review, then finish:\n\n{}",
+                        review.feedback
+                    )));
+                let (tx, mut repair_rx) = mpsc::channel(32);
+                let repair_emit = Emitter::new(tx, implementer_cancel.clone());
+                {
+                    let repair = run_goose(
+                        &implementer_machine,
+                        runtime.as_ref(),
+                        &main_session_id,
+                        &repair_emit,
+                    );
+                    tokio::pin!(repair);
+                    loop {
+                        tokio::select! {
+                            event = repair_rx.recv() => {
+                                if let Some(event) = event {
+                                    yield event;
+                                } else {
+                                    break;
+                                }
+                            }
+                            result = &mut repair => {
+                                result?;
+                                break;
+                            }
+                        }
+                    }
+                }
+                drop(repair_emit);
+                while let Some(event) = repair_rx.recv().await {
+                    yield event;
+                }
+            }
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supervised_models_require_all_three_settings() {
+        assert!(complete_models(Some("planner".into()), Some("supervisor".into()), None).is_none());
+        assert!(complete_models(
+            Some("planner".into()),
+            Some("supervisor".into()),
+            Some("  ".into())
+        )
+        .is_none());
+
+        let models = complete_models(
+            Some("planner".into()),
+            Some("supervisor".into()),
+            Some("implementer".into()),
+        )
+        .expect("all models are configured");
+        assert_eq!(models.planner, "planner");
+        assert_eq!(models.supervisor, "supervisor");
+        assert_eq!(models.implementer, "implementer");
+    }
+}

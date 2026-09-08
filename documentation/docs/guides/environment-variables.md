@@ -107,6 +107,26 @@ export GOOSE_PLANNER_PROVIDER="openai"
 export GOOSE_PLANNER_MODEL="gpt-4"
 ```
 
+### Supervised CLI Workflow
+
+Setting all three model variables below makes the CLI use three state machines: the planner proposes and revises a plan, the supervisor critiques the plan and reviews implementation progress, and the implementer uses the normal state-machine pipeline to change the repository. All three models use the active `GOOSE_PROVIDER`.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PLANNER_MODEL` | Model that investigates the task and revises the plan | Model name | None |
+| `GOOSE_SUPERVISOR_MODEL` | Model that critiques, steers, and reviews | Model name | None |
+| `GOOSE_IMPLEMENTER_MODEL` | Model that implements the revised plan | Model name | None |
+| `GOOSE_SUPERVISED_TIME_LIMIT_SECONDS` | Implementation time limit | Positive integer | 900 |
+
+The supervisor checks progress after 30% of the implementation time and can steer the implementer between state-machine steps. At 80%, the implementer is told to finalize. The supervisor performs a final review and can request one repair pass.
+
+```bash
+export GOOSE_PLANNER_MODEL="planner-model"
+export GOOSE_SUPERVISOR_MODEL="supervisor-model"
+export GOOSE_IMPLEMENTER_MODEL="implementer-model"
+export GOOSE_SUPERVISED_TIME_LIMIT_SECONDS=900
+```
+
 ### Provider Retries
 
 Configurable retry parameters for LLM providers. 

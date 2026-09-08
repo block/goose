@@ -15,6 +15,7 @@ mod ops_llm;
 mod ops_maxturns;
 mod ops_project;
 mod ops_recipe;
+mod ops_report;
 mod ops_retry;
 mod ops_skills;
 mod ops_slash_command;
@@ -26,6 +27,8 @@ mod ops_toolcalling;
 mod ops_unknown_tool;
 mod session;
 pub(crate) use session::run as run_goose;
+mod supervised;
+pub(super) use supervised::configured_models as configured_supervised_models;
 mod usage;
 
 #[cfg(test)]
@@ -50,6 +53,10 @@ pub(super) use ops_llm::InferenceRunner;
 pub(super) use ops_maxturns::{MaxTurnsOperation, MAX_TURNS_MESSAGE};
 pub(super) use ops_project::ProjectOperation;
 pub(super) use ops_recipe::RecipeOperation;
+pub(super) use ops_report::{
+    submitted_report, PlanOperation, SupervisorOperation, SUBMIT_FEEDBACK_TOOL_NAME,
+    SUBMIT_PLAN_TOOL_NAME,
+};
 pub(super) use ops_retry::RetryOperation;
 pub(super) use ops_skills::SkillOperation;
 pub(super) use ops_slash_command::SlashCommandOperation;
