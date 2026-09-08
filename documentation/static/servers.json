@@ -258,7 +258,7 @@
   {
     "id": "easybits-mcp",
     "name": "EasyBits",
-    "description": "The cloud for AI agents: Firecracker microVM sandboxes, web search and scraping, file storage on a CDN, SQL databases, documents, video and app hosting",
+    "description": "The cloud for AI agents: read any page even when it blocks bots, search the web, run code in Firecracker microVMs, store files on a CDN, query SQL databases, generate documents and host apps",
     "command": "npx -y @easybits.cloud/mcp --tools core",
     "link": "https://github.com/blissito/easybits",
     "installation_notes": "Install using npx package manager. Pass --tools <group> (core, design, web, sandbox, hosting, docs, video...) to load only the toolset you need instead of all 247 tools.",

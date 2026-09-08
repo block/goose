@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [EasyBits MCP Server](https://github.com/blissito/easybits) as a goose extension to give your agent its own cloud: Firecracker microVM sandboxes, live web search and scraping, file storage on a CDN, SQL databases, generated documents, video, and app hosting — all behind a single endpoint.
+This tutorial covers how to add the [EasyBits MCP Server](https://github.com/blissito/easybits) as a goose extension to give your agent its own cloud: reading any page on the web even when it blocks bots, Firecracker microVM sandboxes, file storage on a CDN, SQL databases, generated documents, video, and app hosting — all behind a single endpoint.
 
 :::tip Quick Install
 
@@ -82,7 +82,7 @@ group is registered:
 | Group | What you get |
 |---|---|
 | `core` | The recommended default: files, SQL databases, documents, forms, websites, brand kits, images, and web search |
-| `web` | Google/SERP search, fetching pages that block bots, structured extraction and crawling |
+| `web` | Search, and read pages that block ordinary scrapers — plus structured extraction and crawling |
 | `sandbox` | Firecracker microVMs — spawn, run commands, expose ports, snapshot, suspend, destroy |
 | `hosting` | Deploy and run an app on an always-on microVM with a public URL |
 | `design` | Documents as universal design (letter, social, 16:9 slides), brand kits, images |
@@ -140,6 +140,28 @@ Want me to also spin up a sandbox and benchmark them for real?
 
 :::
 
+### Reading the web when the web says no
+
+Search is the easy half. The half that breaks agents is the fetch: the page
+that returns a Cloudflare challenge, the listing behind a bot check, the
+marketplace that serves one thing to a browser and another to `curl`. EasyBits
+routes those requests through unblocking infrastructure, so `web_fetch` comes
+back with the real page as clean text instead of an interstitial.
+
+With `--tools web` you get:
+
+| Tool | What it does |
+|---|---|
+| `web_search` | Live search results, including SERP at volume |
+| `web_fetch` | One URL to readable text — works on pages that reject plain HTTP clients |
+| `web_extract` / `web_extract_status` | Structured extraction from a page into fields you name; long jobs run async |
+| `web_crawl` | Follow a site and bring back many pages in one call |
+
+Because it is the same MCP endpoint, what goose reads it can immediately keep:
+pipe a crawl into `db_create` and query it as SQL, or into `create_document`
+and hand back a PDF. The reading and the artifact do not live in two different
+extensions.
+
 ### Beyond documents
 
 The same key reaches the rest of the platform once you widen the toolset:
@@ -149,5 +171,5 @@ The same key reaches the rest of the platform once you widen the toolset:
   snapshot the machine and fork it.
 - **`--tools hosting`** — one call takes a repo or an archive to a running,
   always-on app with a public URL.
-- **`--tools web`** — search and read the web from residential infrastructure,
-  so pages that block bots still come back as clean text.
+- **`--tools web`** — search, unblocked fetching, structured extraction and
+  crawling, as described above.
