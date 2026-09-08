@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "目前目錄"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "無法更新工作目錄"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "類型"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE（不支援）"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "標準 IO (STDIO)"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "要刪除此模型嗎？您之後可以重新下載。"
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "下載並管理本機 LLM 模型，無需 API 金鑰即可進行推論。在 HuggingFace 搜尋 GGUF 或 MLX 模型，或使用下方的精選推薦。"
+    "defaultMessage": "下載並管理本機 LLM 模型，無需 API 金鑰即可進行推論。在 Hugging Face 搜尋 GGUF 或 MLX 模型。"
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "關閉"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "下載"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "下載已取消"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "精選模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "重試"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "顯示全部精選（還有 {count} 個）"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "僅顯示建議項目"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "本機推論模型"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "繼續"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "沒有 API 金鑰嗎？"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "這將永久刪除目前的提供者組態。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "檢查此提供者組態時發生錯誤。"
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在檢視排程 ID：{id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（已排程）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "瀏覽 YAML 檔案…"
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "編輯排程"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "載入方案失敗。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "無法從檔案剖析食譜。"
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無效的檔案類型：請選擇 YAML 檔案（.yaml 或 .yml）"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "正在載入方案..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名稱："
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例如：daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "找不到已儲存的方案。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "請提供有效的食譜來源。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "此配方已有排程。請從配方清單中編輯。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "標題：{title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "已儲存的方案"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "排程 ID 為必填。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "排程："
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "選擇一個已儲存的方案"
   },
   "scheduleModal.selected": {
     "defaultMessage": "已選取：{path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "串流中"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "正在匯入…"
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "包含 ACP 工作階段"
   },
   "sessions.loadingMore": {
     "defaultMessage": "正在載入更多工作階段…"
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "已停用自動下載。請點選「立即下載」以手動下載。"
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "無需手動安裝。"
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "檢查更新"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "安裝並重新啟動"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "請點選「安裝並重新啟動」以立即更新。"
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "您執行的是最新版本！"
   },
   "updateSection.loading": {
     "defaultMessage": "載入中..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "下載後，您需要手動安裝更新。"
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "此更新方式需要手動安裝。"
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ 更新已就緒。重新啟動 Goose 即可完成安裝，或在您完成後結束。"
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ 更新已就緒！請點選「安裝並重新啟動」以取得安裝指示。"
   },
   "updateSection.upToDate": {
     "defaultMessage": "（為最新版本）"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "請先檢查帳戶連線，然後再繼續。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "前往"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "前往"
   }
 }

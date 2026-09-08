@@ -1,4 +1,4 @@
-import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { GooseSessionNotification_unstable } from '@aaif/goose-acp-client';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { getToolResponses, type Message, type NotificationEvent } from '../../types/message';
@@ -112,6 +112,24 @@ function firstContent(message: Message): Message['content'][number] {
   const content = message.content[0];
   expect(content).toBeDefined();
   return content;
+}
+
+function permissionRequest(
+  sessionId: string,
+  toolCallId: string,
+  title: string,
+  path: string
+): RequestPermissionRequest {
+  return {
+    sessionId,
+    options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
+    toolCall: {
+      toolCallId,
+      title,
+      rawInput: { path },
+      content: [{ type: 'content', content: { type: 'text', text: `Allow ${title}?` } }],
+    },
+  };
 }
 
 describe('createAcpSessionNotificationAdapter', () => {
@@ -854,6 +872,7 @@ describe('createAcpSessionNotificationAdapter', () => {
           type: 'tokenState',
           tokenState: {
             totalTokens: 42,
+            contextLimit: 200,
             accumulatedInputTokens: 10,
             accumulatedOutputTokens: 15,
             accumulatedTotalTokens: 25,
@@ -925,7 +944,10 @@ describe('createAcpSessionNotificationAdapter', () => {
         },
       };
 
-      const permissionStateChanges = adapter.applyPermissionRequest(request);
+      const permissionStateChanges = adapter.applyPermissionRequest({
+        generation: 'permission-generation-1',
+        request,
+      });
       const messages = expectOnlyMessagesChange(permissionStateChanges);
 
       expect(messages).toHaveLength(1);
@@ -934,12 +956,50 @@ describe('createAcpSessionNotificationAdapter', () => {
         type: 'actionRequired',
         data: {
           actionType: 'toolConfirmation',
+          generation: 'permission-generation-1',
           id: 'tool-1',
           toolName: 'edit_file',
           arguments: { path: 'README.md' },
           prompt: 'Allow editing README.md?',
         },
       });
+    });
+
+    it('replaces reused tool call IDs with the current permission details', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const first = permissionRequest(SESSION_ID, 'tool-1', 'Read file', 'README.md');
+      const second = permissionRequest(SESSION_ID, 'tool-1', 'Run command', 'secrets.txt');
+
+      adapter.applyPermissionRequest({ generation: 'generation-a', request: first });
+      const messages = expectOnlyMessagesChange(
+        adapter.applyPermissionRequest({ generation: 'generation-b', request: second })
+      );
+
+      expect(messages).toHaveLength(1);
+      expect(firstContent(messages[0])).toMatchObject({
+        type: 'actionRequired',
+        data: {
+          actionType: 'toolConfirmation',
+          generation: 'generation-b',
+          id: 'tool-1',
+          toolName: 'Run command',
+          arguments: { path: 'secrets.txt' },
+          prompt: 'Allow Run command?',
+        },
+      });
+    });
+
+    it('removes only the matching permission generation when cancelled', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const request = permissionRequest(SESSION_ID, 'tool-1', 'Read file', 'README.md');
+      adapter.applyPermissionRequest({ generation: 'generation-a', request });
+
+      expect(adapter.cancelPermissionRequest('tool-1', 'generation-stale')).toEqual([]);
+      const messages = expectOnlyMessagesChange(
+        adapter.cancelPermissionRequest('tool-1', 'generation-a')
+      );
+
+      expect(messages).toEqual([]);
     });
   });
 

@@ -39,6 +39,7 @@ function callbacks(): GooseAcpCallbacks {
       values: { name: 'Ada' },
     }),
     unstable_sessionUpdate: vi.fn(),
+    unstable_providerDeviceCode: vi.fn(),
   };
 }
 

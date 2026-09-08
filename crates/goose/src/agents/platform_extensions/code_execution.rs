@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::reply_parts::is_tool_visible_to_model;
 use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -88,7 +89,7 @@ impl CodeExecutionClient {
 
         let mut cfgs = vec![];
         for tool in tools {
-            if get_tool_resource_uri(&tool).is_some() {
+            if get_tool_resource_uri(&tool).is_some() || !is_tool_visible_to_model(&tool) {
                 continue;
             }
 
@@ -105,7 +106,7 @@ impl CodeExecutionClient {
                 namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
-                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
+                output_schema: None,
             })
         }
         Some(cfgs)
@@ -383,51 +384,7 @@ fn create_tool_callback(
                     .await
                 {
                     Ok(dispatch_result) => match dispatch_result.result.await {
-                        Ok(result) => {
-                            if let Some(sc) = &result.structured_content {
-                                Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
-                            } else {
-                                let text: String = result
-                                    .content
-                                    .iter()
-                                    .filter(|c| {
-                                        let audience = match c {
-                                            ContentBlock::Text(t) => t
-                                                .annotations
-                                                .as_ref()
-                                                .and_then(|a| a.audience.as_ref()),
-                                            ContentBlock::Image(i) => i
-                                                .annotations
-                                                .as_ref()
-                                                .and_then(|a| a.audience.as_ref()),
-                                            ContentBlock::Audio(a) => a
-                                                .annotations
-                                                .as_ref()
-                                                .and_then(|a| a.audience.as_ref()),
-                                            ContentBlock::Resource(r) => r
-                                                .annotations
-                                                .as_ref()
-                                                .and_then(|a| a.audience.as_ref()),
-                                            ContentBlock::ResourceLink(r) => r
-                                                .annotations
-                                                .as_ref()
-                                                .and_then(|a| a.audience.as_ref()),
-                                            _ => None,
-                                        };
-                                        audience.is_none_or(|audiences| {
-                                            audiences.is_empty()
-                                                || audiences.contains(&Role::Assistant)
-                                        })
-                                    })
-                                    .filter_map(|c| match c {
-                                        ContentBlock::Text(t) => Some(t.text.clone()),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n");
-                                Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
-                            }
-                        }
+                        Ok(result) => Ok(callback_result_to_value(&result)),
                         Err(e) => Err(format!("Tool error: {}", e.message)),
                     },
                     Err(e) => Err(format!("Dispatch error: {e}")),
@@ -446,6 +403,29 @@ fn create_tool_callback(
                 .unwrap_or_else(|e| Err(format!("Callback task failed: {e}")))
         }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
     })
+}
+
+fn callback_result_to_value(result: &CallToolResult) -> Value {
+    let text = result
+        .content
+        .iter()
+        .filter_map(|content| match content {
+            ContentBlock::Text(text)
+                if text
+                    .annotations
+                    .as_ref()
+                    .and_then(|annotations| annotations.audience.as_ref())
+                    .is_none_or(|audiences| {
+                        audiences.is_empty() || audiences.contains(&Role::Assistant)
+                    }) =>
+            {
+                Some(text.text.clone())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    serde_json::from_str(&text).unwrap_or(Value::String(text))
 }
 
 #[async_trait]
@@ -692,7 +672,151 @@ impl CodeModeState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::ExtensionConfig;
+    use crate::agents::extension_manager::ExtensionManager;
     use pctx_code_mode::model::FunctionId;
+    use rmcp::model::{Annotations, EmbeddedResource, MetaObject, ResourceContents, TextContent};
+
+    #[test]
+    fn callback_result_ignores_hidden_structured_content_and_meta() {
+        let mut result = CallToolResult::success(vec![ContentBlock::text("visible text")]);
+        result.structured_content = Some(json!({"hidden": "structured secret"}));
+        result.meta = Some(MetaObject(
+            json!({"hidden": "metadata secret"})
+                .as_object()
+                .unwrap()
+                .clone(),
+        ));
+
+        assert_eq!(
+            callback_result_to_value(&result),
+            Value::String("visible text".to_string())
+        );
+    }
+
+    #[test]
+    fn callback_result_uses_assistant_visible_text_and_preserves_json_parsing() {
+        let user_only = ContentBlock::Text(
+            TextContent::new(r#"false,"hidden":"user secret","ignored":"#)
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let assistant_only = ContentBlock::Text(
+            TextContent::new("true}")
+                .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+        );
+        let resource = ResourceContents::TextResourceContents {
+            uri: "file:///hidden.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            text: "resource secret".to_string(),
+            meta: None,
+        };
+        let result = CallToolResult::success(vec![
+            ContentBlock::text(r#"{"visible":"#),
+            user_only,
+            ContentBlock::image("image secret", "image/png"),
+            ContentBlock::Resource(EmbeddedResource::new(resource)),
+            assistant_only,
+        ]);
+
+        assert_eq!(callback_result_to_value(&result), json!({"visible": true}));
+    }
+
+    struct VisibilityClient;
+
+    #[async_trait]
+    impl McpClientTrait for VisibilityClient {
+        async fn list_tools(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            let app_only = McpTool::new(
+                "app_only".to_string(),
+                "App-only tool".to_string(),
+                JsonObject::new(),
+            )
+            .with_meta(MetaObject(
+                json!({ "ui": { "visibility": ["app"] } })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ));
+            let model_visible = McpTool::new(
+                "model_visible".to_string(),
+                "Model-visible tool".to_string(),
+                JsonObject::new(),
+            )
+            .with_output_schema::<ToolGraphNode>()
+            .with_meta(MetaObject(
+                json!({ "ui": { "visibility": ["model"] } })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ));
+            let ordinary = McpTool::new(
+                "ordinary".to_string(),
+                "Ordinary tool".to_string(),
+                JsonObject::new(),
+            );
+
+            Ok(ListToolsResult {
+                tools: vec![app_only, model_visible, ordinary],
+                ..Default::default()
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _ctx: &ToolCallContext,
+            _name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn callback_configs_exclude_tools_hidden_from_model() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::new_without_provider(
+            temp.path().join("manager"),
+        ));
+        manager
+            .add_client(
+                "visibility".to_string(),
+                ExtensionConfig::Builtin {
+                    name: "visibility".to_string(),
+                    description: "Visibility test tools".to_string(),
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                Arc::new(VisibilityClient),
+                None,
+            )
+            .await;
+
+        let mut context = manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&manager));
+        let client = CodeExecutionClient::new(context, ToolDisclosure::Catalog).unwrap();
+        let configs = client.load_callback_configs("test-session").await.unwrap();
+        let names = configs
+            .iter()
+            .map(|config| config.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(!names.contains(&"app_only"));
+        assert!(names.contains(&"model_visible"));
+        assert!(names.contains(&"ordinary"));
+        assert!(configs.iter().all(|config| config.output_schema.is_none()));
+    }
 
     #[tokio::test]
     async fn run_in_deno_runtime_times_out_on_hung_execution() {

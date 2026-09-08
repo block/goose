@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Répertoire actuel"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Échec de la mise à jour du répertoire de travail"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Type"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (non pris en charge)"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Entrée/sortie standard (STDIO)"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "Supprimer ce modèle ? Vous pourrez le retélécharger plus tard."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Téléchargez et gérez des modèles LLM locaux pour l'inférence sans clés API. Recherchez des modèles GGUF ou MLX sur HuggingFace, ou utilisez les sélections présentées ci-dessous."
+    "defaultMessage": "Téléchargez et gérez des modèles LLM locaux pour l’inférence sans clés API. Recherchez des modèles GGUF ou MLX sur Hugging Face."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Ignorer"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "Télécharger"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "Téléchargement annulé"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "Modèles en vedette"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Connectez-vous pour augmenter les limites de débit lors de la recherche et du téléchargement de modèles, et pour accéder aux dépôts Hugging Face privés ou à accès restreint."
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "Réessayer"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "Afficher tous les modèles en vedette ({count} de plus)"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "Afficher uniquement les modèles recommandés"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "Modèles d'inférence locale"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "Continuer"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Vous n'avez pas de clé API ?"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "Cette action supprimera définitivement la configuration actuelle du fournisseur."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Une erreur s'est produite lors de la vérification de la configuration de ce fournisseur."
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Affichage de l'ID de planification : {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (déjà planifiée)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Parcourir pour un fichier YAML..."
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Modifier la planification"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Échec du chargement des recettes."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Échec de l'analyse de la recette à partir du fichier."
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Type de fichier invalide : veuillez sélectionner un fichier YAML (.yaml ou .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Chargement des recettes..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nom :"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ex. daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Aucune recette enregistrée trouvée."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Veuillez fournir une source de recette valide."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Cette recette a déjà une planification. Modifiez-la depuis la liste des Recettes."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description : {description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titre : {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Recettes enregistrées"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "L'ID de planification est requis."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Planification :"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Sélectionner une recette enregistrée"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Sélectionné : {path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Diffusion en cours"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "Importation..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "Inclure les sessions ACP"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Chargement de sessions supplémentaires..."
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Le téléchargement automatique est désactivé. Cliquez sur « Télécharger maintenant » pour télécharger manuellement."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Aucune installation manuelle n'est nécessaire."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Rechercher des mises à jour"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Installer et redémarrer"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Cliquez sur « Installer et redémarrer » pour mettre à jour maintenant."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Vous utilisez la dernière version !"
   },
   "updateSection.loading": {
     "defaultMessage": "Chargement..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Après le téléchargement, vous devrez installer la mise à jour manuellement."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Installation manuelle requise pour cette méthode de mise à jour."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ La mise à jour est prête. Redémarrez Goose pour terminer son installation, ou quittez lorsque vous avez terminé."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ La mise à jour est prête ! Cliquez sur « Installer et redémarrer » pour obtenir les instructions d'installation."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(à jour)"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Vérifiez la connexion de votre compte avant de continuer."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "et entrez :"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copier"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visitez"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "et entrez :"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copier"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visitez"
   }
 }

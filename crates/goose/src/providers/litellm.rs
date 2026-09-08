@@ -7,6 +7,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
@@ -26,6 +27,15 @@ const LITELLM_DEFAULT_HOST: &str = "http://localhost:4000";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
+const MODEL_INFO_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
+const MODEL_INFO_FAILURE_TTL: Duration = Duration::from_secs(60);
+
+#[derive(Debug)]
+enum CachedModelInfo {
+    Success(Vec<ModelInfo>),
+    Failure(Instant),
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct LiteLLMProvider {
     #[serde(skip)]
@@ -34,7 +44,7 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cached_model_info: tokio::sync::OnceCell<Vec<ModelInfo>>,
+    cached_model_info: tokio::sync::Mutex<Option<CachedModelInfo>>,
 }
 
 impl LiteLLMProvider {
@@ -88,15 +98,41 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             name: LITELLM_PROVIDER_NAME.to_string(),
-            cached_model_info: tokio::sync::OnceCell::new(),
+            cached_model_info: tokio::sync::Mutex::new(None),
         })
     }
 
-    async fn get_or_fetch_models(&self) -> Result<&[ModelInfo], ProviderError> {
-        self.cached_model_info
-            .get_or_try_init(|| self.fetch_models_from_api())
-            .await
-            .map(|v| v.as_slice())
+    async fn get_or_fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let mut cache = self.cached_model_info.lock().await;
+        match cache.as_ref() {
+            Some(CachedModelInfo::Success(models)) => return Ok(models.clone()),
+            Some(CachedModelInfo::Failure(fetched_at))
+                if fetched_at.elapsed() < MODEL_INFO_FAILURE_TTL =>
+            {
+                return Err(ProviderError::RequestFailed(
+                    "LiteLLM model metadata is unavailable".to_string(),
+                ));
+            }
+            Some(CachedModelInfo::Failure(_)) | None => {}
+        }
+
+        match tokio::time::timeout(MODEL_INFO_DISCOVERY_TIMEOUT, self.fetch_models_from_api()).await
+        {
+            Ok(Ok(models)) => {
+                *cache = Some(CachedModelInfo::Success(models.clone()));
+                Ok(models)
+            }
+            Ok(Err(error)) => {
+                *cache = Some(CachedModelInfo::Failure(Instant::now()));
+                Err(error)
+            }
+            Err(_) => {
+                *cache = Some(CachedModelInfo::Failure(Instant::now()));
+                Err(ProviderError::RequestFailed(
+                    "LiteLLM model metadata discovery timed out".to_string(),
+                ))
+            }
+        }
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
@@ -125,11 +161,13 @@ impl LiteLLMProvider {
                 }
 
                 let model_info = &model_data["model_info"];
-                let context_length =
-                    model_info["max_input_tokens"].as_u64().unwrap_or(128000) as usize;
+                let context_length = model_info["max_input_tokens"]
+                    .as_u64()
+                    .map(|limit| limit as usize);
                 let supports_cache_control = model_info["supports_prompt_caching"].as_bool();
 
-                let mut model_info_obj = ModelInfo::new(model_name, context_length);
+                let mut model_info_obj =
+                    ModelInfo::new(model_name).with_optional_context_limit(context_length);
                 model_info_obj.supports_cache_control = supports_cache_control;
                 models.push(model_info_obj);
             }
@@ -231,25 +269,17 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
-    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        if let Some(limit) = model_config.context_limit {
-            return Ok(limit);
-        }
-
-        // The cache is populated lazily by the first stream() call (via
-        // supports_cache_control). On turn 1 this will be None and we fall
-        // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
-        // too small to trigger compaction. From turn 2 onward the real limit
-        // from /model/info is used.
-        if let Some(models) = self.cached_model_info.get() {
-            if let Some(info) = models.iter().find(|m| m.name == model_config.model_name) {
-                if info.context_limit > 0 {
-                    return Ok(info.context_limit);
-                }
-            }
-        }
-
-        Ok(model_config.context_limit())
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_providers::context_limit::ContextLimitResolver::new(&self.name)
+            .resolve(model, override_limit, || async {
+                Ok(self
+                    .get_or_fetch_models()
+                    .await?
+                    .iter()
+                    .find(|info| info.name == model)
+                    .and_then(|info| info.context_limit))
+            })
+            .await
     }
 
     async fn stream(
@@ -310,4 +340,86 @@ fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
         }
     }
     headers
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn context_limit_negative_caches_failed_model_info() {
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info: tokio::sync::Mutex::new(None),
+        };
+
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            goose_providers::model::DEFAULT_CONTEXT_LIMIT
+        );
+        assert!(matches!(
+            provider.cached_model_info.lock().await.as_ref(),
+            Some(CachedModelInfo::Failure(_))
+        ));
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            goose_providers::model::DEFAULT_CONTEXT_LIMIT
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_failure_allows_model_info_retry() {
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info: tokio::sync::Mutex::new(Some(CachedModelInfo::Failure(
+                Instant::now() - MODEL_INFO_FAILURE_TTL,
+            ))),
+        };
+
+        assert!(provider.get_or_fetch_models().await.is_err());
+        assert!(matches!(
+            provider.cached_model_info.lock().await.as_ref(),
+            Some(CachedModelInfo::Failure(fetched_at))
+                if fetched_at.elapsed() < MODEL_INFO_FAILURE_TTL
+        ));
+    }
+
+    #[tokio::test]
+    async fn context_limit_uses_cached_model_info() {
+        let cached_model_info =
+            tokio::sync::Mutex::new(Some(CachedModelInfo::Success(vec![ModelInfo::new(
+                "cached-model",
+            )
+            .with_context_limit(32_000)])));
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info,
+        };
+
+        assert_eq!(
+            provider.get_context_limit("cached-model", None).await,
+            32_000
+        );
+    }
 }

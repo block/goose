@@ -2,6 +2,7 @@ use super::*;
 use crate::config::declarative_providers;
 use crate::providers::inventory::ensure_refresh_identity_current;
 use crate::providers::provider_secrets;
+use goose_providers::base::ModelInfo;
 use std::str::FromStr;
 
 const ACP_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -46,7 +47,6 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         configured: entry.configured,
         available: entry.available,
         provider_type: format!("{:?}", entry.provider_type),
-        category: provider_setup_category_to_dto(entry.category),
         acp: entry.acp,
         visible_in_setup: entry.visible_in_setup,
         deprecated: entry.deprecated,
@@ -75,7 +75,6 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         last_refresh_attempt_at: entry.last_refresh_attempt_at.map(|t| t.to_rfc3339()),
         last_refresh_error: entry.last_refresh_error,
         stale,
-        model_selection_hint: entry.model_selection_hint,
     }
 }
 
@@ -92,22 +91,15 @@ fn provider_config_key_to_dto(key: crate::providers::base::ConfigKey) -> Provide
 }
 
 const SECRET_MASK_PREFIX_LEN: usize = 4;
-const SECRET_MASK_SUFFIX_LEN: usize = 3;
 const SECRET_MASK_FALLBACK: &str = "***";
 
 fn mask_secret_value(value: &str) -> String {
-    let prefix: String = value.chars().take(SECRET_MASK_PREFIX_LEN).collect();
-    let suffix_chars: Vec<char> = value.chars().rev().take(SECRET_MASK_SUFFIX_LEN).collect();
-    let suffix: String = suffix_chars.into_iter().rev().collect();
-
-    if prefix.is_empty()
-        || suffix.is_empty()
-        || value.chars().count() <= SECRET_MASK_PREFIX_LEN + SECRET_MASK_SUFFIX_LEN
-    {
+    if value.chars().count() < SECRET_MASK_PREFIX_LEN * 2 {
         return SECRET_MASK_FALLBACK.to_string();
     }
 
-    format!("{prefix}...{suffix}")
+    let prefix: String = value.chars().take(SECRET_MASK_PREFIX_LEN).collect();
+    format!("{prefix}...")
 }
 
 fn config_value_to_string(value: &serde_json::Value) -> Option<String> {
@@ -385,6 +377,34 @@ fn custom_provider_headers(headers: HashMap<String, String>) -> Option<HashMap<S
     (!headers.is_empty()).then_some(headers)
 }
 
+fn custom_provider_models(
+    names: Vec<String>,
+    existing: &[ModelInfo],
+    catalog_provider_id: Option<&str>,
+) -> Vec<ModelInfo> {
+    let catalog_models = catalog_provider_id
+        .and_then(crate::providers::catalog::get_provider_template)
+        .map(|template| template.models)
+        .unwrap_or_default();
+
+    names
+        .into_iter()
+        .map(|name| {
+            existing
+                .iter()
+                .find(|model| model.name == name)
+                .cloned()
+                .or_else(|| {
+                    catalog_models
+                        .iter()
+                        .find(|model| model.id == name)
+                        .map(|model| ModelInfo::new(&name).with_context_limit(model.context_limit))
+                })
+                .unwrap_or_else(|| ModelInfo::new(name))
+        })
+        .collect()
+}
+
 fn load_declarative_provider_for_client(
     provider_id: &str,
 ) -> Result<declarative_providers::LoadedProvider, agent_client_protocol::Error> {
@@ -620,7 +640,11 @@ impl GooseAcpAgent {
                 display_name: provider.display_name,
                 api_url: provider.api_url,
                 api_key: provider.api_key,
-                models: provider.models,
+                models: custom_provider_models(
+                    provider.models,
+                    &[],
+                    provider.catalog_provider_id.as_deref(),
+                ),
                 supports_streaming: provider.supports_streaming,
                 headers: custom_provider_headers(provider.headers),
                 requires_auth: provider.requires_auth,
@@ -628,6 +652,7 @@ impl GooseAcpAgent {
                 base_path: provider.base_path,
                 toolshim,
                 preserves_thinking: provider.preserves_thinking,
+                auth: None,
             },
         )
         .internal_err_ctx("Failed to create custom provider")?;
@@ -672,7 +697,7 @@ impl GooseAcpAgent {
         }
 
         let provider = normalize_custom_provider_upsert(req.provider, false)?;
-        if provider.requires_auth && provider.api_key.is_none() {
+        if provider.requires_auth && provider.api_key.is_none() && loaded.config.auth.is_none() {
             let api_key_env = if loaded.config.api_key_env.is_empty() {
                 declarative_providers::generate_api_key_name(&req.provider_id)
             } else {
@@ -689,8 +714,16 @@ impl GooseAcpAgent {
                 engine: provider.engine,
                 display_name: provider.display_name,
                 api_url: provider.api_url,
-                api_key: provider.api_key,
-                models: provider.models,
+                api_key: if loaded.config.auth.is_some() {
+                    None
+                } else {
+                    provider.api_key
+                },
+                models: custom_provider_models(
+                    provider.models,
+                    &loaded.config.models,
+                    provider.catalog_provider_id.as_deref(),
+                ),
                 supports_streaming: provider.supports_streaming,
                 headers: Some(provider.headers),
                 requires_auth: provider.requires_auth,
@@ -698,6 +731,15 @@ impl GooseAcpAgent {
                 base_path: provider.base_path,
                 toolshim: req.toolshim,
                 preserves_thinking: provider.preserves_thinking,
+                // The desktop/ACP form doesn't yet support editing command-based
+                // auth, so carry the existing setting forward unchanged rather
+                // than silently clearing it — but only while auth stays enabled;
+                // disabling auth must actually stop the credential command.
+                auth: if provider.requires_auth {
+                    loaded.config.auth.clone()
+                } else {
+                    None
+                },
             },
         )
         .internal_err_ctx("Failed to update custom provider")?;
@@ -1079,10 +1121,42 @@ impl GooseAcpAgent {
                 .create_with_default_model(Vec::new())
                 .await
                 .internal_err_ctx("Failed to initialize provider")?;
-            provider
-                .configure_oauth()
+
+            if self.supports_goose_custom_notifications() {
+                let client_cx = self.client_cx.get().cloned();
+                let provider_id = req.provider_id.clone();
+                let announce: Box<dyn Fn(String, String, u64) + Send + Sync> =
+                    Box::new(move |user_code, verification_uri, expires_in| {
+                        let _ = arboard::Clipboard::new()
+                            .ok()
+                            .and_then(|mut cb| cb.set_text(&user_code).ok());
+                        if let Err(e) = webbrowser::open(&verification_uri) {
+                            tracing::warn!("Failed to open browser: {}", e);
+                        }
+                        if let Some(ref cx) = client_cx {
+                            let notification = ProviderDeviceCodeNotification {
+                                provider_id: provider_id.clone(),
+                                user_code,
+                                verification_uri,
+                                expires_in,
+                            };
+                            if let Err(e) = cx.send_notification(notification) {
+                                tracing::warn!("Failed to send device code notification: {}", e);
+                            }
+                        }
+                    });
+                crate::providers::oauth_device_flow::with_device_code_announce(
+                    announce,
+                    provider.configure_oauth(),
+                )
                 .await
                 .internal_err_ctx("Failed to authenticate provider")?;
+            } else {
+                provider
+                    .configure_oauth()
+                    .await
+                    .internal_err_ctx("Failed to authenticate provider")?;
+            }
         }
         Config::global().invalidate_secrets_cache();
 
@@ -1162,7 +1236,9 @@ impl GooseAcpAgent {
                             config_info.map(|info| CanonicalModelInfoDto {
                                 provider: req.provider.clone(),
                                 model: req.model.clone(),
-                                context_limit: info.context_limit,
+                                context_limit: info.context_limit.unwrap_or_else(|| {
+                                    ModelConfig::new(&req.model).context_limit()
+                                }),
                                 // ModelInfo carries no max-output limit.
                                 max_output_tokens: None,
                                 // Configs deserialize a missing `reasoning` as false; keep
@@ -1179,5 +1255,27 @@ impl GooseAcpAgent {
                 });
 
         Ok(CanonicalModelInfoResponse { model_info })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mask_secret_value;
+
+    #[test]
+    fn mask_secret_value_hides_suffix_and_never_reveals_majority() {
+        for (secret, expected) in [
+            ("", "***"),
+            ("abcdefg", "***"),
+            ("abcdefgh", "abcd..."),
+            ("abcdefghijkl", "abcd..."),
+        ] {
+            assert_eq!(mask_secret_value(secret), expected);
+        }
+    }
+
+    #[test]
+    fn mask_secret_value_counts_unicode_characters() {
+        assert_eq!(mask_secret_value("密碼安全令牌甲乙"), "密碼安全...");
     }
 }

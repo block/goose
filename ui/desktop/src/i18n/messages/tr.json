@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Geçerli dizin"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Çalışma dizini güncellenemedi"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Tür"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (desteklenmiyor)"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standart IO (STDIO)"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "Bu model silinsin mi? Daha sonra tekrar indirebilirsiniz."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "API anahtarları olmadan çıkarım yapmak için yerel LLM modellerini indirin ve yönetin. Herhangi bir GGUF modeli için HuggingFace'yi arayın veya aşağıdaki öne çıkan seçimleri kullanın."
+    "defaultMessage": "API anahtarları olmadan çıkarım yapmak için yerel LLM modellerini indirin ve yönetin. Hugging Face üzerinde GGUF veya MLX modelleri arayın."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Kapat"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "İndir"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "İndirme iptal edildi"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "Öne Çıkan Modeller"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Model ararken ve indirirken hız sınırlarını artırmak ve özel ya da erişimi kısıtlı Hugging Face depolarına erişmek için oturum açın."
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "Yeniden dene"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "Tüm öne çıkanları göster ({count} daha fazlası)"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "Yalnızca önerilenleri göster"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "Yerel Çıkarım Modelleri"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "Devam et"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API anahtarınız yok mu?"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "Bu, mevcut sağlayıcı yapılandırmasını kalıcı olarak silecektir."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Bu sağlayıcı yapılandırması kontrol edilirken bir hata oluştu."
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Program Kimliğini Görüntüleme: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (zaten zamanlanmış)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML dosyasına göz atın..."
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Programı Düzenle"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Tarifeler yüklenemedi."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Dosyadan tarif ayrıştırılamadı."
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Geçersiz dosya türü: Lütfen bir YAML dosyası seçin (.yaml veya.yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Tarifeler yükleniyor..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "İsim:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "örneğin günlük özet işi"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Kayıtlı tarife bulunamadı."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Lütfen geçerli bir tarif kaynağı sağlayın."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Bu tarifin zaten bir zamanlaması var. Tarif listesinden düzenleyin."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Açıklama: {description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Başlık: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Kayıtlı tarifeler"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Program kimliği gerekli."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Program:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Kayıtlı bir tarife seç"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Seçili: {path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "İçe aktarılıyor..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "ACP oturumlarını dahil et"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Daha fazla oturum yükleniyor..."
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Güncellemeleri Kontrol Et"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Yükle ve Yeniden Başlat"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Veya şimdi güncellemek için \"Yükle ve Yeniden Başlat\"ı tıklayın."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "En son sürümü çalıştırıyorsunuz!"
   },
   "updateSection.loading": {
     "defaultMessage": "Yükleniyor..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "İndirdikten sonra güncellemeyi manuel olarak yüklemeniz gerekecektir."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Bu güncelleme yöntemi için manuel kurulum gereklidir."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Güncelleme hazır! Goose'den çıktığınızda yüklenecektir."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Güncelleme hazır! Kurulum talimatları için \"Yükle ve Yeniden Başlat\"a tıklayın."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(güncel)"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
   }
 }

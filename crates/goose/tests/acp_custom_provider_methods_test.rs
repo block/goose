@@ -25,25 +25,22 @@ fn write_secrets(config_dir: &std::path::Path, contents: &str) {
 #[test]
 #[serial]
 fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
-    let root = tempfile::tempdir().unwrap();
-    let root_path = root.path().to_string_lossy().to_string();
     let _env = env_lock::lock_env([
-        ("GOOSE_PATH_ROOT", Some(root_path.as_str())),
         ("GOOSE_DISABLE_KEYRING", Some("1")),
         ("XAI_API_KEY", None),
         ("XAI_HOST", None),
         ("CUSTOM_STARK_ACP_PROVIDER_API_KEY", None),
     ]);
 
-    let config_dir = Paths::config_dir();
-    write_config(
-        &config_dir,
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\nXAI_HOST: https://api.x.ai/v1\n",
-    );
-    write_secrets(&config_dir, "XAI_API_KEY: xai-configured-key\n");
-    Config::global().invalidate_secrets_cache();
-
     run_test(async move {
+        let config_dir = Paths::config_dir();
+        write_config(
+            &config_dir,
+            "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\nXAI_HOST: https://api.x.ai/v1\n",
+        );
+        write_secrets(&config_dir, "XAI_API_KEY: xai-configured-key\n");
+        Config::global().invalidate_secrets_cache();
+
         let openai = common_tests::fixtures::OpenAiFixture::new(
             vec![],
             Arc::new(EnforceSessionId::default()),

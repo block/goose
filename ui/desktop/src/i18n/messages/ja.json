@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "現在のディレクトリ"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "作業ディレクトリの更新に失敗しました"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "タイプ"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE（未対応）"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "標準入出力（STDIO）"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "このモデルを削除しますか？後で再ダウンロードできます。"
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging Faceで任意のGGUFモデルを検索するか、以下の注目モデルを使用できます。"
+    "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging FaceでGGUFまたはMLXモデルを検索できます。"
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "閉じる"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "ダウンロード"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "ダウンロードがキャンセルされました"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "注目モデル"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "再試行"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "注目モデルをすべて表示（あと{count}件）"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "おすすめのみ表示"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "ローカル推論モデル"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "続行"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "APIキーをお持ちでないですか？"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "現在のプロバイダー設定は完全に削除されます。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "このプロバイダー設定の確認中にエラーが発生しました。"
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "表示中のスケジュールID: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（スケジュール済み）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAMLファイルを選択..."
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "スケジュールを編集"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "レシピの読み込みに失敗しました。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "ファイルからレシピを解析できませんでした。"
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無効なファイル形式です。YAMLファイル（.yaml または .yml）を選択してください"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "レシピを読み込み中..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名前:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "保存したレシピが見つかりません。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "有効なレシピソースを指定してください。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "このレシピには既にスケジュールがあります。レシピ一覧から編集してください。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "説明: {description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "タイトル: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "保存したレシピ"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "スケジュールIDは必須です。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "スケジュール:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "保存したレシピを選択"
   },
   "scheduleModal.selected": {
     "defaultMessage": "選択済み: {path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "インポート中..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "ACP セッションを含める"
   },
   "sessions.loadingMore": {
     "defaultMessage": "さらにセッションを読み込み中..."
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "アップデートを確認"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "インストールして再起動"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "今すぐアップデートするには「インストールして再起動」をクリックしてください。"
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "最新バージョンを使用しています！"
   },
   "updateSection.loading": {
     "defaultMessage": "読み込み中..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "ダウンロード後、アップデートを手動でインストールする必要があります。"
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "このアップデート方法では、手動インストールが必要です。"
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ アップデートの準備ができました！Gooseを終了するとインストールされます。"
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ アップデートの準備ができました！インストール手順を表示するには「インストールして再起動」をクリックしてください。"
   },
   "updateSection.upToDate": {
     "defaultMessage": "(最新)"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "続行する前にアカウントの接続を確認してください。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
   }
 }

@@ -138,7 +138,7 @@ pub struct CreateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -146,6 +146,8 @@ pub struct CreateCustomProviderParams {
     pub base_path: Option<String>,
     pub toolshim: bool,
     pub preserves_thinking: Option<bool>,
+    /// Alternative to `api_key`; mutually exclusive with it.
+    pub auth: Option<AuthConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,7 +157,7 @@ pub struct UpdateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -163,6 +165,8 @@ pub struct UpdateCustomProviderParams {
     pub base_path: Option<String>,
     pub toolshim: bool,
     pub preserves_thinking: Option<bool>,
+    /// Alternative to `api_key`; mutually exclusive with it.
+    pub auth: Option<AuthConfig>,
 }
 
 pub fn create_custom_provider(
@@ -171,7 +175,18 @@ pub fn create_custom_provider(
     let id = generate_id(&params.display_name);
     validate_provider_id(&id)?;
 
-    let api_key_env = if params.requires_auth {
+    if params.auth.is_some()
+        && params
+            .api_key
+            .as_deref()
+            .is_some_and(|key| !key.trim().is_empty())
+    {
+        anyhow::bail!("cannot set both apiKey and auth.command");
+    }
+
+    let api_key_env = if params.auth.is_some() {
+        String::new()
+    } else if params.requires_auth {
         let api_key = params
             .api_key
             .as_deref()
@@ -185,11 +200,7 @@ pub fn create_custom_provider(
         String::new()
     };
 
-    let model_infos: Vec<ModelInfo> = params
-        .models
-        .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
-        .collect();
+    let model_infos = params.models;
 
     let engine = ProviderEngine::from_str(&params.engine)?;
     let preserves_thinking = params
@@ -211,11 +222,11 @@ pub fn create_custom_provider(
         catalog_provider_id: params.catalog_provider_id,
         base_path: params.base_path,
         env_vars: None,
+        auth: params.auth,
         dynamic_models: None,
         skip_canonical_filtering: false,
         model_doc_link: None,
         setup_steps: vec![],
-        fast_model: None,
         toolshim: params.toolshim,
         preserves_thinking,
         emit_clear_thinking: false,
@@ -234,15 +245,29 @@ pub fn create_custom_provider(
 
 pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> {
     let loaded_provider = load_provider(&params.id)?;
-    let mut provider_config = loaded_provider.config;
+    let existing_config = loaded_provider.config;
     let editable = loaded_provider.is_editable;
 
+    if params.auth.is_some()
+        && params
+            .api_key
+            .as_deref()
+            .is_some_and(|key| !key.trim().is_empty())
+    {
+        anyhow::bail!("cannot set both apiKey and auth.command");
+    }
+
     let config = Config::global();
-    let api_key_env = if params.requires_auth {
-        let api_key_name = if provider_config.api_key_env.is_empty() {
+    let api_key_env = if params.auth.is_some() {
+        if existing_config.api_key_env == generate_api_key_name(&params.id) {
+            config.delete_secret(&existing_config.api_key_env)?;
+        }
+        String::new()
+    } else if params.requires_auth {
+        let api_key_name = if existing_config.api_key_env.is_empty() {
             generate_api_key_name(&params.id)
         } else {
-            provider_config.api_key_env.clone()
+            existing_config.api_key_env.clone()
         };
         if let Some(api_key) = params.api_key.as_deref() {
             config.set_secret(&api_key_name, &api_key)?;
@@ -253,55 +278,82 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
         }
         api_key_name
     } else {
-        if provider_config.api_key_env == generate_api_key_name(&params.id) {
-            config.delete_secret(&provider_config.api_key_env)?;
+        if existing_config.api_key_env == generate_api_key_name(&params.id) {
+            config.delete_secret(&existing_config.api_key_env)?;
         }
         String::new()
     };
 
     if editable {
-        let model_infos: Vec<ModelInfo> = params
+        let model_infos = params
             .models
             .into_iter()
-            .map(|name| {
-                provider_config
+            .map(|mut model| {
+                if let Some(existing) = existing_config
                     .models
                     .iter()
-                    .find(|existing| existing.name == name)
-                    .cloned()
-                    .unwrap_or_else(|| ModelInfo::new(name, 128000))
+                    .find(|existing| existing.name == model.name)
+                {
+                    model.resolved_model = model.resolved_model.or(existing.resolved_model.clone());
+                    model.context_limit = model.context_limit.or(existing.context_limit);
+                    model.input_token_cost = model.input_token_cost.or(existing.input_token_cost);
+                    model.output_token_cost =
+                        model.output_token_cost.or(existing.output_token_cost);
+                    model.currency = model.currency.or(existing.currency.clone());
+                    model.supports_cache_control = model
+                        .supports_cache_control
+                        .or(existing.supports_cache_control);
+                    model.reasoning |= existing.reasoning;
+                    model.thinking_preservation_format = model
+                        .thinking_preservation_format
+                        .or(existing.thinking_preservation_format);
+                    model.request_params = model.request_params.or(existing.request_params.clone());
+                }
+                model
             })
             .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;
         let preserves_thinking = match params.preserves_thinking {
             Some(value) => value,
-            None if provider_config.engine != engine => {
+            None if existing_config.engine != engine => {
                 should_preserve_thinking_by_default(&engine)
             }
-            None => provider_config.preserves_thinking,
+            None => existing_config.preserves_thinking,
         };
 
-        provider_config.name = params.id;
-        provider_config.engine = engine;
-        provider_config.display_name = params.display_name;
-        provider_config.api_key_env = api_key_env;
-        provider_config.base_url = params.api_url;
-        provider_config.models = model_infos;
-        provider_config.headers = match params.headers {
-            Some(headers) if headers.is_empty() => None,
-            Some(headers) => Some(headers),
-            None => provider_config.headers,
+        let updated_config = DeclarativeProviderConfig {
+            name: params.id.clone(),
+            engine,
+            display_name: params.display_name,
+            description: existing_config.description,
+            api_key_env,
+            base_url: params.api_url,
+            models: model_infos,
+            headers: match params.headers {
+                Some(h) if h.is_empty() => None,
+                Some(h) => Some(h),
+                None => existing_config.headers,
+            },
+            timeout_seconds: existing_config.timeout_seconds,
+            supports_streaming: params.supports_streaming,
+            requires_auth: params.requires_auth,
+            catalog_provider_id: params.catalog_provider_id,
+            base_path: params.base_path,
+            env_vars: existing_config.env_vars,
+            auth: params.auth,
+            dynamic_models: existing_config.dynamic_models,
+            skip_canonical_filtering: existing_config.skip_canonical_filtering,
+            model_doc_link: existing_config.model_doc_link,
+            setup_steps: existing_config.setup_steps,
+            toolshim: params.toolshim,
+            preserves_thinking,
+            emit_clear_thinking: existing_config.emit_clear_thinking,
+            setup: existing_config.setup,
         };
-        provider_config.supports_streaming = params.supports_streaming;
-        provider_config.requires_auth = params.requires_auth;
-        provider_config.catalog_provider_id = params.catalog_provider_id;
-        provider_config.base_path = params.base_path;
-        provider_config.toolshim = params.toolshim;
-        provider_config.preserves_thinking = preserves_thinking;
 
-        let file_path = custom_provider_file_path(&provider_config.name)?;
-        let json_content = serde_json::to_string_pretty(&provider_config)?;
+        let file_path = custom_provider_file_path(&updated_config.name)?;
+        let json_content = serde_json::to_string_pretty(&updated_config)?;
         std::fs::write(file_path, json_content)?;
     }
     Ok(())
@@ -520,6 +572,10 @@ fn huggingface_declarative_inventory_configured_from_sources(
     provider_secret_configured: impl FnOnce(&str) -> bool,
     global_huggingface_configured: impl FnOnce() -> bool,
 ) -> bool {
+    if config.auth.is_some() {
+        return true;
+    }
+
     if !config.requires_auth {
         return true;
     }
@@ -546,7 +602,7 @@ mod tests {
             models: vec![ModelInfo {
                 name: "test/model".to_string(),
                 resolved_model: None,
-                context_limit: 128_000,
+                context_limit: Some(128_000),
                 input_token_cost: None,
                 output_token_cost: None,
                 currency: None,
@@ -562,11 +618,11 @@ mod tests {
             catalog_provider_id: Some("huggingface".to_string()),
             base_path: None,
             env_vars: None,
+            auth: None,
             dynamic_models: Some(false),
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: Vec::new(),
-            fast_model: None,
             toolshim: false,
             preserves_thinking: true,
             emit_clear_thinking: false,
@@ -612,6 +668,24 @@ mod tests {
         assert!(huggingface_declarative_inventory_configured_from_sources(
             &config,
             |key| key == "CUSTOM_HF_TOKEN",
+            || false,
+        ));
+    }
+
+    #[test]
+    fn huggingface_inventory_accepts_command_auth() {
+        let mut config = test_huggingface_config();
+        config.auth = Some(AuthConfig {
+            command: "get-token".to_string(),
+            args: vec![],
+            refresh_interval: 3600,
+            timeout_seconds: None,
+            cwd: None,
+        });
+
+        assert!(huggingface_declarative_inventory_configured_from_sources(
+            &config,
+            |_| false,
             || false,
         ));
     }
@@ -695,6 +769,63 @@ mod tests {
                 assert_eq!(key.secret, ev.secret, "{id}: {} secret", ev.name);
             }
         }
+    }
+
+    #[test]
+    fn custom_provider_update_preserves_model_metadata() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_root = temp_dir.path().display().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let mut model = ModelInfo::with_cost("large-model", 1_048_576, 0.000002, 0.000006);
+        model.request_params = Some(HashMap::from([(
+            "temperature".to_string(),
+            serde_json::json!(0.25),
+        )]));
+        let created = create_custom_provider(CreateCustomProviderParams {
+            engine: "openai".to_string(),
+            display_name: "Large Context".to_string(),
+            api_url: "https://example.invalid/v1".to_string(),
+            api_key: None,
+            models: vec![model],
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            toolshim: false,
+            preserves_thinking: None,
+            auth: None,
+        })
+        .unwrap();
+
+        update_custom_provider(UpdateCustomProviderParams {
+            id: created.name.clone(),
+            engine: "openai".to_string(),
+            display_name: created.display_name.clone(),
+            api_url: created.base_url.clone(),
+            api_key: None,
+            models: vec![ModelInfo::new("large-model").with_context_limit(2_097_152)],
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            toolshim: false,
+            preserves_thinking: None,
+            auth: None,
+        })
+        .unwrap();
+
+        let loaded = load_provider(&created.name).unwrap();
+        let model = &loaded.config.models[0];
+        assert_eq!(model.context_limit, Some(2_097_152));
+        assert_eq!(model.input_token_cost, Some(0.000002));
+        assert_eq!(model.output_token_cost, Some(0.000006));
+        assert_eq!(
+            model.request_params.as_ref().unwrap()["temperature"],
+            serde_json::json!(0.25)
+        );
     }
 
     #[test]
@@ -792,7 +923,7 @@ mod tests {
             display_name: "Z.AI Updated".to_string(),
             api_url: "https://updated.example.invalid/v1/chat/completions".to_string(),
             api_key: None,
-            models: vec!["z-model".to_string()],
+            models: vec![ModelInfo::new("z-model")],
             supports_streaming: Some(true),
             headers: None,
             requires_auth: false,
@@ -800,6 +931,7 @@ mod tests {
             base_path: None,
             toolshim: false,
             preserves_thinking: None,
+            auth: None,
         })
         .unwrap();
 
@@ -910,65 +1042,5 @@ mod tests {
 
         let result = expand_env_vars("${TEST_EXPAND_OVERRIDE}/path", &env_vars).unwrap();
         assert_eq!(result, "https://from-env.com/path");
-    }
-
-    #[test]
-    fn test_update_custom_provider_preserves_model_pricing_and_context_limits() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_root = temp_dir.path().display().to_string();
-        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
-
-        let custom_dir = custom_providers_dir();
-        std::fs::create_dir_all(&custom_dir).unwrap();
-        std::fs::write(
-            custom_dir.join("priced_provider.json"),
-            r#"{
-                "name": "priced_provider",
-                "engine": "openai",
-                "display_name": "Priced",
-                "description": null,
-                "api_key_env": "",
-                "base_url": "https://example.invalid/v1",
-                "models": [
-                    {
-                        "name": "kept-model",
-                        "context_limit": 262144,
-                        "input_token_cost": 0.000002,
-                        "output_token_cost": 0.000006
-                    }
-                ],
-                "requires_auth": false
-            }"#,
-        )
-        .unwrap();
-
-        update_custom_provider(UpdateCustomProviderParams {
-            id: "priced_provider".to_string(),
-            engine: "openai".to_string(),
-            display_name: "Renamed".to_string(),
-            api_url: "https://example.invalid/v1".to_string(),
-            api_key: None,
-            models: vec!["kept-model".to_string()],
-            supports_streaming: None,
-            headers: None,
-            requires_auth: false,
-            catalog_provider_id: None,
-            base_path: None,
-            toolshim: false,
-            preserves_thinking: None,
-        })
-        .unwrap();
-
-        let loaded = load_provider("priced_provider").unwrap();
-        let model = loaded
-            .config
-            .models
-            .iter()
-            .find(|m| m.name == "kept-model")
-            .expect("model survives update");
-        assert_eq!(loaded.config.display_name, "Renamed");
-        assert_eq!(model.context_limit, 262144);
-        assert_eq!(model.input_token_cost, Some(0.000002));
-        assert_eq!(model.output_token_cost, Some(0.000006));
     }
 }

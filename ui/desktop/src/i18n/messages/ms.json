@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Direktori semasa"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Gagal mengemas kini direktori kerja"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Jenis"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (tidak disokong)"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standard IO (STDIO)"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "Padam model ini? Anda boleh memuat turunnya semula kemudian."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Muat turun dan urus model LLM tempatan untuk inferens tanpa kunci API. Cari HuggingFace untuk model GGUF atau MLX, atau gunakan pilihan utama di bawah."
+    "defaultMessage": "Muat turun dan urus model LLM tempatan untuk inferens tanpa kunci API. Cari model GGUF atau MLX di Hugging Face."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Ketepikan"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "Muat turun"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "Muat turun dibatalkan"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "Model Pilihan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Log masuk untuk meningkatkan had kadar semasa mencari dan memuat turun model, dan untuk mengakses repositori Hugging Face peribadi atau berpagar."
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "Cuba semula"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "Tunjukkan semua pilihan ({count} lagi)"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "Tunjukkan yang disyorkan sahaja"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "Model Inferens Tempatan"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "Teruskan"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Tetingkap pelayar akan dibuka dan kod pengesahan akan disalin ke papan keratan anda. Tampalkannya dalam pelayar untuk melengkapkan log masuk."
+    "defaultMessage": "Tetingkap pelayar akan dibuka. Kod pengesahan akan dipaparkan di sini supaya anda boleh memasukkannya untuk melengkapkan log masuk."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Tidak mempunyai kunci API?"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "Ini akan memadamkan konfigurasi penyedia semasa secara kekal."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Tetingkap pelayar akan dibuka dan kod pengesahan akan disalin ke papan keratan anda. Tampalkannya dalam pelayar untuk melengkapkan log masuk."
+    "defaultMessage": "Tetingkap pelayar akan dibuka. Kod pengesahan akan dipaparkan di sini supaya anda boleh memasukkannya untuk melengkapkan log masuk."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Terdapat ralat semasa menyemak konfigurasi penyedia ini."
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Melihat ID Jadual: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (sudah dijadualkan)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Layari fail YAML..."
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Edit Jadual"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Gagal memuatkan resipi."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Gagal menghuraikan resipi daripada fail."
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Jenis fail tidak sah: Sila pilih fail YAML (.yaml atau .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Memuatkan resipi..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nama:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "cth., daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Tiada resipi tersimpan dijumpai."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Sila sediakan sumber resipi yang sah."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Resipi ini sudah mempunyai jadual. Edit dari senarai Resipi."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Penerangan: {description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Tajuk: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Resipi tersimpan"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "ID jadual diperlukan."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Jadual:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Pilih resipi tersimpan"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Dipilih: {path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "Mengimport..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "Sertakan sesi ACP"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Memuatkan lebih banyak sesi..."
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Muat turun automatik dilumpuhkan. Klik \"Muat Turun Sekarang\" untuk memuat turun secara manual."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Tiada pemasangan manual diperlukan."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Semak Kemas Kini"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Pasang & Mula Semula"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Klik \"Pasang & Mula Semula\" untuk mengemas kini sekarang."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Anda sedang menjalankan versi terkini!"
   },
   "updateSection.loading": {
     "defaultMessage": "Memuatkan..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Selepas muat turun, anda perlu memasang kemas kini secara manual."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Pemasangan manual diperlukan untuk kaedah kemas kini ini."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Kemas kini sudah sedia. Mula semula Goose untuk menyelesaikan pemasangannya, atau keluar apabila anda selesai."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Kemas kini sudah sedia! Klik \"Pasang & Mula Semula\" untuk arahan pemasangan."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(terkini)"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Lawati"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Lawati"
   }
 }

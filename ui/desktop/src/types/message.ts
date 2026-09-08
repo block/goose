@@ -94,10 +94,7 @@ type ContentIcon = {
 };
 
 export type SystemNotificationType =
-  | 'thinkingMessage'
-  | 'progressMessage'
-  | 'inlineMessage'
-  | 'creditsExhausted';
+  'thinkingMessage' | 'progressMessage' | 'inlineMessage' | 'creditsExhausted';
 
 export type SystemNotificationContent = {
   data?: unknown;
@@ -113,6 +110,7 @@ export type ActionRequiredData =
   | {
       actionType: 'toolConfirmation';
       arguments: JsonObject;
+      generation?: string;
       id: string;
       prompt?: string | null;
       toolName: string;
@@ -129,11 +127,6 @@ export type ActionRequiredData =
       id: string;
       user_data: unknown;
     };
-
-export type FrontendToolRequest = {
-  id: string;
-  toolCall: JsonObject;
-};
 
 export type ThinkingContent = {
   signature: string;
@@ -202,7 +195,6 @@ export type MessageContent =
   | (ToolResponse & { type: 'toolResponse' })
   | (ToolConfirmationRequest & { type: 'toolConfirmationRequest' })
   | (ActionRequired & { type: 'actionRequired' })
-  | (FrontendToolRequest & { type: 'frontendToolRequest' })
   | (ThinkingContent & { type: 'thinking' })
   | (RedactedThinkingContent & { type: 'redactedThinking' })
   | (SystemNotificationContent & { type: 'systemNotification' });
@@ -405,6 +397,7 @@ export function getToolConfirmationRequestContent(
 }
 
 export interface ToolConfirmationData {
+  generation?: string;
   id: string;
   toolName: string;
   arguments: Record<string, unknown>;
@@ -425,6 +418,7 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
   const actionRequired = getToolConfirmationContent(message);
   if (actionRequired && actionRequired.data.actionType === 'toolConfirmation') {
     return {
+      generation: actionRequired.data.generation,
       id: actionRequired.data.id,
       toolName: actionRequired.data.toolName,
       arguments: actionRequired.data.arguments,

@@ -19,13 +19,14 @@ pub mod state_machine;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
+mod tool_confirmation_coordinator;
 mod tool_confirmation_router;
-mod tool_execution;
+pub mod tool_execution;
 mod tool_schema_normalize;
 pub mod types;
 pub mod validate_extensions;
 
-pub use agent::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
+pub use agent::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform, MCP_PROTOCOL_VERSION};
 pub use container::Container;
 pub use execute_commands::{context_management_unsupported_message, COMPACT_TRIGGERS};
 pub use extension::{ExtensionConfig, ExtensionError};
@@ -37,7 +38,7 @@ pub use schedule_tool::ScheduleTool;
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 pub use subagent_task_config::TaskConfig;
 pub use tool_execution::ToolCallContext;
-pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};
+pub use types::{RetryConfig, SessionConfig, SuccessCheck};
 
 pub(crate) fn latest_provider_session_id<'a>(
     messages: &'a [crate::conversation::message::Message],

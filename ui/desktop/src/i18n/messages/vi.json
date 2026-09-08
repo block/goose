@@ -920,6 +920,15 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Thư mục hiện tại"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Enter path"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Không thể cập nhật thư mục làm việc"
   },
@@ -1045,9 +1054,6 @@
   },
   "extensionInfoFields.typeLabel": {
     "defaultMessage": "Loại"
-  },
-  "extensionInfoFields.typeSseUnsupported": {
-    "defaultMessage": "SSE (không được hỗ trợ)"
   },
   "extensionInfoFields.typeStandardIo": {
     "defaultMessage": "Standard IO (STDIO)"
@@ -1752,13 +1758,10 @@
     "defaultMessage": "Xóa mô hình này? Bạn có thể tải lại sau."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Tải xuống và quản lý các mô hình LLM cục bộ để suy luận mà không cần khóa API. Tìm kiếm các mô hình GGUF hoặc MLX trên HuggingFace, hoặc sử dụng các lựa chọn nổi bật bên dưới."
+    "defaultMessage": "Tải xuống và quản lý các mô hình LLM cục bộ để suy luận mà không cần khóa API. Tìm kiếm các mô hình GGUF hoặc MLX trên Hugging Face."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Bỏ qua"
-  },
-  "localInferenceSettings.download": {
-    "defaultMessage": "Tải xuống"
   },
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "Đã hủy tải xuống"
@@ -1777,9 +1780,6 @@
   },
   "localInferenceSettings.evictFromMemory": {
     "defaultMessage": "Evict from memory"
-  },
-  "localInferenceSettings.featuredModels": {
-    "defaultMessage": "Mô hình nổi bật"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Đăng nhập để tăng giới hạn tốc độ khi tìm kiếm và tải xuống mô hình, và để truy cập các kho lưu trữ Hugging Face riêng tư hoặc bị giới hạn."
@@ -1804,12 +1804,6 @@
   },
   "localInferenceSettings.retry": {
     "defaultMessage": "Thử lại"
-  },
-  "localInferenceSettings.showAllFeatured": {
-    "defaultMessage": "Hiển thị tất cả nổi bật (thêm {count})"
-  },
-  "localInferenceSettings.showRecommendedOnly": {
-    "defaultMessage": "Chỉ hiển thị được đề xuất"
   },
   "localInferenceSettings.title": {
     "defaultMessage": "Mô hình suy luận cục bộ"
@@ -2745,7 +2739,7 @@
     "defaultMessage": "Tiếp tục"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Bạn chưa có khóa API?"
@@ -2784,7 +2778,7 @@
     "defaultMessage": "Thao tác này sẽ xóa vĩnh viễn cấu hình nhà cung cấp hiện tại."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Đã xảy ra lỗi khi kiểm tra cấu hình nhà cung cấp này."
@@ -3428,6 +3422,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Đang xem ID lịch trình: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (đã lên lịch)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Duyệt tìm tệp YAML..."
   },
@@ -3452,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Sửa lịch trình"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Không thể tải công thức."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Không thể phân tích công thức từ tệp."
   },
@@ -3464,14 +3464,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Loại tệp không hợp lệ: Vui lòng chọn tệp YAML (.yaml hoặc .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Đang tải công thức..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Tên:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "ví dụ: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Không tìm thấy công thức đã lưu."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Vui lòng cung cấp nguồn công thức hợp lệ."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Công thức này đã có lịch. Chỉnh sửa từ danh sách Công thức."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Mô tả: {description}"
@@ -3482,11 +3491,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Tiêu đề: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Công thức đã lưu"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Bắt buộc phải có ID lịch trình."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Lịch trình:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Chọn một công thức đã lưu"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Đã chọn: {path}"
@@ -3755,6 +3770,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Đang truyền phát"
   },
+  "sessions.acpBadge": {
+    "defaultMessage": "ACP"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
   },
@@ -3832,6 +3850,9 @@
   },
   "sessions.importing": {
     "defaultMessage": "Đang nhập..."
+  },
+  "sessions.includeAcp": {
+    "defaultMessage": "Bao gồm phiên ACP"
   },
   "sessions.loadingMore": {
     "defaultMessage": "Đang tải thêm phiên..."
@@ -4502,9 +4523,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Tải xuống tự động đã bị tắt. Nhấp vào \"Tải ngay\" để tải xuống theo cách thủ công."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Không cần cài đặt thủ công."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Kiểm tra bản cập nhật"
   },
@@ -4535,26 +4553,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Cài đặt & khởi động lại"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Nhấp vào \"Cài đặt & khởi động lại\" để cập nhật ngay."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Bạn đang chạy phiên bản mới nhất!"
   },
   "updateSection.loading": {
     "defaultMessage": "Đang tải..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Sau khi tải xuống, bạn sẽ cần cài đặt bản cập nhật theo cách thủ công."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Cần cài đặt thủ công cho phương thức cập nhật này."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Bản cập nhật đã sẵn sàng. Khởi động lại Goose để hoàn tất cài đặt, hoặc thoát khi bạn đã xong."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ Bản cập nhật đã sẵn sàng! Nhấp vào \"Cài đặt & khởi động lại\" để xem hướng dẫn cài đặt."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(đã cập nhật)"
@@ -4648,5 +4651,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
   }
 }
