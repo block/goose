@@ -783,6 +783,26 @@
     "environmentVariables": []
   },
   {
+    "id": "zovo-invoice",
+    "name": "Zovo Invoice",
+    "description": "Create real PDF invoices from chat: clients, sequential numbering, VAT lines, discounts and overdue reports",
+    "url": "https://mcp.zovo.one/mcp/invoice",
+    "link": "https://github.com/theluckystrike/mcp-invoice",
+    "installation_notes": "This is a remote extension. It needs an Authorization header. Get a free anonymous token with `curl https://mcp.zovo.one/mcp/token` (no account, no card, no email) and pass it as `Authorization: Bearer <token>`.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer <free token from https://mcp.zovo.one/mcp/token>",
+        "required": true
+      }
+    ],
+    "show_install_command": false,
+    "type": "streamable-http"
+  },
+  {
     "id": "neighborhood",
     "name": "Neighborhood",
     "description": "Discover nearby restaurants, browse menus, and place takeout orders through natural conversation. Sellers are US-based.",
