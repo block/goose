@@ -705,6 +705,17 @@ enum GatewayCommand {
 
 #[derive(Subcommand)]
 enum PluginCommand {
+    /// Import an MCP Registry server.json as an enabled Goose extension
+    #[command(about = "Import an MCP Registry server.json")]
+    ImportServer {
+        #[arg(help = "Path to server.json, or - for stdin")]
+        input: String,
+        #[arg(long, help = "Zero-based package or remote index", default_value = "0")]
+        selection: usize,
+        #[arg(long = "value", value_name = "NAME=VALUE", action = clap::ArgAction::Append, value_parser = parse_key_val)]
+        values: Vec<(String, String)>,
+    },
+
     /// Install a plugin from a git repository URL
     #[command(about = "Install a plugin from a git repository URL")]
     Install {
@@ -2375,6 +2386,29 @@ async fn handle_schedule_command(command: SchedulerCommand) -> Result<()> {
 
 fn handle_plugin_subcommand(command: PluginCommand) -> Result<()> {
     match command {
+        PluginCommand::ImportServer {
+            input,
+            selection,
+            values,
+        } => {
+            let json = if input == "-" {
+                let mut json = String::new();
+                std::io::stdin().read_to_string(&mut json)?;
+                json
+            } else {
+                std::fs::read_to_string(&input)?
+            };
+            let values = values.into_iter().collect();
+            let entry = goose::plugins::registry_server::import_server_json(
+                &json,
+                Some(selection),
+                &values,
+            )?;
+            let name = entry.config.name();
+            goose::config::set_extension(entry);
+            println!("Imported and enabled MCP server '{name}'");
+            Ok(())
+        }
         PluginCommand::Install { url, auto_update } => handle_plugin_install(&url, auto_update),
         PluginCommand::Update { name } => handle_plugin_update(&name),
     }
