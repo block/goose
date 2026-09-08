@@ -3565,6 +3565,34 @@ impl Agent {
                 conversation.extend(messages_to_add);
 
                 if !exit_chat && conversation.last().is_some_and(Message::is_tool_response) {
+                    // A steer can arrive while a tool executes. Drain it before
+                    // checking the next request so the compact decision accounts
+                    // for every message that will be sent to the provider.
+                    for message in self.drain_pending_steers(&session_config.id).await {
+                        let message_text = agent_visible_message_text(&message);
+                        if self
+                            .hook_manager
+                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+                        {
+                            let ctx = crate::hooks::HookContext::new(
+                                crate::hooks::HookEvent::UserPromptSubmit,
+                                &session_config.id,
+                            )
+                            .with_message(message_text);
+                            self.hook_manager
+                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                                .await;
+                        }
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
+                        yield AgentEvent::Message(message);
+                    }
+
                     let current_session = session_manager
                         .get_session(&session_config.id, true)
                         .await?;
