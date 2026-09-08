@@ -3596,6 +3596,13 @@ impl Agent {
                     let current_session = session_manager
                         .get_session(&session_config.id, true)
                         .await?;
+                    // Elicitation request/response messages are persisted while
+                    // a tool is blocked, rather than flowing through
+                    // `messages_to_add`. Reload the persisted conversation so a
+                    // compaction replacement retains that exchange as well.
+                    if let Some(persisted_conversation) = current_session.conversation.clone() {
+                        conversation = persisted_conversation;
+                    }
                     if check_if_compaction_needed_for_request(
                         self.provider().await?.as_ref(),
                         &conversation,
