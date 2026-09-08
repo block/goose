@@ -21,6 +21,9 @@ use goose_providers::model::ModelConfig;
 
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
+#[cfg(test)]
+const COUNT_CONTEXT_TOKENS_PROBE: &str = "__panic_if_context_tokens_counted__";
+
 pub(super) const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
 
 fn compaction_part(
@@ -77,6 +80,15 @@ impl CompactionOperation {
     }
 
     async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
+        #[cfg(test)]
+        if session.usage.total_tokens.is_none()
+            && conversation
+                .messages()
+                .iter()
+                .any(|message| message.as_concat_text() == COUNT_CONTEXT_TOKENS_PROBE)
+        {
+            panic!("disabled auto-compact must not count conversation tokens");
+        }
         match session.usage.total_tokens {
             Some(tokens) => Ok(tokens),
             None => crate::context_mgmt::count_context_tokens(conversation).await,
@@ -204,7 +216,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
         session: &Session,
         conversation: &Conversation,
     ) -> Result<Vec<String>> {
-        if self.manages_own_context {
+        if self.manages_own_context || !auto_compact_enabled(self.threshold) {
             return Ok(Vec::new());
         }
         Ok(compaction_part(
@@ -244,6 +256,9 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
+            if !auto_compact_enabled(self.threshold) {
+                return not_applicable();
+            }
             if last_effective_role(messages)? != EffectiveRole::User {
                 return not_applicable();
             }
@@ -320,6 +335,85 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 .await;
                 yielded()
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::{MessageStream, Provider};
+    use crate::session::Session;
+    use async_trait::async_trait;
+    use goose_providers::errors::ProviderError;
+    use goose_providers::model::ModelConfig;
+    use rmcp::model::Tool;
+    use tokio_util::sync::CancellationToken;
+
+    struct PanicOnStream;
+
+    #[async_trait]
+    impl Provider for PanicOnStream {
+        fn get_name(&self) -> &str {
+            "panic-on-stream"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("disabled auto-compact must not stream");
+        }
+    }
+
+    fn emit() -> Emitter {
+        let (tx, _rx) = tokio::sync::mpsc::channel(4);
+        Emitter::new(tx, CancellationToken::new())
+    }
+
+    fn tokenless_probe_session() -> (Session, Conversation) {
+        let session = Session::default();
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text(COUNT_CONTEXT_TOKENS_PROBE)
+        ]);
+        (session, conversation)
+    }
+
+    fn operation(threshold: f64) -> CompactionOperation {
+        CompactionOperation::new(
+            Arc::new(PanicOnStream),
+            ModelConfig::new("test"),
+            1_000,
+            threshold,
+        )
+    }
+
+    #[tokio::test]
+    async fn disabled_auto_compact_skips_token_counting_for_tokenless_sessions() {
+        let (session, conversation) = tokenless_probe_session();
+
+        for threshold in [0.0, 1.0, 1.5] {
+            let op = operation(threshold);
+            let parts = op
+                .moim_parts(&session, &conversation)
+                .await
+                .expect("moim_parts should skip token counting when auto-compact is off");
+            assert!(
+                parts.is_empty(),
+                "threshold {threshold} should not emit compaction moim parts"
+            );
+
+            let result = op
+                .run(&session, &conversation, &emit())
+                .await
+                .expect("run should skip token counting when auto-compact is off");
+            assert!(
+                matches!(result, OperationResult::NotApplicable),
+                "threshold {threshold} should not auto-compact"
+            );
         }
     }
 }
