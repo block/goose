@@ -259,9 +259,9 @@
     "id": "easybits-mcp",
     "name": "EasyBits",
     "description": "Give your agent a Firecracker microVM: run code and host apps with a public URL, read pages that block bots, store files on a CDN, query SQL databases and generate documents — and spawn goose itself in a box",
-    "command": "npx -y @easybits.cloud/mcp --tools core",
+    "command": "npx -y @easybits.cloud/mcp --tools core,sandbox",
     "link": "https://github.com/blissito/easybits",
-    "installation_notes": "Install using npx package manager. Pass --tools <group> (core, design, web, sandbox, hosting, docs, video...) to load only the toolset you need instead of all 247 tools.",
+    "installation_notes": "Install using npx package manager. Ships with --tools core,sandbox. Pass a different --tools <group> (web, hosting, design, docs, video...) to load only the toolset you need instead of all 247 tools.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": [

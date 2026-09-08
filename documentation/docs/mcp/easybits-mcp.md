@@ -14,12 +14,12 @@ This tutorial covers how to add the [EasyBits MCP Server](https://github.com/bli
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40easybits.cloud%2Fmcp&arg=--tools&arg=core&id=easybits-mcp&name=EasyBits&description=Give%20your%20agent%20a%20Firecracker%20microVM%3A%20run%20code%2C%20host%20apps%2C%20read%20the%20web%2C%20store%20files%20and%20query%20SQL%20databases&env=EASYBITS_API_KEY%3DEasyBits%20API%20Key)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40easybits.cloud%2Fmcp&arg=--tools&arg=core%2Csandbox&id=easybits-mcp&name=EasyBits&description=Give%20your%20agent%20a%20Firecracker%20microVM%3A%20run%20code%2C%20host%20apps%2C%20read%20the%20web%2C%20store%20files%20and%20query%20SQL%20databases&env=EASYBITS_API_KEY%3DEasyBits%20API%20Key)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
-  npx -y @easybits.cloud/mcp --tools core
+  npx -y @easybits.cloud/mcp --tools core,sandbox
   ```
   </TabItem>
 </Tabs>
@@ -43,7 +43,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       description="Give your agent a Firecracker microVM: run code, host apps, read the web, store files and query SQL databases"
       type="stdio"
       command="npx"
-      args={["-y", "@easybits.cloud/mcp", "--tools", "core"]}
+      args={["-y", "@easybits.cloud/mcp", "--tools", "core,sandbox"]}
       envVars={[
         { name: "EASYBITS_API_KEY", label: "EasyBits API Key" }
       ]}
@@ -56,7 +56,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       name="easybits"
       description="Give your agent a Firecracker microVM: run code, host apps, read the web, store files and query SQL databases"
       type="stdio"
-      command="npx -y @easybits.cloud/mcp --tools core"
+      command="npx -y @easybits.cloud/mcp --tools core,sandbox"
       timeout={300}
       envVars={[
         { key: "EASYBITS_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
@@ -81,16 +81,17 @@ group is registered:
 
 | Group | What you get |
 |---|---|
-| `core` | The recommended default: the full web toolset (search, unblocked fetching, extraction, crawling) plus files, SQL databases, documents, forms, websites, brand kits and images |
+| `core` | Registered by default, together with `sandbox`: the full web toolset (search, unblocked fetching, extraction, crawling) plus files, SQL databases, documents, forms, websites, brand kits and images |
 | `web` | The web toolset on its own, with nothing else — for an agent that only needs to read the internet |
-| `sandbox` | Firecracker microVMs — spawn, run commands, expose ports, snapshot, suspend, destroy |
+| `sandbox` | Registered by default too: Firecracker microVMs — spawn, run commands, expose ports, snapshot, suspend, destroy |
 | `hosting` | Deploy and run an app on an always-on microVM with a public URL |
 | `design` | Documents as universal design (letter, social, 16:9 slides), brand kits, images |
 | `docs` | Documents only — create, update, deploy, export to PDF/PNG |
 | `video` | AI video, recurring characters, voice-over and captions |
 | `all` | Everything, if your model can take it |
 
-Groups can be combined: `--tools core,sandbox`.
+Groups are combined with commas, which is what the default install does:
+`--tools core,sandbox`.
 
 ## Example Usage
 
@@ -100,11 +101,6 @@ a real Linux box, a few seconds to boot, that survives closing your laptop and
 can be handed a public HTTPS URL.
 
 That changes what you can ask for.
-
-:::info
-This example uses the sandbox tools, so start the extension with
-`--tools core,sandbox` instead of the default `--tools core`.
-:::
 
 ### goose Prompt
 
@@ -137,9 +133,9 @@ Send that to your designer as-is. Two things worth knowing:
 
 - The box auto-destroys in 5 minutes unless I extend it — say "keep it alive
   for an hour" and I'll call `sandbox_extend`.
-- If you want it permanent instead of ephemeral, `launch_app` redoes this as
-  an always-on machine with its own domain and a recovery release, in one
-  call.
+- If you want it permanent instead of ephemeral, add `--tools hosting` and
+  `launch_app` redoes all of this as an always-on machine with its own domain
+  and a recovery release, in one call.
 
 Want me to snapshot it first so you can fork this exact state later?
 
