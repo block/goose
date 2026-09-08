@@ -24,16 +24,14 @@ With ACP you are using the tools that are (mostly) in the underlying agent. Code
 If you have a Claude Code subscription, you can use it through goose via the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/). This requires installing a small adapter package:
 
 ```bash
-npm install -g @zed-industries/claude-agent-acp
+npm install -g @agentclientprotocol/claude-agent-acp
 ```
 
 Then configure goose to use it via the claude acp extension (CLI or GUI)
 
-
 Or set it via environment variables:
 
 ```bash
-export GOOSE_PROVIDER=claude-acp
 goose
 ```
 
