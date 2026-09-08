@@ -237,7 +237,9 @@ pub(crate) async fn context_tokens_since_last_inference(
         return Ok(None);
     };
 
-    let added_messages = &messages[last_assistant + 1..];
+    let added_messages =
+        Conversation::new_unvalidated(messages[last_assistant + 1..].iter().cloned())
+            .agent_visible_messages();
     if !added_messages.iter().any(Message::is_tool_response) {
         return Ok(None);
     }
@@ -247,7 +249,7 @@ pub(crate) async fn context_tokens_since_last_inference(
         .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
     Ok(Some(
         counter
-            .count_chat_tokens("", added_messages, &[])
+            .count_chat_tokens("", &added_messages, &[])
             .try_into()?,
     ))
 }
