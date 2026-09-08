@@ -1,0 +1,174 @@
+#!/usr/bin/env node
+
+import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+import {
+  getOpenPullRequests,
+  issueFirstNotice,
+  pullRequestWork,
+  readCoreTeam,
+} from "./github_manager.mjs";
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const options = parseArguments(process.argv.slice(2));
+if (options.help) {
+  printHelp();
+  process.exit(0);
+}
+
+const gh = process.env.GH_BIN || "gh";
+const coreTeamPath =
+  process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
+let coreTeam;
+try {
+  coreTeam = readCoreTeam(coreTeamPath);
+} catch (error) {
+  fail(error.message);
+}
+const viewer = runJson(gh, ["api", "user"]);
+if (typeof viewer.login !== "string" || !viewer.login) {
+  fail("Could not identify the authenticated GitHub user.");
+}
+
+let pullRequests;
+try {
+  pullRequests = getOpenPullRequests(runJson, {
+    command: gh,
+    repository: options.repository,
+    limit: options.limit,
+  });
+} catch (error) {
+  fail(error.message);
+}
+
+const generatedAt = Date.now();
+const staleAfterMilliseconds = options.staleAfterDays * 24 * 60 * 60 * 1000;
+const work = pullRequests
+  .map((pullRequest) =>
+    pullRequestWork(pullRequest, {
+      repository: options.repository,
+      coreTeamGithub: coreTeam.byGithub,
+      viewerLogin: viewer.login,
+      now: generatedAt,
+      staleAfterMilliseconds,
+    }),
+  )
+  .filter(Boolean)
+  .sort((left, right) => left.number - right.number);
+
+console.log(
+  JSON.stringify(
+    {
+      repository: options.repository,
+      generated_at: new Date(generatedAt).toISOString(),
+      stale_after_days: options.staleAfterDays,
+      github_actor: viewer.login,
+      issue_first_notice: issueFirstNotice(options.repository),
+      pull_requests: work,
+    },
+    null,
+    2,
+  ),
+);
+
+function parseArguments(arguments_) {
+  const parsed = {
+    repository: "aaif-goose/goose",
+    limit: 1000,
+    staleAfterDays: 3,
+    help: false,
+  };
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === "--repo") {
+      parsed.repository = requiredValue(arguments_, ++index, argument);
+      continue;
+    }
+    if (argument === "--limit") {
+      parsed.limit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--stale-after-days") {
+      parsed.staleAfterDays = positiveNumber(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--help" || argument === "-h") {
+      parsed.help = true;
+      continue;
+    }
+    fail(`Unknown option: ${argument}`);
+  }
+
+  return parsed;
+}
+
+function requiredValue(arguments_, index, option) {
+  const value = arguments_[index];
+  if (!value || value.startsWith("--")) {
+    fail(`${option} requires a value.`);
+  }
+  return value;
+}
+
+function positiveNumber(value, option) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    fail(`${option} must be a positive number.`);
+  }
+  return parsed;
+}
+
+function positiveInteger(value, option) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || String(parsed) !== value) {
+    fail(`${option} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function runJson(command, arguments_) {
+  const result = spawnSync(command, arguments_, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.error) {
+    fail(`Could not run ${command}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const message = result.stderr.trim() || result.stdout.trim();
+    fail(`${command} failed${message ? `: ${message}` : "."}`);
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    fail(`${command} returned invalid JSON: ${result.stdout.trim()}`);
+  }
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function printHelp() {
+  console.log(`Usage:
+  list_pull_request_work [options]
+
+Options:
+  --repo <owner/repo>       GitHub repository (default: aaif-goose/goose)
+  --limit <number>          Maximum open pull requests (default: 1000)
+  --stale-after-days <days> Close unanswered notices after this many days (default: 3)
+  -h, --help                Show this help
+
+Lists open pull requests that either mention an issue without closing it or are
+eligible for the repository's issue-first notice. It does not change GitHub.`);
+}

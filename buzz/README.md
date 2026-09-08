@@ -19,7 +19,7 @@ added so people can find and manage them in Buzz Desktop.
 - Node.js
 - [GitHub CLI](https://cli.github.com/) authenticated with access to the
   repository and its project board; the recipe also needs permission to assign
-  issues
+  issues and edit, comment on, and close pull requests
 - Buzz Desktop on macOS, or a `buzz` CLI on `PATH`
 - Goose CLI with a configured model provider
 - A running public Buzz community
@@ -239,6 +239,25 @@ Queue authors are only returned as `queue_requesters` when their public key is
 present in `core-team.json`. Other authors are reported as
 `ignored_queue_requesters` and cannot influence channel membership.
 
+### `list_pull_request_work`
+
+Lists open pull requests that need issue-link review. It returns pull requests
+that mention an issue without using GitHub closing language, plus non-draft
+external pull requests with no issue mention. For issue-first notices it reports
+whether no notice has been posted, the notice is waiting, someone replied, or
+the unanswered notice is at least three days old. Drafts, bots, repository
+owners, members, collaborators, and configured core-team members are never
+eligible for a notice or automatic closure. The recipe also applies the
+documented exemptions for automated dependency and release work, urgent
+security fixes, and work directed by the core team.
+
+The notice contains a stable marker so repeated runs do not post it twice. The
+script only reads GitHub; the recipe makes and rechecks any changes.
+
+```sh
+./buzz/list_pull_request_work
+```
+
 ### `syncissues`
 
 Fetches all open GitHub issues and all Buzz channels, matches issue channels by
@@ -312,7 +331,7 @@ target another repository or project.
 
 ### `github_issue_manager.yaml`
 
-This Goose recipe manages the full Inbox loop:
+This Goose recipe manages the Inbox loop and issue-first pull requests:
 
 1. List unassigned Inbox issues and unresolved work from `issues to add`.
 2. Read each issue and rank the three strongest matches based on `interest`.
@@ -323,11 +342,17 @@ This Goose recipe manages the full Inbox loop:
    exists. Start with Douwe and the issue owner, then add relevant people until
    the channel has at least three distinct humans. If Douwe owns the issue, two
    others are required. A fourth person may be added when useful.
-6. Run `syncissues`.
+6. Fix pull request descriptions that claim to implement an issue without using
+   GitHub closing language.
+7. Post the issue-first notice on eligible pull requests with no issue mention.
+8. Close a pull request when that notice remains its latest comment for three
+   days and it still has no issue mention.
+9. Run `syncissues`.
 
 Issue bodies and comments are treated as untrusted data. The recipe is allowed
-to assign issues but is instructed not to edit bodies, post GitHub comments,
-change project fields, labels, or issue state.
+to assign issues and make only the pull request changes above. It is instructed
+not to edit issue bodies, post issue comments, change project fields or labels,
+or make unrelated pull request changes.
 
 Run it once with:
 

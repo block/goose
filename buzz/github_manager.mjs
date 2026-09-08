@@ -1,5 +1,14 @@
 import { readFileSync } from "node:fs";
 
+export const ISSUE_FIRST_COMMENT_MARKER = "<!-- buzz:issue-first -->";
+
+export function issueFirstNotice(repository) {
+  return `${ISSUE_FIRST_COMMENT_MARKER}
+Thanks for contributing. Goose uses an issue-first workflow. Please open or identify the issue for this work, wait until it reaches **Ready**, and link it from this pull request with \`Closes #ISSUE_NUMBER\`.
+
+See [From Issue to Pull Request](https://github.com/${repository}/blob/main/CONTRIBUTING.md#from-issue-to-pull-request). If no issue is linked and nobody replies here, this pull request will be closed after three days.`;
+}
+
 export function getProjectIssues(
   runJson,
   { command, projectNumber, projectOwner, projectLimit, repository },
@@ -69,6 +78,192 @@ export function getOpenIssues(runJson, { command, repository }) {
         login: assignee.login,
       })),
     }));
+}
+
+export function getOpenPullRequests(
+  runJson,
+  { command, repository, limit },
+) {
+  const pullRequests = runJson(command, [
+    "pr",
+    "list",
+    "--repo",
+    repository,
+    "--state",
+    "open",
+    "--limit",
+    String(limit),
+    "--json",
+    [
+      "author",
+      "body",
+      "closingIssuesReferences",
+      "comments",
+      "createdAt",
+      "isDraft",
+      "number",
+      "title",
+      "updatedAt",
+      "url",
+    ].join(","),
+  ]);
+  if (!Array.isArray(pullRequests)) {
+    throw new Error("GitHub returned an invalid pull request list.");
+  }
+  if (pullRequests.length >= limit) {
+    throw new Error(
+      `GitHub returned ${pullRequests.length} pull requests at the limit. Raise --limit.`,
+    );
+  }
+  const pages = runJson(command, [
+    "api",
+    "--paginate",
+    "--slurp",
+    `repos/${repository}/pulls?state=open&per_page=100`,
+  ]);
+  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+    throw new Error("GitHub returned invalid pull request metadata.");
+  }
+  const associationByNumber = new Map(
+    pages
+      .flat()
+      .map((pullRequest) => [
+        pullRequest.number,
+        pullRequest.author_association,
+      ]),
+  );
+  return pullRequests.map((pullRequest) => ({
+    ...pullRequest,
+    authorAssociation:
+      associationByNumber.get(pullRequest.number) || "UNKNOWN",
+  }));
+}
+
+export function pullRequestIssueMentions(body, repository) {
+  const escapedRepository = repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(
+      `https://github\\.com/${escapedRepository}/issues/([1-9]\\d*)`,
+      "gi",
+    ),
+    new RegExp(`${escapedRepository}#([1-9]\\d*)`, "gi"),
+    /(?:^|[^\w/])#([1-9]\d*)\b/g,
+  ];
+  const mentions = new Map();
+  for (const pattern of patterns) {
+    for (const match of String(body || "").matchAll(pattern)) {
+      const number = Number.parseInt(match[1], 10);
+      if (!mentions.has(number) || match.index < mentions.get(number)) {
+        mentions.set(number, match.index);
+      }
+    }
+  }
+  return [...mentions]
+    .sort((left, right) => left[1] - right[1])
+    .map(([number]) => number);
+}
+
+export function pullRequestWork(
+  pullRequest,
+  {
+    repository,
+    coreTeamGithub,
+    viewerLogin,
+    now,
+    staleAfterMilliseconds,
+  },
+) {
+  const repositoryLower = repository.toLowerCase();
+  const issueMentions = pullRequestIssueMentions(pullRequest.body, repository);
+  const closingIssues = (pullRequest.closingIssuesReferences || [])
+    .filter(
+      (issue) =>
+        `${issue.repository?.owner?.login}/${issue.repository?.name}`.toLowerCase() ===
+        repositoryLower,
+    )
+    .map((issue) => ({ number: issue.number, url: issue.url }));
+  const closingIssueNumbers = new Set(
+    closingIssues.map((issue) => issue.number),
+  );
+  const unclosedIssueMentions = issueMentions.filter(
+    (number) => !closingIssueNumbers.has(number),
+  );
+  const author = pullRequest.author || {};
+  const authorLogin = author.login || null;
+  const authorIsCoreTeam = coreTeamGithub.has(authorLogin?.toLowerCase());
+  const authorAssociation = pullRequest.authorAssociation || "NONE";
+  const authorIsInternal =
+    authorIsCoreTeam ||
+    ["OWNER", "MEMBER", "COLLABORATOR", "UNKNOWN"].includes(
+      authorAssociation,
+    );
+  const authorIsBot =
+    Boolean(author.is_bot) || authorLogin?.toLowerCase().endsWith("[bot]");
+  const eligibleForIssueFirst =
+    closingIssues.length === 0 &&
+    !pullRequest.isDraft &&
+    !authorIsInternal &&
+    !authorIsBot;
+  if (unclosedIssueMentions.length === 0 && !eligibleForIssueFirst) {
+    return null;
+  }
+
+  const comments = [...(pullRequest.comments || [])].sort(
+    (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt),
+  );
+  const warningComments = comments.filter(
+    (comment) =>
+      (comment.viewerDidAuthor ||
+        comment.author?.login?.toLowerCase() === viewerLogin.toLowerCase()) &&
+      comment.body?.includes(ISSUE_FIRST_COMMENT_MARKER),
+  );
+  const warning = warningComments.at(-1) || null;
+  const lastComment = comments.at(-1) || null;
+  let warningState = "not-commented";
+  if (warning) {
+    if (warning.id !== lastComment?.id) {
+      warningState = "answered";
+    } else if (
+      Date.parse(warning.createdAt) <= now - staleAfterMilliseconds
+    ) {
+      warningState = "stale";
+    } else {
+      warningState = "waiting";
+    }
+  }
+
+  return {
+    number: pullRequest.number,
+    title: pullRequest.title,
+    url: pullRequest.url,
+    created_at: pullRequest.createdAt,
+    updated_at: pullRequest.updatedAt,
+    is_draft: Boolean(pullRequest.isDraft),
+    author: authorLogin,
+    author_association: authorAssociation,
+    author_is_core_team: authorIsCoreTeam,
+    author_is_internal: authorIsInternal,
+    author_is_bot: authorIsBot,
+    eligible_for_issue_first: eligibleForIssueFirst,
+    issue_mentions: issueMentions,
+    unclosed_issue_mentions: unclosedIssueMentions,
+    closing_issues: closingIssues,
+    warning_state: warningState,
+    warning_comment: warning
+      ? {
+          author: warning.author?.login || null,
+          created_at: warning.createdAt,
+          url: warning.url,
+        }
+      : null,
+    last_comment: lastComment
+      ? {
+          author: lastComment.author?.login || null,
+          created_at: lastComment.createdAt,
+          url: lastComment.url,
+        }
+      : null,
+  };
 }
 
 export function selectRecentQueueEntries(messages, count, linksFromMessage) {
