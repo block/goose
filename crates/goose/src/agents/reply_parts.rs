@@ -129,7 +129,7 @@ pub(crate) fn coerce_tool_arguments(
     Some(coerced)
 }
 
-async fn toolshim_postprocess(
+pub(crate) async fn toolshim_postprocess(
     response: Message,
     toolshim_tools: &[Tool],
 ) -> Result<Message, ProviderError> {
