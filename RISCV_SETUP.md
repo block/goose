@@ -41,32 +41,35 @@ V8 152.2.0 is the first version with pre-built RISC-V binaries. However:
 
 ### 1. Clone rusty_v8 v152.2.0
 
+Run from the repository root:
+
 ```bash
-cd vendor
-git clone --depth 1 --branch v152.2.0 https://github.com/denoland/rusty_v8.git
-rm -rf rusty_v8/.git
+git clone --depth 1 --branch v152.2.0 https://github.com/denoland/rusty_v8.git vendor/rusty_v8
+rm -rf vendor/rusty_v8/.git
 ```
 
 This provides v8 152.2.0 with RISC-V support. Cargo will download pre-built binaries automatically.
 
 ### 2. Vendor deno_core 0.381.1
 
+Run from the repository root:
+
 ```bash
-cd vendor
-wget https://static.crates.io/crates/deno_core/deno_core-0.381.1.crate
-tar xzf deno_core-0.381.1.crate
-mv deno_core-0.381.1 deno_core
-rm deno_core-0.381.1.crate
+wget -P vendor https://static.crates.io/crates/deno_core/deno_core-0.381.1.crate
+tar -C vendor -xzf vendor/deno_core-0.381.1.crate
+mv vendor/deno_core-0.381.1 vendor/deno_core
+rm vendor/deno_core-0.381.1.crate
 ```
 
 ### 3. Vendor serde_v8 0.290.0
 
+Run from the repository root:
+
 ```bash
-cd vendor
-wget https://static.crates.io/crates/serde_v8/serde_v8-0.290.0.crate
-tar xzf serde_v8-0.290.0.crate
-mv serde_v8-0.290.0 serde_v8
-rm serde_v8-0.290.0.crate
+wget -P vendor https://static.crates.io/crates/serde_v8/serde_v8-0.290.0.crate
+tar -C vendor -xzf vendor/serde_v8-0.290.0.crate
+mv vendor/serde_v8-0.290.0 vendor/serde_v8
+rm vendor/serde_v8-0.290.0.crate
 ```
 
 ### 4. Apply Patches
@@ -75,9 +78,13 @@ rm serde_v8-0.290.0.crate
 
 Change from v8-goose to local rusty_v8:
 
+Keep the package name `v8` so the root `[patch.crates-io]` entry
+(`v8 = { path = "vendor/v8" }`) resolves to it; the conflict with the real
+`v8` crate is avoided by renaming the dependency instead.
+
 ```toml
 [package]
-name = "v8-wrapper"  # Avoid conflict
+name = "v8"
 version = "152.2.0"
 edition = "2024"
 publish = false
@@ -189,7 +196,7 @@ icu_locale = { version = ">=2.1", default-features = false }
 [patch.crates-io]
 deno_core = { path = "vendor/deno_core" }
 serde_v8 = { path = "vendor/serde_v8" }
-v8 = { package = "v8-wrapper", path = "vendor/v8" }
+v8 = { path = "vendor/v8" }  # already present; the wrapper keeps the name `v8`
 # ... existing patches
 ```
 

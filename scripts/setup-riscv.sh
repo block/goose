@@ -53,7 +53,7 @@ fi
 echo "4. Patching vendor/v8 to use local rusty_v8..."
 cat > "$VENDOR_DIR/v8/Cargo.toml" << 'EOF'
 [package]
-name = "v8-wrapper"
+name = "v8"
 version = "152.2.0"
 edition = "2024"
 publish = false
@@ -150,20 +150,17 @@ fi
 sed -i 's/icu_calendar = { version = "=2\.1\.1"/icu_calendar = { version = ">=2.1"/' Cargo.toml
 sed -i 's/icu_locale = { version = "=2\.1\.1"/icu_locale = { version = ">=2.1"/' Cargo.toml
 
-# Add patches for deno_core and serde_v8 (insert after [patch.crates-io]),
-# and replace the existing v8 patch entry.  Multi-line sed `a\` is fragile
-# across sed implementations, so rewrite the whole [patch.crates-io] block
-# with awk instead.
-if ! grep -q 'v8-wrapper' Cargo.toml; then
+# Add patches for deno_core and serde_v8 (insert after [patch.crates-io]).
+# The existing `v8 = { path = "vendor/v8" }` entry is left untouched: the
+# vendored wrapper keeps the package name `v8`, so that patch already points
+# at it.  Multi-line sed `a\` is fragile across sed implementations, so use
+# awk instead.
+if ! grep -q 'vendor/deno_core' Cargo.toml; then
     awk '
         /^\[patch\.crates-io\]$/ {
             print
             print "deno_core = { path = \"vendor/deno_core\" }"
             print "serde_v8 = { path = \"vendor/serde_v8\" }"
-            next
-        }
-        /^v8 = \{ path = "vendor\/v8" \}$/ {
-            print "v8 = { package = \"v8-wrapper\", path = \"vendor/v8\" }"
             next
         }
         { print }
