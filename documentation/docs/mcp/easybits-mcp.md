@@ -8,13 +8,13 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [EasyBits MCP Server](https://github.com/blissito/easybits) as a goose extension to give your agent its own cloud: reading any page on the web even when it blocks bots, Firecracker microVM sandboxes, file storage on a CDN, SQL databases, generated documents, video, and app hosting — all behind a single endpoint.
+This tutorial covers how to add the [EasyBits MCP Server](https://github.com/blissito/easybits) as a goose extension to give your agent its own cloud: Firecracker microVM sandboxes where it can run code and host apps on a public URL, reading pages that block bots, file storage on a CDN, SQL databases, generated documents and video — all behind a single endpoint. It also runs goose itself: `goose_spawn` boots a managed goose in a microVM in one call.
 
 :::tip Quick Install
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40easybits.cloud%2Fmcp&arg=--tools&arg=core&id=easybits-mcp&name=EasyBits&description=The%20cloud%20for%20AI%20agents%3A%20sandboxes%2C%20web%2C%20files%2C%20SQL%20databases%2C%20documents%20and%20app%20hosting&env=EASYBITS_API_KEY%3DEasyBits%20API%20Key)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40easybits.cloud%2Fmcp&arg=--tools&arg=core&id=easybits-mcp&name=EasyBits&description=Give%20your%20agent%20a%20Firecracker%20microVM%3A%20run%20code%2C%20host%20apps%2C%20read%20the%20web%2C%20store%20files%20and%20query%20SQL%20databases&env=EASYBITS_API_KEY%3DEasyBits%20API%20Key)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
@@ -40,7 +40,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     <GooseDesktopInstaller
       extensionId="easybits-mcp"
       extensionName="EasyBits"
-      description="The cloud for AI agents: sandboxes, web, files, SQL databases, documents and app hosting"
+      description="Give your agent a Firecracker microVM: run code, host apps, read the web, store files and query SQL databases"
       type="stdio"
       command="npx"
       args={["-y", "@easybits.cloud/mcp", "--tools", "core"]}
@@ -54,7 +54,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="easybits"
-      description="The cloud for AI agents: sandboxes, web, files, SQL databases, documents and app hosting"
+      description="Give your agent a Firecracker microVM: run code, host apps, read the web, store files and query SQL databases"
       type="stdio"
       command="npx -y @easybits.cloud/mcp --tools core"
       timeout={300}
@@ -94,49 +94,54 @@ Groups can be combined: `--tools core,sandbox`.
 
 ## Example Usage
 
-A common goose task is "go read what's actually out there, then hand me
-something I can send to someone." With EasyBits, goose does the whole loop
-without leaving the chat: it searches the live web, reads pages that normally
-block scrapers, writes the findings into a document, exports a PDF, and
-publishes the same document at a public URL.
+goose already edits files and runs commands — on *your* machine. What it does
+not have is somewhere else to do it. EasyBits gives it a Firecracker microVM:
+a real Linux box, a few seconds to boot, that survives closing your laptop and
+can be handed a public HTTPS URL.
+
+That changes what you can ask for.
+
+:::info
+This example uses the sandbox tools, so start the extension with
+`--tools core,sandbox` instead of the default `--tools core`.
+:::
 
 ### goose Prompt
 
 ```
-Research the current pricing of the three biggest managed Postgres providers,
-then build me a comparison document with our brand kit applied,
-export it as a PDF, and publish it so I can share the link.
+Clone github.com/my-org/my-app into a sandbox, install and run the test suite
+there, and if it's green start the dev server and give me a public URL I can
+send to a designer.
 ```
 
 ### goose Output
 
 :::note Desktop
 
-I researched the providers and built the document.
+Done — the box is up and the URL is live.
 
-**1. Research** — `web_search` and `web_fetch` pulled the current pricing
-pages for all three providers, including the two that block plain HTTP clients.
+**1. Box** — `sandbox_create` with the `dev-box` template (size `m`: 2 vCPU,
+2 GB RAM), booted in about 12 seconds. Nothing was installed on your machine.
 
-**2. Document** — created *Managed Postgres — Pricing Comparison* with three
-pages: an intro, a side-by-side pricing table, and a recommendation. Your
-default brand kit was applied, so it uses your palette and typefaces.
+**2. Code** — `sandbox_git_clone` pulled the repo into `/workspace`.
 
-**3. Export** — `export_document` produced the PDF — three pages, letter format.
+**3. Tests** — `sandbox_exec` ran `npm ci && npm test`. 148 passed, 0 failed,
+in 41s. Two warnings about a deprecated peer dependency, nothing blocking.
 
-**4. Publish** — `deploy_document` put it online.
+**4. Serve** — the dev server is running under `sandbox_exec_background`, so
+it survives between my turns, and `sandbox_expose_port` put it behind HTTPS:
 
-Here's everything:
+`https://sb-7f3a91c2-5173.easybits.cloud`
 
-- Live page: `https://www.easybits.cloud/s/managed-postgres-pricing-comparison`
-- PDF: the signed download URL is valid for 1 hour — say the word and I'll
-  re-issue it, or `create_share_link` will give you a permanent one.
+Send that to your designer as-is. Two things worth knowing:
 
-A note from the research: the entry tiers look comparable, but two of the
-three bill storage and egress separately, so the cheapest headline price is
-the most expensive of the three once you pass ~100 GB of transfer. I put that
-in the recommendation page rather than burying it in the table.
+- The box auto-destroys in 5 minutes unless I extend it — say "keep it alive
+  for an hour" and I'll call `sandbox_extend`.
+- If you want it permanent instead of ephemeral, `launch_app` redoes this as
+  an always-on machine with its own domain and a recovery release, in one
+  call.
 
-Want me to also spin up a sandbox and benchmark them for real?
+Want me to snapshot it first so you can fork this exact state later?
 
 :::
 
@@ -162,14 +167,27 @@ pipe a crawl into `db_create` and query it as SQL, or into `create_document`
 and hand back a PDF. The reading and the artifact do not live in two different
 extensions.
 
-### Beyond documents
+### goose runs on EasyBits, too
+
+The relationship goes both ways. `goose_spawn` — one call, no configuration —
+boots goose itself inside a Firecracker microVM as an ACP server (JSON-RPC over
+SSE) with managed credentials, and hands you back `{ sandboxId, agentUrl,
+healthUrl, agentId, embedToken }`. `goose` is a first-class sandbox template
+alongside `python`, `node` and `ubuntu`, and the platform speaks ACP natively
+rather than shelling out to a binary.
+
+That makes goose something you can *deploy*, not only something you run: a
+goose per customer, a goose behind a web widget, a goose that keeps working
+after you close the laptop.
+
+### Beyond the box
 
 The same key reaches the rest of the platform once you widen the toolset:
 
-- **`--tools sandbox`** — goose gets a real Firecracker microVM. It can install
-  dependencies, run your test suite, expose a port over HTTPS (and `wss://`),
-  snapshot the machine and fork it.
-- **`--tools hosting`** — one call takes a repo or an archive to a running,
-  always-on app with a public URL.
+- **`--tools hosting`** — `launch_app` takes a repo or an archive to a running,
+  always-on machine with a public HTTPS URL, a custom domain and a recovery
+  release, in one call.
+- **`--tools core`** — files on a CDN, SQL databases, documents that export to
+  PDF and publish to a URL, forms, brand kits.
 - **`--tools web`** — search, unblocked fetching, structured extraction and
   crawling, as described above.
