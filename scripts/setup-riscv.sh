@@ -49,30 +49,12 @@ else
     echo "   ✓ Done"
 fi
 
-# 4. Patch vendor/v8
-echo "4. Patching vendor/v8 to use local rusty_v8..."
-cat > "$VENDOR_DIR/v8/Cargo.toml" << 'EOF'
-[package]
-name = "v8"
-version = "152.2.0"
-edition = "2024"
-publish = false
-
-[features]
-default = ["use_custom_libcxx"]
-use_custom_libcxx = ["v8-local/use_custom_libcxx"]
-v8_enable_pointer_compression = ["v8-local/v8_enable_pointer_compression"]
-v8_enable_sandbox = ["v8-local/v8_enable_sandbox"]
-v8_enable_v8_checks = ["v8-local/v8_enable_v8_checks"]
-
-[dependencies]
-v8-local = { package = "v8", path = "../rusty_v8" }
-EOF
-
-cat > "$VENDOR_DIR/v8/src/lib.rs" << 'EOF'
-pub use v8_local::*;
-EOF
-echo "   ✓ Done"
+# 4. vendor/v8
+# Nothing to patch: the cloned vendor/rusty_v8 IS the `v8` crate at 152.2.0,
+# so step 8 points `[patch.crates-io] v8` straight at it. The committed
+# vendor/v8 shim is left alone (it stays a workspace member for cargo-machete
+# but nothing depends on it once the patch is redirected).
+echo "4. vendor/v8: using cloned rusty_v8 directly, nothing to patch"
 
 # 5. Update deno_core v8 dependency
 echo "5. Updating deno_core v8 dependency to 152.2.0..."
@@ -150,17 +132,19 @@ fi
 sed -i 's/icu_calendar = { version = "=2\.1\.1"/icu_calendar = { version = ">=2.1"/' Cargo.toml
 sed -i 's/icu_locale = { version = "=2\.1\.1"/icu_locale = { version = ">=2.1"/' Cargo.toml
 
-# Add patches for deno_core and serde_v8 (insert after [patch.crates-io]).
-# The existing `v8 = { path = "vendor/v8" }` entry is left untouched: the
-# vendored wrapper keeps the package name `v8`, so that patch already points
-# at it.  Multi-line sed `a\` is fragile across sed implementations, so use
-# awk instead.
+# Add deno_core/serde_v8 patches and repoint the existing `v8` patch at the
+# cloned rusty_v8 (same crate name, version 152.2.0). Multi-line sed `a\` is
+# fragile across sed implementations, so use awk.
 if ! grep -q 'vendor/deno_core' Cargo.toml; then
     awk '
         /^\[patch\.crates-io\]$/ {
             print
             print "deno_core = { path = \"vendor/deno_core\" }"
             print "serde_v8 = { path = \"vendor/serde_v8\" }"
+            next
+        }
+        /^v8 = \{ path = "vendor\/v8" \}$/ {
+            print "v8 = { path = \"vendor/rusty_v8\" }"
             next
         }
         { print }

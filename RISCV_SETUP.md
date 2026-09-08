@@ -74,37 +74,12 @@ rm vendor/serde_v8-0.290.0.crate
 
 ### 4. Apply Patches
 
-#### vendor/v8/Cargo.toml
+#### vendor/v8 — no changes needed
 
-Change from v8-goose to local rusty_v8:
-
-Keep the package name `v8` so the root `[patch.crates-io]` entry
-(`v8 = { path = "vendor/v8" }`) resolves to it; the conflict with the real
-`v8` crate is avoided by renaming the dependency instead.
-
-```toml
-[package]
-name = "v8"
-version = "152.2.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-v8-local = { package = "v8", path = "../rusty_v8" }
-
-[features]
-default = ["use_custom_libcxx"]
-use_custom_libcxx = ["v8-local/use_custom_libcxx"]
-v8_enable_pointer_compression = ["v8-local/v8_enable_pointer_compression"]
-v8_enable_sandbox = ["v8-local/v8_enable_sandbox"]
-v8_enable_v8_checks = ["v8-local/v8_enable_v8_checks"]
-```
-
-#### vendor/v8/src/lib.rs
-
-```rust
-pub use v8_local::*;
-```
+The cloned `vendor/rusty_v8` is itself the `v8` crate at `152.2.0`, so the
+root `[patch.crates-io]` entry points straight at it (see step 6). The
+committed `vendor/v8` shim is left as-is; it stays a workspace member but
+nothing depends on it once the patch is redirected.
 
 #### vendor/deno_core/Cargo.toml
 
@@ -196,7 +171,7 @@ icu_locale = { version = ">=2.1", default-features = false }
 [patch.crates-io]
 deno_core = { path = "vendor/deno_core" }
 serde_v8 = { path = "vendor/serde_v8" }
-v8 = { path = "vendor/v8" }  # already present; the wrapper keeps the name `v8`
+v8 = { path = "vendor/rusty_v8" }  # was vendor/v8; rusty_v8 is the v8 crate
 # ... existing patches
 ```
 
