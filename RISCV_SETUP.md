@@ -83,12 +83,16 @@ nothing depends on it once the patch is redirected.
 
 #### vendor/deno_core/Cargo.toml
 
-Update v8 dependency:
+Update the v8 and ICU-data dependencies:
 
 ```toml
 [dependencies.v8]
 version = "152.2.0"  # was 145.0.0
 default-features = false
+
+[dependencies.deno_core_icudata]
+version = "0.78.0"  # was 0.77.0; V8 152 needs the ICU 78 data blob
+optional = true
 ```
 
 #### vendor/serde_v8/Cargo.toml
@@ -144,6 +148,10 @@ pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming<false>>);
 ```
 
 #### Update ICU data in `runtime/setup.rs`
+
+The initializer name and the data blob must match (see the
+`deno_core_icudata` bump above) — `set_common_data_78` rejects the ICU 77
+blob and V8 initialization fails.
 
 ```rust
 // Line ~19:

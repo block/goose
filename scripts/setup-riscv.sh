@@ -99,8 +99,11 @@ sed -i 's/^  let (slow_fn, fast_fn) = /  let (slow_fn, _fast_fn) = /' "$VENDOR_D
 # Update WasmStreaming generic
 sed -i 's/pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming>);/pub struct WasmStreamingResource(pub(crate) RefCell<v8::WasmStreaming<false>>);/' "$VENDOR_DIR/deno_core/ops_builtin.rs"
 
-# Update ICU data function
+# ICU 77 -> 78: V8 152 bundles ICU 78, so the initializer name AND the data
+# blob must both move. deno_core_icudata 0.78.0 ships the matching ICU 78 data;
+# passing the 0.77.0 blob to set_common_data_78 fails V8 initialization.
 sed -i 's/set_common_data_77/set_common_data_78/' "$VENDOR_DIR/deno_core/runtime/setup.rs"
+sed -i 's/^version = "0\.77\.0"$/version = "0.78.0"/' "$VENDOR_DIR/deno_core/Cargo.toml"
 
 # Remove --no-validate-asm flag
 sed -i 's/" --no-validate-asm",//' "$VENDOR_DIR/deno_core/runtime/setup.rs"
