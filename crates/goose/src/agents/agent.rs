@@ -3650,18 +3650,23 @@ impl Agent {
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
+        let registry_entry = crate::providers::get_from_registry(&provider_name)
+            .await
+            .ok();
 
-        let model_config =
+        let model_config = if registry_entry.is_some() {
             crate::model_config::materialize_model_config(&provider_name, model_config.clone())
-                .unwrap_or(model_config);
+                .unwrap_or(model_config)
+        } else {
+            model_config
+        };
         let effort_support = provider.thinking_effort_support();
         let model_config = normalize_legacy_provider_thinking_effort(model_config, &effort_support);
-        let effective_model_config = match crate::providers::get_from_registry(&provider_name).await
-        {
-            Ok(entry) => entry
+        let effective_model_config = match registry_entry {
+            Some(entry) => entry
                 .normalize_model_config(model_config.clone())
                 .unwrap_or_else(|_| model_config.clone()),
-            Err(_) => model_config.clone(),
+            None => model_config.clone(),
         };
 
         {
