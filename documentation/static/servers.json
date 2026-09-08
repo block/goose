@@ -788,7 +788,7 @@
     "description": "Create real PDF invoices from chat: clients, sequential numbering, VAT lines, discounts and overdue reports",
     "url": "https://mcp.zovo.one/mcp/invoice",
     "link": "https://github.com/theluckystrike/mcp-invoice",
-    "installation_notes": "This is a remote extension. It needs an Authorization header. Get a free anonymous token with `curl https://mcp.zovo.one/mcp/token` (no account, no card, no email) and pass it as `Authorization: Bearer <token>`.",
+    "installation_notes": "This is a remote extension. It needs an Authorization header. Open https://mcp.zovo.one/mcp/connect in a browser to mint a free anonymous token, or run `curl https://mcp.zovo.one/mcp/token` — no account, no card, no email either way. Pass it as `Authorization: Bearer <token>`.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": [],
