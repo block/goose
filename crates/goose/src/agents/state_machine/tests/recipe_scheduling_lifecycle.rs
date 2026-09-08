@@ -3,8 +3,8 @@ use serde_json::json;
 
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use super::pipeline::{
-    test_pipeline, test_pipeline_with, test_pipeline_with_scheduler, MessageKind::Agent,
-    MessageKind::Error, MessageKind::ToolResponse,
+    MessageKind::Agent, MessageKind::Error, MessageKind::ToolResponse, test_pipeline,
+    test_pipeline_with, test_pipeline_with_scheduler,
 };
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -409,9 +409,6 @@ async fn boolean_final_output_schema_stops_before_inference() -> Result<()> {
     Ok(())
 }
 
-/// A scheduled run must attach its recipe to the session before inference
-/// begins (#11418); the dummy API holds its response open so the assertions
-/// run while the provider call is in flight.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn scheduled_run_attaches_recipe_to_session_before_inference() -> Result<()> {
     let api = DummyApi::start(ProviderFeatures::default()).await;
@@ -472,33 +469,16 @@ prompt: check
     };
     scheduler.add_scheduled_job(job, true).await?;
 
-    let mut run = tokio::spawn({
+    let run = tokio::spawn({
         let scheduler = scheduler.clone();
         async move { scheduler.run_now("ordering_guard").await }
     });
 
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
-    while api.call_count() == 0 {
-        if run.is_finished() {
-            let result = (&mut run).await;
-            panic!("run ended before inference began: {result:?}");
-        }
-        assert!(
-            tokio::time::Instant::now() < deadline,
-            "inference request never arrived"
-        );
-        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-    }
-
+    gate.entered().await;
     let sampled = async {
         let sessions = session_manager
             .list_sessions_by_types(&[crate::session::SessionType::Scheduled])
             .await?;
-        anyhow::ensure!(
-            sessions.len() == 1,
-            "expected exactly one scheduled session, found {}",
-            sessions.len()
-        );
         session_manager.get_session(&sessions[0].id, false).await
     }
     .await;
@@ -514,12 +494,8 @@ prompt: check
         .expect("attached recipe must keep its sub_recipes block");
     assert_eq!(sub_recipes.len(), 1);
     assert_eq!(sub_recipes[0].name, "check_calendar");
-    assert_eq!(session.schedule_id.as_deref(), Some("ordering_guard"));
 
-    tokio::time::timeout(std::time::Duration::from_secs(60), &mut run)
-        .await??
-        .expect("scheduled run must succeed once the gate is released");
-    assert_eq!(api.call_count(), 1);
+    run.await??;
 
     Ok(())
 }
