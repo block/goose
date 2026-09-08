@@ -37,10 +37,10 @@ use crate::agents::state_machine::{
     persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
     DoctorOperation, Emitter, EntryHookOperation, ExitOnErrorOperation, GooseEffect,
     GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
-    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
-    SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
-    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation, MAX_TURNS_MESSAGE,
+    Operation, PreparedRequestCompactionHook, ProjectOperation, RecipeOperation, RetryOperation,
+    SkillOperation, SlashCommandOperation, StateMachine, StatusOperation, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     SessionConfig, SharedProvider, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS,
@@ -51,7 +51,8 @@ use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+    check_if_compaction_needed, check_if_compaction_needed_for_request, compact_messages,
+    DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
@@ -1718,10 +1719,17 @@ impl Agent {
         };
         let status_operation =
             Arc::new(StatusOperation::new(provider.clone(), model_config.clone()));
+        let prepared_request_compaction = Arc::new(PreparedRequestCompactionHook::new(
+            provider.clone(),
+            model_config.clone(),
+            context_limit,
+            compaction_threshold,
+        ));
         let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
         let inference = Arc::new(
             InferenceRunner::new(inference_provider, model_config)
-                .with_request_preparer(Arc::new(request_preparer)),
+                .with_request_preparer(Arc::new(request_preparer))
+                .with_pre_inference_hook(prepared_request_compaction),
         );
         let mut command_handlers = operations.clone();
         command_handlers.push(status_operation);
@@ -3560,11 +3568,12 @@ impl Agent {
                     let current_session = session_manager
                         .get_session(&session_config.id, true)
                         .await?;
-                    if check_if_compaction_needed(
+                    if check_if_compaction_needed_for_request(
                         self.provider().await?.as_ref(),
                         &conversation,
                         None,
                         &current_session,
+                        Some((&system_prompt, &tools)),
                     )
                     .await?
                     {

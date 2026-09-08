@@ -12,9 +12,9 @@ use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use indoc::indoc;
-use rmcp::model::Role;
 #[cfg(test)]
 use rmcp::model::{Annotations, ContentBlock, TextContent};
+use rmcp::model::{Role, Tool};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -259,6 +259,26 @@ pub async fn check_if_compaction_needed(
     threshold_override: Option<f64>,
     session: &crate::session::Session,
 ) -> Result<bool> {
+    check_if_compaction_needed_for_request(
+        provider,
+        conversation,
+        threshold_override,
+        session,
+        None,
+    )
+    .await
+}
+
+/// Check compaction against the exact next provider request when it is already
+/// prepared. This is required after tools can have changed the prompt or tool
+/// schema during the current turn.
+pub async fn check_if_compaction_needed_for_request(
+    provider: &dyn Provider,
+    conversation: &Conversation,
+    threshold_override: Option<f64>,
+    session: &crate::session::Session,
+    request: Option<(&str, &[Tool])>,
+) -> Result<bool> {
     if provider.manages_own_context() {
         return Ok(false);
     }
@@ -279,25 +299,40 @@ pub async fn check_if_compaction_needed(
         crate::context_limit::get_context_limit(provider, &model_config.model_name).await?;
 
     let added_context_tokens = context_tokens_since_last_inference(conversation).await?;
-    let (current_tokens, _token_source) = match (session.usage.total_tokens, added_context_tokens) {
-        (Some(tokens), Some(added_tokens)) => (
-            tokens.saturating_add(added_tokens) as usize,
-            "session metadata plus post-inference messages",
-        ),
-        (Some(tokens), None) => (tokens as usize, "session metadata"),
-        (None, _) => {
+    let (current_tokens, _token_source) = match request {
+        Some((system_prompt, tools)) if added_context_tokens.is_some() => {
             let token_counter = create_token_counter()
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-
-            let token_counts: Vec<_> = messages
-                .iter()
-                .filter(|m| m.is_agent_visible())
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .collect();
-
-            (token_counts.iter().sum(), "estimated")
+                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {e}"))?;
+            (
+                token_counter.count_chat_tokens(
+                    system_prompt,
+                    &conversation.agent_visible_messages(),
+                    tools,
+                ),
+                "prepared provider request",
+            )
         }
+        _ => match (session.usage.total_tokens, added_context_tokens) {
+            (Some(tokens), Some(added_tokens)) => (
+                tokens.saturating_add(added_tokens) as usize,
+                "session metadata plus post-inference messages",
+            ),
+            (Some(tokens), None) => (tokens as usize, "session metadata"),
+            (None, _) => {
+                let token_counter = create_token_counter()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+
+                let token_counts: Vec<_> = messages
+                    .iter()
+                    .filter(|m| m.is_agent_visible())
+                    .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                    .collect();
+
+                (token_counts.iter().sum(), "estimated")
+            }
+        },
     };
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
