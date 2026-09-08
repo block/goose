@@ -143,12 +143,16 @@ fi
 sed -i 's/icu_calendar = { version = "=2\.1\.1"/icu_calendar = { version = ">=2.1"/' Cargo.toml
 sed -i 's/icu_locale = { version = "=2\.1\.1"/icu_locale = { version = ">=2.1"/' Cargo.toml
 
-# Add patches (before agent-client-protocol)
+# Add patches for deno_core and serde_v8 (insert after [patch.crates-io])
 if ! grep -q 'deno_core = { path = "vendor/deno_core" }' Cargo.toml; then
     sed -i '/\[patch\.crates-io\]/a\
 deno_core = { path = "vendor/deno_core" }\
-serde_v8 = { path = "vendor/serde_v8" }\
-v8 = { package = "v8-wrapper", path = "vendor/v8" }' Cargo.toml
+serde_v8 = { path = "vendor/serde_v8" }' Cargo.toml
+fi
+
+# Replace the existing v8 patch entry (a second v8 key would be a TOML error)
+if grep -q '^v8 = { path = "vendor/v8" }$' Cargo.toml; then
+    sed -i 's|^v8 = { path = "vendor/v8" }$|v8 = { package = "v8-wrapper", path = "vendor/v8" }|' Cargo.toml
 fi
 
 echo "   ✓ Done"
@@ -159,24 +163,11 @@ sed -i 's/icu_calendar = { version = "=2\.1\.1"/icu_calendar = { version = ">=2.
 sed -i 's/icu_locale = { version = "=2\.1\.1"/icu_locale = { version = ">=2.1"/' "$REPO_ROOT/crates/goose/Cargo.toml"
 echo "   ✓ Done"
 
-# 10. Add RISC-V to update.rs if not already there
-echo "10. Adding RISC-V to update command..."
-UPDATE_RS="$REPO_ROOT/crates/goose-cli/src/commands/update.rs"
-if ! grep -q 'target_arch = "riscv64"' "$UPDATE_RS"; then
-    # Find the last } before the closing of asset_name function and add riscv64 case
-    cat > /tmp/riscv_case.txt << 'EOF'
-    #[cfg(all(target_os = "linux", target_arch = "riscv64"))]
-    {
-        "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
-    }
-EOF
-    # Insert before the closing brace of asset_name function
-    sed -i '/^}$/i\    #[cfg(all(target_os = "linux", target_arch = "riscv64"))]\n    {\n        "goose-riscv64gc-unknown-linux-gnu.tar.bz2"\n    }' "$UPDATE_RS"
-fi
-echo "   ✓ Done"
+# Note: update.rs already handles RISC-V (asset name + self-update bail) in
+# the repo, so no patching is needed here.
 
-# 11. Update dependencies
-echo "11. Updating Cargo dependencies..."
+# 10. Update dependencies
+echo "10. Updating Cargo dependencies..."
 cd "$REPO_ROOT"
 cargo update --quiet
 echo "   ✓ Done"

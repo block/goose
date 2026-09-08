@@ -180,19 +180,25 @@ icu_calendar = { version = ">=2.1", default-features = false }
 icu_locale = { version = ">=2.1", default-features = false }
 ```
 
-### 8. Add RISC-V to Update Command
+### 8. RISC-V Update Command Handling (already in repo)
 
-In `crates/goose-cli/src/commands/update.rs`, add a comment documenting that self-update is disabled for RISC-V (release artifacts not yet published):
+`crates/goose-cli/src/commands/update.rs` already handles RISC-V:
+
+- `asset_name()` includes the riscv64gc-gnu asset name so the function
+  compiles on RISC-V (otherwise every branch is cfg-disabled and the body
+  would evaluate to `()` instead of `&'static str`).
+- `update()` bails early on riscv64 with a clear error, because release
+  artifacts are not published for this platform yet:
 
 ```rust
-// Note: RISC-V support is available via scripts/setup-riscv.sh but
-// release artifacts are not yet published, so self-update is disabled.
-// Uncomment when RISC-V assets are added to the release pipeline:
-// #[cfg(all(target_os = "linux", target_arch = "riscv64", target_env = "gnu"))]
-// {
-//     "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
-// }
+#[cfg(all(target_arch = "riscv64", not(feature = "disable-update")))]
+{
+    bail!("Self-update is not supported on riscv64: no release artifacts are published for this platform.");
+}
 ```
+
+Once RISC-V assets are added to the release pipeline, remove that bail
+block and drop `not(target_arch = "riscv64")` from the main branch.
 
 ### 9. Update Dependencies
 

@@ -38,13 +38,12 @@ fn asset_name() -> &'static str {
     {
         "goose-aarch64-unknown-linux-musl.tar.bz2"
     }
-    // Note: RISC-V support is available via scripts/setup-riscv.sh but
-    // release artifacts are not yet published, so self-update is disabled.
-    // Uncomment when RISC-V assets are added to the release pipeline:
-    // #[cfg(all(target_os = "linux", target_arch = "riscv64", target_env = "gnu"))]
-    // {
-    //     "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
-    // }
+    // RISC-V builds compile with this asset name, but update() rejects the
+    // platform until release artifacts are published. See update() below.
+    #[cfg(all(target_os = "linux", target_arch = "riscv64", target_env = "gnu"))]
+    {
+        "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
+    }
     #[cfg(all(target_os = "windows", target_arch = "x86_64", feature = "cuda"))]
     {
         "goose-x86_64-pc-windows-msvc-cuda.zip"
@@ -304,7 +303,14 @@ pub async fn update(canary: bool, reconfigure: bool) -> Result<()> {
         bail!("Update is disabled in this build.");
     }
 
-    #[cfg(not(feature = "disable-update"))]
+    // RISC-V release artifacts are not published yet, so reject self-update
+    // rather than downloading a nonexistent asset.
+    #[cfg(all(target_arch = "riscv64", not(feature = "disable-update")))]
+    {
+        bail!("Self-update is not supported on riscv64: no release artifacts are published for this platform.");
+    }
+
+    #[cfg(all(not(target_arch = "riscv64"), not(feature = "disable-update")))]
     {
         let tag = if canary { "canary" } else { "stable" };
         let asset = asset_name();
