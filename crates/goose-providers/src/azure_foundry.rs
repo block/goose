@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::StreamExt;
 use rmcp::model::Tool;
 
 use crate::anthropic::{AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION};
@@ -571,7 +572,7 @@ impl Provider for AzureFoundryProvider {
         capability_config.model_name = capability_model.to_string();
         let capability_config =
             capability_config.with_canonical_limits(AZURE_FOUNDRY_PROVIDER_NAME);
-        match route {
+        let stream = match route {
             InferenceRoute::ProjectResponses => {
                 self.responses
                     .as_ref()
@@ -605,7 +606,20 @@ impl Provider for AzureFoundryProvider {
                     )
                     .await
             }
-        }
+        }?;
+        // Usage lands in the ledger under the model name the surface echoes back — the
+        // deployment alias, or a value the endpoint made up. Cost estimation needs the
+        // underlying model the alias resolves to, so re-tag each chunk's usage.
+        let usage_model = underlying_model.to_string();
+        Ok(Box::pin(stream.map(move |item| {
+            item.map(|(message, usage)| {
+                let usage = usage.map(|mut usage| {
+                    usage.model.clone_from(&usage_model);
+                    usage
+                });
+                (message, usage)
+            })
+        })))
     }
 }
 
@@ -1112,10 +1126,11 @@ mod tests {
 
         let provider = project_provider(&server);
         let config = ModelConfig::new("production-chat").with_temperature(Some(0.7));
-        provider
+        let (_, usage) = provider
             .complete(&config, "system", &[], &[])
             .await
             .unwrap();
+        assert_eq!(usage.model, "gpt-5");
         let requests = server.received_requests().await.unwrap();
         let payload: serde_json::Value = requests
             .iter()
@@ -1385,11 +1400,16 @@ mod tests {
             .await;
 
         let provider = project_provider(&server);
-        for deployment in ["openai-prod", "claude-prod", "partner-prod"] {
-            provider
+        for (deployment, underlying_model) in [
+            ("openai-prod", "gpt-5"),
+            ("claude-prod", "claude-sonnet-4-6"),
+            ("partner-prod", "Mistral-large"),
+        ] {
+            let (_, usage) = provider
                 .complete(&ModelConfig::new(deployment), "system", &[], &[])
                 .await
                 .unwrap();
+            assert_eq!(usage.model, underlying_model);
         }
     }
 }

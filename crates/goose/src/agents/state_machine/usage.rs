@@ -1,5 +1,5 @@
 use anyhow::Result;
-use goose_providers::conversation::token_usage::{CostSource, ProviderUsage, Usage as TokenUsage};
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage as TokenUsage};
 
 use crate::agents::state_machine::{ConversationEffect, GooseEffect};
 use crate::conversation::message::MessageUsage;
@@ -29,20 +29,10 @@ pub(super) fn enrich(session: &Session, effects: &mut [GooseEffect]) {
             } => (usage.clone(), true),
             _ => continue,
         };
-        let (cost, cost_source) = if let Some(cost) = usage.cost {
-            (Some(cost), Some(CostSource::ProviderReported))
-        } else {
-            match session.provider_name.as_deref().and_then(|provider| {
-                crate::providers::canonical_cost::estimate_model_cost(
-                    provider,
-                    &usage.model,
-                    &usage.usage,
-                )
-            }) {
-                Some(cost) => (Some(cost), Some(CostSource::Estimated)),
-                None => (None, None),
-            }
-        };
+        let (cost, cost_source) = crate::providers::canonical_cost::resolve_usage_cost(
+            session.provider_name.as_deref(),
+            &usage,
+        );
 
         let mut enriched = usage.clone();
         enriched.cost = cost;
