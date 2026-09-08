@@ -221,6 +221,37 @@ pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<
     Ok(total.try_into()?)
 }
 
+/// Count messages added after the most recent inference when that inference
+/// produced tool calls. Provider usage describes the preceding inference,
+/// including its system prompt and tools, but not the tool responses (or a
+/// steer) appended after it. Adding this suffix preserves that full-context
+/// accounting without trying to reconstruct the next request here.
+pub(crate) async fn context_tokens_since_last_inference(
+    conversation: &Conversation,
+) -> Result<Option<i32>> {
+    let messages = conversation.messages();
+    let Some(last_assistant) = messages
+        .iter()
+        .rposition(|message| message.is_agent_visible() && message.role == Role::Assistant)
+    else {
+        return Ok(None);
+    };
+
+    let added_messages = &messages[last_assistant + 1..];
+    if !added_messages.iter().any(Message::is_tool_response) {
+        return Ok(None);
+    }
+
+    let counter = create_token_counter()
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
+    Ok(Some(
+        counter
+            .count_chat_tokens("", added_messages, &[])
+            .try_into()?,
+    ))
+}
+
 /// Check if messages exceed the auto-compaction threshold
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
@@ -247,11 +278,14 @@ pub async fn check_if_compaction_needed(
     let context_limit =
         crate::context_limit::get_context_limit(provider, &model_config.model_name).await?;
 
-    let (current_tokens, _token_source) = match session.usage.total_tokens {
-        Some(tokens) if !messages.last().is_some_and(Message::is_tool_response) => {
-            (tokens as usize, "session metadata")
-        }
-        _ => {
+    let added_context_tokens = context_tokens_since_last_inference(conversation).await?;
+    let (current_tokens, _token_source) = match (session.usage.total_tokens, added_context_tokens) {
+        (Some(tokens), Some(added_tokens)) => (
+            tokens.saturating_add(added_tokens) as usize,
+            "session metadata plus post-inference messages",
+        ),
+        (Some(tokens), None) => (tokens as usize, "session metadata"),
+        (None, _) => {
             let token_counter = create_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;

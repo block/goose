@@ -77,8 +77,11 @@ impl CompactionOperation {
     }
 
     async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
-        if conversation.last().is_some_and(Message::is_tool_response) {
-            return crate::context_mgmt::count_context_tokens(conversation).await;
+        if let (Some(tokens), Some(added_tokens)) = (
+            session.usage.total_tokens,
+            crate::context_mgmt::context_tokens_since_last_inference(conversation).await?,
+        ) {
+            return Ok(tokens.saturating_add(added_tokens));
         }
         match session.usage.total_tokens {
             Some(tokens) => Ok(tokens),
