@@ -2422,11 +2422,15 @@ fn handle_plugin_subcommand(command: PluginCommand) -> Result<()> {
                     std::io::stdin().is_terminal() && std::io::stderr().is_terminal(),
                     "no import selected; pass --package N, --remote N, or --all in non-interactive mode"
                 );
-                let mut prompt = cliclack::select("Select an MCP server configuration to import");
+                let mut prompt = cliclack::multiselect(
+                    "Select MCP server configurations to import (Space to toggle, Enter to confirm)",
+                );
                 for (selection, label) in choices {
                     prompt = prompt.item(selection, label, "");
                 }
-                vec![prompt.interact()?]
+                let selected = prompt.interact()?;
+                anyhow::ensure!(!selected.is_empty(), "no package or remote selected");
+                selected
             };
             let values = values.into_iter().collect();
             let entries =
