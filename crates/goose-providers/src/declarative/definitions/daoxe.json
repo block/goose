@@ -1,0 +1,55 @@
+{
+  "name": "daoxe",
+  "engine": "openai",
+  "display_name": "DaoXE",
+  "description": "Hundreds of models from roughly 25 providers behind one OpenAI-compatible API key, plus a native Anthropic Messages surface for Claude-native tools. The live catalog is account-scoped and drifts as providers ship, so the model list here is only a fallback — goose pulls the current one from GET /models when you first connect. Not available in mainland China.",
+  "api_key_env": "DAOXE_API_KEY",
+  "base_url": "https://daoxe.com/v1",
+  "catalog_provider_id": "daoxe",
+  "dynamic_models": true,
+  "models": [
+    {
+      "name": "gpt-5.4",
+      "context_limit": 1050000
+    },
+    {
+      "name": "gpt-5.5",
+      "context_limit": 1050000
+    },
+    {
+      "name": "claude-opus-4-8",
+      "context_limit": 1000000
+    },
+    {
+      "name": "claude-sonnet-4-6",
+      "context_limit": 1000000
+    },
+    {
+      "name": "claude-haiku-4-5-20251001",
+      "context_limit": 200000
+    },
+    {
+      "name": "gemini-3.1-pro-preview",
+      "context_limit": 1048576
+    },
+    {
+      "name": "grok-4.3",
+      "context_limit": 1000000
+    },
+    {
+      "name": "grok-4.5",
+      "context_limit": 500000
+    },
+    {
+      "name": "kimi-k2.5",
+      "context_limit": 262144
+    }
+  ],
+  "supports_streaming": true,
+  "model_doc_link": "https://daoxe.com/pricing",
+  "setup_steps": [
+    "Sign up at https://daoxe.com (GitHub, Telegram or Passkey)",
+    "Create an API key in the console",
+    "Paste the key above as DAOXE_API_KEY — run /models in goose to list what your account carries"
+  ]
+}
