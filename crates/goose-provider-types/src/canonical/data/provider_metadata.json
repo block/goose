@@ -8,7 +8,7 @@
     "env": [
       "302AI_API_KEY"
     ],
-    "model_count": 97
+    "model_count": 116
   },
   {
     "id": "abacus",
@@ -405,7 +405,7 @@
     "env": [
       "CROSSMODEL_API_KEY"
     ],
-    "model_count": 59
+    "model_count": 58
   },
   {
     "id": "crusoe",
@@ -902,7 +902,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 373
+    "model_count": 372
   },
   {
     "id": "llmtech",
@@ -1166,7 +1166,7 @@
     "env": [
       "NANO_GPT_API_KEY"
     ],
-    "model_count": 593
+    "model_count": 589
   },
   {
     "id": "nearai",
@@ -1410,7 +1410,7 @@
       "PRIVATEMODE_API_KEY",
       "PRIVATEMODE_ENDPOINT"
     ],
-    "model_count": 7
+    "model_count": 9
   },
   {
     "id": "qihang-ai",
