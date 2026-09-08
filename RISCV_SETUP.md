@@ -182,13 +182,16 @@ icu_locale = { version = ">=2.1", default-features = false }
 
 ### 8. Add RISC-V to Update Command
 
-In `crates/goose-cli/src/commands/update.rs`, add after aarch64-musl case:
+In `crates/goose-cli/src/commands/update.rs`, add a comment documenting that self-update is disabled for RISC-V (release artifacts not yet published):
 
 ```rust
-#[cfg(all(target_os = "linux", target_arch = "riscv64"))]
-{
-    "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
-}
+// Note: RISC-V support is available via scripts/setup-riscv.sh but
+// release artifacts are not yet published, so self-update is disabled.
+// Uncomment when RISC-V assets are added to the release pipeline:
+// #[cfg(all(target_os = "linux", target_arch = "riscv64", target_env = "gnu"))]
+// {
+//     "goose-riscv64gc-unknown-linux-gnu.tar.bz2"
+// }
 ```
 
 ### 9. Update Dependencies

@@ -135,7 +135,8 @@ cd "$REPO_ROOT"
 
 # Add rusty_v8 to workspace exclusions (after members line)
 if ! grep -q 'exclude = \["vendor/rusty_v8"\]' Cargo.toml; then
-    sed -i '/members = \[/a\exclude = ["vendor/rusty_v8"],' Cargo.toml
+    # Insert exclude after the members array closing bracket
+    sed -i '/^members = \[/,/^\]$/s/^\]$/]\nexclude = ["vendor/rusty_v8"]/' Cargo.toml
 fi
 
 # Relax ICU pins
