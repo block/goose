@@ -51,6 +51,8 @@ struct Input {
     default: Option<String>,
     #[serde(default)]
     is_required: bool,
+    #[serde(default)]
+    is_secret: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,7 +111,7 @@ pub fn import_server_json(
     json: &str,
     selections: &[ServerSelection],
     values: &HashMap<String, String>,
-) -> Result<Vec<ExtensionEntry>> {
+) -> Result<(Vec<ExtensionEntry>, HashMap<String, String>)> {
     let document: ServerDocument =
         serde_json::from_str(json).context("invalid MCP registry server.json")?;
     if selections.is_empty() {
@@ -117,7 +119,43 @@ pub fn import_server_json(
     }
     let base_name = document.name.rsplit('/').next().unwrap_or(&document.name);
     let multiple = selections.len() > 1;
-    selections
+    let secret_names = selections
+        .iter()
+        .flat_map(|selection| -> Box<dyn Iterator<Item = &Input>> {
+            match *selection {
+                ServerSelection::Package(index) => Box::new(
+                    document
+                        .packages
+                        .get(index)
+                        .into_iter()
+                        .flat_map(|package| package.environment_variables.iter()),
+                ),
+                ServerSelection::Remote(index) => Box::new(
+                    document
+                        .remotes
+                        .get(index)
+                        .into_iter()
+                        .flat_map(|remote| remote.headers.iter()),
+                ),
+            }
+        })
+        .filter(|input| input.is_secret)
+        .filter_map(|input| input.name.as_deref())
+        .collect::<Vec<_>>();
+    let secrets = secret_names
+        .iter()
+        .filter_map(|name| {
+            values
+                .get(*name)
+                .map(|value| ((*name).to_string(), value.clone()))
+        })
+        .collect();
+    let public_values = values
+        .iter()
+        .filter(|(name, _)| !secret_names.contains(&name.as_str()))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    let entries = selections
         .iter()
         .map(|selection| {
             let (name, config) = match *selection {
@@ -135,7 +173,7 @@ pub fn import_server_json(
                         name.clone(),
                         document.description.clone(),
                         package,
-                        values,
+                        &public_values,
                     )?;
                     (name, config)
                 }
@@ -149,8 +187,12 @@ pub fn import_server_json(
                     } else {
                         base_name.to_string()
                     };
-                    let config =
-                        remote_config(name.clone(), document.description.clone(), remote, values)?;
+                    let config = remote_config(
+                        name.clone(),
+                        document.description.clone(),
+                        remote,
+                        &public_values,
+                    )?;
                     (name, config)
                 }
             };
@@ -160,7 +202,8 @@ pub fn import_server_json(
                 config,
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>>>()?;
+    Ok((entries, secrets))
 }
 
 fn package_config(
@@ -297,14 +340,14 @@ fn resolve_arguments(items: &[Argument], values: &HashMap<String, String>) -> Re
                 key.unwrap_or("argument")
             );
         }
-        if item.kind == "named" {
-            out.push(
-                item.name
-                    .clone()
-                    .context("named argument is missing name")?,
-            );
-        }
         if let Some(value) = value {
+            if item.kind == "named" {
+                out.push(
+                    item.name
+                        .clone()
+                        .context("named argument is missing name")?,
+                );
+            }
             out.push(substitute(&value, &vars));
         }
     }
@@ -329,7 +372,7 @@ fn resolve_inputs(
             .or_else(|| input.default.clone())
         {
             fixed.insert(name.into(), value);
-        } else if input.is_required {
+        } else if input.is_required || input.is_secret {
             keys.push(name.into());
         }
     }
@@ -350,8 +393,9 @@ fn resolve_named_inputs(
             .or_else(|| input.default.clone())
         {
             fixed.insert(name.into(), v);
-        } else if input.is_required {
+        } else if input.is_required || input.is_secret {
             keys.push(name.into());
+            fixed.insert(name.into(), format!("${{{name}}}"));
         }
     }
     Ok((fixed, keys))

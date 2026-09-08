@@ -2433,8 +2433,11 @@ fn handle_plugin_subcommand(command: PluginCommand) -> Result<()> {
                 selected
             };
             let values = values.into_iter().collect();
-            let entries =
+            let (entries, secrets) =
                 goose::plugins::registry_server::import_server_json(&json, &selections, &values)?;
+            for (name, value) in secrets {
+                Config::global().set_secret(&name, &value)?;
+            }
             for entry in entries {
                 let name = entry.config.name();
                 goose::config::set_extension(entry);
