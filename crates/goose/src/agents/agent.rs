@@ -1011,6 +1011,20 @@ impl Agent {
             .map_err(|e| anyhow!("Could not resolve model config: {e}"))
     }
 
+    pub(super) async fn effective_model_config_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<goose_providers::model::ModelConfig> {
+        let model_config = self.model_config_for_session(session_id).await?;
+        let provider_name = self.provider().await?.get_name().to_string();
+        match crate::providers::get_from_registry(&provider_name).await {
+            Ok(entry) => Ok(entry
+                .normalize_model_config(model_config.clone())
+                .unwrap_or(model_config)),
+            Err(_) => Ok(model_config),
+        }
+    }
+
     /// When set, all stdio extensions will be started via `docker exec` in the specified container.
     pub async fn set_container(&self, container: Option<Container>) {
         *self.container.lock().await = container.clone();
@@ -1938,26 +1952,13 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
-        let entry_session = session_manager.get_session(&session_id, false).await?;
         let provider = self
             .provider
             .lock()
             .await
             .clone()
             .ok_or_else(|| anyhow!("Provider not set"))?;
-        let model_config = match entry_session.model_config {
-            Some(model_config) => model_config,
-            None => {
-                let provider_name = Config::global()
-                    .get_goose_provider()
-                    .map_err(|_| anyhow!("Could not resolve model config: missing provider"))?;
-                let model_name = Config::global()
-                    .get_goose_model()
-                    .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
-                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
-                    .map_err(|error| anyhow!("Could not resolve model config: {error}"))?
-            }
-        };
+        let model_config = self.effective_model_config_for_session(&session_id).await?;
 
         let context_limit =
             crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
@@ -3649,15 +3650,24 @@ impl Agent {
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
+        let registry_entry = crate::providers::get_from_registry(&provider_name)
+            .await
+            .ok();
 
-        let model_config = match crate::providers::get_from_registry(&provider_name).await {
-            Ok(entry) => entry
-                .normalize_model_config(model_config.clone())
-                .unwrap_or(model_config),
-            Err(_) => model_config,
+        let model_config = if registry_entry.is_some() {
+            crate::model_config::materialize_model_config(&provider_name, model_config.clone())
+                .unwrap_or(model_config)
+        } else {
+            model_config
         };
         let effort_support = provider.thinking_effort_support();
         let model_config = normalize_legacy_provider_thinking_effort(model_config, &effort_support);
+        let effective_model_config = match registry_entry {
+            Some(entry) => entry
+                .normalize_model_config(model_config.clone())
+                .unwrap_or_else(|_| model_config.clone()),
+            None => model_config.clone(),
+        };
 
         {
             let mut current_provider = self.provider.lock().await;
@@ -3668,7 +3678,10 @@ impl Agent {
         // own default, so the session's selection has to be pushed to it before
         // the next config snapshot is built. Failures are not fatal here: the
         // selection is re-applied at stream time.
-        if let Err(e) = provider.apply_model_selection(&model_config).await {
+        if let Err(e) = provider
+            .apply_model_selection(&effective_model_config)
+            .await
+        {
             warn!("Failed to apply model selection to provider: {e}");
         }
 
@@ -4781,6 +4794,96 @@ mod tests {
             effort_test_agent(EffortOutcome::Applied).await;
 
         assert_eq!(provider.model_selections(), ["mock-model"]);
+    }
+
+    #[tokio::test]
+    async fn provider_toolshim_is_effective_without_being_persisted() {
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let provider_root = TempDir::new().unwrap();
+        let provider_root_path = provider_root.path().display().to_string();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", Some(provider_root_path.as_str())),
+            ("GOOSE_TOOLSHIM", None),
+        ]);
+
+        let config = crate::config::declarative_providers::create_custom_provider(
+            crate::config::declarative_providers::CreateCustomProviderParams {
+                engine: "openai".to_string(),
+                display_name: "Sticky Toolshim".to_string(),
+                api_url: "https://example.invalid/v1".to_string(),
+                api_key: None,
+                models: vec![crate::providers::base::ModelInfo::new("test-model")],
+                supports_streaming: Some(true),
+                headers: None,
+                requires_auth: false,
+                catalog_provider_id: None,
+                base_path: None,
+                toolshim: true,
+                preserves_thinking: None,
+                auth: None,
+            },
+        )
+        .unwrap();
+        crate::providers::refresh_custom_providers().await.unwrap();
+
+        let provider = crate::providers::create(&config.name, Vec::new())
+            .await
+            .unwrap();
+        agent
+            .update_provider(
+                provider,
+                goose_providers::model::ModelConfig::new("test-model"),
+                &session.id,
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            !agent
+                .model_config_for_session(&session.id)
+                .await
+                .unwrap()
+                .toolshim
+        );
+        assert!(
+            agent
+                .effective_model_config_for_session(&session.id)
+                .await
+                .unwrap()
+                .toolshim
+        );
+
+        crate::config::declarative_providers::update_custom_provider(
+            crate::config::declarative_providers::UpdateCustomProviderParams {
+                id: config.name.clone(),
+                engine: "openai".to_string(),
+                display_name: config.display_name,
+                api_url: config.base_url,
+                api_key: None,
+                models: config.models,
+                supports_streaming: config.supports_streaming,
+                headers: config.headers,
+                requires_auth: false,
+                catalog_provider_id: None,
+                base_path: None,
+                toolshim: false,
+                preserves_thinking: None,
+                auth: None,
+            },
+        )
+        .unwrap();
+        crate::providers::refresh_custom_providers().await.unwrap();
+
+        assert!(
+            !agent
+                .effective_model_config_for_session(&session.id)
+                .await
+                .unwrap()
+                .toolshim
+        );
+
+        crate::config::declarative_providers::remove_custom_provider(&config.name).unwrap();
+        crate::providers::refresh_custom_providers().await.unwrap();
     }
 
     #[tokio::test]
