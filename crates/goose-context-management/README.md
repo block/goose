@@ -49,6 +49,8 @@ wrapper type.
 - `Templates` and `format_message_for_compacting` — prompt shaping.
 - `DEFAULT_COMPACTION_THRESHOLD` (`0.8`) — the default fraction of the context
   window at which callers compact.
+- `auto_compact_enabled` — `true` only for thresholds in `(0, 1)`; `0.0` and
+  `1.0` (or above) disable auto-compact.
 
 ## Cross-language access
 

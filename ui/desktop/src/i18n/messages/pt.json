@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Compactação automática em"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Compactação automática: desativada"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Compactar agora"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Editar limite de compactação automática"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Falha ao guardar o limite: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Guardar limite de compactação automática"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Entendido!"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Falha ao atualizar o diretório de trabalho"
   },

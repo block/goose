@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "ऑटो कॉम्पैक्ट पर"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट: बंद"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "अब संक्षिप्त करें"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट सीमा संपादित करें"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "सीमा सहेजने में विफल: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट सीमा सहेजें"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "समझ गया!"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "कार्यशील निर्देशिका अद्यतन करने में विफल"
   },

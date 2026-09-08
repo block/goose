@@ -8,18 +8,34 @@ import { IntlTestWrapper } from '../../../i18n/test-utils';
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
 
-// Mock the ConfigContext
+const { mockRead, mockUpsert } = vi.hoisted(() => ({
+  mockRead: vi.fn(),
+  mockUpsert: vi.fn(),
+}));
+
 vi.mock('../../ConfigContext', () => ({
   useConfig: () => ({
-    read: vi.fn().mockResolvedValue(0.8),
+    read: mockRead,
+    upsert: mockUpsert,
   }),
 }));
+
+const progressAlert: Alert = {
+  type: AlertType.Info,
+  message: 'Context window',
+  progress: {
+    current: 50,
+    total: 100,
+  },
+};
 
 describe('AlertBox', () => {
   const mockOnCompact = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRead.mockResolvedValue(0.8);
+    mockUpsert.mockResolvedValue(undefined);
   });
 
   describe('Basic Rendering', () => {
@@ -88,6 +104,54 @@ describe('AlertBox', () => {
 
       // Should show auto-compact threshold (default 80%)
       expect(await screen.findByText(/Auto compact at 80%/)).toBeInTheDocument();
+    });
+
+    it('should show auto-compact as off when the stored threshold is 1.0', async () => {
+      mockRead.mockResolvedValue(1.0);
+
+      renderWithIntl(<AlertBox alert={progressAlert} />);
+
+      expect(await screen.findByText('Auto compact: off')).toBeInTheDocument();
+      expect(screen.queryByText(/Auto compact at 100%/)).not.toBeInTheDocument();
+    });
+
+    it('should show auto-compact as off when the stored threshold is 0', async () => {
+      mockRead.mockResolvedValue(0);
+
+      renderWithIntl(<AlertBox alert={progressAlert} />);
+
+      expect(await screen.findByText('Auto compact: off')).toBeInTheDocument();
+    });
+
+    it('should re-enable from the default when editing a disabled threshold', async () => {
+      const user = userEvent.setup();
+      mockRead.mockResolvedValue(1.0);
+
+      renderWithIntl(<AlertBox alert={progressAlert} />);
+      expect(await screen.findByText('Auto compact: off')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Edit auto-compact threshold' }));
+      expect(screen.getByRole('spinbutton')).toHaveValue(80);
+
+      await user.click(screen.getByRole('button', { name: 'Save auto-compact threshold' }));
+      expect(mockUpsert).toHaveBeenCalledWith('GOOSE_AUTO_COMPACT_THRESHOLD', 0.8, false);
+      expect(await screen.findByText(/Auto compact at 80%/)).toBeInTheDocument();
+    });
+
+    it('should clamp the editor to 99% so saving cannot write a disabled 1.0', async () => {
+      const user = userEvent.setup();
+
+      renderWithIntl(<AlertBox alert={progressAlert} />);
+      expect(await screen.findByText(/Auto compact at 80%/)).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Edit auto-compact threshold' }));
+      const input = screen.getByRole('spinbutton');
+      await user.clear(input);
+      await user.type(input, '100');
+      expect(input).toHaveValue(99);
+
+      await user.click(screen.getByRole('button', { name: 'Save auto-compact threshold' }));
+      expect(mockUpsert).toHaveBeenCalledWith('GOOSE_AUTO_COMPACT_THRESHOLD', 0.99, false);
     });
 
     it('should not render progress dots or token counts', () => {

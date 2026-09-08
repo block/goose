@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 use tracing::info;
 use tracing::log::warn;
 
-pub use goose_context_management::DEFAULT_COMPACTION_THRESHOLD;
+pub use goose_context_management::{auto_compact_enabled, DEFAULT_COMPACTION_THRESHOLD};
 
 pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
@@ -232,7 +232,6 @@ pub async fn check_if_compaction_needed(
         return Ok(false);
     }
 
-    let messages = conversation.messages();
     let config = Config::global();
     let threshold = threshold_override.unwrap_or_else(|| {
         config
@@ -240,6 +239,11 @@ pub async fn check_if_compaction_needed(
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
+    if !auto_compact_enabled(threshold) {
+        return Ok(false);
+    }
+
+    let messages = conversation.messages();
     let model_config = session
         .model_config
         .clone()
@@ -265,13 +269,7 @@ pub async fn check_if_compaction_needed(
     };
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
-
-    let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false // Auto-compact is disabled.
-    } else {
-        usage_ratio > threshold
-    };
-    Ok(needs_compaction)
+    Ok(usage_ratio > threshold)
 }
 
 struct GooseCompactionModel<'a> {
@@ -703,6 +701,71 @@ mod tests {
         async fn get_context_limit(&self, _model: &str, override_limit: Option<usize>) -> usize {
             override_limit.unwrap_or_else(|| self.config.context_limit())
         }
+    }
+
+    struct PanicOnContextLimit;
+
+    #[async_trait]
+    impl Provider for PanicOnContextLimit {
+        fn get_name(&self) -> &str {
+            "panic-on-context-limit"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("disabled auto-compact must not stream");
+        }
+
+        async fn get_context_limit(&self, _model: &str, _override_limit: Option<usize>) -> usize {
+            panic!("disabled auto-compact must not fetch context limits");
+        }
+    }
+
+    #[tokio::test]
+    async fn check_if_compaction_needed_skips_work_when_disabled() {
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+        let session = crate::session::Session::default();
+
+        for threshold in [0.0, 1.0, 1.5] {
+            let needed = check_if_compaction_needed(
+                &PanicOnContextLimit,
+                &conversation,
+                Some(threshold),
+                &session,
+            )
+            .await
+            .unwrap();
+            assert!(
+                !needed,
+                "threshold {threshold} should disable auto-compact without extra work"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn check_if_compaction_needed_compares_usage_to_threshold() {
+        let provider = MockProvider::new(Message::assistant().with_text("ok"), 1000);
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+        let mut over = crate::session::Session::default();
+        over.usage.total_tokens = Some(900);
+        let mut under = crate::session::Session::default();
+        under.usage.total_tokens = Some(700);
+
+        assert!(
+            check_if_compaction_needed(&provider, &conversation, Some(0.8), &over)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !check_if_compaction_needed(&provider, &conversation, Some(0.8), &under)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

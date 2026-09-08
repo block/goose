@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Padatkan automatik pada"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Padatkan automatik: dimatikan"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Padatkan sekarang"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Edit ambang pemadatan automatik"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Gagal menyimpan ambang: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Simpan ambang pemadatan automatik"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Faham!"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Gagal mengemas kini direktori kerja"
   },

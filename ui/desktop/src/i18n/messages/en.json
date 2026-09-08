@@ -23,11 +23,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Auto compact: off"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Compact now"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Edit auto-compact threshold"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Failed to save threshold: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Save auto-compact threshold"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Got it!"

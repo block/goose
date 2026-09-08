@@ -1,4 +1,5 @@
 use crate::agents::extension_manager::ExtensionManager;
+use crate::context_mgmt::auto_compact_enabled;
 use crate::conversation::message::{Message, MessageMetadata};
 use crate::conversation::{CURRENT_TIME_TAG, TURN_CONTEXT_TAG, WORKING_DIRECTORY_TAG};
 use std::path::{Path, PathBuf};
@@ -192,7 +193,7 @@ fn compaction_remaining_line(
     let total_tokens = total_tokens?;
     let context_limit = context_limit?;
 
-    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
+    if total_tokens <= 0 || context_limit == 0 || !auto_compact_enabled(threshold) {
         return None;
     }
 

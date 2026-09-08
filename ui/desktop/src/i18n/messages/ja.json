@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "自動圧縮の実行タイミング"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "自動圧縮: オフ"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "今すぐ圧縮"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "自動圧縮のしきい値を編集"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "しきい値の保存に失敗しました: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "自動圧縮のしきい値を保存"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "了解しました"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "作業ディレクトリの更新に失敗しました"
   },

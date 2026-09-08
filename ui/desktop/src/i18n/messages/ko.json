@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "자동 압축 기준"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "자동 압축: 꺼짐"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "지금 압축"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "자동 압축 임계값 편집"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "임계값 저장 실패: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "자동 압축 임계값 저장"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "알았어요!"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "작업 디렉터리를 업데이트하지 못했습니다."
   },

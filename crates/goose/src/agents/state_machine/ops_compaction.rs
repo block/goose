@@ -12,7 +12,7 @@ use crate::agents::state_machine::{
     yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
     SlashCommand,
 };
-use crate::context_mgmt::compact_messages;
+use crate::context_mgmt::{auto_compact_enabled, compact_messages};
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::providers::base::Provider;
@@ -29,7 +29,7 @@ fn compaction_part(
     threshold: f64,
 ) -> Option<String> {
     let total_tokens = total_tokens?;
-    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
+    if total_tokens <= 0 || context_limit == 0 || !auto_compact_enabled(threshold) {
         return None;
     }
 
@@ -70,7 +70,7 @@ impl CompactionOperation {
     }
 
     fn over_threshold(&self, tokens: usize) -> bool {
-        if self.threshold <= 0.0 || self.threshold >= 1.0 {
+        if !auto_compact_enabled(self.threshold) {
             return false;
         }
         (tokens as f64 / self.context_limit as f64) > self.threshold

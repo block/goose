@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "自动压缩阈值"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "自动压缩：关闭"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "立即压缩"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "编辑自动压缩阈值"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "保存阈值失败：{error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "保存自动压缩阈值"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "知道了！"
@@ -926,8 +935,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "更新工作目录失败"
   },
