@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "自動壓縮於"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "自動壓縮：關閉"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "立即壓縮"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "編輯自動壓縮閾值"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "無法儲存閾值：{error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "儲存自動壓縮閾值"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "知道了！"

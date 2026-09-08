@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Otomatik sıkıştırma eşiği"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Otomatik sıkıştırma: kapalı"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Şimdi sıkıştır"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Otomatik sıkıştırma eşiğini düzenle"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Eşik kaydedilemedi: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Otomatik sıkıştırma eşiğini kaydet"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Anladım!"

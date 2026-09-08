@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "ऑटो कॉम्पैक्ट पर"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट: बंद"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "अब संक्षिप्त करें"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट सीमा संपादित करें"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "सीमा सहेजने में विफल: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट सीमा सहेजें"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "समझ गया!"

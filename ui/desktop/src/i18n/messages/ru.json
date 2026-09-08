@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Автосжимать при"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Автосжатие: выкл."
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Сжать сейчас"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Изменить порог автосжатия"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Не удалось сохранить пороговое значение: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Сохранить порог автосжатия"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Понятно!"

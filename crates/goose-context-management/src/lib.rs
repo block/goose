@@ -31,6 +31,14 @@ pub use templates::Templates;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+/// Auto-compact runs only for thresholds in `(0, 1)`.
+///
+/// `0.0` is the documented off switch. `1.0` and above are also off so a
+/// stored value of 100% cannot mean "compact when the window is full".
+pub fn auto_compact_enabled(threshold: f64) -> bool {
+    threshold > 0.0 && threshold < 1.0
+}
+
 /// Everything compaction reads from the caller's conversation.
 pub trait CompactionInput {
     fn messages(&self) -> Vec<Message>;
@@ -66,5 +74,21 @@ where
 impl CompactionInput for Vec<Message> {
     fn messages(&self) -> Vec<Message> {
         self.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auto_compact_enabled;
+
+    #[test]
+    fn auto_compact_enabled_rejects_off_and_full_window_values() {
+        assert!(!auto_compact_enabled(0.0));
+        assert!(!auto_compact_enabled(-0.1));
+        assert!(!auto_compact_enabled(1.0));
+        assert!(!auto_compact_enabled(1.5));
+        assert!(auto_compact_enabled(0.8));
+        assert!(auto_compact_enabled(0.01));
+        assert!(auto_compact_enabled(0.99));
     }
 }

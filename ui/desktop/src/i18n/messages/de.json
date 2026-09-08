@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Automatisch verdichten bei"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Automatisches Verdichten: aus"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Jetzt verdichten"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Schwellenwert für automatisches Verdichten bearbeiten"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Schwellenwert konnte nicht gespeichert werden: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Schwellenwert für automatisches Verdichten speichern"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Verstanden!"

@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Tự động nén tại"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Tự động nén: tắt"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Nén ngay"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Chỉnh ngưỡng tự động nén"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Không thể lưu ngưỡng: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Lưu ngưỡng tự động nén"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Đã hiểu!"

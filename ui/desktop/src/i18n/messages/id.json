@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Padatkan otomatis pada"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Padatkan otomatis: nonaktif"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Padatkan sekarang"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Edit ambang batas pemadatan otomatis"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Gagal menyimpan ambang batas: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Simpan ambang batas pemadatan otomatis"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Mengerti!"

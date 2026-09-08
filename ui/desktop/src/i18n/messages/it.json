@@ -2,11 +2,20 @@
   "alertBox.autoCompactAt": {
     "defaultMessage": "Compattazione automatica a"
   },
+  "alertBox.autoCompactOff": {
+    "defaultMessage": "Compattazione automatica: disattivata"
+  },
   "alertBox.compactNow": {
     "defaultMessage": "Compatta ora"
   },
+  "alertBox.editThreshold": {
+    "defaultMessage": "Modifica soglia di compattazione automatica"
+  },
   "alertBox.failedToSaveThreshold": {
     "defaultMessage": "Impossibile salvare la soglia: {error}"
+  },
+  "alertBox.saveThreshold": {
+    "defaultMessage": "Salva soglia di compattazione automatica"
   },
   "announcementModal.gotIt": {
     "defaultMessage": "Capito!"
