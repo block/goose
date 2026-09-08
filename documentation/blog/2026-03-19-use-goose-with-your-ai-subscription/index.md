@@ -32,6 +32,7 @@ Then configure goose to use it via the claude acp extension (CLI or GUI)
 Or set it via environment variables:
 
 ```bash
+export GOOSE_PROVIDER=claude-acp
 goose
 ```
 
@@ -59,7 +60,7 @@ Goose previously supported `claude-code`, `codex`, and `gemini-cli` as "pass-thr
 
 | Subscription | Provider | Install | Extensions |
 |---|---|---|---|
-| Claude Code | `claude-acp` | `npm install -g @zed-industries/claude-agent-acp` | ✅ via MCP |
+| Claude Code | `claude-acp` | `npm install -g @agentclientprotocol/claude-agent-acp` | ✅ via MCP |
 | ChatGPT Plus/Pro | `chatgpt_codex` | Nothing — OAuth sign-in | ✅ via MCP |
 | Gemini | `gemini_oauth` | Nothing — OAuth sign-in | ✅ native |
 
