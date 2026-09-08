@@ -7,9 +7,12 @@ import test from "node:test";
 import {
   bestMatchingIssueChannels,
   channelMatchesIssue,
+  coreAssignees,
+  firstHumanCommentAfter,
   getOpenIssues,
   getProjectIssues,
   issueReferenceFromChannel,
+  linkedPullRequestForVerification,
   readCoreTeam,
   selectRecentQueueEntries,
 } from "./github_manager.mjs";
@@ -212,4 +215,94 @@ test("uses one complete core-team schema", (context) => {
     JSON.stringify({ owners: [person], members: [] }),
   );
   assert.throws(() => readCoreTeam(path), /positive capacity/);
+});
+
+test("finds only core-team assignees without changing their spelling", () => {
+  assert.deepEqual(
+    coreAssignees(
+      [{ login: "CoreMember" }, { login: "contributor" }, "SECOND"],
+      new Set(["coremember", "second"]),
+    ),
+    ["CoreMember", "SECOND"],
+  );
+});
+
+test("uses the first human comment after a phase transition", () => {
+  const comment = firstHumanCommentAfter(
+    [
+      {
+        id: 1,
+        created_at: "2026-08-27T10:00:00Z",
+        user: { login: "before", type: "User" },
+      },
+      {
+        id: 2,
+        created_at: "2026-08-27T12:00:01Z",
+        user: { login: "automation", type: "Bot" },
+      },
+      {
+        id: 4,
+        created_at: "2026-08-27T12:00:03Z",
+        user: { login: "later", type: "User" },
+      },
+      {
+        id: 3,
+        created_at: "2026-08-27T12:00:02Z",
+        user: { login: "first", type: "User" },
+      },
+    ],
+    "2026-08-27T12:00:00Z",
+  );
+  assert.equal(comment.id, 3);
+});
+
+test("selects one active linked pull request and ignores closed work", () => {
+  const pullRequest = linkedPullRequestForVerification(
+    [
+      {
+        url: "https://github.com/aaif-goose/goose/pull/1",
+        state: "CLOSED",
+        repository: { nameWithOwner: "aaif-goose/goose" },
+      },
+      {
+        url: "https://github.com/aaif-goose/goose/pull/2",
+        state: "OPEN",
+        repository: { nameWithOwner: "aaif-goose/goose" },
+      },
+    ],
+    "aaif-goose/goose",
+  );
+  assert.equal(pullRequest.url, "https://github.com/aaif-goose/goose/pull/2");
+});
+
+test("does not reconsider pull requests present during initialization", () => {
+  assert.equal(
+    linkedPullRequestForVerification(
+      [
+        {
+          url: "https://github.com/aaif-goose/goose/pull/2",
+          state: "OPEN",
+          repository: { nameWithOwner: "aaif-goose/goose" },
+        },
+      ],
+      "aaif-goose/goose",
+      ["https://github.com/aaif-goose/goose/pull/2"],
+    ),
+    null,
+  );
+});
+
+test("fails closed when more than one active pull request is linked", () => {
+  assert.throws(
+    () =>
+      linkedPullRequestForVerification(
+        [1, 2].map((number) => ({
+          url: `https://github.com/aaif-goose/goose/pull/${number}`,
+          state: "OPEN",
+          repository: { nameWithOwner: "aaif-goose/goose" },
+        })),
+        "aaif-goose/goose",
+      ),
+    /More than one pull request/,
+  );
 });

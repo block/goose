@@ -19,7 +19,7 @@ added so people can find and manage them in Buzz Desktop.
 - Node.js
 - [GitHub CLI](https://cli.github.com/) authenticated with access to the
   repository and its project board; the recipe also needs permission to assign
-  issues
+  issues and pull requests and to update the project Status field
 - Buzz Desktop on macOS, or a `buzz` CLI on `PATH`
 - Goose CLI with a configured model provider
 - A running public Buzz community
@@ -67,6 +67,9 @@ public-key.npub    Shareable Nostr public key
 public-key.hex     Shareable public key used by the Buzz CLI
 profile-created   Time at which the profile was published
 ```
+
+Repository-specific comment, snooze, and lifecycle cursors are created in the
+same directory when synchronization starts.
 
 The command is deliberately idempotent. If all three key files and the profile
 marker exist, it fixes their permissions and changes nothing. If the keys exist
@@ -239,6 +242,40 @@ Queue authors are only returned as `queue_requesters` when their public key is
 present in `core-team.json`. Other authors are reported as
 `ignored_queue_requesters` and cannot influence channel membership.
 
+### `manage_issue_lifecycle`
+
+Tracks project-phase transitions and prepares phase-specific work for the Goose
+manager. The first non-dry run initializes its repository-scoped state without
+changing existing issues.
+
+On later runs, entering `Accepted / design` or `Ready` removes current core-team
+assignees once. Community assignees are preserved. The transition's assignees
+are retained as previous shepherds so the agent can weigh continuity alongside
+subject interest and normalized workload. Because removal is tied to the phase
+edge, a core member can intentionally self-assign afterward without the next
+hourly run undoing it.
+
+In `Accepted / design`, the first human GitHub comment created at or after the
+actual project status update produces `design-shepherd` agent work. Earlier
+comments and bot comments do not trigger assignment. Once a core-team member is
+assigned, the trigger is complete even if that assignment is later removed
+manually.
+
+In `Ready`, one newly linked open or merged pull request produces `verification`
+agent work. The manager assigns one selected core-team member to both the issue
+and pull request, then moves the supplied project item to `Verification`. More
+than one active linked pull request is reported as ambiguous instead of guessed.
+
+State updates are atomic, and pending unassignments survive an interrupted run.
+The state file is named
+`issue-lifecycle-<owner>-<repository>-project-<number>.json` next to the Github
+Manager identity. Always inspect a dry run first:
+
+```sh
+./buzz/manage_issue_lifecycle --dry-run
+./buzz/manage_issue_lifecycle
+```
+
 ### `syncissues`
 
 Fetches all open GitHub issues and all Buzz channels, matches issue channels by
@@ -312,22 +349,27 @@ target another repository or project.
 
 ### `github_issue_manager.yaml`
 
-This Goose recipe manages the full Inbox loop:
+This Goose recipe manages the full phase-aware issue loop:
 
-1. List unassigned Inbox issues and unresolved work from `issues to add`.
-2. Read each issue and rank the three strongest matches based on `interest`.
-3. Choose the least loaded of those three using assignments on the 100 newest
+1. Reconcile phase transitions and collect design or verification work.
+2. List unassigned Inbox issues and unresolved work from `issues to add`.
+3. Read each issue and rank the three strongest matches based on `interest`.
+4. Choose the least loaded of those three using assignments on the 100 newest
    issues, adjusting only for the person's configured capacity.
-4. Assign the issue to that person's GitHub handle.
-5. Create a focused Buzz channel, or promote the owner when the channel already
+5. Assign the issue to that person's GitHub handle.
+6. Create a focused Buzz channel, or promote the owner when the channel already
    exists. Start with Douwe and the issue owner, then add relevant people until
    the channel has at least three distinct humans. If Douwe owns the issue, two
    others are required. A fourth person may be added when useful.
-6. Run `syncissues`.
+7. Select design shepherds and verification owners using previous-shepherd
+   continuity, interest, and rolling normalized load. Verification owners are
+   assigned to both the issue and linked pull request before the project item is
+   moved to `Verification`.
+8. Run `syncissues`.
 
 Issue bodies and comments are treated as untrusted data. The recipe is allowed
-to assign issues but is instructed not to edit bodies, post GitHub comments,
-change project fields, labels, or issue state.
+only the assignment and Verification project-field writes described above; it
+does not edit bodies, post GitHub comments, close work, or change labels.
 
 Run it once with:
 

@@ -290,3 +290,60 @@ export function repositoryFromIssueUrl(url) {
     return null;
   }
 }
+
+export function coreAssignees(assignees, coreGithubHandles) {
+  const handles = new Set(
+    [...coreGithubHandles].map((handle) => handle.toLowerCase()),
+  );
+  return (assignees || [])
+    .map((assignee) =>
+      typeof assignee === "string" ? assignee : assignee?.login,
+    )
+    .filter(
+      (handle) =>
+        typeof handle === "string" && handles.has(handle.toLowerCase()),
+    );
+}
+
+export function firstHumanCommentAfter(comments, enteredAt) {
+  const boundary = Date.parse(enteredAt);
+  if (!Number.isFinite(boundary)) {
+    throw new Error(`Invalid phase-entry time: ${enteredAt}`);
+  }
+  return (comments || [])
+    .filter(
+      (comment) =>
+        comment?.user?.type === "User" &&
+        Number.isSafeInteger(comment.id) &&
+        Number.isFinite(Date.parse(comment.created_at)) &&
+        Date.parse(comment.created_at) >= boundary,
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(left.created_at) - Date.parse(right.created_at) ||
+        left.id - right.id,
+    )[0] || null;
+}
+
+export function linkedPullRequestForVerification(
+  pullRequests,
+  repository,
+  ignoredUrls = [],
+) {
+  const ignored = new Set(ignoredUrls);
+  const candidates = (pullRequests || []).filter(
+    (pullRequest) =>
+      pullRequest?.repository?.nameWithOwner?.toLowerCase() ===
+        repository.toLowerCase() &&
+      pullRequest.state !== "CLOSED" &&
+      !ignored.has(pullRequest.url),
+  );
+  if (candidates.length > 1) {
+    throw new Error(
+      `More than one pull request is linked for verification: ${candidates
+        .map((pullRequest) => pullRequest.url)
+        .join(", ")}`,
+    );
+  }
+  return candidates[0] || null;
+}
