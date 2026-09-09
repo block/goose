@@ -101,12 +101,22 @@ function stalenessReason() {
   return stamp.hash === inputsBefore ? null : 'inputs changed';
 }
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', cwd: desktopRoot, ...options });
+function buildAcpClient() {
+  const args = ['--filter', '@aaif/goose-acp-client', 'run', 'build'];
+  const options = { stdio: 'inherit', cwd: desktopRoot };
+  // Invoking pnpm's JS entry point directly preserves paths containing spaces on Windows.
+  const execPath = process.env.npm_execpath;
+  let result;
+  if (execPath && /\.[cm]?js$/.test(execPath) && fs.existsSync(execPath)) {
+    result = spawnSync(process.execPath, [execPath, ...args], options);
+  } else {
+    // Windows needs a shell for pnpm.cmd; the command and arguments here are fixed.
+    result = spawnSync('pnpm', args, { ...options, shell: process.platform === 'win32' });
+  }
   if (result.error) {
     if (result.error.code === 'ENOENT') {
       console.error(
-        `Could not run ${command}. Run this through pnpm (\`pnpm run build-goose-acp-client\`), ` +
+        'Could not run pnpm. Run this through pnpm (`pnpm run build-goose-acp-client`), ' +
           'or put the toolchain on PATH first.'
       );
       process.exit(1);
@@ -114,25 +124,6 @@ function run(command, args, options = {}) {
     throw result.error;
   }
   if (result.status !== 0) process.exit(result.status ?? 1);
-}
-
-function runPnpm(args) {
-  // Prefer the pnpm that invoked us: npm_execpath is pnpm's own JS entry point, which sidesteps
-  // PATH lookup and the .cmd/.exe shim question entirely.
-  const execPath = process.env.npm_execpath;
-  if (execPath && /\.[cm]?js$/.test(execPath) && fs.existsSync(execPath)) {
-    run(process.execPath, [execPath, ...args]);
-    return;
-  }
-  // Only this path needs a shell, and only on Windows: since the CVE-2024-27980 fix, spawning a
-  // .cmd without one throws EINVAL. Do not hoist it into run() — with a shell, Node space-joins
-  // the argv and lets cmd.exe re-parse it, which breaks on any path containing a space.
-  //
-  // Bare `pnpm`, not `pnpm.cmd`: cmd.exe resolves it through PATHEXT, so this finds the .cmd that
-  // a corepack or npm -g install leaves behind *and* the bare pnpm.exe that the standalone
-  // installer ships, where a hardcoded .cmd would not exist at all.
-  const onWindows = process.platform === 'win32';
-  run('pnpm', args, { shell: onWindows });
 }
 
 const reason = stalenessReason();
@@ -144,13 +135,13 @@ if (!reason) {
 console.log(`Building goose ACP client (${reason}) ...`);
 
 // Drop the stamp first, so that anything other than a clean run through the write below leaves no
-// stamp at all. run() exits the process on a failed build, and tsc emits even when it reports
+// stamp at all. A failed build exits the process, and tsc emits even when it reports
 // errors (ui/goose-acp-client/tsconfig.json does not set noEmitOnError), so a failed or interrupted build ends
 // with dist partly overwritten. Keeping the previous stamp over that would let a revert to the
 // inputs it describes skip the rebuild indefinitely.
 fs.rmSync(stampPath, { force: true });
 
-runPnpm(['--filter', '@aaif/goose-acp-client', 'run', 'build']);
+buildAcpClient();
 
 // An input saved while the build was running was compiled from its older bytes, so dist may not
 // match the tree. The stamp is already gone, which is the whole fix on a launch: nothing describes
