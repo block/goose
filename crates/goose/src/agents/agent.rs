@@ -2727,6 +2727,7 @@ impl Agent {
                         }
                     }
                 }
+                drop(pending_steers);
 
                 let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,
@@ -2737,7 +2738,6 @@ impl Agent {
                     &tools,
                     &toolshim_tools,
                 ).await?;
-                drop(pending_steers);
                 for message in drained_steer_events {
                     yield AgentEvent::Message(message);
                 }

@@ -104,6 +104,9 @@ nie może wybrać CryptoProvider. Zmiana P1 nie dotyka tych obszarów.
 CI dla `97b70ea` zakończyło się zielono. Kolejna poprawka review przywraca
 emit drained steer przed compaction replacement i odracza proactive
 state-machine compaction po tool result do exact prepared-request hooka.
+Następna poprawka review zwalnia blokadę steer po preflight, przed await
+provider streamu; steer dodany potem pozostaje w kolejce dla następnego
+preflight i nie zmienia już przygotowanego requestu.
 
 ## Pozostałe zadania
 
