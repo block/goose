@@ -22,42 +22,36 @@ Then launch Goose again and your deeplinks should work from the latest launched 
 node scripts/unregister-deeplink-protocols.js
 ```
 
-# Building the goose SDK
+# Building the Goose ACP client
 
-`build-goose-sdk.js` builds `@aaif/goose-sdk` (`ui/sdk`) and is what `postinstall` and `start-gui`
-call. It skips the build when the SDK's inputs — the ACP schemas, `ui/sdk/src` (bar
-`src/generated`, which the build writes), its tsconfig and package manifest, and the lockfile —
-hash the same as the last successful build, so a launch that changed nothing does no work. If one
-of those inputs is saved while a build is running, the stamp is dropped rather than written, so the
-next launch rebuilds instead of skipping over an edit that never reached `dist`.
+`build-goose-acp-client.js` builds `@aaif/goose-acp-client` (`ui/goose-acp-client`).
+Both `postinstall` and `start-gui` call it. It skips unchanged builds by hashing the
+ACP schemas, generator, handwritten sources, TypeScript configuration, package
+manifest, and workspace lockfile. Generated sources are build outputs and are excluded.
 
-`package` and `make` call it with `--force` instead, and should keep doing so. The input list above
-is a hand-maintained restatement of what the build reads; nothing enforces that it stays complete
-as the SDK grows. Skipping a launch's rebuild on a stale list costs seconds; skipping an artifact's
-costs a UI whose generated ACP dispatch disagrees with the backend schema, which `typecheck` will
-not catch because it typechecks against the stale generated types. Ten seconds on a run that
-already spends minutes on Rust and signing is not a trade worth making.
+A failed build or an input change during the build leaves no stamp, so the next
+launch rebuilds. The stamp lives in `node_modules/.cache`; a missing `dist/index.js`
+also triggers a build.
 
-To rebuild anyway:
+`package`, `make`, and `scripts/build-windows.ps1` always force a rebuild. The input
+list is maintained manually, so packaging must not rely on it to detect every change.
+A forced build fails if its inputs change while it runs.
+
+To force a development rebuild:
 
 ```bash
-pnpm run build-goose-sdk:force   # or: node scripts/build-goose-sdk.js --force
+pnpm run build-goose-acp-client:force
 ```
 
-`GOOSE_SDK_FORCE_BUILD=1` does the same thing, for callers that can only set an environment
-variable.
+`GOOSE_ACP_CLIENT_FORCE_BUILD=1` has the same effect. Use either option if generated
+sources or files in `dist` were edited or partially deleted.
 
 # Vite directories
 
-Nothing here clears either of them, and both omissions are deliberate.
+`node_modules/.vite` is Vite's dependency cache and survives client builds.
+`vite.renderer.config.mts` excludes `@aaif/goose-acp-client` from `optimizeDeps`, so
+Vite reads the client build directly.
 
-`node_modules/.vite` is the dependency-optimizer cache. It is left alone — including after an SDK
-rebuild. `vite.renderer.config.mts` excludes `@aaif/goose-sdk` from `optimizeDeps`, so the dev
-server never holds a pre-bundled copy of it to go stale, and refilling that cache costs tens of
-seconds per launch.
-
-`.vite` in the package root is Electron Forge's build output, and the Vite plugin builds it with
-`emptyOutDir: false` — but the plugin's own `preStart` and `prePackage` hooks `remove()` the whole
-directory first, so a file that stops being emitted cannot survive into a `start`, a `package` or a
-`make`. A cleanup step here would be doing nothing except adding a way for the recursive delete to
-fail the run.
+The package-root `.vite` directory contains Electron Forge's build output. The Vite
+plugin clears it in its `preStart` and `prePackage` hooks, so a separate cleanup step
+is unnecessary.
