@@ -1174,6 +1174,7 @@ impl Agent {
             Some(session.working_dir.clone()),
             Some(request_id.clone()),
         );
+        let ctx = ctx.with_model_from_session(session);
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
         let result = self
