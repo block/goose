@@ -2290,13 +2290,21 @@ impl Agent {
             }
         }
 
-        let needs_auto_compact = check_if_compaction_needed(
-            self.provider().await?.as_ref(),
-            &conversation,
-            None,
-            &session,
-        )
-        .await?;
+        let needs_auto_compact =
+            if crate::context_mgmt::context_tokens_since_last_inference(&conversation)
+                .await?
+                .is_some()
+            {
+                false
+            } else {
+                check_if_compaction_needed(
+                    self.provider().await?.as_ref(),
+                    &conversation,
+                    None,
+                    &session,
+                )
+                .await?
+            };
 
         let conversation_to_compact = conversation.clone();
         let reply_span = tracing::Span::current();
@@ -2616,20 +2624,20 @@ impl Agent {
                     break;
                 }
 
-                // The queue lock bridges the last steer drain, request token
-                // count, and provider call. This prevents a steer arriving in
-                // any of those awaits from bypassing the compaction check.
+                // The queue lock covers the final drain and request count. A
+                // steer arriving after it is released remains queued for the
+                // next preflight and cannot affect this prepared request.
                 let steer_queue = self.steer_queue(&session_config.id).await;
                 let mut pending_steers = steer_queue.lock().await;
                 let mut drained_steer_events = Vec::new();
+                let current_session = session_manager
+                    .get_session(&session_config.id, true)
+                    .await?;
                 if can_drain_pending_steers {
                     // Elicitation request/response messages are persisted while
                     // a tool is blocked, rather than flowing through
                     // `messages_to_add`. Reload the persisted conversation so a
                     // compaction replacement retains that exchange as well.
-                    let current_session = session_manager
-                        .get_session(&session_config.id, true)
-                        .await?;
                     if let Some(persisted_conversation) = current_session.conversation.clone() {
                         conversation = persisted_conversation;
                     }
@@ -2659,15 +2667,17 @@ impl Agent {
                         drained_steer_events.push(message);
                     }
 
-                    if check_if_compaction_needed_for_request(
-                        self.provider().await?.as_ref(),
-                        &conversation,
-                        None,
-                        &current_session,
-                        Some((&system_prompt, &tools)),
-                    )
-                    .await?
-                    {
+                }
+
+                if check_if_compaction_needed_for_request(
+                    self.provider().await?.as_ref(),
+                    &conversation,
+                    None,
+                    &current_session,
+                    Some((&system_prompt, &tools)),
+                )
+                .await?
+                {
                         drop(pending_steers);
                         for message in drained_steer_events {
                             yield AgentEvent::Message(message);
@@ -2725,7 +2735,6 @@ impl Agent {
                                 break;
                             }
                         }
-                    }
                 }
                 drop(pending_steers);
 

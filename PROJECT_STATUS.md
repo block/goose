@@ -107,6 +107,10 @@ state-machine compaction po tool result do exact prepared-request hooka.
 Następna poprawka review zwalnia blokadę steer po preflight, przed await
 provider streamu; steer dodany potem pozostaje w kolejce dla następnego
 preflight i nie zmienia już przygotowanego requestu.
+Po wykryciu regresji w CI przywrócono state-machine proactive compaction dla
+dużych tool resultów; legacy entry path odracza nieprecyzyjny wrapper check
+po takim turnie i wykonuje exact prepared-request check przed pierwszym
+provider requestem.
 
 ## Pozostałe zadania
 
