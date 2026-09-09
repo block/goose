@@ -167,9 +167,13 @@ echo "   ✓ Done"
 # the repo, so no patching is needed here.
 
 # 10. Update dependencies
+# Re-resolve only what this setup changes: the ICU-78 data blob and the
+# ICU/temporal crates freed by the relaxed pins. The patched path crates
+# (v8, deno_core, serde_v8) are picked up by the build itself. A bare
+# `cargo update` would drift every eligible dependency.
 echo "10. Updating Cargo dependencies..."
 cd "$REPO_ROOT"
-cargo update --quiet
+cargo update --quiet deno_core_icudata icu_calendar icu_locale temporal_rs
 echo "   ✓ Done"
 
 # 11. Verify toolchain is available.

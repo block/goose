@@ -222,12 +222,15 @@ clean for RISC-V builds (inert on other targets):
 
 ### 9. Update Dependencies
 
+Update only the dependencies this setup changes, not the whole lockfile:
+
 ```bash
-cargo update
+cargo update deno_core_icudata icu_calendar icu_locale temporal_rs
 ```
 
 Expected changes:
-- v8: 145.0.0 → 152.2.0 (local)
+- v8: 145.0.0 → 152.2.0 (local, via the patch)
+- deno_core_icudata: 0.77.0 → 0.78.0
 - temporal_rs: 0.1.2 → 0.2.6
 - icu_calendar: 2.1.1 → 2.3.0
 
