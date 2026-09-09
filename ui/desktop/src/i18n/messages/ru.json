@@ -3159,7 +3159,7 @@
     "defaultMessage": "Нет сохраненных рецептов"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Рецепты, сохраненные из чатов, появятся здесь."
+    "defaultMessage": "Сохраненные рецепты появятся здесь."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Открыть в новом окне"

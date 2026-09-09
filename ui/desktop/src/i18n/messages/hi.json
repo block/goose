@@ -3159,7 +3159,7 @@
     "defaultMessage": "कोई सहेजी गई रेसिपी नहीं"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "चैट से सहेजी गई रेसिपी यहां दिखाई देगी."
+    "defaultMessage": "सहेजी गई रेसिपी यहां दिखाई देगी."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "नई विंडो में खोलें"
