@@ -3159,7 +3159,7 @@
     "defaultMessage": "保存済みのレシピはありません"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "チャットから保存したレシピがここに表示されます。"
+    "defaultMessage": "保存したレシピがここに表示されます。"
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"

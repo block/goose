@@ -3159,7 +3159,7 @@
     "defaultMessage": "Sem receitas guardadas"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "As receitas guardadas a partir de conversas aparecerão aqui."
+    "defaultMessage": "As receitas guardadas aparecerão aqui."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Abrir numa nova janela"

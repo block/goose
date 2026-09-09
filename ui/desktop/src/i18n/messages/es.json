@@ -3159,7 +3159,7 @@
     "defaultMessage": "No hay recetas guardadas"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Las recetas guardadas desde los chats aparecerán aquí."
+    "defaultMessage": "Las recetas guardadas aparecerán aquí."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Abrir en una ventana nueva"

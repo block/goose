@@ -3159,7 +3159,7 @@
     "defaultMessage": "Aucune recette enregistrée"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Les recettes enregistrées à partir des conversations apparaîtront ici."
+    "defaultMessage": "Les recettes enregistrées apparaîtront ici."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Ouvrir dans une nouvelle fenêtre"

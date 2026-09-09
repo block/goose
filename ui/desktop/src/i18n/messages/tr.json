@@ -3159,7 +3159,7 @@
     "defaultMessage": "Kayıtlı tarif yok"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Sohbetlerden kaydedilen tarif burada görünecek."
+    "defaultMessage": "Kaydedilen tarifler burada görünecek."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Yeni pencerede aç"
