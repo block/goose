@@ -590,6 +590,19 @@ impl Agent {
         }
     }
 
+    pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
+        let queue = self.steer_queues.lock().await.get(session_id).cloned();
+        match queue {
+            Some(queue) => queue
+                .lock()
+                .await
+                .drain(..)
+                .map(Message::with_steer)
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
     async fn steer_queue(&self, session_id: &str) -> SteerQueue {
         self.steer_queues
             .lock()
@@ -2568,6 +2581,30 @@ impl Agent {
                     guard.as_mut().and_then(|fot| fot.final_output.take())
                 };
                 if let Some(output) = final_output {
+                    for message in self.drain_pending_steers(&session_config.id).await {
+                        let message_text = agent_visible_message_text(&message);
+                        if self
+                            .hook_manager
+                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+                        {
+                            let ctx = crate::hooks::HookContext::new(
+                                crate::hooks::HookEvent::UserPromptSubmit,
+                                &session_config.id,
+                            )
+                            .with_message(message_text);
+                            self.hook_manager
+                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                                .await;
+                        }
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
+                        yield AgentEvent::Message(message);
+                    }
                     last_assistant_text = output.clone();
                     let message = Message::assistant()
                         .with_text(output)
@@ -2726,6 +2763,7 @@ impl Agent {
                                 .await?;
                                 conversation = compaction.conversation;
                                 yield AgentEvent::HistoryReplaced(conversation.clone());
+                                retrying_after_empty_turn = true;
                                 continue;
                             }
                             Err(e) => {

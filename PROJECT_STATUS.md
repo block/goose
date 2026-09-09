@@ -111,6 +111,8 @@ Po wykryciu regresji w CI przywrócono state-machine proactive compaction dla
 dużych tool resultów; legacy entry path odracza nieprecyzyjny wrapper check
 po takim turnie i wykonuje exact prepared-request check przed pierwszym
 provider requestem.
+Najnowsza poprawka review zachowuje legacy turn budget po compaction restart
+i zapisuje queued steer przed terminalnym final output.
 
 ## Pozostałe zadania
 
