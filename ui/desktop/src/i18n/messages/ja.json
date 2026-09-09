@@ -3047,6 +3047,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "キャンセル"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "このレシピが実行するコマンド:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "このレシピは起動時に次のコマンドをあなたのマシンで実行します。提供元を信頼できる場合のみ続行してください。"
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "説明:"
   },
@@ -3064,6 +3070,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "レシピのプレビュー:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "このレシピが実行する内容を確認できませんでした。キャンセルしてもう一度お試しください。"
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "このレシピが実行する内容を確認しています…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ セキュリティ警告"

@@ -1705,7 +1705,17 @@ export type ScanRecipeRequest_unstable = {
 };
 
 export type ScanRecipeResponse_unstable = {
+    /**
+     * Hidden/obfuscated content (unicode tags). Blocks saving, unlike `commands`.
+     */
     has_security_warnings: boolean;
+    commands?: Array<RecipeCommandDto>;
+    requires_approval?: boolean;
+};
+
+export type RecipeCommandDto = {
+    source: string;
+    command: string;
 };
 
 /**

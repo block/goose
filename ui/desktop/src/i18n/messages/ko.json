@@ -3047,6 +3047,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "취소"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "이 레시피가 실행할 명령:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "이 레시피는 시작할 때 사용자의 컴퓨터에서 다음 명령을 실행합니다. 출처를 신뢰하는 경우에만 계속하세요."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "설명:"
   },
@@ -3064,6 +3070,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "레시피 미리보기:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "이 레시피가 실행할 내용을 확인할 수 없습니다. 취소하고 다시 시도하세요."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "이 레시피가 실행할 내용을 확인하는 중…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ 보안 경고"

@@ -1,4 +1,5 @@
 import type {
+  RecipeCommandDto,
   RecipeDto,
   RecipeExtensionDto,
   RecipeListEntryDto,
@@ -43,9 +44,20 @@ export async function decodeRecipe(deeplink: string): Promise<Recipe> {
   }
 }
 
-export async function scanRecipe(recipe: Recipe): Promise<{ has_security_warnings: boolean }> {
+export type RecipeCommand = RecipeCommandDto;
+
+export async function scanRecipe(recipe: Recipe): Promise<{
+  has_security_warnings: boolean;
+  commands: RecipeCommand[];
+  requires_approval: boolean;
+}> {
   try {
-    return await acpScanRecipe(recipe);
+    const result = await acpScanRecipe(recipe);
+    return {
+      has_security_warnings: result.has_security_warnings,
+      commands: result.commands ?? [],
+      requires_approval: result.requires_approval ?? false,
+    };
   } catch (error) {
     console.error('Failed to scan recipe:', error);
     throw error;

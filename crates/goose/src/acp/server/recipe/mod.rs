@@ -10,10 +10,11 @@ use fs_err as fs;
 use goose_sdk_types::custom_requests::{
     DecodeRecipeRequest, DecodeRecipeResponse, DeleteRecipeRequest, EmptyResponse,
     EncodeRecipeRequest, EncodeRecipeResponse, ListRecipesRequest, ListRecipesResponse,
-    ParseRecipeRequest, ParseRecipeResponse, RecipeDto, RecipeParameterDto, RecipeParamsAction,
-    RecipeParamsResponse, RecipeToYamlRequest, RecipeToYamlResponse, RequestRecipeParams,
-    SaveRecipeRequest, SaveRecipeResponse, ScanRecipeRequest, ScanRecipeResponse,
-    ScheduleRecipeRequest, SetRecipeSlashCommandRequest, REQUEST_RECIPE_PARAMS_METHOD,
+    ParseRecipeRequest, ParseRecipeResponse, RecipeCommandDto, RecipeDto, RecipeParameterDto,
+    RecipeParamsAction, RecipeParamsResponse, RecipeToYamlRequest, RecipeToYamlResponse,
+    RequestRecipeParams, SaveRecipeRequest, SaveRecipeResponse, ScanRecipeRequest,
+    ScanRecipeResponse, ScheduleRecipeRequest, SetRecipeSlashCommandRequest,
+    REQUEST_RECIPE_PARAMS_METHOD,
 };
 use tokio::sync::oneshot;
 
@@ -137,8 +138,18 @@ impl GooseAcpAgent {
         req: ScanRecipeRequest,
     ) -> Result<ScanRecipeResponse, agent_client_protocol::Error> {
         let recipe = recipe_from_dto(req.recipe)?;
+        let commands: Vec<RecipeCommandDto> = recipe
+            .command_execution_warnings()
+            .into_iter()
+            .map(|warning| RecipeCommandDto {
+                source: warning.source,
+                command: warning.command,
+            })
+            .collect();
         Ok(ScanRecipeResponse {
             has_security_warnings: recipe.check_for_security_warnings(),
+            requires_approval: !commands.is_empty(),
+            commands,
         })
     }
 

@@ -3047,6 +3047,12 @@
   "recipeWarningModal.cancel": {
     "defaultMessage": "Hủy"
   },
+  "recipeWarningModal.commandsLabel": {
+    "defaultMessage": "Các lệnh mà công thức này sẽ chạy:"
+  },
+  "recipeWarningModal.commandsWarning": {
+    "defaultMessage": "Công thức này sẽ chạy các lệnh sau trên máy của bạn khi khởi động. Chỉ tiếp tục nếu bạn tin tưởng nguồn."
+  },
   "recipeWarningModal.descriptionLabel": {
     "defaultMessage": "Mô tả:"
   },
@@ -3064,6 +3070,12 @@
   },
   "recipeWarningModal.recipePreview": {
     "defaultMessage": "Xem trước công thức:"
+  },
+  "recipeWarningModal.scanFailed": {
+    "defaultMessage": "Không thể kiểm tra công thức này sẽ chạy gì. Hãy hủy và thử lại."
+  },
+  "recipeWarningModal.scanPending": {
+    "defaultMessage": "Đang kiểm tra công thức này sẽ chạy gì…"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Cảnh báo bảo mật"

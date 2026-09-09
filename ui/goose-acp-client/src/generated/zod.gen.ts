@@ -1347,8 +1347,15 @@ export const zScanRecipeRequest_unstable = z.object({
     recipe: zRecipeDto
 });
 
+export const zRecipeCommandDto = z.object({
+    source: z.string(),
+    command: z.string()
+});
+
 export const zScanRecipeResponse_unstable = z.object({
-    has_security_warnings: z.boolean()
+    has_security_warnings: z.boolean(),
+    commands: z.array(zRecipeCommandDto).optional().default([]),
+    requires_approval: z.boolean().optional().default(false)
 });
 
 /**

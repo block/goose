@@ -5279,6 +5279,7 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-typescript",
  "unicode-normalization",
+ "unicode-properties",
  "url",
  "urlencoding",
  "uuid",

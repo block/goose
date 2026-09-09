@@ -329,9 +329,21 @@ pub struct ScanRecipeRequest {
     pub recipe: RecipeDto,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RecipeCommandDto {
+    pub source: String,
+    pub command: String,
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ScanRecipeResponse {
+    /// Hidden/obfuscated content (unicode tags). Blocks saving, unlike `commands`.
     pub has_security_warnings: bool,
+    #[serde(default)]
+    pub commands: Vec<RecipeCommandDto>,
+    // Consumed by the part 2 consent gate; today the desktop modal keys off `commands` directly.
+    #[serde(default)]
+    pub requires_approval: bool,
 }
 
 /// Save a recipe to the local recipe library.

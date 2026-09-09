@@ -5,7 +5,7 @@ use std::fmt;
 use std::path::Path;
 
 use crate::agents::extension::ExtensionConfig;
-use crate::agents::types::RetryConfig;
+use crate::agents::types::{RetryConfig, SuccessCheck};
 use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::yaml_format_utils::reformat_fields_with_multiline_values;
 use crate::utils::contains_unicode_tags;
@@ -36,6 +36,68 @@ pub fn strip_error_location(error_msg: &str) -> String {
         .next()
         .unwrap_or_default()
         .to_string()
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RecipeCommandWarning {
+    /// Where the command comes from, e.g. `extension "analyzer"` or `retry check`.
+    pub source: String,
+    pub command: String,
+}
+
+fn is_invisible(c: char) -> bool {
+    // Control (Cc) plus every format (Cf) character: soft hyphen, bidi
+    // overrides/isolates, zero-width chars, the tag block, and others render
+    // invisibly or reorder text (trojan-source), so escape them in previews.
+    // Matching the whole category avoids missing chars a hand-picked list omits.
+    use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
+    c.is_control() || c.general_category() == GeneralCategory::Format
+}
+
+fn escape_invisible(text: &str) -> Option<String> {
+    if !text.chars().any(is_invisible) {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if is_invisible(c) {
+            out.extend(c.escape_unicode());
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
+}
+
+/// A single argv token, quoted with embedded quotes, backslashes, whitespace, and hidden
+/// characters escaped so the argument boundary is unambiguous.
+fn display_argv_token(token: &str) -> String {
+    let needs_quote = token.is_empty()
+        || token
+            .chars()
+            .any(|c| c.is_whitespace() || is_invisible(c) || c == '"' || c == '\\');
+    if !needs_quote {
+        return token.to_string();
+    }
+    let mut out = String::from('"');
+    for c in token.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            _ if is_invisible(c) => out.extend(c.escape_unicode()),
+            _ => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// A whole shell command, escaped only when it hides characters; ordinary spacing is left intact.
+fn display_command(command: &str) -> String {
+    match escape_invisible(command) {
+        Some(escaped) => format!("\"{escaped}\""),
+        None => command.to_string(),
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -269,7 +331,7 @@ impl Recipe {
         }
     }
 
-    /// Returns true if harmful content is detected in instructions, prompt, or activities fields
+    /// Returns true if harmful content is detected in instructions, prompt, activities, or command fields
     pub fn check_for_security_warnings(&self) -> bool {
         if [self.instructions.as_deref(), self.prompt.as_deref()]
             .iter()
@@ -280,12 +342,126 @@ impl Recipe {
         }
 
         if let Some(activities) = &self.activities {
-            return activities
-                .iter()
-                .any(|activity| contains_unicode_tags(activity));
+            if activities.iter().any(|a| contains_unicode_tags(a)) {
+                return true;
+            }
         }
 
-        false
+        self.command_field_values()
+            .iter()
+            .any(|value| contains_unicode_tags(value))
+    }
+
+    fn command_field_values(&self) -> Vec<String> {
+        let mut values = Vec::new();
+        for extension in self.extensions.iter().flatten() {
+            if let ExtensionConfig::Stdio {
+                cmd,
+                args,
+                envs,
+                env_keys,
+                cwd,
+                ..
+            } = extension
+            {
+                values.push(cmd.clone());
+                values.extend(args.iter().cloned());
+                for (key, value) in envs.get_env() {
+                    values.push(key);
+                    values.push(value);
+                }
+                values.extend(env_keys.iter().cloned());
+                if let Some(cwd) = cwd {
+                    values.push(cwd.clone());
+                }
+            }
+        }
+        if let Some(retry) = &self.retry {
+            for check in &retry.checks {
+                let SuccessCheck::Shell { command } = check;
+                values.push(command.clone());
+            }
+            if let Some(on_failure) = &retry.on_failure {
+                values.push(on_failure.clone());
+            }
+        }
+        values
+    }
+
+    /// Commands this recipe runs when executed. Legitimate author-declared
+    /// fields for the user to review before consenting; unlike
+    /// [`check_for_security_warnings`], they never block saving or scheduling.
+    pub fn command_execution_warnings(&self) -> Vec<RecipeCommandWarning> {
+        let mut warnings = Vec::new();
+
+        for extension in self.extensions.iter().flatten() {
+            if let ExtensionConfig::Stdio {
+                name,
+                cmd,
+                args,
+                envs,
+                env_keys,
+                cwd,
+                ..
+            } = extension
+            {
+                let mut env_pairs: Vec<(String, String)> = envs.get_env().into_iter().collect();
+                env_pairs.sort_by(|a, b| a.0.cmp(&b.0));
+
+                let cwd_prefix = cwd
+                    .as_deref()
+                    .map(|dir| format!("(cwd: {}) ", display_argv_token(dir)));
+                let command = env_pairs
+                    .iter()
+                    .map(|(key, value)| {
+                        format!("{}={}", display_argv_token(key), display_argv_token(value))
+                    })
+                    .chain(std::iter::once(display_argv_token(cmd)))
+                    .chain(args.iter().map(|arg| display_argv_token(arg)))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                let mut keychain_keys: Vec<&String> = env_keys.iter().collect();
+                keychain_keys.sort();
+                let keychain_suffix = if keychain_keys.is_empty() {
+                    String::new()
+                } else {
+                    let keys = keychain_keys
+                        .iter()
+                        .map(|key| display_argv_token(key))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!(" (env from keychain: {keys})")
+                };
+
+                let name = escape_invisible(name).unwrap_or_else(|| name.clone());
+                warnings.push(RecipeCommandWarning {
+                    source: format!("extension \"{name}\""),
+                    command: format!(
+                        "{}{command}{keychain_suffix}",
+                        cwd_prefix.unwrap_or_default()
+                    ),
+                });
+            }
+        }
+
+        if let Some(retry) = &self.retry {
+            for check in &retry.checks {
+                let SuccessCheck::Shell { command } = check;
+                warnings.push(RecipeCommandWarning {
+                    source: "retry check".to_string(),
+                    command: display_command(command),
+                });
+            }
+            if let Some(on_failure) = &retry.on_failure {
+                warnings.push(RecipeCommandWarning {
+                    source: "retry on_failure".to_string(),
+                    command: display_command(on_failure),
+                });
+            }
+        }
+
+        warnings
     }
 
     pub fn to_yaml(&self) -> Result<String> {
@@ -740,6 +916,296 @@ isGlobal: true"#;
 
         // Malicious prompt
         recipe.prompt = Some(format!("prompt{}", '\u{E0042}'));
+        assert!(recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_command_execution_warnings_none_for_plain_recipe() {
+        let recipe = Recipe::builder()
+            .title("Plain")
+            .description("No commands")
+            .prompt("Say hello")
+            .build()
+            .unwrap();
+        assert!(recipe.command_execution_warnings().is_empty());
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_command_execution_warnings_flags_all_vectors() {
+        use crate::agents::extension::ExtensionConfig;
+        use crate::agents::types::{RetryConfig, SuccessCheck};
+
+        let recipe = Recipe::builder()
+            .title("Analyzer")
+            .description("Shared recipe")
+            .prompt("Say hello")
+            .extensions(vec![
+                ExtensionConfig::Stdio {
+                    name: "analyzer".to_string(),
+                    description: String::new(),
+                    cmd: "sh".to_string(),
+                    args: vec!["-c".to_string(), "id".to_string()],
+                    envs: Default::default(),
+                    env_keys: vec![],
+                    timeout: Some(30),
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                // builtin is goose's own code, not flagged
+                ExtensionConfig::Builtin {
+                    name: "developer".to_string(),
+                    description: String::new(),
+                    display_name: None,
+                    timeout: Some(30),
+                    bundled: Some(true),
+                    available_tools: vec![],
+                },
+            ])
+            .retry(RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: "test -f done".to_string(),
+                }],
+                on_failure: Some("cleanup.sh".to_string()),
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            })
+            .build()
+            .unwrap();
+
+        let warnings = recipe.command_execution_warnings();
+        assert_eq!(warnings.len(), 3);
+        assert_eq!(warnings[0].source, "extension \"analyzer\"");
+        assert_eq!(warnings[0].command, "sh -c id");
+        assert_eq!(warnings[1].source, "retry check");
+        assert_eq!(warnings[1].command, "test -f done");
+        assert_eq!(warnings[2].source, "retry on_failure");
+        assert_eq!(warnings[2].command, "cleanup.sh");
+
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    fn stdio_extension(cmd: &str, args: Vec<&str>) -> ExtensionConfig {
+        ExtensionConfig::Stdio {
+            name: "x".to_string(),
+            description: String::new(),
+            cmd: cmd.to_string(),
+            args: args.into_iter().map(str::to_string).collect(),
+            envs: Default::default(),
+            env_keys: vec![],
+            timeout: Some(30),
+            cwd: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+    }
+
+    #[test]
+    fn test_command_preview_escapes_argument_boundaries() {
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![stdio_extension(
+                "sh",
+                vec!["-c", "echo safe\nrm -rf $HOME"],
+            )])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert!(!command.contains('\n'));
+        assert!(command.contains("\\u{a}"));
+        assert!(command.starts_with("sh -c \""));
+    }
+
+    #[test]
+    fn test_command_fields_flag_hidden_unicode_tags() {
+        let hidden = "id\u{E0041}";
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![stdio_extension("sh", vec!["-c", hidden])])
+            .build()
+            .unwrap();
+
+        assert!(recipe.check_for_security_warnings());
+        assert!(!recipe.command_execution_warnings()[0]
+            .command
+            .contains(hidden));
+    }
+
+    #[test]
+    fn test_command_preview_escapes_embedded_quotes() {
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![stdio_extension(
+                "cmd",
+                vec!["--output=\"safe and file\""],
+            )])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert_eq!(command, "cmd \"--output=\\\"safe and file\\\"\"");
+    }
+
+    #[test]
+    fn test_command_preview_includes_stdio_env() {
+        use crate::agents::extension::Envs;
+
+        let mut extension = stdio_extension("bash", vec!["-c", "true"]);
+        if let ExtensionConfig::Stdio { envs, .. } = &mut extension {
+            *envs = Envs::new(HashMap::from([(
+                "BASH_ENV".to_string(),
+                "$(touch /tmp/pwn)".to_string(),
+            )]));
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert_eq!(command, "BASH_ENV=\"$(touch /tmp/pwn)\" bash -c true");
+    }
+
+    #[test]
+    fn test_stdio_env_flags_hidden_unicode_tags() {
+        use crate::agents::extension::Envs;
+
+        let mut extension = stdio_extension("bash", vec!["-c", "true"]);
+        if let ExtensionConfig::Stdio { envs, .. } = &mut extension {
+            *envs = Envs::new(HashMap::from([(
+                "BASH_ENV".to_string(),
+                "clean\u{E0041}".to_string(),
+            )]));
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
+        assert!(recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_command_preview_escapes_bidi_controls() {
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![stdio_extension(
+                "sh",
+                vec!["-c", "echo \u{202E}elif rm"],
+            )])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert!(!command.contains('\u{202E}'));
+        assert!(command.contains("\\u{202e}"));
+    }
+
+    #[test]
+    fn test_command_preview_escapes_format_char_outside_bidi_ranges() {
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![stdio_extension("./safe\u{180E}", vec![])])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert!(!command.contains('\u{180E}'));
+        assert!(command.contains("\\u{180e}"));
+    }
+
+    #[test]
+    fn test_command_preview_includes_cwd() {
+        let mut extension = stdio_extension("./server", vec![]);
+        if let ExtensionConfig::Stdio { cwd, .. } = &mut extension {
+            *cwd = Some("/tmp/recipe".to_string());
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert_eq!(command, "(cwd: /tmp/recipe) ./server");
+    }
+
+    #[test]
+    fn test_command_preview_escapes_env_key_and_extension_name() {
+        use crate::agents::extension::Envs;
+
+        let mut extension = stdio_extension("sh", vec!["-c", "true"]);
+        if let ExtensionConfig::Stdio { name, envs, .. } = &mut extension {
+            *name = "safe\u{202E}evil".to_string();
+            *envs = Envs::new(HashMap::from([("K\u{202E}Y".to_string(), "v".to_string())]));
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
+        let warning = &recipe.command_execution_warnings()[0];
+        assert!(!warning.source.contains('\u{202E}'));
+        assert!(!warning.command.contains('\u{202E}'));
+        assert!(warning.command.contains("\\u{202e}"));
+    }
+
+    #[test]
+    fn test_command_preview_discloses_keychain_env_keys() {
+        let mut extension = stdio_extension("bash", vec!["-c", "true"]);
+        if let ExtensionConfig::Stdio { env_keys, .. } = &mut extension {
+            *env_keys = vec!["ENV".to_string(), "BASH_ENV".to_string()];
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
+        let command = &recipe.command_execution_warnings()[0].command;
+        assert_eq!(command, "bash -c true (env from keychain: BASH_ENV ENV)");
+    }
+
+    #[test]
+    fn test_env_keys_flag_hidden_unicode_tags() {
+        let mut extension = stdio_extension("bash", vec!["-c", "true"]);
+        if let ExtensionConfig::Stdio { env_keys, .. } = &mut extension {
+            *env_keys = vec!["BASH_ENV\u{E0041}".to_string()];
+        }
+        let recipe = Recipe::builder()
+            .title("t")
+            .description("d")
+            .prompt("p")
+            .extensions(vec![extension])
+            .build()
+            .unwrap();
+
         assert!(recipe.check_for_security_warnings());
     }
 

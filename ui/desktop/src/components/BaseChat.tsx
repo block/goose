@@ -21,7 +21,7 @@ import { acpDeleteSession, acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
-import { scanRecipe } from '../recipe';
+import { scanRecipe, type RecipeCommand } from '../recipe';
 import type { Recipe } from '../recipe';
 import RecipeActivities from './recipes/RecipeActivities';
 import {
@@ -92,6 +92,9 @@ export default function BaseChat({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+  const [recipeCommands, setRecipeCommands] = useState<RecipeCommand[]>([]);
+  const [recipeScanPending, setRecipeScanPending] = useState(false);
+  const [recipeScanFailed, setRecipeScanFailed] = useState(false);
   const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
   const isMobile = useIsMobile();
   const navContext = useNavigationContextSafe();
@@ -239,15 +242,33 @@ export default function BaseChat({
   useEffect(() => {
     if (!recipe || !isActiveSession || session?.session_type === 'scheduled') return;
 
+    let cancelled = false;
     (async () => {
       const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
+      if (cancelled) return;
       setHasNotAcceptedRecipe(!accepted);
 
       if (!accepted) {
-        const scanResult = await scanRecipe(recipe);
-        setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
+        setRecipeScanPending(true);
+        setRecipeScanFailed(false);
+        try {
+          const scanResult = await scanRecipe(recipe);
+          if (cancelled) return;
+          setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
+          setRecipeCommands(scanResult.commands);
+        } catch (error) {
+          if (cancelled) return;
+          console.error('Failed to scan recipe:', error);
+          setRecipeScanFailed(true);
+        } finally {
+          if (!cancelled) setRecipeScanPending(false);
+        }
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [recipe, isActiveSession, session?.session_type]);
 
   const handleRecipeAccept = async (accept: boolean) => {
@@ -563,6 +584,9 @@ export default function BaseChat({
             instructions: recipe.instructions || undefined,
           }}
           hasSecurityWarnings={hasRecipeSecurityWarnings}
+          commands={recipeCommands}
+          scanPending={recipeScanPending}
+          scanFailed={recipeScanFailed}
         />
       )}
     </div>
