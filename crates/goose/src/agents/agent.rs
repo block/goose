@@ -590,19 +590,6 @@ impl Agent {
         }
     }
 
-    pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        let queue = self.steer_queues.lock().await.get(session_id).cloned();
-        match queue {
-            Some(queue) => queue
-                .lock()
-                .await
-                .drain(..)
-                .map(Message::with_steer)
-                .collect(),
-            None => Vec::new(),
-        }
-    }
-
     async fn steer_queue(&self, session_id: &str) -> SteerQueue {
         self.steer_queues
             .lock()
@@ -2568,33 +2555,6 @@ impl Agent {
                     break;
                 }
 
-                if can_drain_pending_steers {
-                    for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = agent_visible_message_text(&message);
-                        if self
-                            .hook_manager
-                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-                        {
-                            let ctx = crate::hooks::HookContext::new(
-                                crate::hooks::HookEvent::UserPromptSubmit,
-                                &session_config.id,
-                            )
-                            .with_message(message_text);
-                            self.hook_manager
-                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                                .await;
-                        }
-                        let message = persist_and_push_message_with_id(
-                            &session_manager,
-                            &session_config.id,
-                            &mut conversation,
-                            message,
-                        )
-                        .await?;
-                        yield AgentEvent::Message(message);
-                    }
-                }
-
                 let final_output = {
                     let mut guard = self.final_output_tool.lock().await;
                     guard.as_mut().and_then(|fot| fot.final_output.take())
@@ -2656,6 +2616,115 @@ impl Agent {
                     break;
                 }
 
+                // The queue lock bridges the last steer drain, request token
+                // count, and provider call. This prevents a steer arriving in
+                // any of those awaits from bypassing the compaction check.
+                let steer_queue = self.steer_queue(&session_config.id).await;
+                let mut pending_steers = steer_queue.lock().await;
+                let mut drained_steer_events = Vec::new();
+                if can_drain_pending_steers {
+                    // Elicitation request/response messages are persisted while
+                    // a tool is blocked, rather than flowing through
+                    // `messages_to_add`. Reload the persisted conversation so a
+                    // compaction replacement retains that exchange as well.
+                    let current_session = session_manager
+                        .get_session(&session_config.id, true)
+                        .await?;
+                    if let Some(persisted_conversation) = current_session.conversation.clone() {
+                        conversation = persisted_conversation;
+                    }
+
+                    for message in pending_steers.drain(..).map(Message::with_steer) {
+                        let message_text = agent_visible_message_text(&message);
+                        if self
+                            .hook_manager
+                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+                        {
+                            let ctx = crate::hooks::HookContext::new(
+                                crate::hooks::HookEvent::UserPromptSubmit,
+                                &session_config.id,
+                            )
+                            .with_message(message_text);
+                            self.hook_manager
+                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                                .await;
+                        }
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
+                        drained_steer_events.push(message);
+                    }
+
+                    if check_if_compaction_needed_for_request(
+                        self.provider().await?.as_ref(),
+                        &conversation,
+                        None,
+                        &current_session,
+                        Some((&system_prompt, &tools)),
+                    )
+                    .await?
+                    {
+                        drop(pending_steers);
+                        let threshold = Config::global()
+                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                        let threshold_percentage = (threshold * 100.0) as u32;
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                format!(
+                                    "Exceeded auto-compact threshold of {threshold_percentage}%. Performing auto-compaction..."
+                                ),
+                            ),
+                        );
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::ProgressMessage,
+                                COMPACTION_PROGRESS_TEXT,
+                            ),
+                        );
+
+                        match compact_messages(
+                            self.provider().await?.as_ref(),
+                            &model_config,
+                            &session_config.id,
+                            &conversation,
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(compaction) => {
+                                session_manager
+                                    .replace_conversation(
+                                        &session_config.id,
+                                        &compaction.conversation,
+                                    )
+                                    .await?;
+                                self.update_session_metrics(
+                                    &session_config.id,
+                                    session_config.schedule_id.clone(),
+                                    &compaction.usage,
+                                    Some(compaction.retained_context_tokens),
+                                )
+                                .await?;
+                                conversation = compaction.conversation;
+                                yield AgentEvent::HistoryReplaced(conversation.clone());
+                                continue;
+                            }
+                            Err(e) => {
+                                yield AgentEvent::Message(Message::assistant().with_text(format!(
+                                    "Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session"
+                                )));
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,
                     model_config.clone(),
@@ -2665,6 +2734,10 @@ impl Agent {
                     &tools,
                     &toolshim_tools,
                 ).await?;
+                drop(pending_steers);
+                for message in drained_steer_events {
+                    yield AgentEvent::Message(message);
+                }
                 last_assistant_text.clear();
 
                 let current_turn_tool_count = conversation.messages().iter()
@@ -3563,110 +3636,6 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
-
-                if !exit_chat && conversation.last().is_some_and(Message::is_tool_response) {
-                    // A steer can arrive while a tool executes. Drain it before
-                    // checking the next request so the compact decision accounts
-                    // for every message that will be sent to the provider.
-                    for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = agent_visible_message_text(&message);
-                        if self
-                            .hook_manager
-                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-                        {
-                            let ctx = crate::hooks::HookContext::new(
-                                crate::hooks::HookEvent::UserPromptSubmit,
-                                &session_config.id,
-                            )
-                            .with_message(message_text);
-                            self.hook_manager
-                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                                .await;
-                        }
-                        let message = persist_and_push_message_with_id(
-                            &session_manager,
-                            &session_config.id,
-                            &mut conversation,
-                            message,
-                        )
-                        .await?;
-                        yield AgentEvent::Message(message);
-                    }
-
-                    let current_session = session_manager
-                        .get_session(&session_config.id, true)
-                        .await?;
-                    // Elicitation request/response messages are persisted while
-                    // a tool is blocked, rather than flowing through
-                    // `messages_to_add`. Reload the persisted conversation so a
-                    // compaction replacement retains that exchange as well.
-                    if let Some(persisted_conversation) = current_session.conversation.clone() {
-                        conversation = persisted_conversation;
-                    }
-                    if check_if_compaction_needed_for_request(
-                        self.provider().await?.as_ref(),
-                        &conversation,
-                        None,
-                        &current_session,
-                        Some((&system_prompt, &tools)),
-                    )
-                    .await?
-                    {
-                        let threshold = Config::global()
-                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                        let threshold_percentage = (threshold * 100.0) as u32;
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::InlineMessage,
-                                format!(
-                                    "Exceeded auto-compact threshold of {threshold_percentage}%. Performing auto-compaction..."
-                                ),
-                            ),
-                        );
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::ProgressMessage,
-                                COMPACTION_PROGRESS_TEXT,
-                            ),
-                        );
-
-                        match compact_messages(
-                            self.provider().await?.as_ref(),
-                            &model_config,
-                            &session_config.id,
-                            &conversation,
-                            false,
-                        )
-                        .await
-                        {
-                            Ok(compaction) => {
-                                session_manager
-                                    .replace_conversation(
-                                        &session_config.id,
-                                        &compaction.conversation,
-                                    )
-                                    .await?;
-                                self.update_session_metrics(
-                                    &session_config.id,
-                                    session_config.schedule_id.clone(),
-                                    &compaction.usage,
-                                    Some(compaction.retained_context_tokens),
-                                )
-                                .await?;
-                                conversation = compaction.conversation;
-                                yield AgentEvent::HistoryReplaced(conversation.clone());
-                                continue;
-                            }
-                            Err(e) => {
-                                yield AgentEvent::Message(Message::assistant().with_text(format!(
-                                    "Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session"
-                                )));
-                                break;
-                            }
-                        }
-                    }
-                }
 
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;
@@ -5983,7 +5952,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             !agent.has_pending_steers(session_id).await,
             "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
         );
-        assert!(agent.drain_pending_steers(session_id).await.is_empty());
     }
 
     #[test]
