@@ -74,12 +74,15 @@ rm vendor/serde_v8-0.290.0.crate
 
 ### 4. Apply Patches
 
-#### vendor/v8 — no changes needed
+#### vendor/v8 — drop it from the workspace
 
 The cloned `vendor/rusty_v8` is itself the `v8` crate at `152.2.0`, so the
 root `[patch.crates-io]` entry points straight at it (see step 6). The
-committed `vendor/v8` shim is left as-is; it stays a workspace member but
-nothing depends on it once the patch is redirected.
+committed `vendor/v8` shim is not edited, but it must leave the workspace:
+it pulls in `v8-goose`, which declares `links = "rusty_v8"`, and once the
+patch resolves denoland's `v8` 152 (also `links = "rusty_v8"`) a workspace
+containing both fails with "more than one crate with links=rusty_v8". Remove
+`vendor/v8` from `members` and add it to `exclude` (see step 6).
 
 #### vendor/deno_core/Cargo.toml
 
@@ -168,8 +171,8 @@ Add workspace exclusion and patches:
 
 ```toml
 [workspace]
-members = ["crates/*", "vendor/v8"]
-exclude = ["vendor/rusty_v8"]  # Avoid nested workspace
+members = ["crates/*"]  # drop "vendor/v8" (see step 4)
+exclude = ["vendor/v8", "vendor/rusty_v8"]
 resolver = "2"
 
 # Relax ICU pins (temporal 0.2.6 handles this):

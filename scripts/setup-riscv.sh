@@ -114,15 +114,19 @@ echo "   ✓ Done"
 echo "8. Updating root Cargo.toml..."
 cd "$REPO_ROOT"
 
-# Add rusty_v8 to workspace exclusions (after the members array).
-# Use awk for portability: sed multi-line behaviour differs between
-# GNU and BSD implementations.
-if ! grep -q 'exclude = \["vendor/rusty_v8"\]' Cargo.toml; then
+# Drop the vendor/v8 shim from the workspace and exclude it plus rusty_v8.
+# The shim pulls in `v8-goose`, which declares `links = "rusty_v8"`; once the
+# patch below resolves denoland's `v8` 152 (also `links = "rusty_v8"`), a
+# workspace containing both fails with "more than one crate with
+# links=rusty_v8". Use awk for portability (GNU/BSD sed multi-line differs).
+if ! grep -q '^exclude = \[' Cargo.toml; then
     awk '
         /^members = \[/ { in_members = 1 }
+        in_members && /cargo-machete/ { next }
+        in_members && /"vendor\/v8"/ { next }
         in_members && /^\]$/ {
             print
-            print "exclude = [\"vendor/rusty_v8\"]"
+            print "exclude = [\"vendor/v8\", \"vendor/rusty_v8\"]"
             in_members = 0
             next
         }
