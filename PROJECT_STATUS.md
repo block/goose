@@ -101,6 +101,10 @@ Po poprawce P1 lokalnie przeszły `cargo build`, `cargo fmt --check`,
 extensions, jeden test ACP oraz pięć testów JWT, dla których `jsonwebtoken`
 nie może wybrać CryptoProvider. Zmiana P1 nie dotyka tych obszarów.
 
+CI dla `97b70ea` zakończyło się zielono. Kolejna poprawka review przywraca
+emit drained steer przed compaction replacement i odracza proactive
+state-machine compaction po tool result do exact prepared-request hooka.
+
 ## Pozostałe zadania
 
 ### P1: ostatni queued steer przed legacy inference

@@ -2669,6 +2669,9 @@ impl Agent {
                     .await?
                     {
                         drop(pending_steers);
+                        for message in drained_steer_events {
+                            yield AgentEvent::Message(message);
+                        }
                         let threshold = Config::global()
                             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
                             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);

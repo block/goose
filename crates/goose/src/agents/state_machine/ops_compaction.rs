@@ -366,6 +366,15 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
+            // Tool results can be followed by request-preparation changes to
+            // the system prompt or advertised schemas. The pre-inference hook
+            // counts that exact request, avoiding an unnecessary replacement.
+            if crate::context_mgmt::context_tokens_since_last_inference(conversation)
+                .await?
+                .is_some()
+            {
+                return not_applicable();
+            }
             if !matches!(
                 last_effective_role(messages)?,
                 EffectiveRole::User | EffectiveRole::Tool
