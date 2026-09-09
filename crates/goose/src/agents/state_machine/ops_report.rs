@@ -236,12 +236,14 @@ mod tests {
         let request_id = "report_1";
         let request = Message::assistant().with_tool_request(
             request_id,
-            Ok(CallToolRequestParams::new(tool_name).with_arguments(
-                arguments
-                    .as_object()
-                    .expect("test arguments are an object")
-                    .clone(),
-            )),
+            Ok(
+                CallToolRequestParams::new(tool_name.to_string()).with_arguments(
+                    arguments
+                        .as_object()
+                        .expect("test arguments are an object")
+                        .clone(),
+                ),
+            ),
         );
         let mut response = Message::user();
         response.add_tool_response_with_metadata(

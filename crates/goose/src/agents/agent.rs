@@ -1603,7 +1603,7 @@ impl Agent {
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
-        report_operation: Option<Arc<dyn Operation<Session, GooseEffect> + '_>>,
+        report_operation: Option<Arc<dyn Operation<Session, GooseEffect>>>,
     ) -> StateMachine<'_, Session, GooseEffect> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()

@@ -6,7 +6,6 @@ use futures::stream::BoxStream;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tokio_util::task::AbortOnDropHandle;
 
 use crate::agents::state_machine::{
     run_goose, submitted_report, Emitter, GooseEffect, PlanOperation, StateMachine,
@@ -45,7 +44,7 @@ fn complete_models(
     })
 }
 
-pub(super) fn configured_models() -> Option<SupervisedModels> {
+pub(in crate::agents) fn configured_models() -> Option<SupervisedModels> {
     let config = Config::global();
     complete_models(
         config.get_param::<String>(PLANNER_MODEL).ok(),
@@ -309,10 +308,10 @@ impl Agent {
             let (tx, mut rx) = mpsc::channel(32);
             let emit = Emitter::new(tx, implementer_cancel.clone());
             let timeout_cancel = implementer_cancel.clone();
-            let timeout = AbortOnDropHandle::new(tokio::spawn(async move {
+            let timeout = tokio::spawn(async move {
                 tokio::time::sleep(time_limit).await;
                 timeout_cancel.cancel();
-            }));
+            });
 
             loop {
                 let session = runtime.get_session(&main_session_id, true).await?;
@@ -325,12 +324,12 @@ impl Agent {
                                 if let Some(event) = event {
                                     yield event;
                                 } else {
-                                    Err(anyhow!("implementer event stream closed"))?;
+                                    break Err(anyhow!("implementer event stream closed"));
                                 }
                             }
-                            result = &mut step => break result?,
+                            result = &mut step => break result,
                         }
-                    }
+                    }?
                 };
                 let Some(mut result) = result else {
                     break;
@@ -349,15 +348,12 @@ impl Agent {
                                 if let Some(event) = event {
                                     yield event;
                                 } else {
-                                    Err(anyhow!("implementer event stream closed"))?;
+                                    break Err(anyhow!("implementer event stream closed"));
                                 }
                             }
-                            result = &mut apply => {
-                                result?;
-                                break;
-                            }
+                            result = &mut apply => break result,
                         }
-                    }
+                    }?;
                 }
                 while let Ok(event) = rx.try_recv() {
                     yield event;
@@ -422,7 +418,7 @@ impl Agent {
             while let Some(event) = rx.recv().await {
                 yield event;
             }
-            drop(timeout);
+            timeout.abort();
 
             let reviewed = run_hidden(
                 &supervisor_machine,
@@ -459,15 +455,12 @@ impl Agent {
                                 if let Some(event) = event {
                                     yield event;
                                 } else {
-                                    break;
+                                    break Ok(());
                                 }
                             }
-                            result = &mut repair => {
-                                result?;
-                                break;
-                            }
+                            result = &mut repair => break result.map(|_| ()),
                         }
-                    }
+                    }?;
                 }
                 drop(repair_emit);
                 while let Some(event) = repair_rx.recv().await {
