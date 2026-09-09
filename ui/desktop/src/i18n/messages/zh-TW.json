@@ -330,10 +330,10 @@
     "defaultMessage": "Goose 要求使用者輸入前的最大代理回合數"
   },
   "costTracker.costUnavailable": {
-    "defaultMessage": "{model} 無可用的費用資料（輸入 {inputTokens} 個權杖，輸出 {outputTokens} 個權杖）"
+    "defaultMessage": "{model} 無可用的費用資料（輸入 {inputTokens} 個詞元，輸出 {outputTokens} 個詞元）"
   },
   "costTracker.inputOutputTooltip": {
-    "defaultMessage": "輸入：{inputTokens} 個權杖（{inputCost}）｜輸出：{outputTokens} 個權杖（{outputCost}）"
+    "defaultMessage": "輸入：{inputTokens} 個詞元（{inputCost}）｜輸出：{outputTokens} 個詞元（{outputCost}）"
   },
   "costTracker.pricingUnavailable": {
     "defaultMessage": "{model} 無可用的定價資料"
@@ -2040,7 +2040,7 @@
     "defaultMessage": "（估算）"
   },
   "messageUsageStats.firstToken": {
-    "defaultMessage": "首個權杖"
+    "defaultMessage": "首個詞元"
   },
   "messageUsageStats.input": {
     "defaultMessage": "輸入"
@@ -2217,10 +2217,10 @@
     "defaultMessage": "防止模型被置換到磁碟"
   },
   "modelSettingsPanel.maxOutputTokens": {
-    "defaultMessage": "最大輸出 token 數"
+    "defaultMessage": "最大輸出詞元數"
   },
   "modelSettingsPanel.maxOutputTokensDescription": {
-    "defaultMessage": "生成 token 的上限"
+    "defaultMessage": "生成詞元的上限"
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
@@ -2244,7 +2244,7 @@
     "defaultMessage": "重複視窗"
   },
   "modelSettingsPanel.repeatWindowDescription": {
-    "defaultMessage": "回溯的 token 數"
+    "defaultMessage": "回溯的詞元數"
   },
   "modelSettingsPanel.repetitionPenalty": {
     "defaultMessage": "重複懲罰"
@@ -2580,7 +2580,7 @@
     "defaultMessage": "所使用的提供者與模型"
   },
   "privacyInfoModal.collectSession": {
-    "defaultMessage": "工作階段指標（持續時間、互動次數、權杖用量）"
+    "defaultMessage": "工作階段指標（持續時間、互動次數、詞元用量）"
   },
   "privacyInfoModal.collectVersion": {
     "defaultMessage": "goose 版本與安裝方式"
@@ -4308,7 +4308,7 @@
     "defaultMessage": "中 - 適度思考"
   },
   "switchModelModal.claudeEnabled": {
-    "defaultMessage": "啟用 - 思考使用固定的權杖預算"
+    "defaultMessage": "啟用 - 思考使用固定的詞元預算"
   },
   "switchModelModal.couldNotContactProvider": {
     "defaultMessage": "無法連絡提供者"
@@ -4374,7 +4374,7 @@
     "defaultMessage": "選擇思考模式"
   },
   "switchModelModal.thinkingBudget": {
-    "defaultMessage": "思考預算（權杖）"
+    "defaultMessage": "思考預算（詞元）"
   },
   "switchModelModal.thinkingEffort": {
     "defaultMessage": "思考用力程度"
