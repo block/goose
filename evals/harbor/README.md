@@ -179,6 +179,10 @@ Drill into a single task in a single run:
 ./evals/harbor/cmd.py task <job_name> <task_name> --tail 50   # tail agent log
 ```
 
+For supervised state-machine runs, the task report also prints the planner's
+initial and revised plans, supervisor feedback, stage timings, and whether each
+steer was delivered. The same JSON records remain in `agent/trajectory.json`.
+
 Compare two runs head-to-head:
 
 ```bash
@@ -235,4 +239,3 @@ task?), see the `compare-tasks` skill under `.agents/skills/`. Delegate to
 it with the two job names and a task name and it will read both
 trajectories, the task spec, and the verifier output, then explain the
 mechanism behind the divergence.
-

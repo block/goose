@@ -15,6 +15,7 @@ from harbor.models.trial.result import TrialResult
 
 
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
+SUPERVISED_TRACE_TYPE = "goose_supervised_trace"
 
 
 @dataclass
@@ -118,7 +119,13 @@ def trial_turns(trial: TrialResult, job_dir: Path) -> int | None:
             data = None
         steps = data.get("steps") if isinstance(data, dict) else None
         if isinstance(steps, list):
-            return sum(1 for s in steps if isinstance(s, dict) and s.get("source") == "agent")
+            return sum(
+                1
+                for step in steps
+                if isinstance(step, dict)
+                and step.get("source") == "agent"
+                and not is_supervised_trace_message(step.get("message"))
+            )
 
     goose_log = trial_dir / "agent" / "goose.txt"
     if goose_log.is_file():
@@ -164,6 +171,32 @@ def trial_turns(trial: TrialResult, job_dir: Path) -> int | None:
         return count if count else None
 
     return None
+
+
+def is_supervised_trace_message(message: object) -> bool:
+    if not isinstance(message, str):
+        return False
+    try:
+        value = json.loads(message)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(value, dict) and value.get("type") == SUPERVISED_TRACE_TYPE
+
+
+def supervised_trace(trial_dir: Path) -> list[dict]:
+    trajectory = trial_dir / "agent" / "trajectory.json"
+    if not trajectory.is_file():
+        return []
+    try:
+        data = json.loads(trajectory.read_text())
+    except json.JSONDecodeError:
+        return []
+    trace = []
+    for step in data.get("steps", []):
+        if not isinstance(step, dict) or not is_supervised_trace_message(step.get("message")):
+            continue
+        trace.append(json.loads(step["message"]))
+    return trace
 
 
 def job_turn_totals(job: LoadedJob) -> int:
@@ -429,6 +462,24 @@ def cmd_task(args: argparse.Namespace) -> int:
             if agent_log.is_file():
                 size = agent_log.stat().st_size
                 print(f"  agent log: {agent_log.name} ({size:,} bytes)")
+                trace = supervised_trace(trial_dir)
+                if trace:
+                    print("\nSupervised trace:")
+                    for entry in trace:
+                        duration = fmt_duration((entry.get("duration_ms") or 0) / 1000)
+                        model = entry.get("model") or "-"
+                        print(
+                            f"  {entry.get('stage', '?')}  role={entry.get('role', '?')}  "
+                            f"model={model}  duration={duration}"
+                        )
+                        for key, value in entry.get("details", {}).items():
+                            if isinstance(value, str):
+                                lines = value.splitlines() or [""]
+                                print(f"    {key}:")
+                                for line in lines:
+                                    print(f"      {line}")
+                            else:
+                                print(f"    {key}: {json.dumps(value)}")
                 if args.tail and size:
                     print(f"\n--- last {args.tail} lines of {agent_log.name} ---")
                     lines = agent_log.read_text(errors="replace").splitlines()

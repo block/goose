@@ -24,6 +24,7 @@ const SUPERVISOR_MODEL: &str = "GOOSE_SUPERVISOR_MODEL";
 const IMPLEMENTER_MODEL: &str = "GOOSE_IMPLEMENTER_MODEL";
 const TIME_LIMIT_SECONDS: &str = "GOOSE_SUPERVISED_TIME_LIMIT_SECONDS";
 const DEFAULT_TIME_LIMIT_SECONDS: u64 = 900;
+const TRACE_TYPE: &str = "goose_supervised_trace";
 
 pub(crate) struct SupervisedModels {
     planner: String,
@@ -57,6 +58,33 @@ pub(in crate::agents) fn configured_models() -> Option<SupervisedModels> {
 struct SupervisorReport {
     requires_action: bool,
     feedback: String,
+}
+
+fn trace_event(
+    stage: &str,
+    role: &str,
+    provider: &str,
+    model: Option<&str>,
+    duration: Duration,
+    details: serde_json::Value,
+) -> AgentEvent {
+    AgentEvent::Message(
+        Message::assistant()
+            .with_text(
+                serde_json::json!({
+                    "type": TRACE_TYPE,
+                    "schema_version": 1,
+                    "stage": stage,
+                    "role": role,
+                    "provider": provider,
+                    "model": model,
+                    "duration_ms": duration.as_millis(),
+                    "details": details,
+                })
+                .to_string(),
+            )
+            .with_visibility(false, false),
+    )
 }
 
 async fn run_hidden(
@@ -253,6 +281,22 @@ impl Agent {
         let main_session_id = session_config.id.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
+            let workflow_started = Instant::now();
+            yield trace_event(
+                "started",
+                "orchestrator",
+                &provider_name,
+                None,
+                Duration::ZERO,
+                serde_json::json!({
+                    "planner_model": &models.planner,
+                    "supervisor_model": &models.supervisor,
+                    "implementer_model": &models.implementer,
+                    "time_limit_seconds": time_limit.as_secs(),
+                }),
+            );
+
+            let stage_started = Instant::now();
             let planned = run_hidden(
                 &planner_machine,
                 runtime.as_ref(),
@@ -264,7 +308,16 @@ impl Agent {
             )
             .await?;
             let plan = plan_from(&planned)?;
+            yield trace_event(
+                "initial_plan",
+                "planner",
+                &provider_name,
+                Some(&models.planner),
+                stage_started.elapsed(),
+                serde_json::json!({ "plan": &plan }),
+            );
 
+            let stage_started = Instant::now();
             let criticized = run_hidden(
                 &supervisor_machine,
                 runtime.as_ref(),
@@ -276,7 +329,19 @@ impl Agent {
             )
             .await?;
             let critique = feedback_from(&criticized)?;
+            yield trace_event(
+                "plan_critique",
+                "supervisor",
+                &provider_name,
+                Some(&models.supervisor),
+                stage_started.elapsed(),
+                serde_json::json!({
+                    "requires_action": critique.requires_action,
+                    "feedback": &critique.feedback,
+                }),
+            );
 
+            let stage_started = Instant::now();
             let revised = run_hidden(
                 &planner_machine,
                 runtime.as_ref(),
@@ -289,6 +354,14 @@ impl Agent {
             )
             .await?;
             let revised_plan = plan_from(&revised)?;
+            yield trace_event(
+                "revised_plan",
+                "planner",
+                &provider_name,
+                Some(&models.planner),
+                stage_started.elapsed(),
+                serde_json::json!({ "plan": &revised_plan }),
+            );
             runtime
                 .add_message(
                     &main_session_id,
@@ -364,6 +437,7 @@ impl Agent {
 
                 let elapsed = implementation_started.elapsed();
                 if !supervised && elapsed >= supervision_at {
+                    let stage_started = Instant::now();
                     let progress = runtime.get_session(&main_session_id, true).await?;
                     let recent = progress
                         .conversation
@@ -391,6 +465,19 @@ impl Agent {
                     )
                     .await?;
                     let feedback = feedback_from(&checked)?;
+                    yield trace_event(
+                        "progress_review",
+                        "supervisor",
+                        &provider_name,
+                        Some(&models.supervisor),
+                        stage_started.elapsed(),
+                        serde_json::json!({
+                            "implementation_elapsed_ms": implementation_started.elapsed().as_millis(),
+                            "requires_action": feedback.requires_action,
+                            "feedback": &feedback.feedback,
+                            "delivered_to_implementer": feedback.requires_action,
+                        }),
+                    );
                     if feedback.requires_action {
                         implementer_steer
                             .lock()
@@ -407,6 +494,17 @@ impl Agent {
                     implementer_steer.lock().await.push_back(Message::user().with_text(
                         "The time limit is approaching. Stop broad exploration, finish the smallest correct patch, run the most relevant tests available, and report the result.",
                     ));
+                    yield trace_event(
+                        "finalization_steer",
+                        "orchestrator",
+                        &provider_name,
+                        None,
+                        Duration::ZERO,
+                        serde_json::json!({
+                            "implementation_elapsed_ms": implementation_started.elapsed().as_millis(),
+                            "delivered_to_implementer": true,
+                        }),
+                    );
                     finalization_sent = true;
                 }
                 if elapsed >= time_limit {
@@ -420,6 +518,36 @@ impl Agent {
             }
             timeout.abort();
 
+            if !supervised {
+                yield trace_event(
+                    "progress_review",
+                    "supervisor",
+                    &provider_name,
+                    Some(&models.supervisor),
+                    Duration::ZERO,
+                    serde_json::json!({
+                        "implementation_elapsed_ms": implementation_started.elapsed().as_millis(),
+                        "skipped": true,
+                        "reason": "implementation ended before the review ran",
+                    }),
+                );
+            }
+            if !finalization_sent {
+                yield trace_event(
+                    "finalization_steer",
+                    "orchestrator",
+                    &provider_name,
+                    None,
+                    Duration::ZERO,
+                    serde_json::json!({
+                        "implementation_elapsed_ms": implementation_started.elapsed().as_millis(),
+                        "skipped": true,
+                        "reason": "implementation ended before the finalization steer ran",
+                    }),
+                );
+            }
+
+            let stage_started = Instant::now();
             let reviewed = run_hidden(
                 &supervisor_machine,
                 runtime.as_ref(),
@@ -431,7 +559,20 @@ impl Agent {
             )
             .await?;
             let review = feedback_from(&reviewed)?;
-            if review.requires_action && !implementer_cancel.is_cancelled() {
+            let repair_requested = review.requires_action && !implementer_cancel.is_cancelled();
+            yield trace_event(
+                "final_review",
+                "supervisor",
+                &provider_name,
+                Some(&models.supervisor),
+                stage_started.elapsed(),
+                serde_json::json!({
+                    "requires_action": review.requires_action,
+                    "feedback": &review.feedback,
+                    "delivered_to_implementer": repair_requested,
+                }),
+            );
+            if repair_requested {
                 implementer_steer
                     .lock()
                     .await
@@ -441,6 +582,7 @@ impl Agent {
                     )));
                 let (tx, mut repair_rx) = mpsc::channel(32);
                 let repair_emit = Emitter::new(tx, implementer_cancel.clone());
+                let repair_started = Instant::now();
                 {
                     let repair = run_goose(
                         &implementer_machine,
@@ -466,7 +608,23 @@ impl Agent {
                 while let Some(event) = repair_rx.recv().await {
                     yield event;
                 }
+                yield trace_event(
+                    "repair",
+                    "implementer",
+                    &provider_name,
+                    Some(&models.implementer),
+                    repair_started.elapsed(),
+                    serde_json::json!({ "completed": true }),
+                );
             }
+            yield trace_event(
+                "completed",
+                "orchestrator",
+                &provider_name,
+                None,
+                workflow_started.elapsed(),
+                serde_json::json!({ "repair_run": repair_requested }),
+            );
         }))
     }
 }
@@ -494,5 +652,29 @@ mod tests {
         assert_eq!(models.planner, "planner");
         assert_eq!(models.supervisor, "supervisor");
         assert_eq!(models.implementer, "implementer");
+    }
+
+    #[test]
+    fn trace_events_are_machine_readable_and_invisible() {
+        let AgentEvent::Message(message) = trace_event(
+            "initial_plan",
+            "planner",
+            "openrouter",
+            Some("openai/planner"),
+            Duration::from_millis(42),
+            serde_json::json!({ "plan": "change the parser" }),
+        ) else {
+            panic!("trace event is not a message");
+        };
+
+        assert!(!message.is_user_visible());
+        assert!(!message.is_agent_visible());
+        let trace: serde_json::Value =
+            serde_json::from_str(&message.as_concat_text()).expect("trace is valid JSON");
+        assert_eq!(trace["type"], TRACE_TYPE);
+        assert_eq!(trace["stage"], "initial_plan");
+        assert_eq!(trace["model"], "openai/planner");
+        assert_eq!(trace["duration_ms"], 42);
+        assert_eq!(trace["details"]["plan"], "change the parser");
     }
 }
