@@ -21,10 +21,16 @@ pub fn current_session_id() -> Option<String> {
 }
 
 pub fn session_id_request_builder() -> goose_providers::api_client::RequestBuilderDecorator {
-    std::sync::Arc::new(|request| {
+    session_id_request_builder_with_header(SESSION_ID_HEADER)
+}
+
+pub(crate) fn session_id_request_builder_with_header(
+    header_name: &'static str,
+) -> goose_providers::api_client::RequestBuilderDecorator {
+    std::sync::Arc::new(move |request| {
         let (client, request) = request.build_split();
         let mut request = request?;
-        let session_header = HeaderName::from_static(SESSION_ID_HEADER);
+        let session_header = HeaderName::from_static(header_name);
         request.headers_mut().remove(&session_header);
 
         if let Some(session_id) = current_session_id() {
@@ -118,6 +124,24 @@ mod tests {
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             assert_eq!(current_session_id(), Some("persistent-session".to_string()));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_id_request_builder_uses_custom_header() {
+        with_session_id(Some("test-session-123".to_string()), async {
+            let decorate = session_id_request_builder_with_header("x-opencode-session");
+
+            let request = decorate(reqwest::Client::new().get("http://localhost"))
+                .unwrap()
+                .build()
+                .unwrap();
+
+            assert_eq!(
+                request.headers().get("x-opencode-session").unwrap(),
+                "test-session-123"
+            );
         })
         .await;
     }

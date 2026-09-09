@@ -14,6 +14,9 @@ use goose_providers::openai::{
     OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_VERSIONLESS_BASE_PATH,
 };
 
+const OPENCODE_GO_PROVIDER_NAME: &str = "opencode_go";
+const OPENCODE_SESSION_ID_HEADER: &str = "x-opencode-session";
+
 pub struct OpenAiProviderDef;
 
 impl ProviderDescriptor for OpenAiProviderDef {
@@ -200,11 +203,22 @@ pub fn resolve_api_key(
     }
 }
 
+fn session_id_request_builder_for_provider(
+    provider_name: &str,
+) -> goose_providers::api_client::RequestBuilderDecorator {
+    if provider_name == OPENCODE_GO_PROVIDER_NAME {
+        crate::session_context::session_id_request_builder_with_header(OPENCODE_SESSION_ID_HEADER)
+    } else {
+        crate::session_context::session_id_request_builder()
+    }
+}
+
 pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
     let auth_override = config.auth.clone();
+    let request_builder = session_id_request_builder_for_provider(&config.name);
     goose_providers::openai::from_declarative_config(
         config,
         tls_config,
@@ -213,8 +227,7 @@ pub fn from_custom_config(
     .map(|builder| {
         builder
             .map_api_client(|api_client| {
-                let api_client = api_client
-                    .with_request_builder(crate::session_context::session_id_request_builder());
+                let api_client = api_client.with_request_builder(request_builder);
                 match auth_override {
                     Some(auth_config) => api_client.with_auth(AuthMethod::Custom(Box::new(
                         CommandAuthProvider::new(&auth_config, "Authorization", "Bearer "),
@@ -392,5 +405,45 @@ mod tests {
     #[test]
     fn parse_base_url_rejects_whitespace_only() {
         assert!(parse_base_url("  ").is_err());
+    }
+
+    #[tokio::test]
+    async fn opencode_go_uses_opencode_session_header() {
+        crate::session_context::with_session_id(Some("test-session-123".to_string()), async {
+            let decorate = session_id_request_builder_for_provider("opencode_go");
+
+            let request = decorate(reqwest::Client::new().get("http://localhost"))
+                .unwrap()
+                .build()
+                .unwrap();
+
+            assert_eq!(
+                request.headers().get("x-opencode-session").unwrap(),
+                "test-session-123"
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn other_provider_uses_default_session_header() {
+        crate::session_context::with_session_id(Some("test-session-123".to_string()), async {
+            let decorate = session_id_request_builder_for_provider("other_provider");
+
+            let request = decorate(reqwest::Client::new().get("http://localhost"))
+                .unwrap()
+                .build()
+                .unwrap();
+
+            assert_eq!(
+                request
+                    .headers()
+                    .get(crate::session_context::SESSION_ID_HEADER)
+                    .unwrap(),
+                "test-session-123"
+            );
+            assert!(request.headers().get("x-opencode-session").is_none());
+        })
+        .await;
     }
 }
