@@ -11,8 +11,8 @@
   "scripts": {
     "postinstall": "pnpm run build-goose-acp-client",
     "typecheck": "tsc --noEmit",
-    "build-goose-acp-client": "node scripts/build-goose-sdk.js",
-    "build-goose-acp-client:force": "node scripts/build-goose-sdk.js --force",
+    "build-goose-acp-client": "node scripts/build-goose-acp-client.js",
+    "build-goose-acp-client:force": "node scripts/build-goose-acp-client.js --force",
     "start-gui": "pnpm run build-goose-acp-client && pnpm run i18n:compile && electron-forge start",
     "start-gui-debug": "pnpm run build-goose-acp-client && pnpm run i18n:compile && electron-forge start -- --inspect=9229",
     "start": "cd ../.. && just run-ui",
