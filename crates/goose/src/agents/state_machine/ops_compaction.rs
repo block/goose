@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use goose_agent::inference::{PreInferenceHook, PreparedInferenceRequest};
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
@@ -52,6 +53,121 @@ pub struct CompactionOperation {
     manages_own_context: bool,
 }
 
+pub struct PreparedRequestCompactionHook {
+    provider: Arc<dyn Provider>,
+    model_config: ModelConfig,
+    context_limit: usize,
+    threshold: f64,
+}
+
+impl PreparedRequestCompactionHook {
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        context_limit: usize,
+        threshold: f64,
+    ) -> Self {
+        Self {
+            provider,
+            model_config,
+            context_limit,
+            threshold,
+        }
+    }
+}
+
+#[async_trait]
+impl PreInferenceHook<Session, GooseEffect> for PreparedRequestCompactionHook {
+    async fn run(
+        &self,
+        session: &Session,
+        conversation: &Conversation,
+        request: &PreparedInferenceRequest,
+        messages: &[Message],
+        emit: &Emitter,
+    ) -> Result<Option<OperationResult<GooseEffect>>> {
+        if self.provider.manages_own_context()
+            || crate::context_mgmt::context_tokens_since_last_inference(conversation)
+                .await?
+                .is_none()
+            || self.threshold <= 0.0
+            || self.threshold >= 1.0
+        {
+            return Ok(None);
+        }
+
+        // GooseInferenceProvider applies the tool-shim immediately before the
+        // provider call. Apply the same transformation here so schemas moved
+        // into the system prompt are included in this pre-flight count.
+        let (tools, _, system_prompt) = crate::agents::reply_parts::prepare_tools_for_provider(
+            request.tools.clone(),
+            request.system_prompt.clone(),
+            &self.model_config,
+        );
+        let counter = crate::token_counter::create_token_counter()
+            .await
+            .map_err(|error| anyhow!("Failed to create token counter: {error}"))?;
+        let tokens = counter.count_chat_tokens(&system_prompt, messages, &tools);
+        if (tokens as f64 / self.context_limit as f64) <= self.threshold {
+            return Ok(None);
+        }
+
+        let threshold_percentage = (self.threshold * 100.0) as u32;
+        emit.message(Message::assistant().with_system_notification(
+            SystemNotificationType::InlineMessage,
+            format!(
+                "Exceeded auto-compact threshold of {threshold_percentage}%. \
+                 Performing auto-compaction..."
+            ),
+        ))
+        .await;
+        emit.message(Message::assistant().with_system_notification(
+            SystemNotificationType::ThinkingMessage,
+            COMPACTION_THINKING_TEXT,
+        ))
+        .await;
+
+        let span = chat_span(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            "compaction",
+        );
+        match compact_messages(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            conversation,
+            false,
+        )
+        .instrument(span.clone())
+        .await
+        {
+            Ok(result) => {
+                record_chat_usage(&span, &result.usage);
+                emit.message(Message::assistant().with_system_notification(
+                    SystemNotificationType::InlineMessage,
+                    "Compaction complete",
+                ))
+                .await;
+                Ok(Some(applied([GooseEffect::ReplaceConversation {
+                    conversation: result.conversation,
+                    usage: Some(result.usage),
+                }])?))
+            }
+            Err(error) => {
+                span.record("error.type", "compaction_error");
+                emit.message(Message::assistant().with_text(format!(
+                    "Ran into this error trying to compact: {error}.\n\n\
+                     Please try again or create a new session"
+                )))
+                .await;
+                Ok(Some(yielded()?))
+            }
+        }
+    }
+}
+
 impl CompactionOperation {
     pub fn new(
         provider: Arc<dyn Provider>,
@@ -77,6 +193,12 @@ impl CompactionOperation {
     }
 
     async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
+        if let (Some(tokens), Some(added_tokens)) = (
+            session.usage.total_tokens,
+            crate::context_mgmt::context_tokens_since_last_inference(conversation).await?,
+        ) {
+            return Ok(tokens.saturating_add(added_tokens));
+        }
         match session.usage.total_tokens {
             Some(tokens) => Ok(tokens),
             None => crate::context_mgmt::count_context_tokens(conversation).await,
@@ -244,7 +366,10 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            if last_effective_role(messages)? != EffectiveRole::User {
+            if !matches!(
+                last_effective_role(messages)?,
+                EffectiveRole::User | EffectiveRole::Tool
+            ) {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;
