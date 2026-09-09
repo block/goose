@@ -1578,6 +1578,7 @@ impl CliSession {
         let run_started = Instant::now();
         let mut first_token_at: Option<Instant> = None;
         let mut last_usage: Option<ProviderUsage> = None;
+        let mut stream_error = None;
 
         use futures::StreamExt;
         loop {
@@ -1740,7 +1741,9 @@ impl CliSession {
                             self.messages = updated_conversation;
                         }
                         Some(Err(e)) => {
-                            handle_agent_error(&e, is_stream_json_mode);
+                            if interactive || !is_stream_json_mode {
+                                handle_agent_error(&e, is_stream_json_mode);
+                            }
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
@@ -1753,6 +1756,7 @@ impl CliSession {
                                     - depending on the error you may be able to continue",
                                 );
                             }
+                            stream_error = Some(e);
                             break;
                         }
                         None => break,
@@ -1768,11 +1772,30 @@ impl CliSession {
             }
         }
 
+        let terminal_error = headless_run_error(
+            interactive,
+            cancel_token_clone.is_cancelled(),
+            stream_error,
+            &self.messages,
+        );
+        if is_stream_json_mode {
+            if let Some(error) = &terminal_error {
+                emit_stream_event(&StreamEvent::Error {
+                    error: error.to_string(),
+                });
+            }
+        }
+
         if !is_json_mode && !is_stream_json_mode {
             output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
 
         if is_json_mode {
+            let status = if terminal_error.is_some() {
+                "error"
+            } else {
+                "completed"
+            };
             let metadata = match self
                 .agent
                 .config
@@ -1787,7 +1810,7 @@ impl CliSession {
                     cache_read_input_tokens: totals.accumulated_usage.cache_read_input_tokens,
                     cache_write_input_tokens: totals.accumulated_usage.cache_write_input_tokens,
                     cost_usd: totals.accumulated_cost,
-                    status: "completed".to_string(),
+                    status: status.to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
@@ -1796,7 +1819,7 @@ impl CliSession {
                     cache_read_input_tokens: None,
                     cache_write_input_tokens: None,
                     cost_usd: None,
-                    status: "completed".to_string(),
+                    status: status.to_string(),
                 },
             };
             let json_output = JsonOutput {
@@ -1804,7 +1827,7 @@ impl CliSession {
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
-        } else if is_stream_json_mode {
+        } else if is_stream_json_mode && terminal_error.is_none() {
             let totals = self
                 .agent
                 .config
@@ -1838,11 +1861,15 @@ impl CliSession {
                 cache_write_input_tokens,
                 cost_usd,
             });
-        } else {
+        } else if !is_stream_json_mode {
             println!();
             if self.stats {
                 print_run_stats(run_started, first_token_at, last_usage.as_ref());
             }
+        }
+
+        if let Some(error) = terminal_error {
+            return Err(error);
         }
 
         Ok(())
@@ -2855,6 +2882,26 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
+fn headless_run_error(
+    interactive: bool,
+    cancelled: bool,
+    stream_error: Option<anyhow::Error>,
+    messages: &Conversation,
+) -> Option<anyhow::Error> {
+    if interactive {
+        return None;
+    }
+
+    stream_error
+        .or_else(|| cancelled.then(|| anyhow::anyhow!("Headless run interrupted")))
+        .or_else(|| {
+            messages
+                .last()
+                .and_then(|message| message.content.iter().find_map(MessageContent::as_error))
+                .map(|error| anyhow::anyhow!(error.message.clone()))
+        })
+}
+
 async fn get_reasoner(
 ) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
@@ -2922,10 +2969,49 @@ mod tests {
     use super::*;
     use goose::agents::extension::Envs;
     use goose::config::ExtensionConfig;
+    use goose::conversation::message::MessageErrorKind;
     use serde_json::json;
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn only_headless_terminal_failures_are_propagated() {
+        let messages = Conversation::new_unvalidated([
+            Message::assistant().with_error(MessageErrorKind::Other, "provider failed")
+        ]);
+
+        assert_eq!(
+            headless_run_error(
+                false,
+                false,
+                Some(anyhow::anyhow!("stream failed")),
+                &Conversation::default(),
+            )
+            .unwrap()
+            .to_string(),
+            "stream failed"
+        );
+        assert_eq!(
+            headless_run_error(false, false, None, &messages)
+                .unwrap()
+                .to_string(),
+            "provider failed"
+        );
+        assert_eq!(
+            headless_run_error(false, true, None, &Conversation::default())
+                .unwrap()
+                .to_string(),
+            "Headless run interrupted"
+        );
+        assert!(headless_run_error(
+            true,
+            true,
+            Some(anyhow::anyhow!("stream failed")),
+            &messages,
+        )
+        .is_none());
+    }
 
     #[test]
     fn provider_only_confirmation_preserves_authoritative_request() {
