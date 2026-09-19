@@ -4,21 +4,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
-#[cfg(not(windows))]
-use std::sync::Arc;
-#[cfg(not(windows))]
-use std::sync::Mutex;
 use std::time::Duration;
 
+use futures::Stream;
 use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
-#[cfg(not(windows))]
-use tokio::sync::OnceCell;
-#[cfg(not(windows))]
-use tokio::task::JoinHandle;
-use tokio_stream::{wrappers::SplitStream, StreamExt};
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::tool_execution::ToolCallNotificationEmitter;
@@ -172,6 +165,7 @@ const OUTPUT_PREVIEW_BYTES: usize = 10_000;
 
 const OUTPUT_SLOTS: usize = 8;
 const DEFAULT_CAPTURE_LIMIT_BYTES: usize = 10 * 1024 * 1024;
+const CHANNEL_CAPACITY: usize = 64;
 
 /// Result of truncating command output.
 struct TruncateResult {
@@ -471,7 +465,7 @@ fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
 }
 
 async fn drain_with_budget(
-    mut rx: tokio::sync::mpsc::UnboundedReceiver<(bool, String)>,
+    mut rx: tokio::sync::mpsc::Receiver<(bool, String)>,
     budget: usize,
 ) -> DrainOutput {
     let half = budget / 2;
@@ -482,16 +476,12 @@ async fn drain_with_budget(
         let original_len = line.len() + 1;
         out.total_seen += original_len;
 
-        // Without clamping, a line wider than `half` would evict the entire tail
-        // and then be stored in full, bypassing the budget.
         let line = if original_len > half {
-            let mut s = line;
-            let mut end = half.saturating_sub(1).min(s.len());
-            while end > 0 && !s.is_char_boundary(end) {
+            let mut end = half.saturating_sub(1).min(line.len());
+            while end > 0 && !line.is_char_boundary(end) {
                 end -= 1;
             }
-            s.truncate(end);
-            s
+            line.get(..end).unwrap_or_default().to_string()
         } else {
             line
         };
@@ -528,6 +518,8 @@ async fn run_command(
         .map(|secs| tokio::time::Instant::now() + Duration::from_secs(secs));
     let not_started = |timed_out| ExecutionOutput {
         lines: Vec::new(),
+        head_line_count: 0,
+        capture_dropped_bytes: 0,
         exit_code: None,
         timed_out,
         output_truncated: false,
@@ -558,13 +550,15 @@ async fn run_command(
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     let cap = capture_limit_bytes();
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_CAPACITY);
     let drain_task = tokio::spawn(drain_with_budget(rx, cap));
+    let max_segment = (cap / 2).saturating_sub(1);
     let output_task = tokio::spawn(collect_tagged_lines(
         child_stdout,
         child_stderr,
         tx,
         notification_emitter,
+        max_segment,
     ));
     let abort_handle = output_task.abort_handle();
 
@@ -785,15 +779,50 @@ fn split_lines(lines: &[(bool, String)]) -> (String, String, String) {
     (stdout, stderr, interleaved)
 }
 
-/// Collect lines from stdout and stderr and send `(is_stderr, line)` tuples to `tx`.
+fn bounded_lines<R: AsyncRead + Unpin + Send + 'static>(
+    reader: R,
+    max_segment: usize,
+) -> std::pin::Pin<Box<dyn Stream<Item = std::io::Result<Vec<u8>>> + Send>> {
+    Box::pin(async_stream::stream! {
+        let max_segment = max_segment.max(1);
+        let mut reader = BufReader::new(reader);
+        let mut pending: Vec<u8> = Vec::new();
+        let mut buf = vec![0u8; 4096];
+        loop {
+            match reader.read(&mut buf).await {
+                Err(e) => { yield Err(e); break; }
+                Ok(0) => {
+                    if !pending.is_empty() {
+                        yield Ok(std::mem::take(&mut pending));
+                    }
+                    break;
+                }
+                Ok(n) => {
+                    for &byte in &buf[..n] {
+                        if byte == b'\n' {
+                            yield Ok(std::mem::take(&mut pending));
+                        } else {
+                            pending.push(byte);
+                            if pending.len() >= max_segment {
+                                yield Ok(std::mem::take(&mut pending));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
 async fn collect_tagged_lines(
     stdout: tokio::process::ChildStdout,
     stderr: tokio::process::ChildStderr,
-    tx: tokio::sync::mpsc::UnboundedSender<(bool, String)>,
+    tx: tokio::sync::mpsc::Sender<(bool, String)>,
     notification_emitter: Option<ToolCallNotificationEmitter>,
+    max_segment: usize,
 ) -> Result<(), std::io::Error> {
-    let stdout_lines = SplitStream::new(BufReader::new(stdout).split(b'\n')).map(|l| (false, l));
-    let stderr_lines = SplitStream::new(BufReader::new(stderr).split(b'\n')).map(|l| (true, l));
+    let stdout_lines = bounded_lines(stdout, max_segment).map(|l| (false, l));
+    let stderr_lines = bounded_lines(stderr, max_segment).map(|l| (true, l));
     let mut merged = stdout_lines.merge(stderr_lines);
     let mut output_batcher = notification_emitter.map(ShellOutputBatcher::new);
     let mut flush_interval = tokio::time::interval_at(
@@ -823,7 +852,7 @@ async fn collect_tagged_lines(
                         flush_interval.reset();
                     }
                 }
-                let _ = tx.send((is_stderr, line));
+                tx.send((is_stderr, line)).await.ok();
             }
             _ = flush_interval.tick(), if output_batcher.is_some() => {
                 if let Some(output_batcher) = output_batcher.as_mut() {
@@ -1133,7 +1162,7 @@ mod tests {
     #[tokio::test]
     async fn capture_limit_preserves_head_and_tail() {
         std::env::set_var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES", "500");
-        let tool = ShellTool::new_for_test().unwrap();
+        let tool = ShellTool::new().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "for i in $(seq 1 100); do \
@@ -1174,15 +1203,34 @@ mod tests {
     }
 
     #[cfg(not(windows))]
-    #[test]
-    fn unix_shell_flavor_detects_nushell_names() {
-        assert_eq!(unix_shell_flavor("nu"), UnixShellFlavor::Nushell);
-        assert_eq!(unix_shell_flavor("nushell"), UnixShellFlavor::Nushell);
-        assert_eq!(
-            unix_shell_flavor("/etc/profiles/per-user/can/bin/nu"),
-            UnixShellFlavor::Nushell
+    #[tokio::test]
+    async fn capture_limit_bounds_newline_free_output() {
+        std::env::set_var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES", "1000");
+        let tool = ShellTool::new().unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command:
+                    "python3 -c \"import sys; sys.stdout.buffer.write(b'S' + b'x' * 9998 + b'E')\""
+                        .to_string(),
+                timeout_secs: None,
+            })
+            .await;
+        std::env::remove_var("GOOSE_SHELL_CAPTURE_LIMIT_BYTES");
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("[Capture limit"),
+            "truncation notice required"
         );
-        assert_eq!(unix_shell_flavor("/bin/bash"), UnixShellFlavor::Posix);
+        let shell_output = extract_shell_output(&result);
+        let captured_bytes = shell_output.stdout.len() + shell_output.stderr.len();
+        assert!(
+            captured_bytes <= 1000 * 2,
+            "captured bytes {captured_bytes} must not exceed budget"
+        );
+        assert!(shell_output.stdout.starts_with('S'), "beginning preserved");
+        assert!(shell_output.stdout.ends_with('E'), "end preserved");
     }
 
     #[cfg(not(windows))]
