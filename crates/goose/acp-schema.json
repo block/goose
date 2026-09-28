@@ -6507,6 +6507,16 @@
             "$ref": "#/$defs/LocalInferenceHfModelVariantDto"
           },
           "default": []
+        },
+        "quality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceModelQualityDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -6596,6 +6606,16 @@
             "string",
             "null"
           ]
+        },
+        "assessment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceModelAssessmentDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -6612,11 +6632,151 @@
         "supported"
       ]
     },
+    "LocalInferenceModelAssessmentDto": {
+      "type": "object",
+      "properties": {
+        "fit": {
+          "$ref": "#/$defs/LocalInferenceMemoryFit"
+        },
+        "recommended": {
+          "type": "boolean"
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "availableMemoryBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserveBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lowerBytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "upperBytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "fit",
+        "recommended",
+        "inputTokens",
+        "outputTokens",
+        "availableMemoryBytes",
+        "reserveBytes",
+        "reasons"
+      ]
+    },
+    "LocalInferenceMemoryFit": {
+      "type": "string",
+      "enum": [
+        "likelyFit",
+        "likelyShortfall",
+        "unknown",
+        "incompatible"
+      ]
+    },
+    "LocalInferenceModelQualityDto": {
+      "type": "object",
+      "properties": {
+        "evaluatedModelId": {
+          "type": "string"
+        },
+        "inherited": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceBenchmarkEvidenceDto"
+          }
+        }
+      },
+      "required": [
+        "evaluatedModelId",
+        "inherited",
+        "evidence"
+      ]
+    },
+    "LocalInferenceBenchmarkEvidenceDto": {
+      "type": "object",
+      "properties": {
+        "benchmark": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "participants": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "benchmark",
+        "score",
+        "rank",
+        "participants",
+        "verified",
+        "sourceUrl",
+        "notes"
+      ]
+    },
     "LocalInferenceHuggingFaceRepoVariantsRequest_unstable": {
       "type": "object",
       "properties": {
         "repoId": {
           "type": "string"
+        },
+        "assess": {
+          "type": "boolean",
+          "default": false
+        },
+        "variantId": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -6641,6 +6801,22 @@
             "null"
           ],
           "minimum": 0
+        },
+        "recommendedVariantId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceModelQualityDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "availableMemoryBytes": {
           "type": "integer",

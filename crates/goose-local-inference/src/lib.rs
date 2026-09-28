@@ -16,6 +16,8 @@ mod llamacpp;
 pub mod management;
 pub mod model;
 pub(crate) mod multimodal;
+#[cfg(feature = "hf-hub")]
+pub mod recommendations;
 pub(crate) mod thinking_output;
 mod tool_emulation;
 mod tool_parsing;

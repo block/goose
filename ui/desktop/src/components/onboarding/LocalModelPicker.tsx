@@ -349,29 +349,31 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
 
             {otherModels.length > 0 && (
               <div>
-                <button
-                  onClick={() => setShowAllModels(!showAllModels)}
-                  className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
-                >
-                  {showAllModels
-                    ? intl.formatMessage(i18n.hideOtherSizes)
-                    : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
-                  <svg
-                    className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {recommended && (
+                  <button
+                    onClick={() => setShowAllModels(!showAllModels)}
+                    className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
+                    {showAllModels
+                      ? intl.formatMessage(i18n.hideOtherSizes)
+                      : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
+                    <svg
+                      className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+                )}
 
-                {showAllModels && (
+                {(!recommended || showAllModels) && (
                   <div className="mt-2 space-y-2">
                     {otherModels.map((model) => (
                       <div

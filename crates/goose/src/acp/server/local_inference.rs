@@ -186,9 +186,13 @@ impl GooseAcpAgent {
         #[cfg(feature = "local-inference")]
         {
             crate::providers::local_inference::configure_huggingface_auth();
-            crate::providers::local_inference::management::huggingface_repo_variants(req.repo_id)
-                .await
-                .internal_err()
+            crate::providers::local_inference::management::huggingface_repo_variants_with_assessment(
+                req.repo_id,
+                req.assess,
+                req.variant_id,
+            )
+            .await
+            .internal_err()
         }
 
         #[cfg(not(feature = "local-inference"))]

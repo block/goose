@@ -2007,6 +2007,56 @@ pub struct LocalInferenceHfModelVariantDto {
     pub supported: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unsupported_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assessment: Option<LocalInferenceModelAssessmentDto>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalInferenceModelAssessmentDto {
+    pub fit: LocalInferenceMemoryFit,
+    pub recommended: bool,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub available_memory_bytes: u64,
+    pub reserve_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lower_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalInferenceMemoryFit {
+    LikelyFit,
+    LikelyShortfall,
+    #[default]
+    Unknown,
+    Incompatible,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalInferenceModelQualityDto {
+    pub evaluated_model_id: String,
+    pub inherited: bool,
+    pub evidence: Vec<LocalInferenceBenchmarkEvidenceDto>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalInferenceBenchmarkEvidenceDto {
+    pub benchmark: String,
+    pub score: f64,
+    pub rank: u64,
+    pub participants: u64,
+    pub verified: bool,
+    pub source_url: String,
+    pub notes: String,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2029,6 +2079,8 @@ pub struct LocalInferenceHfModelInfoDto {
     pub gguf_files: Vec<LocalInferenceHfGgufFileDto>,
     #[serde(default)]
     pub variants: Vec<LocalInferenceHfModelVariantDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<LocalInferenceModelQualityDto>,
 }
 
 /// List locally available inference models.
@@ -2187,6 +2239,10 @@ pub struct LocalInferenceHuggingFaceSearchResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LocalInferenceHuggingFaceRepoVariantsRequest {
     pub repo_id: String,
+    #[serde(default)]
+    pub assess: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variant_id: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
@@ -2195,6 +2251,10 @@ pub struct LocalInferenceHuggingFaceRepoVariantsResponse {
     pub variants: Vec<LocalInferenceHfModelVariantDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended_index: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recommended_variant_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<LocalInferenceModelQualityDto>,
     pub available_memory_bytes: u64,
     pub downloaded_quants: Vec<String>,
     pub downloaded_variants: Vec<String>,

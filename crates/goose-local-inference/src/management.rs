@@ -1,21 +1,18 @@
 use super::hf_models::{
     self, model_id_from_repo, resolve_local_model_selection, resolve_local_model_spec,
-    CachedLocalModel, HfModelInfo, HfModelVariant,
+    CachedLocalModel, HfModelVariant,
 };
 use super::model::{ChatTemplate, ModelSettings, SamplingConfig, ToolCallingMode};
-use super::{
-    available_inference_memory_bytes, builtin_chat_template_names, recommend_local_model,
-    InferenceRuntime,
-};
+use super::{available_inference_memory_bytes, builtin_chat_template_names, InferenceRuntime};
 use crate::download_manager::{get_download_manager, DownloadProgress, DownloadStatus};
 use anyhow::{anyhow, Result};
 use goose_sdk_types::custom_requests::{
     LocalInferenceBuiltinChatTemplatesListResponse, LocalInferenceChatTemplate,
-    LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto,
-    LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto,
-    LocalInferenceHuggingFaceRepoVariantsResponse, LocalInferenceHuggingFaceSearchResponse,
-    LocalInferenceModelDownloadRequest, LocalInferenceModelDownloadResponse,
-    LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto,
+    LocalInferenceDownloadProgressDto, LocalInferenceDownloadState,
+    LocalInferenceHfModelVariantDto, LocalInferenceHuggingFaceRepoVariantsResponse,
+    LocalInferenceHuggingFaceSearchResponse, LocalInferenceModelDownloadRequest,
+    LocalInferenceModelDownloadResponse, LocalInferenceModelDownloadStatusDto,
+    LocalInferenceModelDto, LocalInferenceModelSettingsDto,
     LocalInferenceModelSettingsReadResponse, LocalInferenceModelSettingsUpdateResponse,
     LocalInferenceModelsListResponse, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode,
 };
@@ -35,7 +32,6 @@ struct LocalModelSelection {
 }
 
 pub async fn list_models() -> Result<LocalInferenceModelsListResponse> {
-    let runtime = management_runtime()?;
     let mut active_downloads: HashMap<_, _> = get_download_manager()
         .list_progress()
         .into_iter()
@@ -46,7 +42,6 @@ pub async fn list_models() -> Result<LocalInferenceModelsListResponse> {
         })
         .collect();
     let cached_models = hf_models::cached_local_models().await?;
-    let recommended_id = recommend_local_model(&runtime, &cached_models);
 
     let loaded_model_ids = crate::loaded_model_ids()
         .await
@@ -54,7 +49,7 @@ pub async fn list_models() -> Result<LocalInferenceModelsListResponse> {
     let mut models: Vec<LocalInferenceModelDto> = cached_models
         .iter()
         .map(|model| {
-            let mut dto = local_model_to_dto(model, recommended_id.as_deref(), &loaded_model_ids);
+            let mut dto = local_model_to_dto(model, None, &loaded_model_ids);
             if let Some(progress) = active_downloads.remove(&model.id) {
                 dto.status = active_download_status(&progress);
             }
@@ -76,35 +71,49 @@ pub async fn search_huggingface_models(
     limit: Option<usize>,
 ) -> Result<LocalInferenceHuggingFaceSearchResponse> {
     let limit = limit.unwrap_or(20).min(50);
-    let models = hf_models::search_local_models(&query, limit)
-        .await?
-        .into_iter()
-        .map(hf_model_info_to_dto)
-        .collect();
+    let models = crate::recommendations::discover(&query, limit).await?;
     Ok(LocalInferenceHuggingFaceSearchResponse { models })
 }
 
 pub async fn huggingface_repo_variants(
     repo_id: String,
 ) -> Result<LocalInferenceHuggingFaceRepoVariantsResponse> {
-    let variants = hf_models::get_repo_local_variants(&repo_id).await?;
+    huggingface_repo_variants_with_assessment(repo_id, true, None).await
+}
 
+pub async fn huggingface_repo_variants_with_assessment(
+    repo_id: String,
+    assess: bool,
+    variant_id: Option<String>,
+) -> Result<LocalInferenceHuggingFaceRepoVariantsResponse> {
     let runtime = management_runtime()?;
     let available_memory = available_inference_memory_bytes(&runtime);
-    let gguf_variants: Vec<_> = variants
-        .iter()
-        .filter(|variant| variant.backend_id == "llamacpp")
-        .map(|variant| hf_models::HfQuantVariant {
-            quantization: variant.variant_id.clone(),
-            size_bytes: variant.size_bytes,
-            filename: variant.filename.clone().unwrap_or_default(),
-            download_url: variant.download_url.clone().unwrap_or_default(),
-            description: "",
-            quality_rank: variant.quality_rank,
-            sharded: variant.sharded,
+    let (variants, quality, assessments) = crate::recommendations::repo_variants(
+        &repo_id,
+        available_memory,
+        assess,
+        variant_id.as_deref(),
+    )
+    .await?;
+    let mut variants: Vec<_> = variants
+        .into_iter()
+        .zip(assessments)
+        .map(|(variant, assessment)| {
+            let mut variant = hf_model_variant_to_dto(variant);
+            variant.assessment = Some(assessment);
+            variant
         })
         .collect();
-    let recommended_index = hf_models::recommend_variant(&gguf_variants, available_memory);
+    let recommended_variant_id =
+        crate::recommendations::recommended_variant(&variants, quality.as_ref());
+    for variant in &mut variants {
+        if let Some(assessment) = &mut variant.assessment {
+            assessment.recommended = recommended_variant_id.as_ref() == Some(&variant.variant_id);
+        }
+    }
+    let recommended_index = variants
+        .iter()
+        .position(|variant| recommended_variant_id.as_ref() == Some(&variant.variant_id));
 
     let cached_models = hf_models::cached_local_models().await?;
     let downloaded: Vec<_> = cached_models
@@ -119,8 +128,10 @@ pub async fn huggingface_repo_variants(
     let downloaded_variants = downloaded.iter().map(|model| model.id.clone()).collect();
 
     Ok(LocalInferenceHuggingFaceRepoVariantsResponse {
-        variants: variants.into_iter().map(hf_model_variant_to_dto).collect(),
+        variants,
         recommended_index,
+        recommended_variant_id,
+        quality,
         available_memory_bytes: available_memory,
         downloaded_quants,
         downloaded_variants,
@@ -403,30 +414,6 @@ fn download_progress_to_dto(progress: DownloadProgress) -> LocalInferenceDownloa
     }
 }
 
-fn hf_model_info_to_dto(model: HfModelInfo) -> LocalInferenceHfModelInfoDto {
-    LocalInferenceHfModelInfoDto {
-        repo_id: model.repo_id,
-        author: model.author,
-        model_name: model.model_name,
-        downloads: model.downloads,
-        gguf_files: model
-            .gguf_files
-            .into_iter()
-            .map(|file| LocalInferenceHfGgufFileDto {
-                filename: file.filename,
-                size_bytes: file.size_bytes,
-                quantization: file.quantization,
-                download_url: file.download_url,
-            })
-            .collect(),
-        variants: model
-            .variants
-            .into_iter()
-            .map(hf_model_variant_to_dto)
-            .collect(),
-    }
-}
-
 fn hf_model_variant_to_dto(variant: HfModelVariant) -> LocalInferenceHfModelVariantDto {
     LocalInferenceHfModelVariantDto {
         variant_id: variant.variant_id,
@@ -443,6 +430,7 @@ fn hf_model_variant_to_dto(variant: HfModelVariant) -> LocalInferenceHfModelVari
         sharded: variant.sharded,
         supported: variant.supported,
         unsupported_reason: variant.unsupported_reason,
+        assessment: None,
     }
 }
 

@@ -5501,6 +5501,8 @@ dependencies = [
  "llama-cpp-sys-2",
  "minijinja",
  "pulldown-cmark",
+ "regex",
+ "reqwest 0.13.5",
  "rmcp 3.4.1",
  "serde",
  "serde_json",

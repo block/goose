@@ -567,6 +567,7 @@ export const LocalInferenceSettings = () => {
       {/* HuggingFace Search */}
       <div className="border-t border-border-subtle pt-4">
         <HuggingFaceModelSearch
+          showRecommendations
           onDownloadStarted={handleHfDownloadStarted}
           activeDownloadIds={activeDownloadIds}
           downloadedModelIds={

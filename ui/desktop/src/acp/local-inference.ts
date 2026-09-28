@@ -21,6 +21,8 @@ export type ChatTemplate = NonNullable<LocalInferenceModelSettingsDto['chatTempl
 export type RepoVariantsResponse = {
   variants: HfModelVariant[];
   recommendedIndex: number | null;
+  recommendedVariantId?: string | null;
+  quality?: HfModelInfo['quality'];
   availableMemoryBytes: number;
   downloadedQuants: string[];
   downloadedVariants: string[];
@@ -85,12 +87,22 @@ export async function searchHfModels(query: string, limit?: number): Promise<HfM
   return response.models;
 }
 
-export async function getRepoFiles(repoId: string): Promise<RepoVariantsResponse> {
+export async function getRepoFiles(
+  repoId: string,
+  assess = true,
+  variantId?: string
+): Promise<RepoVariantsResponse> {
   const client = await getAcpClient();
-  const response = await client.goose.localInferenceHuggingfaceRepoVariants_unstable({ repoId });
+  const response = await client.goose.localInferenceHuggingfaceRepoVariants_unstable({
+    repoId,
+    assess,
+    variantId,
+  });
   return {
     variants: response.variants,
     recommendedIndex: response.recommendedIndex ?? null,
+    recommendedVariantId: response.recommendedVariantId,
+    quality: response.quality,
     availableMemoryBytes: response.availableMemoryBytes,
     downloadedQuants: response.downloadedQuants,
     downloadedVariants: response.downloadedVariants,

@@ -2493,10 +2493,10 @@ export type LocalInferenceChatTemplate = {
  * Download a model for local inference.
  */
 export type LocalInferenceModelDownloadRequest_unstable = {
-    format?: string | null;
     spec: string;
     backendId?: string | null;
     variantId?: string | null;
+    format?: string | null;
 };
 
 export type LocalInferenceModelDownloadResponse_unstable = {
@@ -2555,9 +2555,9 @@ export type LocalInferenceModelSettingsReadRequest_unstable = {
 };
 
 export type LocalInferenceModelSettingsReadResponse_unstable = {
-    availableBackends?: Array<string>;
-    defaultBackend?: string;
     settings: LocalInferenceModelSettingsDto;
+    defaultBackend?: string;
+    availableBackends?: Array<string>;
 };
 
 /**
@@ -2591,6 +2591,7 @@ export type LocalInferenceHfModelInfoDto = {
     downloads: number;
     ggufFiles?: Array<LocalInferenceHfGgufFileDto>;
     variants?: Array<LocalInferenceHfModelVariantDto>;
+    quality?: LocalInferenceModelQualityDto | null;
 };
 
 export type LocalInferenceHfGgufFileDto = {
@@ -2615,6 +2616,38 @@ export type LocalInferenceHfModelVariantDto = {
     sharded: boolean;
     supported: boolean;
     unsupportedReason?: string | null;
+    assessment?: LocalInferenceModelAssessmentDto | null;
+};
+
+export type LocalInferenceModelAssessmentDto = {
+    fit: LocalInferenceMemoryFit;
+    recommended: boolean;
+    inputTokens: number;
+    outputTokens: number;
+    availableMemoryBytes: number;
+    reserveBytes: number;
+    lowerBytes?: number | null;
+    upperBytes?: number | null;
+    revision?: string | null;
+    reasons: Array<string>;
+};
+
+export type LocalInferenceMemoryFit = 'likelyFit' | 'likelyShortfall' | 'unknown' | 'incompatible';
+
+export type LocalInferenceModelQualityDto = {
+    evaluatedModelId: string;
+    inherited: boolean;
+    evidence: Array<LocalInferenceBenchmarkEvidenceDto>;
+};
+
+export type LocalInferenceBenchmarkEvidenceDto = {
+    benchmark: string;
+    score: number;
+    rank: number;
+    participants: number;
+    verified: boolean;
+    sourceUrl: string;
+    notes: string;
 };
 
 /**
@@ -2622,11 +2655,15 @@ export type LocalInferenceHfModelVariantDto = {
  */
 export type LocalInferenceHuggingFaceRepoVariantsRequest_unstable = {
     repoId: string;
+    assess?: boolean;
+    variantId?: string | null;
 };
 
 export type LocalInferenceHuggingFaceRepoVariantsResponse_unstable = {
     variants: Array<LocalInferenceHfModelVariantDto>;
     recommendedIndex?: number | null;
+    recommendedVariantId?: string | null;
+    quality?: LocalInferenceModelQualityDto | null;
     availableMemoryBytes: number;
     downloadedQuants: Array<string>;
     downloadedVariants: Array<string>;

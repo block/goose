@@ -2034,10 +2034,10 @@ export const zLocalInferenceModelsListResponse_unstable = z.object({
  * Download a model for local inference.
  */
 export const zLocalInferenceModelDownloadRequest_unstable = z.object({
-    format: z.string().nullish(),
     spec: z.string(),
     backendId: z.string().nullish(),
-    variantId: z.string().nullish()
+    variantId: z.string().nullish(),
+    format: z.string().nullish()
 });
 
 export const zLocalInferenceModelDownloadResponse_unstable = z.object({
@@ -2096,9 +2096,9 @@ export const zLocalInferenceModelSettingsReadRequest_unstable = z.object({
 });
 
 export const zLocalInferenceModelSettingsReadResponse_unstable = z.object({
-    availableBackends: z.array(z.string()).default([]),
-    defaultBackend: z.string().default(''),
-    settings: zLocalInferenceModelSettingsDto
+    settings: zLocalInferenceModelSettingsDto,
+    defaultBackend: z.string().optional().default(''),
+    availableBackends: z.array(z.string()).optional().default([])
 });
 
 /**
@@ -2128,6 +2128,26 @@ export const zLocalInferenceHfGgufFileDto = z.object({
     downloadUrl: z.string()
 });
 
+export const zLocalInferenceMemoryFit = z.enum([
+    'likelyFit',
+    'likelyShortfall',
+    'unknown',
+    'incompatible'
+]);
+
+export const zLocalInferenceModelAssessmentDto = z.object({
+    fit: zLocalInferenceMemoryFit,
+    recommended: z.boolean(),
+    inputTokens: z.int().gte(0),
+    outputTokens: z.int().gte(0),
+    availableMemoryBytes: z.int().gte(0),
+    reserveBytes: z.int().gte(0),
+    lowerBytes: z.int().gte(0).nullish(),
+    upperBytes: z.int().gte(0).nullish(),
+    revision: z.string().nullish(),
+    reasons: z.array(z.string())
+});
+
 export const zLocalInferenceHfModelVariantDto = z.object({
     variantId: z.string(),
     label: z.string(),
@@ -2142,7 +2162,24 @@ export const zLocalInferenceHfModelVariantDto = z.object({
     qualityRank: z.int().gte(0).lte(255),
     sharded: z.boolean(),
     supported: z.boolean(),
-    unsupportedReason: z.string().nullish()
+    unsupportedReason: z.string().nullish(),
+    assessment: zLocalInferenceModelAssessmentDto.nullish()
+});
+
+export const zLocalInferenceBenchmarkEvidenceDto = z.object({
+    benchmark: z.string(),
+    score: z.number(),
+    rank: z.int().gte(0),
+    participants: z.int().gte(0),
+    verified: z.boolean(),
+    sourceUrl: z.string(),
+    notes: z.string()
+});
+
+export const zLocalInferenceModelQualityDto = z.object({
+    evaluatedModelId: z.string(),
+    inherited: z.boolean(),
+    evidence: z.array(zLocalInferenceBenchmarkEvidenceDto)
 });
 
 export const zLocalInferenceHfModelInfoDto = z.object({
@@ -2151,7 +2188,8 @@ export const zLocalInferenceHfModelInfoDto = z.object({
     modelName: z.string(),
     downloads: z.int().gte(0),
     ggufFiles: z.array(zLocalInferenceHfGgufFileDto).optional().default([]),
-    variants: z.array(zLocalInferenceHfModelVariantDto).optional().default([])
+    variants: z.array(zLocalInferenceHfModelVariantDto).optional().default([]),
+    quality: zLocalInferenceModelQualityDto.nullish()
 });
 
 export const zLocalInferenceHuggingFaceSearchResponse_unstable = z.object({
@@ -2162,12 +2200,16 @@ export const zLocalInferenceHuggingFaceSearchResponse_unstable = z.object({
  * List downloadable variants of a Hugging Face model repository.
  */
 export const zLocalInferenceHuggingFaceRepoVariantsRequest_unstable = z.object({
-    repoId: z.string()
+    repoId: z.string(),
+    assess: z.boolean().optional().default(false),
+    variantId: z.string().nullish()
 });
 
 export const zLocalInferenceHuggingFaceRepoVariantsResponse_unstable = z.object({
     variants: z.array(zLocalInferenceHfModelVariantDto),
     recommendedIndex: z.int().gte(0).nullish(),
+    recommendedVariantId: z.string().nullish(),
+    quality: zLocalInferenceModelQualityDto.nullish(),
     availableMemoryBytes: z.int().gte(0),
     downloadedQuants: z.array(z.string()),
     downloadedVariants: z.array(z.string())

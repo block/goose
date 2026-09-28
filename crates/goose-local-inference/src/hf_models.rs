@@ -864,6 +864,53 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
     group_into_variants(repo_id, get_repo_siblings(repo_id).await?)
 }
 
+pub(crate) fn variants_from_manifest(
+    repo_id: &str,
+    manifest: &serde_json::Value,
+) -> Result<Vec<HfModelVariant>> {
+    let siblings: Vec<HfApiSibling> = serde_json::from_value(manifest["siblings"].clone())?;
+    let mut variants: Vec<_> = group_into_variants(repo_id, siblings)?
+        .iter()
+        .map(|variant| variant.to_model_variant(repo_id))
+        .collect();
+    let info: ModelInfo = serde_json::from_value(manifest.clone())?;
+    // API config is partial: tensor/config compatibility belongs to the pinned
+    // eredu inspection, not a second interpretation of these discovery hints.
+    if has_mlx_snapshot_files(info.siblings.as_deref().unwrap_or_default()) {
+        variants.push(mlx_variant_from_model_info(repo_id, &info, &None));
+    }
+    Ok(variants)
+}
+
+#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+pub(crate) fn forecast_gguf_members(
+    repo_id: &str,
+    variant: &HfModelVariant,
+    manifest: &serde_json::Value,
+) -> Result<(Vec<String>, Option<String>)> {
+    let siblings: Vec<HfApiSibling> = serde_json::from_value(manifest["siblings"].clone())?;
+    let filename = variant
+        .filename
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("Missing GGUF filename"))?;
+    let mut members: Vec<_> = siblings
+        .iter()
+        .filter(|sibling| {
+            if variant.sharded {
+                is_shard_file(&sibling.rfilename)
+                    && shard_set_key(&sibling.rfilename) == shard_set_key(filename)
+            } else {
+                sibling.rfilename == filename
+            }
+        })
+        .map(|sibling| sibling.rfilename.clone())
+        .collect();
+    members.sort();
+    let projector = select_best_mmproj(repo_id, &siblings, filename, &variant.variant_id)
+        .map(|file| file.filename);
+    Ok((members, projector))
+}
+
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let files = get_repo_siblings(repo_id)
@@ -2131,10 +2178,19 @@ fn mlx_variants_from_model_info(
         return Vec::new();
     }
 
+    vec![mlx_variant_from_model_info(repo_id, info, mlx_config)]
+}
+
+fn mlx_variant_from_model_info(
+    repo_id: &str,
+    info: &ModelInfo,
+    mlx_config: &Option<serde_json::Value>,
+) -> HfModelVariant {
+    let siblings = info.siblings.as_deref().unwrap_or(&[]);
     let size_bytes = mlx_download_size_bytes(info, siblings);
     let variant_id = mlx_variant_id(repo_id, &info.config);
 
-    vec![HfModelVariant {
+    HfModelVariant {
         variant_id: variant_id.clone(),
         label: mlx_variant_label(&variant_id),
         backend_id: EREDU_BACKEND_ID.to_string(),
@@ -2153,7 +2209,7 @@ fn mlx_variants_from_model_info(
             > 1,
         supported: is_mlx_runtime_supported(mlx_config),
         unsupported_reason: mlx_unsupported_reason(mlx_config),
-    }]
+    }
 }
 
 fn is_mlx_compatible_model_info(info: &ModelInfo) -> bool {
@@ -2161,13 +2217,17 @@ fn is_mlx_compatible_model_info(info: &ModelInfo) -> bool {
 }
 
 fn is_mlx_compatible_repo(config: &Option<serde_json::Value>, siblings: &[RepoSibling]) -> bool {
+    has_mlx_snapshot_files(siblings) && mlx_model_type(config).is_some()
+}
+
+fn has_mlx_snapshot_files(siblings: &[RepoSibling]) -> bool {
     let has_config = siblings.iter().any(|s| s.rfilename == "config.json");
     let has_tokenizer = has_mlx_tokenizer(siblings);
     let has_safetensors = siblings
         .iter()
         .any(|s| s.rfilename.ends_with(".safetensors"));
 
-    has_config && has_tokenizer && has_safetensors && mlx_model_type(config).is_some()
+    has_config && has_tokenizer && has_safetensors
 }
 
 fn mlx_download_size_bytes(info: &ModelInfo, siblings: &[RepoSibling]) -> u64 {
