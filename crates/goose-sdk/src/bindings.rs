@@ -26,7 +26,7 @@ use goose_providers::{
     },
     declarative::{DeclarativeProviderConfig, EnvKeyResolver},
     documents::{document_media_type_is_supported, SUPPORTED_DOCUMENT_MEDIA_TYPES},
-    http_status::parse_request_id_suffix,
+    http_status::{parse_request_id_suffix, request_id_message_suffix},
     model::ModelConfig,
     openai::{
         parse_openai_base_url, OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH,
@@ -85,11 +85,18 @@ impl From<goose_providers::errors::ProviderError> for GooseError {
             goose_providers::errors::ProviderError::ContextLengthExceeded(message) => {
                 Self::ContextLengthExceeded { details: message }
             }
-            goose_providers::errors::ProviderError::RateLimitExceeded { retry_delay, .. } => {
+            goose_providers::errors::ProviderError::RateLimitExceeded {
+                details,
+                retry_delay,
+            } => {
                 let retry_after_ms = retry_delay.map(|delay| delay.as_millis() as u64);
-                let retry_after_suffix = retry_after_ms
-                    .map(|ms| format!("; retry after {ms}ms"))
-                    .unwrap_or_default();
+                let retry_after_suffix = format!(
+                    "{}{}",
+                    retry_after_ms
+                        .map(|ms| format!("; retry after {ms}ms"))
+                        .unwrap_or_default(),
+                    request_id_message_suffix(parse_request_id_suffix(&details).as_deref()),
+                );
                 Self::RateLimited {
                     retry_after_ms,
                     retry_after_suffix,
@@ -1683,6 +1690,18 @@ mod tests {
             timeout_ms: None,
             request_headers: None,
         }
+    }
+
+    #[test]
+    fn rate_limit_stream_error_keeps_request_id() {
+        let provider_error = goose_providers::errors::ProviderError::RateLimitExceeded {
+            details: "slow down (provider request id: req_rate)".to_string(),
+            retry_delay: Some(std::time::Duration::from_millis(1500)),
+        };
+        let error = GooseStreamError::from(&GooseError::from(provider_error));
+        assert!(matches!(error.kind, GooseStreamErrorKind::RateLimited));
+        assert_eq!(error.retry_after_ms, Some(1500));
+        assert_eq!(error.request_id.as_deref(), Some("req_rate"));
     }
 
     #[test]

@@ -231,11 +231,21 @@ impl Provider for OpenAiCompatibleProvider {
 // format-agnostic and used across all provider families.
 pub use super::http_status::{
     extract_request_id, handle_response, handle_status, map_http_error_to_provider_error,
-    sanitize_url,
+    parse_request_id_suffix, request_id_message_suffix, sanitize_url,
 };
 
 // Legacy alias kept for callers that haven't migrated their import path yet.
 pub use super::http_status::handle_response as handle_response_openai_compat;
+
+/// SSE error frames arrive after a 200, so the header id is only available here.
+fn annotate_request_id(mut error: ProviderError, request_id: Option<&str>) -> ProviderError {
+    if let (Some(details), Some(id)) = (error.details_mut(), request_id) {
+        if parse_request_id_suffix(details).is_none() {
+            details.push_str(&request_id_message_suffix(Some(id)));
+        }
+    }
+    error
+}
 
 pub fn stream_openai_compat(
     response: Response,
@@ -253,8 +263,11 @@ pub fn stream_openai_compat(
         pin!(message_stream);
         while let Some(message) = message_stream.next().await {
             let (message, mut usage) = message.map_err(|e|
-                e.downcast::<ProviderError>()
-                    .unwrap_or_else(ProviderError::stream_decode_error)
+                annotate_request_id(
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error),
+                    request_id.as_deref(),
+                )
             )?;
             if let Some(usage) = usage.as_mut() {
                 usage.request_id = request_id.clone();
@@ -281,8 +294,11 @@ pub fn stream_responses_compat(
         pin!(message_stream);
         while let Some(message) = message_stream.next().await {
             let (message, mut usage) = message.map_err(|e|
-                e.downcast::<ProviderError>()
-                    .unwrap_or_else(ProviderError::stream_decode_error)
+                annotate_request_id(
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error),
+                    request_id.as_deref(),
+                )
             )?;
             if let Some(usage) = usage.as_mut() {
                 usage.request_id = request_id.clone();
@@ -299,6 +315,20 @@ mod tests {
     use crate::model::ModelConfig;
     use serde_json::json;
     use test_case::test_case;
+
+    #[test]
+    fn stream_errors_carry_request_id_once() {
+        let error = annotate_request_id(
+            ProviderError::ServerError("boom".to_string()),
+            Some("req_stream"),
+        );
+        assert_eq!(
+            parse_request_id_suffix(&error.to_string()).as_deref(),
+            Some("req_stream")
+        );
+        let again = annotate_request_id(error, Some("req_other"));
+        assert!(!again.to_string().contains("req_other"));
+    }
 
     #[tokio::test]
     async fn streaming_usage_carries_request_id() {
