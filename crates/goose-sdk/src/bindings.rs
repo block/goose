@@ -26,6 +26,7 @@ use goose_providers::{
     },
     declarative::{DeclarativeProviderConfig, EnvKeyResolver},
     documents::{document_media_type_is_supported, SUPPORTED_DOCUMENT_MEDIA_TYPES},
+    http_status::parse_request_id_suffix,
     model::ModelConfig,
     openai::{
         parse_openai_base_url, OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH,
@@ -551,6 +552,8 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<i32>,
     pub reasoning_tokens: Option<i32>,
     pub model: String,
+    /// The model vendor's own id for this call: Anthropic sends `request-id`, OpenAI `x-request-id`.
+    pub request_id: Option<String>,
     pub provider_metadata_json: Option<String>,
     /// Provider-specific response fields as a JSON object, present only when the
     /// provider reported fields with no canonical `Usage` equivalent.
@@ -567,6 +570,7 @@ impl Usage {
             cache_creation_input_tokens: usage.usage.cache_write_input_tokens,
             reasoning_tokens: None,
             model: usage.model.clone(),
+            request_id: usage.request_id.clone(),
             provider_metadata_json: Some(serde_json::to_string(usage)?),
             additional_data_json: usage
                 .additional_data
@@ -610,6 +614,8 @@ pub struct GooseStreamError {
     pub kind: GooseStreamErrorKind,
     pub message: String,
     pub retry_after_ms: Option<u64>,
+    /// Recovered from the message text, the only channel `ProviderError` has for it.
+    pub request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
@@ -625,45 +631,47 @@ pub enum GooseStreamErrorKind {
 
 impl From<&GooseError> for GooseStreamError {
     fn from(error: &GooseError) -> Self {
-        match error {
+        let (kind, message, retry_after_ms) = match error {
             GooseError::RateLimited {
                 retry_after_ms,
                 retry_after_suffix,
-            } => Self {
-                kind: GooseStreamErrorKind::RateLimited,
-                message: format!("Rate limit exceeded{retry_after_suffix}"),
-                retry_after_ms: *retry_after_ms,
-            },
-            GooseError::OutputTokenLimitExceeded { details } => Self {
-                kind: GooseStreamErrorKind::OutputTokenLimitExceeded,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
-            GooseError::ContextLengthExceeded { details } => Self {
-                kind: GooseStreamErrorKind::ContextLengthExceeded,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
-            GooseError::Authentication { details } => Self {
-                kind: GooseStreamErrorKind::Authentication,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
-            GooseError::Timeout { details } => Self {
-                kind: GooseStreamErrorKind::Timeout,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
-            GooseError::ProviderUnavailable { details } => Self {
-                kind: GooseStreamErrorKind::ProviderUnavailable,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
-            GooseError::Generic { details } => Self {
-                kind: GooseStreamErrorKind::Generic,
-                message: details.clone(),
-                retry_after_ms: None,
-            },
+            } => (
+                GooseStreamErrorKind::RateLimited,
+                format!("Rate limit exceeded{retry_after_suffix}"),
+                *retry_after_ms,
+            ),
+            GooseError::OutputTokenLimitExceeded { details } => (
+                GooseStreamErrorKind::OutputTokenLimitExceeded,
+                details.clone(),
+                None,
+            ),
+            GooseError::ContextLengthExceeded { details } => (
+                GooseStreamErrorKind::ContextLengthExceeded,
+                details.clone(),
+                None,
+            ),
+            GooseError::Authentication { details } => {
+                (GooseStreamErrorKind::Authentication, details.clone(), None)
+            }
+            GooseError::Timeout { details } => {
+                (GooseStreamErrorKind::Timeout, details.clone(), None)
+            }
+            GooseError::ProviderUnavailable { details } => (
+                GooseStreamErrorKind::ProviderUnavailable,
+                details.clone(),
+                None,
+            ),
+            GooseError::Generic { details } => {
+                (GooseStreamErrorKind::Generic, details.clone(), None)
+            }
+        };
+
+        let request_id = parse_request_id_suffix(&message);
+        Self {
+            kind,
+            message,
+            retry_after_ms,
+            request_id,
         }
     }
 }
@@ -1637,6 +1645,8 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                             kind: GooseStreamErrorKind::Generic,
                             message: error.to_string(),
                             retry_after_ms: None,
+                            // Local parse failure: no provider response, so no request id.
+                            request_id: None,
                         },
                     }),
                 }
