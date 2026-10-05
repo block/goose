@@ -24,9 +24,7 @@ pub struct SlashCommand<'a> {
 
 pub fn messages_since_kickoff(conversation: &Conversation) -> Result<&[Message]> {
     let messages = conversation.messages();
-    let is_kickoff = |msg: &Message| {
-        msg.role == rmcp::model::Role::User && !msg.is_tool_response()
-    };
+    let is_kickoff = |msg: &Message| msg.role == rmcp::model::Role::User && !msg.is_tool_response();
     let start = messages
         .iter()
         .rposition(|msg| is_kickoff(msg) && msg.is_user_visible())

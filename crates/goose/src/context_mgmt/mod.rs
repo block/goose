@@ -128,10 +128,7 @@ pub async fn compact_messages(
                 .content
                 .into_iter()
                 .filter(|content| matches!(content, MessageContent::Text(_)))
-                .fold(
-                    Message::user(),
-                    Message::with_content,
-                );
+                .fold(Message::user(), Message::with_content);
             Some((idx, preserved))
         });
 
