@@ -9,7 +9,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, OnceCell};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
@@ -29,7 +29,9 @@ use crate::config::extensions::name_to_key;
 use crate::config::{get_extension_by_name, Config};
 use crate::oauth::GooseCredentialStore;
 use crate::session::{EnabledExtensionsState, Session};
-use rmcp::model::{CallToolResult, ErrorCode, ErrorData, MetaObject, ServerConfig, Tool};
+use rmcp::model::{
+    CallToolResult, ErrorCode, ErrorData, MetaObject, ServerConfig, SkillEntry, Tool,
+};
 use serde_json::Value;
 
 mod builtin;
@@ -139,6 +141,8 @@ pub(super) struct Extension {
     /// management hides itself from subagents), so the scope is part of the
     /// cache key.
     tools: Mutex<Option<CachedTools>>,
+    skills_version: Arc<AtomicU64>,
+    skills: Mutex<Option<CachedSkills>>,
 }
 
 struct CachedTools {
@@ -248,6 +252,13 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+struct CachedSkills {
+    scope_id: String,
+    version: u64,
+    expires_at: Option<Instant>,
+    skills: Arc<Vec<SkillEntry>>,
+}
+
 impl Extension {
     pub(super) fn supports_resources(&self) -> bool {
         self.server_info
@@ -295,6 +306,46 @@ impl Extension {
             });
         }
         tools
+    }
+
+    pub(super) async fn skills(&self, scope_id: &str) -> Arc<Vec<SkillEntry>> {
+        if !self.client.supports_skills() {
+            return Arc::default();
+        }
+        let mut cache = self.skills.lock().await;
+        let version = self.skills_version.load(Ordering::SeqCst);
+        if let Some(cached) = &*cache {
+            if cached.version == version
+                && cached.scope_id == scope_id
+                && cached
+                    .expires_at
+                    .is_none_or(|expires_at| Instant::now() < expires_at)
+            {
+                return Arc::clone(&cached.skills);
+            }
+        }
+        match self
+            .client
+            .list_skills(scope_id, CancellationToken::default())
+            .await
+        {
+            Ok(listed) => {
+                let skills = Arc::new(listed.skills);
+                *cache = Some(CachedSkills {
+                    scope_id: scope_id.to_string(),
+                    version,
+                    expires_at: listed
+                        .ttl_ms
+                        .map(|ttl| Instant::now() + Duration::from_millis(ttl)),
+                    skills: Arc::clone(&skills),
+                });
+                skills
+            }
+            Err(error) => {
+                warn!(extension = %self.key, ?error, "failed to list skills");
+                Arc::default()
+            }
+        }
     }
 
     async fn fetch_public_tools(&self, session_id: &str) -> Vec<Tool> {
@@ -787,6 +838,7 @@ impl ExtensionManager {
         let container = placement.and_then(|placement| placement.container.as_ref());
 
         let tools_version = Arc::new(AtomicU64::new(0));
+        let skills_version = Arc::new(AtomicU64::new(0));
         let ctx = |timeout: Option<u64>, working_dir: PathBuf| ConnectContext {
             timeout: Duration::from_secs(resolve_timeout(timeout)),
             client_name: self.client_name.clone(),
@@ -795,6 +847,7 @@ impl ExtensionManager {
             docker_container: None,
             action_required: self.context.session_manager.action_required(),
             tools_version: Arc::clone(&tools_version),
+            skills_version: Arc::clone(&skills_version),
         };
 
         let client: Box<dyn McpClientTrait> = match &resolved_config {
@@ -877,6 +930,8 @@ impl ExtensionManager {
             server_info,
             tools_version,
             tools: Mutex::new(None),
+            skills_version,
+            skills: Mutex::new(None),
         }))
     }
 
@@ -1049,6 +1104,8 @@ impl ExtensionManager {
                     server_info: info,
                     tools_version: Arc::new(AtomicU64::new(0)),
                     tools: Mutex::new(None),
+                    skills_version: Arc::new(AtomicU64::new(0)),
+                    skills: Mutex::new(None),
                 })))),
             },
         )
