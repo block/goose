@@ -45,6 +45,8 @@ alias @g='{goose_bin} term run'
 goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
+    [[ "$1" =~ ^export[[:space:]] ]] && return
+    [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
 }
 
@@ -71,6 +73,8 @@ alias @g='{goose_bin} term run'
 goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
+    [[ "$1" =~ ^export[[:space:]] ]] && return
+    [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
 }
 
@@ -432,5 +436,21 @@ mod tests {
 
         let only_block = vec![&block];
         assert_eq!(shell_history_text(&only_block), None);
+    }
+
+    #[test]
+    fn render_term_init_script_bash_filters_env_var_assignments() {
+        let script = render_term_init_script(Shell::Bash, "session-123", "/tmp/goose", false);
+
+        assert!(script.contains("[[ \"$1\" =~ ^export[[:space:]] ]] && return"));
+        assert!(script.contains("[[ \"$1\" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && return"));
+    }
+
+    #[test]
+    fn render_term_init_script_zsh_filters_env_var_assignments() {
+        let script = render_term_init_script(Shell::Zsh, "session-123", "/tmp/goose", false);
+
+        assert!(script.contains("[[ \"$1\" =~ ^export[[:space:]] ]] && return"));
+        assert!(script.contains("[[ \"$1\" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && return"));
     }
 }
