@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn test_invalid_override_prompt_returns_error() {
         let manager = PromptManager::new();
-        let session = session_with_override("{% invalid jinja %}");
+        let session = session_with_override("{{ unclosed");
 
         let result = manager.builder().with_session(&session).build();
 
