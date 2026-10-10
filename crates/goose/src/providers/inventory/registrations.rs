@@ -205,7 +205,15 @@ pub fn muse_code_inventory() -> InventoryRegistration {
 }
 
 pub fn chatgpt_codex_inventory() -> InventoryRegistration {
-    refresh_only().with_configured(|| ChatGptCodexTokenCache::new().has_token())
+    InventoryRegistration::new(true, || {
+        let cache = ChatGptCodexTokenCache::new();
+        let credential = cache.inventory_identity().unwrap_or_default();
+        Ok(
+            InventoryIdentityInput::new("chatgpt_codex", "chatgpt_codex")
+                .with_secret("oauth_account", credential),
+        )
+    })
+    .with_configured(|| ChatGptCodexTokenCache::new().has_token())
 }
 
 pub fn gemini_oauth_inventory() -> InventoryRegistration {

@@ -144,6 +144,7 @@ fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
     oauth_mutex: TokioMutex<()>,
+    token_mutex: TokioMutex<()>,
     jwks_cache: TokioMutex<Option<JwkSet>>,
 }
 
@@ -151,6 +152,7 @@ impl ChatGptCodexAuthState {
     fn new() -> Self {
         Self {
             oauth_mutex: TokioMutex::new(()),
+            token_mutex: TokioMutex::new(()),
             jwks_cache: TokioMutex::new(None),
         }
     }
@@ -391,6 +393,11 @@ impl TokenCache {
     }
     pub(crate) fn has_token(&self) -> bool {
         self.load().is_some()
+    }
+
+    pub(crate) fn inventory_identity(&self) -> Option<String> {
+        self.load()
+            .map(|token| token.account_id.unwrap_or_else(|| token.refresh_token))
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -893,6 +900,7 @@ impl ChatGptCodexAuthProvider {
     /// Token for read-only model discovery: refreshes an expired token but never
     /// starts the interactive OAuth flow, so listing models cannot open a browser.
     async fn get_cached_token(&self) -> Result<TokenData, ProviderError> {
+        let _guard = self.state.token_mutex.lock().await;
         let Some(mut token_data) = self.cache.load() else {
             return Err(ProviderError::NotConfigured);
         };
@@ -905,6 +913,7 @@ impl ChatGptCodexAuthProvider {
     }
 
     async fn get_valid_token(&self) -> Result<TokenData> {
+        let guard = self.state.token_mutex.lock().await;
         if let Some(mut token_data) = self.cache.load() {
             if token_data.expires_at > Utc::now() + chrono::Duration::seconds(60) {
                 return Ok(token_data);
@@ -923,8 +932,11 @@ impl ChatGptCodexAuthProvider {
             }
         }
 
+        drop(guard);
+
         tracing::info!("Starting OAuth flow for ChatGPT Codex");
         let token_data = perform_oauth_flow(self.state.as_ref()).await?;
+        let _guard = self.state.token_mutex.lock().await;
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -1141,12 +1153,16 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let previous_token = self.auth_provider.cache.load();
-        self.auth_provider.clear_cached_tokens();
+        let previous_token = {
+            let _guard = self.auth_provider.state.token_mutex.lock().await;
+            let previous_token = self.auth_provider.cache.load();
+            self.auth_provider.clear_cached_tokens();
+            previous_token
+        };
 
-        let result = perform_oauth_flow(self.auth_provider.state.as_ref())
-            .await
-            .and_then(|token_data| self.auth_provider.cache.save(&token_data));
+        let result = perform_oauth_flow(self.auth_provider.state.as_ref()).await;
+        let _guard = self.auth_provider.state.token_mutex.lock().await;
+        let result = result.and_then(|token_data| self.auth_provider.cache.save(&token_data));
 
         if let Err(e) = result {
             if let Some(previous_token) = previous_token.as_ref() {
@@ -1222,6 +1238,45 @@ mod tests {
             .unwrap();
 
         assert!(TokenCache::new().has_token());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn inventory_identity_tracks_oauth_account_across_token_refresh() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let resolve =
+            crate::providers::inventory::registrations::chatgpt_codex_inventory().identity;
+
+        let save = |account_id: &str, refresh_token: &str| {
+            cache
+                .save(&TokenData {
+                    access_token: "access".to_string(),
+                    refresh_token: refresh_token.to_string(),
+                    id_token: None,
+                    expires_at: Utc::now() + chrono::Duration::hours(1),
+                    account_id: Some(account_id.to_string()),
+                })
+                .unwrap();
+        };
+
+        save("account-a", "refresh-a");
+        let account_a = resolve().unwrap().into_identity().unwrap();
+        save("account-a", "rotated-refresh-a");
+        assert_eq!(account_a, resolve().unwrap().into_identity().unwrap());
+        save("account-b", "refresh-b");
+        assert_ne!(account_a, resolve().unwrap().into_identity().unwrap());
+
+        let mut token = cache.load().unwrap();
+        token.account_id = None;
+        cache.save(&token).unwrap();
+        let unknown_account = resolve().unwrap().into_identity().unwrap();
+        assert_ne!(account_a, unknown_account);
+        token.refresh_token = "another-account-refresh".to_string();
+        cache.save(&token).unwrap();
+        assert_ne!(unknown_account, resolve().unwrap().into_identity().unwrap());
     }
 
     #[cfg(unix)]
