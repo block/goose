@@ -176,22 +176,29 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                     flush_text(&mut items, role, &mut content_items);
                     match &response.tool_result {
                         Ok(contents) => {
-                            let text_content: Vec<String> = contents
+                            let output: Vec<Value> = contents
                                 .content
                                 .iter()
-                                .filter_map(|c| {
-                                    if let ContentBlock::Text(t) = c {
-                                        Some(t.text.clone())
-                                    } else {
-                                        None
+                                .filter_map(|c| match c {
+                                    ContentBlock::Text(t) => {
+                                        Some(json!({ "type": "input_text", "text": t.text }))
                                     }
+                                    ContentBlock::Image(img) => {
+                                        let image_url = if img.data.starts_with("data:") {
+                                            img.data.clone()
+                                        } else {
+                                            format!("data:{};base64,{}", img.mime_type, img.data)
+                                        };
+                                        Some(json!({ "type": "input_image", "image_url": image_url }))
+                                    }
+                                    _ => None,
                                 })
                                 .collect();
-                            if !text_content.is_empty() {
+                            if !output.is_empty() {
                                 items.push(json!({
                                     "type": "function_call_output",
                                     "call_id": response.id,
-                                    "output": text_content.join("\n")
+                                    "output": output
                                 }));
                             }
                         }
@@ -1225,6 +1232,24 @@ mod tests {
         let payload = json!({ "input": items });
         let kinds = input_kinds(&payload);
         assert_eq!(kinds, expected);
+    }
+
+    #[test]
+    fn test_tool_response_image_forwarded() {
+        let messages = vec![Message::user().with_tool_response(
+            "call-1",
+            Ok(CallToolResult::success(vec![
+                ContentBlock::text("img"),
+                ContentBlock::image(TEST_IMAGE_B64, "image/png"),
+            ])),
+        )];
+        let output = &build_input_items(&messages).unwrap()[0]["output"];
+        assert_eq!(output[0], json!({ "type": "input_text", "text": "img" }));
+        assert_eq!(output[1]["type"], "input_image");
+        assert!(output[1]["image_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
     }
 
     #[test]
