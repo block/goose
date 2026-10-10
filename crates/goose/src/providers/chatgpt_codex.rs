@@ -111,15 +111,20 @@ struct CodexCatalogEntry {
     slug: String,
     #[serde(default)]
     visibility: Option<String>,
+    /// An entry that omits this flag never asserted API support, so it is
+    /// treated as unsupported instead of being advertised and failing later at
+    /// request time.
     #[serde(default)]
-    supported_in_api: Option<bool>,
+    supported_in_api: bool,
     #[serde(default)]
     priority: Option<i64>,
 }
 
+/// `models` is required. A successful response that omits it - an error
+/// envelope or a schema change - must fail to deserialize so the refresh job
+/// keeps the last good inventory rather than storing an empty one.
 #[derive(Debug, Deserialize)]
 struct CodexCatalog {
-    #[serde(default)]
     models: Vec<CodexCatalogEntry>,
 }
 
@@ -130,7 +135,7 @@ fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
         .models
         .into_iter()
         .filter(|model| model.visibility.as_deref() != Some("hide"))
-        .filter(|model| model.supported_in_api.unwrap_or(true))
+        .filter(|model| model.supported_in_api)
         .collect();
     entries.sort_by_key(|model| (model.priority.unwrap_or(i64::MAX), model.slug.clone()));
     entries.into_iter().map(|model| model.slug).collect()
@@ -1092,6 +1097,13 @@ impl Provider for ChatGptCodexProvider {
         &self.name
     }
 
+    /// The Codex catalog is already scoped to the account's API-supported
+    /// models and carries the endpoint's own priority order; the canonical
+    /// registry would re-sort recognized models by release date and lose it.
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -1590,41 +1602,18 @@ mod tests {
     }
 
     #[test]
-    fn selectable_model_names_hides_internal_entries_and_orders_by_priority() {
-        let catalog = CodexCatalog {
-            models: vec![
-                CodexCatalogEntry {
-                    slug: "gpt-6-luna".to_string(),
-                    visibility: Some("list".to_string()),
-                    supported_in_api: Some(true),
-                    priority: Some(4),
-                },
-                CodexCatalogEntry {
-                    slug: "codex-auto-review".to_string(),
-                    visibility: Some("hide".to_string()),
-                    supported_in_api: Some(true),
-                    priority: Some(43),
-                },
-                CodexCatalogEntry {
-                    slug: "gpt-6-astra".to_string(),
-                    visibility: Some("list".to_string()),
-                    supported_in_api: Some(true),
-                    priority: Some(2),
-                },
-                CodexCatalogEntry {
-                    slug: "not-served-over-the-api".to_string(),
-                    visibility: Some("list".to_string()),
-                    supported_in_api: Some(false),
-                    priority: Some(1),
-                },
-                CodexCatalogEntry {
-                    slug: "unranked".to_string(),
-                    visibility: None,
-                    supported_in_api: None,
-                    priority: None,
-                },
-            ],
-        };
+    fn selectable_model_names_filters_by_api_support_and_orders_by_priority() {
+        let catalog: CodexCatalog = serde_json::from_value(json!({
+            "models": [
+                { "slug": "gpt-6-luna", "visibility": "list", "supported_in_api": true, "priority": 4 },
+                { "slug": "codex-auto-review", "visibility": "hide", "supported_in_api": true, "priority": 43 },
+                { "slug": "gpt-6-astra", "visibility": "list", "supported_in_api": true, "priority": 2 },
+                { "slug": "not-served-over-the-api", "visibility": "list", "supported_in_api": false, "priority": 1 },
+                { "slug": "flag-omitted", "visibility": "list", "priority": 0 },
+                { "slug": "unranked", "supported_in_api": true }
+            ]
+        }))
+        .unwrap();
 
         assert_eq!(
             selectable_model_names(catalog),
@@ -1633,6 +1622,60 @@ mod tests {
                 "gpt-6-luna".to_string(),
                 "unranked".to_string(),
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_recommended_models_keeps_catalog_priority_order() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [
+                    { "slug": "gpt-6-luna", "supported_in_api": true, "priority": 4 },
+                    { "slug": "gpt-6-astra", "supported_in_api": true, "priority": 2 }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        save_token(&cache_path);
+        let provider = provider_with_endpoint(&server.uri(), cache_path);
+
+        let models = provider.fetch_recommended_models(false).await.unwrap();
+
+        // Canonical release dates (Luna 2026-09-22, Astra 2026-09-04) would put
+        // Luna first, so this pins the endpoint's priority order.
+        assert_eq!(
+            models,
+            vec!["gpt-6-astra".to_string(), "gpt-6-luna".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_rejects_a_catalog_without_models() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "error": { "message": "not found" } })),
+            )
+            .mount(&server)
+            .await;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        save_token(&cache_path);
+        let provider = provider_with_endpoint(&server.uri(), cache_path);
+
+        let error = provider.fetch_supported_models().await.unwrap_err();
+
+        assert!(
+            matches!(error, ProviderError::RequestFailed(_)),
+            "expected RequestFailed, got {error:?}"
         );
     }
 
