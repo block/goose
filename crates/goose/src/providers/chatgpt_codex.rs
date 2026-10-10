@@ -144,7 +144,7 @@ fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
     oauth_mutex: TokioMutex<()>,
-    token_mutex: TokioMutex<()>,
+    token_mutex: TokioMutex<u64>,
     jwks_cache: TokioMutex<Option<JwkSet>>,
 }
 
@@ -152,7 +152,7 @@ impl ChatGptCodexAuthState {
     fn new() -> Self {
         Self {
             oauth_mutex: TokioMutex::new(()),
-            token_mutex: TokioMutex::new(()),
+            token_mutex: TokioMutex::new(0),
             jwks_cache: TokioMutex::new(None),
         }
     }
@@ -397,7 +397,7 @@ impl TokenCache {
 
     pub(crate) fn inventory_identity(&self) -> Option<String> {
         self.load()
-            .map(|token| token.account_id.unwrap_or_else(|| token.refresh_token))
+            .map(|token| token.account_id.unwrap_or(token.refresh_token))
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -932,11 +932,17 @@ impl ChatGptCodexAuthProvider {
             }
         }
 
+        let generation = *guard;
         drop(guard);
 
         tracing::info!("Starting OAuth flow for ChatGPT Codex");
         let token_data = perform_oauth_flow(self.state.as_ref()).await?;
-        let _guard = self.state.token_mutex.lock().await;
+        let guard = self.state.token_mutex.lock().await;
+        if *guard != generation {
+            return Err(anyhow!(
+                "ChatGPT Codex credentials were removed during OAuth"
+            ));
+        }
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -967,6 +973,9 @@ pub struct ChatGptCodexProvider {
 
 impl ChatGptCodexProvider {
     pub async fn cleanup() -> Result<()> {
+        let state = ChatGptCodexAuthState::instance();
+        let mut generation = state.token_mutex.lock().await;
+        *generation = generation.wrapping_add(1);
         TokenCache::new().clear();
         Ok(())
     }
@@ -1153,15 +1162,20 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let previous_token = {
-            let _guard = self.auth_provider.state.token_mutex.lock().await;
+        let (previous_token, generation) = {
+            let guard = self.auth_provider.state.token_mutex.lock().await;
             let previous_token = self.auth_provider.cache.load();
             self.auth_provider.clear_cached_tokens();
-            previous_token
+            (previous_token, *guard)
         };
 
         let result = perform_oauth_flow(self.auth_provider.state.as_ref()).await;
-        let _guard = self.auth_provider.state.token_mutex.lock().await;
+        let guard = self.auth_provider.state.token_mutex.lock().await;
+        if *guard != generation {
+            return Err(ProviderError::Authentication(
+                "ChatGPT Codex credentials were removed during OAuth".to_string(),
+            ));
+        }
         let result = result.and_then(|token_data| self.auth_provider.cache.save(&token_data));
 
         if let Err(e) = result {
