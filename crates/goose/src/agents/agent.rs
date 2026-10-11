@@ -1130,7 +1130,10 @@ impl Agent {
             .await
             .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
 
-        let effort_support = provider.thinking_effort_support_for_model(&model_config);
+        let effort_support = crate::providers::chatgpt_codex::thinking_effort_support_for_model(
+            provider.as_ref(),
+            &model_config,
+        );
         let model_config = normalize_legacy_provider_thinking_effort(model_config, &effort_support);
         let effective_model_config = match registry_entry {
             Some(entry) => entry
@@ -1195,10 +1198,14 @@ impl Agent {
         // Context rather than a formatted string: the caller distinguishes a
         // value rejection from an operational failure by downcasting to
         // `ProviderError`, which stringifying would destroy.
-        let provider_handled = current_provider
-            .set_thinking_effort_for_model(session_id, &model_config, effort)
-            .await
-            .context("Provider rejected thinking effort update")?;
+        let provider_handled = crate::providers::chatgpt_codex::set_thinking_effort_for_model(
+            current_provider.as_ref(),
+            session_id,
+            &model_config,
+            effort,
+        )
+        .await
+        .context("Provider rejected thinking effort update")?;
 
         if provider_handled {
             let model_config = model_config.with_merged_request_params(HashMap::from([(

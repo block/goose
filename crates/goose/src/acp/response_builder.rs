@@ -244,7 +244,10 @@ pub(super) async fn agent_thinking_effort_support(
         agent.model_config_for_session(session_id).await,
     ) {
         (Ok(provider), Ok(model_config)) => {
-            provider.thinking_effort_support_for_model(&model_config)
+            crate::providers::chatgpt_codex::thinking_effort_support_for_model(
+                provider.as_ref(),
+                &model_config,
+            )
         }
         _ => ThinkingEffortSupport::Unspecified,
     }

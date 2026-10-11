@@ -1268,9 +1268,14 @@ impl GooseAcpAgent {
         let session_id_for_task = session_id.to_string();
         let tx = self.thinking_effort_update_tx.clone();
         let task = tokio::spawn(async move {
-            while updates.changed().await.is_ok() {
-                if tx.send(session_id_for_task.clone()).is_err() {
-                    break;
+            loop {
+                tokio::select! {
+                    changed = updates.changed() => {
+                        if changed.is_err() || tx.send(session_id_for_task.clone()).is_err() {
+                            break;
+                        }
+                    }
+                    _ = tx.closed() => break,
                 }
             }
         });
@@ -2507,7 +2512,10 @@ impl GooseAcpAgent {
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
-            &provider.thinking_effort_support_for_model(&current_model_config),
+            &crate::providers::chatgpt_codex::thinking_effort_support_for_model(
+                provider.as_ref(),
+                &current_model_config,
+            ),
         );
         let notification = SessionNotification::new(
             session_id.clone(),

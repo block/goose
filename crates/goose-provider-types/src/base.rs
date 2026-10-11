@@ -730,15 +730,6 @@ pub trait Provider: MaybeSend + MaybeSync {
         ThinkingEffortSupport::Unspecified
     }
 
-    /// Resolve effort choices for the active model. Providers with per-model
-    /// catalogs override this; harness-backed providers use their live options.
-    fn thinking_effort_support_for_model(
-        &self,
-        _model_config: &ModelConfig,
-    ) -> ThinkingEffortSupport {
-        self.thinking_effort_support()
-    }
-
     /// Subscribe to provider-managed thinking-effort capability changes.
     /// Providers without an asynchronous capability source return `None`.
     fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
@@ -754,15 +745,6 @@ pub trait Provider: MaybeSend + MaybeSync {
         _value: &str,
     ) -> Result<bool, ProviderError> {
         Ok(false)
-    }
-
-    async fn set_thinking_effort_for_model(
-        &self,
-        session_id: &str,
-        _model_config: &ModelConfig,
-        value: &str,
-    ) -> Result<bool, ProviderError> {
-        self.set_thinking_effort(session_id, value).await
     }
 
     /// Apply a session's model selection after the provider is installed.

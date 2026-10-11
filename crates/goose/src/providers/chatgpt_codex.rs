@@ -1272,7 +1272,11 @@ impl ChatGptCodexProvider {
         let models = selectable_models(catalog);
         let cache = &self.auth_provider.cache;
         let _cache_lock = cache.lock_exclusive().await?;
-        if cache.load().and_then(|token| token.account_id) != token_data.account_id {
+        if !cache.load().is_some_and(|token| {
+            token.account_id == token_data.account_id
+                && token.access_token == token_data.access_token
+                && token.refresh_token == token_data.refresh_token
+        }) {
             return Err(ProviderError::Authentication(
                 "ChatGPT Codex account changed during model discovery".to_string(),
             ));
@@ -1376,53 +1380,59 @@ impl ProviderDef for ChatGptCodexProvider {
     }
 }
 
+pub(crate) fn thinking_effort_support_for_model(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+) -> ThinkingEffortSupport {
+    if provider.get_name() != CHATGPT_CODEX_PROVIDER_NAME {
+        return provider.thinking_effort_support();
+    }
+    let levels = reasoning_levels_for_model(&model_config.model_name);
+    if levels.is_empty() {
+        return ThinkingEffortSupport::Unsupported;
+    }
+    let current = reasoning_effort_for_config(model_config);
+    ThinkingEffortSupport::Options(ThinkingEffortCapability {
+        option_id: CODEX_REASONING_OPTION_ID.to_string(),
+        values: levels
+            .into_iter()
+            .map(|level| ThinkingEffortOption {
+                value: level.clone(),
+                label: level,
+            })
+            .collect(),
+        current,
+    })
+}
+
+pub(crate) async fn set_thinking_effort_for_model(
+    provider: &dyn Provider,
+    session_id: &str,
+    model_config: &ModelConfig,
+    value: &str,
+) -> Result<bool, ProviderError> {
+    if provider.get_name() != CHATGPT_CODEX_PROVIDER_NAME {
+        return provider.set_thinking_effort(session_id, value).await;
+    }
+    let levels = reasoning_levels_for_model(&model_config.model_name);
+    if (levels.is_empty() && value == "off") || levels.iter().any(|level| level == value) {
+        Ok(true)
+    } else {
+        Err(ProviderError::InvalidValue(format!(
+            "Invalid thinking effort '{value}' for model '{}'",
+            model_config.model_name
+        )))
+    }
+}
+
 #[async_trait]
 impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
 
-    fn thinking_effort_support_for_model(
-        &self,
-        model_config: &ModelConfig,
-    ) -> ThinkingEffortSupport {
-        let levels = reasoning_levels_for_model(&model_config.model_name);
-        if levels.is_empty() {
-            return ThinkingEffortSupport::Unsupported;
-        }
-        let current = reasoning_effort_for_config(model_config);
-        ThinkingEffortSupport::Options(ThinkingEffortCapability {
-            option_id: CODEX_REASONING_OPTION_ID.to_string(),
-            values: levels
-                .into_iter()
-                .map(|level| ThinkingEffortOption {
-                    value: level.clone(),
-                    label: level,
-                })
-                .collect(),
-            current,
-        })
-    }
-
     fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
         Some(CODEX_CATALOG_UPDATES.subscribe())
-    }
-
-    async fn set_thinking_effort_for_model(
-        &self,
-        _session_id: &str,
-        model_config: &ModelConfig,
-        value: &str,
-    ) -> Result<bool, ProviderError> {
-        let levels = reasoning_levels_for_model(&model_config.model_name);
-        if (levels.is_empty() && value == "off") || levels.iter().any(|level| level == value) {
-            Ok(true)
-        } else {
-            Err(ProviderError::InvalidValue(format!(
-                "Invalid thinking effort '{value}' for model '{}'",
-                model_config.model_name
-            )))
-        }
     }
 
     /// The Codex catalog is already scoped to the account's API-supported
@@ -2074,7 +2084,7 @@ mod tests {
         assert_eq!(get_reasoning_effort("gpt-6-astra"), "high");
         let model = ModelConfig::new("gpt-6-astra");
         let ThinkingEffortSupport::Options(capability) =
-            provider.thinking_effort_support_for_model(&model)
+            thinking_effort_support_for_model(&provider, &model)
         else {
             panic!("expected catalog reasoning choices");
         };
@@ -2087,18 +2097,20 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["high", "xhigh", "max", "ultra"]
         );
-        assert!(provider
-            .set_thinking_effort_for_model("session", &model, "low")
-            .await
-            .is_err());
+        assert!(
+            set_thinking_effort_for_model(&provider, "session", &model, "low")
+                .await
+                .is_err()
+        );
         let max_model = model.with_merged_request_params(std::collections::HashMap::from([(
             "thinking_effort".to_string(),
             json!("max"),
         )]));
-        assert!(provider
-            .set_thinking_effort_for_model("session", &max_model, "max")
-            .await
-            .unwrap());
+        assert!(
+            set_thinking_effort_for_model(&provider, "session", &max_model, "max")
+                .await
+                .unwrap()
+        );
         assert_eq!(
             create_codex_request(&max_model, "", &[], &[]).unwrap()["reasoning"]["effort"],
             "max"
@@ -2107,10 +2119,11 @@ mod tests {
             let selected = ModelConfig::new("gpt-6-astra").with_merged_request_params(
                 std::collections::HashMap::from([("thinking_effort".to_string(), json!(level))]),
             );
-            assert!(provider
-                .set_thinking_effort_for_model("session", &selected, level)
-                .await
-                .unwrap());
+            assert!(
+                set_thinking_effort_for_model(&provider, "session", &selected, level)
+                    .await
+                    .unwrap()
+            );
             assert_eq!(
                 create_codex_request(&selected, "", &[], &[]).unwrap()["reasoning"]["effort"],
                 level
@@ -2120,7 +2133,7 @@ mod tests {
             std::collections::HashMap::from([("thinking_effort".to_string(), json!("ultra"))]),
         );
         let ThinkingEffortSupport::Options(switched_capability) =
-            provider.thinking_effort_support_for_model(&switched)
+            thinking_effort_support_for_model(&provider, &switched)
         else {
             panic!("expected model-specific reasoning choices");
         };
@@ -2153,17 +2166,19 @@ mod tests {
         );
         let plain = ModelConfig::new("gpt-6-plain");
         assert!(matches!(
-            provider.thinking_effort_support_for_model(&plain),
+            thinking_effort_support_for_model(&provider, &plain),
             ThinkingEffortSupport::Unsupported
         ));
-        assert!(provider
-            .set_thinking_effort_for_model("session", &plain, "off")
-            .await
-            .unwrap());
-        assert!(provider
-            .set_thinking_effort_for_model("session", &plain, "low")
-            .await
-            .is_err());
+        assert!(
+            set_thinking_effort_for_model(&provider, "session", &plain, "off")
+                .await
+                .unwrap()
+        );
+        assert!(
+            set_thinking_effort_for_model(&provider, "session", &plain, "low")
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
