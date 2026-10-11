@@ -1036,7 +1036,14 @@ async fn wait_for_oauth_code(rx: oneshot::Receiver<Result<String>>) -> Result<St
         .map_err(|e| anyhow!("OAuth callback error: {}", e))
 }
 
-async fn perform_oauth_flow(auth_state: &ChatGptCodexAuthState) -> Result<TokenData> {
+async fn perform_oauth_flow<F, Fut, T>(
+    auth_state: &ChatGptCodexAuthState,
+    on_started: F,
+) -> Result<(Result<TokenData>, T)>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
     let _guard = auth_state.oauth_mutex.try_lock().map_err(|_| {
         anyhow!("Another OAuth flow is already in progress; please try again later")
     })?;
@@ -1051,30 +1058,36 @@ async fn perform_oauth_flow(auth_state: &ChatGptCodexAuthState) -> Result<TokenD
     let app = oauth_callback_router(csrf_state.clone(), tx);
     let server_handle = spawn_oauth_server(app).await?;
     let mut server_guard = ServerHandleGuard::new(server_handle);
+    let started = on_started().await?;
 
-    if webbrowser::open(&auth_url).is_err() {
-        tracing::info!("Please open this URL in your browser:\n{}", auth_url);
+    let result = async {
+        if webbrowser::open(&auth_url).is_err() {
+            tracing::info!("Please open this URL in your browser:\n{}", auth_url);
+        }
+
+        let code_result = wait_for_oauth_code(rx).await;
+        server_guard.abort();
+        let code = code_result?;
+
+        let tokens =
+            exchange_code_for_tokens_with_issuer(ISSUER, &code, &redirect_uri, &pkce).await?;
+
+        let expires_at = Utc::now() + chrono::Duration::seconds(tokens.expires_in.unwrap_or(3600));
+
+        let mut token_data = TokenData {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            id_token: tokens.id_token,
+            expires_at,
+            account_id: None,
+        };
+
+        token_data.account_id = extract_account_id(&token_data, auth_state).await;
+
+        Ok(token_data)
     }
-
-    let code_result = wait_for_oauth_code(rx).await;
-    server_guard.abort();
-    let code = code_result?;
-
-    let tokens = exchange_code_for_tokens_with_issuer(ISSUER, &code, &redirect_uri, &pkce).await?;
-
-    let expires_at = Utc::now() + chrono::Duration::seconds(tokens.expires_in.unwrap_or(3600));
-
-    let mut token_data = TokenData {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        id_token: tokens.id_token,
-        expires_at,
-        account_id: None,
-    };
-
-    token_data.account_id = extract_account_id(&token_data, auth_state).await;
-
-    Ok(token_data)
+    .await;
+    Ok((result, started))
 }
 
 #[derive(Debug)]
@@ -1163,14 +1176,14 @@ impl ChatGptCodexAuthProvider {
 
         let generation = *guard;
         drop(guard);
-        let cache_generation = {
+        tracing::info!("Starting OAuth flow for ChatGPT Codex");
+        let (token_data, cache_generation) = perform_oauth_flow(self.state.as_ref(), || async {
             let _cache_lock = self.cache.lock_exclusive().await?;
             self.cache.bump_generation()?;
-            self.cache.generation()
-        };
-
-        tracing::info!("Starting OAuth flow for ChatGPT Codex");
-        let token_data = perform_oauth_flow(self.state.as_ref()).await?;
+            Ok(self.cache.generation())
+        })
+        .await?;
+        let token_data = token_data?;
         let guard = self.state.token_mutex.lock().await;
         if *guard != generation {
             return Err(anyhow!(
@@ -1424,19 +1437,19 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let (previous_token, previous_catalog, generation, cache_generation) = {
-            let guard = self.auth_provider.state.token_mutex.lock().await;
-            let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
-            let previous_token = self.auth_provider.cache.load();
-            let previous_catalog =
-                std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
-            self.auth_provider.cache.bump_generation()?;
-            let cache_generation = self.auth_provider.cache.generation();
-            self.auth_provider.clear_cached_tokens();
-            (previous_token, previous_catalog, *guard, cache_generation)
-        };
-
-        let result = perform_oauth_flow(self.auth_provider.state.as_ref()).await;
+        let (result, (previous_token, previous_catalog, generation, cache_generation)) =
+            perform_oauth_flow(self.auth_provider.state.as_ref(), || async {
+                let guard = self.auth_provider.state.token_mutex.lock().await;
+                let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
+                let previous_token = self.auth_provider.cache.load();
+                let previous_catalog =
+                    std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
+                self.auth_provider.cache.bump_generation()?;
+                let cache_generation = self.auth_provider.cache.generation();
+                self.auth_provider.clear_cached_tokens();
+                Ok((previous_token, previous_catalog, *guard, cache_generation))
+            })
+            .await?;
         let guard = self.auth_provider.state.token_mutex.lock().await;
         if *guard != generation {
             return Err(ProviderError::Authentication(
