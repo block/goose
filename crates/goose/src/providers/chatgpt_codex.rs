@@ -47,7 +47,14 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.5";
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.6-sol";
+
+pub(crate) fn default_model() -> String {
+    TokenCache::new()
+        .catalog_snapshot()
+        .and_then(|snapshot| snapshot.models.first().map(|model| model.slug.clone()))
+        .unwrap_or_else(|| CHATGPT_CODEX_DEFAULT_MODEL.to_string())
+}
 
 /// Inventory identity used when an OAuth response carries no account id. It is
 /// deliberately not derived from the refresh token: that token rotates on every
@@ -93,12 +100,30 @@ const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
 const DEFAULT_REASONING_LEVELS: &[&str] = &["medium", "high"];
 
-pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
+pub fn reasoning_levels_for_model(model_name: &str) -> Vec<String> {
+    if let Some(levels) = TokenCache::new().catalog_snapshot().and_then(|snapshot| {
+        snapshot
+            .models
+            .into_iter()
+            .find(|model| model.slug == model_name)
+            .map(|model| {
+                model
+                    .supported_reasoning_levels
+                    .into_iter()
+                    .map(|level| level.effort)
+                    .collect()
+            })
+    }) {
+        return levels;
+    }
     CHATGPT_CODEX_KNOWN_MODELS
         .iter()
         .find(|m| m.name == model_name)
         .map(|m| m.reasoning_levels)
         .unwrap_or(DEFAULT_REASONING_LEVELS)
+        .iter()
+        .map(|level| (*level).to_string())
+        .collect()
 }
 
 fn known_model_names() -> Vec<&'static str> {
@@ -113,7 +138,7 @@ fn codex_client_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CodexCatalogEntry {
     slug: String,
     #[serde(default)]
@@ -125,6 +150,15 @@ struct CodexCatalogEntry {
     supported_in_api: bool,
     #[serde(default)]
     priority: Option<i64>,
+    #[serde(default)]
+    supported_reasoning_levels: Vec<CodexReasoningLevel>,
+    #[serde(default)]
+    default_reasoning_level: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CodexReasoningLevel {
+    effort: String,
 }
 
 /// `models` is required. A successful response that omits it - an error
@@ -135,9 +169,15 @@ struct CodexCatalog {
     models: Vec<CodexCatalogEntry>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct CodexCatalogSnapshot {
+    account_id: Option<String>,
+    models: Vec<CodexCatalogEntry>,
+}
+
 /// Entries marked `hide` are Codex-internal (legacy or review-only models) and
 /// are not offered to users, so they are left out of the selectable list.
-fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
+fn selectable_models(catalog: CodexCatalog) -> Vec<CodexCatalogEntry> {
     let mut entries: Vec<CodexCatalogEntry> = catalog
         .models
         .into_iter()
@@ -145,7 +185,15 @@ fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
         .filter(|model| model.supported_in_api)
         .collect();
     entries.sort_by_key(|model| (model.priority.unwrap_or(i64::MAX), model.slug.clone()));
-    entries.into_iter().map(|model| model.slug).collect()
+    entries
+}
+
+#[cfg(test)]
+fn selectable_model_names(catalog: CodexCatalog) -> Vec<String> {
+    selectable_models(catalog)
+        .into_iter()
+        .map(|model| model.slug)
+        .collect()
 }
 
 #[derive(Debug)]
@@ -269,26 +317,53 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
 
 fn get_reasoning_effort(model_name: &str) -> String {
     let config = crate::config::Config::global();
+    let valid_levels = reasoning_levels_for_model(model_name);
+    let catalog_default = TokenCache::new()
+        .catalog_snapshot()
+        .and_then(|snapshot| {
+            snapshot
+                .models
+                .into_iter()
+                .find(|model| model.slug == model_name)
+                .and_then(|model| model.default_reasoning_level)
+        })
+        .filter(|level| valid_levels.contains(level));
     let effort = config
         .get_chatgpt_codex_reasoning_effort()
         .map(String::from)
-        .unwrap_or_else(|_| "medium".to_string());
-
-    let valid_levels = reasoning_levels_for_model(model_name);
-    if valid_levels.contains(&effort.as_str()) {
+        .unwrap_or_else(|_| {
+            catalog_default
+                .clone()
+                .unwrap_or_else(|| "medium".to_string())
+        });
+    if valid_levels.iter().any(|level| level == &effort) {
         effort
     } else {
+        let fallback = catalog_default
+            .or_else(|| {
+                valid_levels
+                    .iter()
+                    .find(|level| *level == "medium")
+                    .cloned()
+            })
+            .or_else(|| valid_levels.first().cloned())
+            .unwrap_or_else(|| "medium".to_string());
         tracing::warn!(
-            "Invalid CHATGPT_CODEX_REASONING_EFFORT '{}' for model '{}', using 'medium'",
+            "Invalid CHATGPT_CODEX_REASONING_EFFORT '{}' for model '{}', using '{}'",
             effort,
-            model_name
+            model_name,
+            fallback
         );
-        "medium".to_string()
+        fallback
     }
 }
 
 fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
     use goose_providers::thinking::ThinkingEffort;
+
+    if reasoning_levels_for_model(&model_config.model_name).is_empty() {
+        return None;
+    }
 
     model_config
         .thinking_effort()
@@ -296,21 +371,24 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
             let valid_levels = reasoning_levels_for_model(&model_config.model_name);
             let preferred_levels: &[&str] = match effort {
                 ThinkingEffort::Off => {
-                    return Some(if valid_levels.contains(&"none") {
-                        "none".to_string()
-                    } else {
-                        "low".to_string()
-                    });
+                    return Some(
+                        valid_levels
+                            .iter()
+                            .find(|level| *level == "none")
+                            .or_else(|| valid_levels.first())
+                            .cloned()
+                            .unwrap_or_else(|| "medium".to_string()),
+                    );
                 }
                 ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
                 ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
                 ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
-                ThinkingEffort::Max => &["xhigh", "high", "medium", "low"],
+                ThinkingEffort::Max => &["max", "xhigh", "high", "medium", "low"],
             };
 
             preferred_levels
                 .iter()
-                .find(|level| valid_levels.contains(level))
+                .find(|level| valid_levels.iter().any(|valid| valid.as_str() == **level))
                 .map(|level| (*level).to_string())
         })
         .unwrap_or_else(|| Some(get_reasoning_effort(&model_config.model_name)))
@@ -418,6 +496,18 @@ impl TokenCache {
 
     fn clear(&self) {
         let _ = std::fs::remove_file(&self.cache_path);
+        let _ = std::fs::remove_file(self.catalog_path());
+    }
+
+    fn catalog_path(&self) -> PathBuf {
+        self.cache_path.with_extension("json.models")
+    }
+
+    fn catalog_snapshot(&self) -> Option<CodexCatalogSnapshot> {
+        let account_id = self.load()?.account_id;
+        let contents = std::fs::read_to_string(self.catalog_path()).ok()?;
+        let snapshot: CodexCatalogSnapshot = serde_json::from_str(&contents).ok()?;
+        (snapshot.account_id == account_id).then_some(snapshot)
     }
 
     /// Deletion marker for the cache, in its own sidecar so `clear()` can remove
@@ -1124,7 +1214,24 @@ impl ChatGptCodexProvider {
         let response = handle_status(response).await?;
         let catalog: CodexCatalog =
             goose_providers::http_status::read_json_response(response).await?;
-        Ok(selectable_model_names(catalog))
+        let models = selectable_models(catalog);
+        let cache = &self.auth_provider.cache;
+        let _cache_lock = cache.lock_exclusive().await?;
+        if cache.load().and_then(|token| token.account_id) != token_data.account_id {
+            return Err(ProviderError::Authentication(
+                "ChatGPT Codex account changed during model discovery".to_string(),
+            ));
+        }
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&CodexCatalogSnapshot {
+                account_id: token_data.account_id,
+                models: models.clone(),
+            })
+            .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
+        )
+        .map_err(|error| ProviderError::ExecutionError(error.to_string()))?;
+        Ok(models.into_iter().map(|model| model.slug).collect())
     }
 
     async fn post_streaming(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
@@ -1178,7 +1285,7 @@ impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
             CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
-            CHATGPT_CODEX_DEFAULT_MODEL,
+            &default_model(),
             known_model_names(),
             CHATGPT_CODEX_DOC_URL,
             vec![ConfigKey::new_oauth(
@@ -1792,8 +1899,65 @@ mod tests {
     #[test_case("gpt-5.6-luna", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 luna supports extended reasoning levels")]
     #[test_case("gpt-5.6", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 supports extended reasoning levels")]
     #[test_case("unknown-model", &["medium", "high"]; "unknown model gets default reasoning levels")]
+    #[serial_test::serial]
     fn test_reasoning_levels_for_model(model: &str, expected: &[&str]) {
-        assert_eq!(reasoning_levels_for_model(model), expected);
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        assert_eq!(
+            reasoning_levels_for_model(model),
+            expected
+                .iter()
+                .map(|level| level.to_string())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn catalog_sets_default_and_model_reasoning_levels() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        save_token(&cache.cache_path);
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [
+                    { "slug": "hidden", "visibility": "hide", "supported_in_api": true, "priority": 0 },
+                    { "slug": "gpt-6-astra", "supported_in_api": true, "priority": 1,
+                      "default_reasoning_level": "high",
+                      "supported_reasoning_levels": [
+                        { "effort": "high", "description": "More reasoning" },
+                        { "effort": "max", "description": "Most reasoning" }
+                      ] }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        let provider = provider_with_endpoint(&server.uri(), cache.cache_path.clone());
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["gpt-6-astra"]
+        );
+        assert_eq!(
+            ChatGptCodexProvider::metadata().default_model,
+            "gpt-6-astra"
+        );
+        assert_eq!(
+            reasoning_levels_for_model("gpt-6-astra"),
+            vec!["high", "max"]
+        );
+        assert_eq!(get_reasoning_effort("gpt-6-astra"), "high");
+        assert_eq!(
+            reasoning_effort_for_config(
+                &ModelConfig::new("gpt-6-astra")
+                    .with_thinking_effort(goose_providers::thinking::ThinkingEffort::Max)
+            ),
+            Some("max".to_string())
+        );
     }
 
     #[test]

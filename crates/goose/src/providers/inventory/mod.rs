@@ -303,12 +303,17 @@ impl ProviderInventoryService {
             &descriptor.static_models,
             descriptor.supports_refresh,
         );
+        let default_model = if descriptor.provider_id == "chatgpt_codex" {
+            crate::providers::chatgpt_codex::default_model()
+        } else {
+            descriptor.default_model
+        };
 
         Ok(Some(ProviderInventoryEntry {
             provider_id: descriptor.provider_id,
             provider_name: descriptor.provider_name,
             description: descriptor.description,
-            default_model: descriptor.default_model,
+            default_model,
             configured: descriptor.configured,
             available: descriptor.available,
             provider_type: descriptor.provider_type,

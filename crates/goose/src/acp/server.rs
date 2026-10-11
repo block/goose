@@ -646,7 +646,11 @@ async fn resolve_provider_default_model_config(
         })?;
     crate::model_config::model_config_from_user_config(
         provider_name,
-        &entry.metadata().default_model,
+        &if provider_name == "chatgpt_codex" {
+            crate::providers::chatgpt_codex::default_model()
+        } else {
+            entry.metadata().default_model.clone()
+        },
     )
     .map_err(|error| {
         agent_client_protocol::Error::internal_error()
@@ -2570,7 +2574,13 @@ impl GooseAcpAgent {
             crate::providers::get_from_registry(&resolved_provider_name)
                 .await
                 .ok()
-                .map(|entry| entry.metadata().default_model.clone())
+                .map(|entry| {
+                    if resolved_provider_name == "chatgpt_codex" {
+                        crate::providers::chatgpt_codex::default_model()
+                    } else {
+                        entry.metadata().default_model.clone()
+                    }
+                })
                 .unwrap_or(ACP_CURRENT_MODEL.to_string())
         } else {
             current_model
