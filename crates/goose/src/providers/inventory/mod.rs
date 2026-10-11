@@ -630,7 +630,7 @@ impl ProviderInventoryService {
                 if let Some(refresh_job) = refresh_job {
                     let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
                     let toolshim = refresh_job.toolshim;
-                    let fetch_result: Result<Vec<String>> =
+                    let fetch_result: Result<(Vec<String>, InventoryIdentity)> =
                         match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
                             .await
                         {
@@ -639,17 +639,13 @@ impl ProviderInventoryService {
                                     .catch_unwind()
                                     .await
                                 {
-                                    // The fetch can refresh credentials, which can move the
-                                    // identity it was planned with (a token refresh that
-                                    // discovers an account id). Storing that catalog under the
-                                    // planned key would put it where no later read looks, so
-                                    // re-check and let the next plan fetch under the new key.
-                                    Ok(Ok(models)) => ensure_refresh_identity_current(
+                                    Ok(Ok(models)) => refresh_identity_after_fetch(
                                         &provider_id,
                                         &refresh_job.identity,
+                                        &models,
                                     )
                                     .await
-                                    .map(|()| models),
+                                    .map(|identity| (models, identity)),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
                                     Err(_) => Err(anyhow::anyhow!(
                                         "provider inventory refresh task panicked"
@@ -659,9 +655,9 @@ impl ProviderInventoryService {
                             Err(error) => Err(error),
                         };
                     match fetch_result {
-                        Ok(models) => {
+                        Ok((models, identity)) => {
                             if let Err(error) = self
-                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .store_refreshed_models_for_identity(&identity, &models)
                                 .await
                             {
                                 warn!(
@@ -894,6 +890,33 @@ pub(crate) async fn ensure_refresh_identity_current(
         anyhow::bail!("provider inventory identity changed before refresh completed");
     }
     Ok(())
+}
+
+pub(crate) async fn refresh_identity_after_fetch(
+    provider_id: &str,
+    planned_identity: &InventoryIdentity,
+    models: &[String],
+) -> Result<InventoryIdentity> {
+    let current = crate::providers::inventory_identity(provider_id)
+        .await?
+        .into_identity()?;
+    if current == *planned_identity {
+        return Ok(current);
+    }
+    if provider_id == "chatgpt_codex" {
+        let unknown = InventoryIdentityInput::new(provider_id, provider_id)
+            .with_secret(
+                "oauth_account",
+                crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
+            )
+            .into_identity()?;
+        if *planned_identity == unknown
+            && crate::providers::chatgpt_codex::TokenCache::new().catalog_matches_models(models)
+        {
+            return Ok(current);
+        }
+    }
+    anyhow::bail!("provider inventory identity changed before refresh completed")
 }
 
 pub fn default_inventory_identity(

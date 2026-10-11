@@ -1,5 +1,5 @@
 use super::*;
-use crate::providers::inventory::ensure_refresh_identity_current;
+use crate::providers::inventory::{ensure_refresh_identity_current, refresh_identity_after_fetch};
 
 impl HandleDispatchFrom<Client> for GooseAcpHandler {
     fn describe_chain(&self) -> impl std::fmt::Debug {
@@ -278,7 +278,13 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                             .catch_unwind()
                                             .await
                                             {
-                                                Ok(Ok(models)) => Ok(models),
+                                                Ok(Ok(models)) => refresh_identity_after_fetch(
+                                                    &refresh_provider_id,
+                                                    &refresh_identity,
+                                                    &models,
+                                                )
+                                                .await
+                                                .map(|identity| (models, identity)),
                                                 Ok(Err(error)) => {
                                                     Err(anyhow::anyhow!(error.to_string()))
                                                 }
@@ -293,10 +299,10 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 };
 
                                 match fetch_result {
-                                    Ok(models) => match agent_bg
+                                    Ok((models, storage_identity)) => match agent_bg
                                         .provider_inventory
                                         .store_refreshed_models_for_identity(
-                                            &refresh_identity,
+                                            &storage_identity,
                                             &models,
                                         )
                                         .await

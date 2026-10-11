@@ -61,7 +61,7 @@ pub(crate) fn default_model() -> String {
 /// refresh, so keying the inventory on it would move the snapshot out from
 /// under the refresh job that just fetched it. Accounts we cannot tell apart
 /// share one key, which is all the information the credentials carry.
-const UNKNOWN_ACCOUNT_IDENTITY: &str = "unknown-account";
+pub(crate) const UNKNOWN_ACCOUNT_IDENTITY: &str = "unknown-account";
 
 #[derive(Debug)]
 pub struct ChatGptCodexModelAttrs {
@@ -508,6 +508,17 @@ impl TokenCache {
         let contents = std::fs::read_to_string(self.catalog_path()).ok()?;
         let snapshot: CodexCatalogSnapshot = serde_json::from_str(&contents).ok()?;
         (snapshot.account_id == account_id).then_some(snapshot)
+    }
+
+    pub(crate) fn catalog_matches_models(&self, models: &[String]) -> bool {
+        self.catalog_snapshot().is_some_and(|snapshot| {
+            snapshot.models.len() == models.len()
+                && snapshot
+                    .models
+                    .iter()
+                    .zip(models)
+                    .all(|(model, name)| model.slug.as_str() == name.as_str())
+        })
     }
 
     /// Deletion marker for the cache, in its own sidecar so `clear()` can remove
@@ -1958,6 +1969,62 @@ mod tests {
             ),
             Some("max".to_string())
         );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn inventory_refresh_rekeys_when_token_discovers_account_id() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let planned = crate::providers::inventory::InventoryIdentityInput::new(
+            "chatgpt_codex",
+            "chatgpt_codex",
+        )
+        .with_secret("oauth_account", UNKNOWN_ACCOUNT_IDENTITY)
+        .into_identity()
+        .unwrap();
+        save_token(&cache.cache_path);
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&CodexCatalogSnapshot {
+                account_id: Some("account-1".to_string()),
+                models: Vec::new(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        let resolved = crate::providers::inventory::refresh_identity_after_fetch(
+            "chatgpt_codex",
+            &planned,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert_ne!(resolved, planned);
+        assert_eq!(
+            resolved,
+            crate::providers::inventory::InventoryIdentityInput::new(
+                "chatgpt_codex",
+                "chatgpt_codex",
+            )
+            .with_secret("oauth_account", "account-1")
+            .into_identity()
+            .unwrap()
+        );
+
+        let mut switched = cache.load().unwrap();
+        switched.account_id = Some("account-2".to_string());
+        cache.save(&switched).unwrap();
+        assert!(crate::providers::inventory::refresh_identity_after_fetch(
+            "chatgpt_codex",
+            &planned,
+            &[],
+        )
+        .await
+        .is_err());
     }
 
     #[test]
