@@ -330,6 +330,7 @@ pub struct GooseAcpAgent {
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     thinking_effort_subscriptions: Mutex<HashMap<String, tokio::task::JoinHandle<()>>>,
+    thinking_effort_shutdown: CancellationToken,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -338,6 +339,12 @@ pub struct GooseAcpAgent {
     additional_source_roots: Vec<SourceRoot>,
     session_cwd: Option<PathBuf>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
+}
+
+impl Drop for GooseAcpAgent {
+    fn drop(&mut self) {
+        self.thinking_effort_shutdown.cancel();
+    }
 }
 
 fn meta_string(
@@ -992,6 +999,7 @@ impl GooseAcpAgent {
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             thinking_effort_subscriptions: Mutex::new(HashMap::new()),
+            thinking_effort_shutdown: CancellationToken::new(),
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
@@ -1269,6 +1277,7 @@ impl GooseAcpAgent {
         };
         let session_id_for_task = session_id.to_string();
         let tx = self.thinking_effort_update_tx.clone();
+        let shutdown = self.thinking_effort_shutdown.clone();
         let task = tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -1278,6 +1287,7 @@ impl GooseAcpAgent {
                         }
                     }
                     _ = tx.closed() => break,
+                    _ = shutdown.cancelled() => break,
                 }
             }
         });
@@ -1293,8 +1303,16 @@ impl GooseAcpAgent {
         };
         let agent = Arc::downgrade(self);
         let cx = cx.clone();
+        let shutdown = self.thinking_effort_shutdown.clone();
         tokio::spawn(async move {
-            while let Some(session_id) = updates.recv().await {
+            loop {
+                let session_id = tokio::select! {
+                    session_id = updates.recv() => match session_id {
+                        Some(session_id) => session_id,
+                        None => break,
+                    },
+                    _ = shutdown.cancelled() => break,
+                };
                 let Some(agent) = agent.upgrade() else {
                     break;
                 };
