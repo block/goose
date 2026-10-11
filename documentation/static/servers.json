@@ -494,6 +494,18 @@
     ]
   },
   {
+    "id": "dropthehassle",
+    "name": "DropTheHassle",
+    "description": "Publish the site your AI built on a free HTTPS link, or on your own .com with no DNS",
+    "type": "streamable-http",
+    "url": "https://dropthehassle.com/mcp",
+    "link": "https://github.com/bosmdavid-gif/dropthehassle-mcp",
+    "installation_notes": "Streamable HTTP extension. No account or token for the first publish. A .com (\u20ac19/$19 a year) is bought by the human through a payment link; no tool spends money.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "nostrbook-mcp",
     "name": "NostrBook",
     "description": "Nostr protocol integration for decentralized social",
