@@ -540,6 +540,9 @@ impl ProviderInventoryService {
         }
 
         tx.commit().await?;
+        if identity.provider_family == "chatgpt_codex" {
+            crate::providers::chatgpt_codex::notify_catalog_inventory_update();
+        }
         Ok(())
     }
 

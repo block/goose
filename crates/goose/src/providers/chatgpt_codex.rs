@@ -107,6 +107,10 @@ pub(crate) const CODEX_REASONING_OPTION_ID: &str = "codex_reasoning_effort";
 static CODEX_CATALOG_UPDATES: LazyLock<watch::Sender<ThinkingEffortSupport>> =
     LazyLock::new(|| watch::channel(ThinkingEffortSupport::Unspecified).0);
 
+pub(crate) fn notify_catalog_inventory_update() {
+    CODEX_CATALOG_UPDATES.send_replace(ThinkingEffortSupport::Unspecified);
+}
+
 pub fn reasoning_levels_for_model(model_name: &str) -> Vec<String> {
     if let Some(levels) = TokenCache::new().catalog_snapshot().and_then(|snapshot| {
         snapshot
@@ -1302,7 +1306,6 @@ impl ChatGptCodexProvider {
             .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
         )
         .map_err(|error| ProviderError::ExecutionError(error.to_string()))?;
-        CODEX_CATALOG_UPDATES.send_replace(ThinkingEffortSupport::Unspecified);
         Ok(models.into_iter().map(|model| model.slug).collect())
     }
 
