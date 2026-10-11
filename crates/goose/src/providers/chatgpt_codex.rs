@@ -102,6 +102,7 @@ pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
 const DEFAULT_REASONING_LEVELS: &[&str] = &["medium", "high"];
+pub(crate) const CODEX_REASONING_OPTION_ID: &str = "codex_reasoning_effort";
 
 static CODEX_CATALOG_UPDATES: LazyLock<watch::Sender<ThinkingEffortSupport>> =
     LazyLock::new(|| watch::channel(ThinkingEffortSupport::Unspecified).0);
@@ -1390,8 +1391,8 @@ impl Provider for ChatGptCodexProvider {
             return ThinkingEffortSupport::Unsupported;
         }
         let current = reasoning_effort_for_config(model_config);
-        ThinkingEffortSupport::ModelOptions(ThinkingEffortCapability {
-            option_id: "thinking_effort".to_string(),
+        ThinkingEffortSupport::Options(ThinkingEffortCapability {
+            option_id: CODEX_REASONING_OPTION_ID.to_string(),
             values: levels
                 .into_iter()
                 .map(|level| ThinkingEffortOption {
@@ -2067,7 +2068,7 @@ mod tests {
         );
         assert_eq!(get_reasoning_effort("gpt-6-astra"), "high");
         let model = ModelConfig::new("gpt-6-astra");
-        let ThinkingEffortSupport::ModelOptions(capability) =
+        let ThinkingEffortSupport::Options(capability) =
             provider.thinking_effort_support_for_model(&model)
         else {
             panic!("expected catalog reasoning choices");
@@ -2113,7 +2114,7 @@ mod tests {
         let switched = ModelConfig::new("gpt-6-terra").with_merged_request_params(
             std::collections::HashMap::from([("thinking_effort".to_string(), json!("ultra"))]),
         );
-        let ThinkingEffortSupport::ModelOptions(switched_capability) =
+        let ThinkingEffortSupport::Options(switched_capability) =
             provider.thinking_effort_support_for_model(&switched)
         else {
             panic!("expected model-specific reasoning choices");

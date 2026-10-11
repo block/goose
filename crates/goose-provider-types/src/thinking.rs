@@ -364,8 +364,6 @@ pub enum ThinkingEffortSupport {
     Unsupported,
     /// The provider passes through a harness-advertised effort option.
     Options(ThinkingEffortCapability),
-    /// The provider supplies model-specific choices and an effective current value.
-    ModelOptions(ThinkingEffortCapability),
 }
 
 #[cfg(test)]
