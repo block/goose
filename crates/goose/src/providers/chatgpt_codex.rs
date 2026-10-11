@@ -133,6 +133,16 @@ pub fn reasoning_levels_for_model(model_name: &str) -> Vec<String> {
         .collect()
 }
 
+pub(crate) fn catalog_model_has_reasoning(model_name: &str) -> Option<bool> {
+    TokenCache::new().catalog_snapshot().and_then(|snapshot| {
+        snapshot
+            .models
+            .into_iter()
+            .find(|model| model.slug == model_name)
+            .map(|model| !model.supported_reasoning_levels.is_empty())
+    })
+}
+
 fn known_model_names() -> Vec<&'static str> {
     CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
 }
@@ -1168,6 +1178,7 @@ impl ChatGptCodexAuthProvider {
         drop(guard);
         let cache_generation = {
             let _cache_lock = self.cache.lock_exclusive().await?;
+            self.cache.bump_generation()?;
             self.cache.generation()
         };
 
@@ -1486,6 +1497,7 @@ impl Provider for ChatGptCodexProvider {
             let previous_token = self.auth_provider.cache.load();
             let previous_catalog =
                 std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
+            self.auth_provider.cache.bump_generation()?;
             let cache_generation = self.auth_provider.cache.generation();
             self.auth_provider.clear_cached_tokens();
             (previous_token, previous_catalog, *guard, cache_generation)
@@ -1507,7 +1519,25 @@ impl Provider for ChatGptCodexProvider {
         }
         let result = result.and_then(|token_data| {
             self.auth_provider.cache.bump_generation()?;
-            self.auth_provider.cache.save(&token_data)
+            self.auth_provider.cache.save(&token_data)?;
+            if previous_token
+                .as_ref()
+                .and_then(|token| token.account_id.as_ref())
+                .is_some()
+                && previous_token
+                    .as_ref()
+                    .and_then(|token| token.account_id.as_ref())
+                    == token_data.account_id.as_ref()
+            {
+                if let Some(catalog) = previous_catalog.as_deref() {
+                    if serde_json::from_str::<CodexCatalogSnapshot>(catalog)
+                        .is_ok_and(|snapshot| snapshot.account_id == token_data.account_id)
+                    {
+                        write_private_file(&self.auth_provider.cache.catalog_path(), catalog)?;
+                    }
+                }
+            }
+            Ok(())
         });
 
         if let Err(e) = result {

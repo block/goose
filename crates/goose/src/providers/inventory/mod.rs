@@ -467,7 +467,14 @@ impl ProviderInventoryService {
         identity: &InventoryIdentity,
         model_ids: &[String],
     ) -> Result<()> {
-        let models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
+        let mut models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
+        if identity.provider_family == "chatgpt_codex" {
+            for model in &mut models {
+                model.reasoning =
+                    crate::providers::chatgpt_codex::catalog_model_has_reasoning(&model.id)
+                        .or(model.reasoning);
+            }
+        }
         let now = Utc::now();
         let pool = self.storage.pool().await?;
         let mut tx = pool.begin().await?;
