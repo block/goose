@@ -404,7 +404,8 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
                 .find(|level| valid_levels.iter().any(|valid| valid.as_str() == **level))
                 .map(|level| (*level).to_string())
         })
-        .unwrap_or_else(|| Some(get_reasoning_effort(&model_config.model_name)))
+        .flatten()
+        .or_else(|| Some(get_reasoning_effort(&model_config.model_name)))
 }
 
 fn create_codex_request(
@@ -1414,10 +1415,8 @@ impl Provider for ChatGptCodexProvider {
         model_config: &ModelConfig,
         value: &str,
     ) -> Result<bool, ProviderError> {
-        if reasoning_levels_for_model(&model_config.model_name)
-            .iter()
-            .any(|level| level == value)
-        {
+        let levels = reasoning_levels_for_model(&model_config.model_name);
+        if (levels.is_empty() && value == "off") || levels.iter().any(|level| level == value) {
             Ok(true)
         } else {
             Err(ProviderError::InvalidValue(format!(
@@ -2048,7 +2047,14 @@ mod tests {
                       "default_reasoning_level": "medium",
                       "supported_reasoning_levels": [
                         { "effort": "low" }, { "effort": "medium" }
-                      ] }
+                      ] },
+                    { "slug": "gpt-6-omega", "supported_in_api": true, "priority": 3,
+                      "default_reasoning_level": "mega",
+                      "supported_reasoning_levels": [
+                        { "effort": "ultra" }, { "effort": "mega" }
+                      ] },
+                    { "slug": "gpt-6-plain", "supported_in_api": true, "priority": 4,
+                      "supported_reasoning_levels": [] }
                 ]
             })))
             .mount(&server)
@@ -2057,7 +2063,7 @@ mod tests {
         let mut catalog_updates = provider.subscribe_thinking_effort_support().unwrap();
         assert_eq!(
             provider.fetch_supported_models().await.unwrap(),
-            vec!["gpt-6-astra", "gpt-6-terra"]
+            vec!["gpt-6-astra", "gpt-6-terra", "gpt-6-omega", "gpt-6-plain"]
         );
         assert!(catalog_updates.has_changed().unwrap());
         catalog_updates.changed().await.unwrap();
@@ -2139,6 +2145,26 @@ mod tests {
             ),
             Some("max".to_string())
         );
+        let omega = ModelConfig::new("gpt-6-omega")
+            .with_thinking_effort(goose_providers::thinking::ThinkingEffort::High);
+        assert_eq!(reasoning_effort_for_config(&omega).as_deref(), Some("mega"));
+        assert_eq!(
+            create_codex_request(&omega, "", &[], &[]).unwrap()["reasoning"]["effort"],
+            "mega"
+        );
+        let plain = ModelConfig::new("gpt-6-plain");
+        assert!(matches!(
+            provider.thinking_effort_support_for_model(&plain),
+            ThinkingEffortSupport::Unsupported
+        ));
+        assert!(provider
+            .set_thinking_effort_for_model("session", &plain, "off")
+            .await
+            .unwrap());
+        assert!(provider
+            .set_thinking_effort_for_model("session", &plain, "low")
+            .await
+            .is_err());
     }
 
     #[tokio::test]

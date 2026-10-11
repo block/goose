@@ -292,11 +292,12 @@ impl ProviderInventoryService {
             return Ok(None);
         };
         let snapshot = self.read_snapshot(&descriptor.identity).await?;
-        let refreshing = self
+        let refreshing_keys = self
             .refreshing_keys
             .read()
-            .unwrap_or_else(|poisoned| recover_poisoned_read(poisoned, "refreshing_keys"))
-            .contains(&descriptor.identity.inventory_key);
+            .unwrap_or_else(|poisoned| recover_poisoned_read(poisoned, "refreshing_keys"));
+        let refreshing =
+            is_refreshing_identity(provider_id, &descriptor.identity, &refreshing_keys)?;
         let models = inventory_models_from_snapshot(
             snapshot.as_ref(),
             &descriptor.identity.provider_family,
@@ -927,6 +928,26 @@ impl ProviderInventoryService {
     }
 }
 
+fn is_refreshing_identity(
+    provider_id: &str,
+    identity: &InventoryIdentity,
+    refreshing_keys: &HashSet<String>,
+) -> Result<bool> {
+    if refreshing_keys.contains(&identity.inventory_key) {
+        return Ok(true);
+    }
+    if provider_id != "chatgpt_codex" {
+        return Ok(false);
+    }
+    let unknown_identity = InventoryIdentityInput::new(provider_id, provider_id)
+        .with_secret(
+            "oauth_account",
+            crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
+        )
+        .into_identity()?;
+    Ok(refreshing_keys.contains(&unknown_identity.inventory_key))
+}
+
 pub(crate) async fn ensure_refresh_identity_current(
     provider_id: &str,
     planned_identity: &InventoryIdentity,
@@ -1359,6 +1380,25 @@ mod tests {
         guard.complete();
 
         assert!(!refreshing_keys.read().unwrap().contains("key-a"));
+    }
+
+    #[test]
+    fn codex_refresh_remains_visible_after_account_identity_changes() {
+        let unknown = InventoryIdentityInput::new("chatgpt_codex", "chatgpt_codex")
+            .with_secret(
+                "oauth_account",
+                crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
+            )
+            .into_identity()
+            .unwrap();
+        let discovered = InventoryIdentityInput::new("chatgpt_codex", "chatgpt_codex")
+            .with_secret("oauth_account", "account-123")
+            .into_identity()
+            .unwrap();
+        let mut keys = HashSet::from([unknown.inventory_key]);
+        assert!(is_refreshing_identity("chatgpt_codex", &discovered, &keys).unwrap());
+        keys.clear();
+        assert!(!is_refreshing_identity("chatgpt_codex", &discovered, &keys).unwrap());
     }
 
     #[tokio::test]

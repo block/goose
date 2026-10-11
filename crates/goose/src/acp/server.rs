@@ -329,6 +329,7 @@ pub struct GooseAcpAgent {
     client_cx: OnceCell<ConnectionTo<Client>>,
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
+    thinking_effort_subscriptions: Mutex<HashMap<String, tokio::task::JoinHandle<()>>>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -988,6 +989,7 @@ impl GooseAcpAgent {
             client_cx: OnceCell::new(),
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
+            thinking_effort_subscriptions: Mutex::new(HashMap::new()),
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
@@ -1249,21 +1251,33 @@ impl GooseAcpAgent {
     }
 
     async fn subscribe_thinking_effort_updates(&self, session_id: &str, agent: &Arc<Agent>) {
+        if let Some(previous) = self
+            .thinking_effort_subscriptions
+            .lock()
+            .await
+            .remove(session_id)
+        {
+            previous.abort();
+        }
         let Ok(provider) = agent.provider(session_id).await else {
             return;
         };
         let Some(mut updates) = provider.subscribe_thinking_effort_support() else {
             return;
         };
-        let session_id = session_id.to_string();
+        let session_id_for_task = session_id.to_string();
         let tx = self.thinking_effort_update_tx.clone();
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             while updates.changed().await.is_ok() {
-                if tx.send(session_id.clone()).is_err() {
+                if tx.send(session_id_for_task.clone()).is_err() {
                     break;
                 }
             }
         });
+        self.thinking_effort_subscriptions
+            .lock()
+            .await
+            .insert(session_id.to_string(), task);
     }
 
     async fn start_thinking_effort_update_forwarder(self: &Arc<Self>, cx: &ConnectionTo<Client>) {
@@ -2446,6 +2460,8 @@ impl GooseAcpAgent {
             .switch_provider(session_id, &provider_name, model_config)
             .await
             .internal_err_ctx("Failed to switch provider")?;
+        self.subscribe_thinking_effort_updates(session_id, &agent)
+            .await;
         Ok(())
     }
 
@@ -2629,6 +2645,14 @@ impl GooseAcpAgent {
         let mut sessions = self.sessions.lock().await;
         sessions.remove(session_id);
         drop(sessions);
+        if let Some(subscription) = self
+            .thinking_effort_subscriptions
+            .lock()
+            .await
+            .remove(session_id)
+        {
+            subscription.abort();
+        }
 
         self.agent_manager
             .remove_session_if_loaded(session_id)
