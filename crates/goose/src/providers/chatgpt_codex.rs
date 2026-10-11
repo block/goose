@@ -49,6 +49,13 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.5";
 
+/// Inventory identity used when an OAuth response carries no account id. It is
+/// deliberately not derived from the refresh token: that token rotates on every
+/// refresh, so keying the inventory on it would move the snapshot out from
+/// under the refresh job that just fetched it. Accounts we cannot tell apart
+/// share one key, which is all the information the credentials carry.
+const UNKNOWN_ACCOUNT_IDENTITY: &str = "unknown-account";
+
 #[derive(Debug)]
 pub struct ChatGptCodexModelAttrs {
     pub name: &'static str,
@@ -396,8 +403,11 @@ impl TokenCache {
     }
 
     pub(crate) fn inventory_identity(&self) -> Option<String> {
-        self.load()
-            .map(|token| token.account_id.unwrap_or(token.refresh_token))
+        self.load().map(|token| {
+            token
+                .account_id
+                .unwrap_or_else(|| UNKNOWN_ACCOUNT_IDENTITY.to_string())
+        })
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -408,6 +418,53 @@ impl TokenCache {
 
     fn clear(&self) {
         let _ = std::fs::remove_file(&self.cache_path);
+    }
+
+    /// Lock file for the cache. It is a sidecar, never the cache file itself,
+    /// so the lock can be held without disturbing readers of the cache.
+    fn lock_path(&self) -> PathBuf {
+        self.cache_path.with_extension("json.lock")
+    }
+
+    /// Acquires the cross-process cache lock. The blocking `flock` runs on a
+    /// blocking thread so waiting for another process never stalls the runtime.
+    async fn lock_exclusive(&self) -> Result<TokenCacheLock> {
+        use fs2::FileExt as _;
+
+        let path = self.lock_path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)?;
+        let file = tokio::task::spawn_blocking(move || {
+            file.lock_exclusive()?;
+            Ok::<_, io::Error>(file)
+        })
+        .await??;
+        Ok(TokenCacheLock { file })
+    }
+}
+
+/// Held across a whole load/refresh/save of the token cache.
+///
+/// The in-process mutex does not cover the desktop app and a CLI session that
+/// share this config directory: both can load the same refresh token and rotate
+/// it concurrently, and the loser gets `invalid_grant` and may then clear the
+/// credentials the winner just saved. An OS advisory lock covers every process,
+/// and the kernel releases it if the holder dies.
+#[derive(Debug)]
+struct TokenCacheLock {
+    file: std::fs::File,
+}
+
+impl Drop for TokenCacheLock {
+    fn drop(&mut self) {
+        let _ = fs2::FileExt::unlock(&self.file);
     }
 }
 
@@ -901,6 +958,11 @@ impl ChatGptCodexAuthProvider {
     /// starts the interactive OAuth flow, so listing models cannot open a browser.
     async fn get_cached_token(&self) -> Result<TokenData, ProviderError> {
         let _guard = self.state.token_mutex.lock().await;
+        let _cache_lock = self
+            .cache
+            .lock_exclusive()
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         let Some(mut token_data) = self.cache.load() else {
             return Err(ProviderError::NotConfigured);
         };
@@ -914,20 +976,23 @@ impl ChatGptCodexAuthProvider {
 
     async fn get_valid_token(&self) -> Result<TokenData> {
         let guard = self.state.token_mutex.lock().await;
-        if let Some(mut token_data) = self.cache.load() {
-            if token_data.expires_at > Utc::now() + chrono::Duration::seconds(60) {
-                return Ok(token_data);
-            }
-
-            tracing::debug!("Token expired, attempting refresh");
-            match self.refresh_token(&mut token_data).await {
-                Ok(()) => {
-                    tracing::info!("Token refreshed successfully");
+        {
+            let _cache_lock = self.cache.lock_exclusive().await?;
+            if let Some(mut token_data) = self.cache.load() {
+                if token_data.expires_at > Utc::now() + chrono::Duration::seconds(60) {
                     return Ok(token_data);
                 }
-                Err(e) => {
-                    tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
-                    self.cache.clear();
+
+                tracing::debug!("Token expired, attempting refresh");
+                match self.refresh_token(&mut token_data).await {
+                    Ok(()) => {
+                        tracing::info!("Token refreshed successfully");
+                        return Ok(token_data);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
+                        self.cache.clear();
+                    }
                 }
             }
         }
@@ -943,6 +1008,7 @@ impl ChatGptCodexAuthProvider {
                 "ChatGPT Codex credentials were removed during OAuth"
             ));
         }
+        let _cache_lock = self.cache.lock_exclusive().await?;
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -976,7 +1042,9 @@ impl ChatGptCodexProvider {
         let state = ChatGptCodexAuthState::instance();
         let mut generation = state.token_mutex.lock().await;
         *generation = generation.wrapping_add(1);
-        TokenCache::new().clear();
+        let cache = TokenCache::new();
+        let _cache_lock = cache.lock_exclusive().await?;
+        cache.clear();
         Ok(())
     }
 
@@ -1164,6 +1232,7 @@ impl Provider for ChatGptCodexProvider {
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         let (previous_token, generation) = {
             let guard = self.auth_provider.state.token_mutex.lock().await;
+            let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
             let previous_token = self.auth_provider.cache.load();
             self.auth_provider.clear_cached_tokens();
             (previous_token, *guard)
@@ -1176,6 +1245,7 @@ impl Provider for ChatGptCodexProvider {
                 "ChatGPT Codex credentials were removed during OAuth".to_string(),
             ));
         }
+        let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
         let result = result.and_then(|token_data| self.auth_provider.cache.save(&token_data));
 
         if let Err(e) = result {
@@ -1256,7 +1326,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn inventory_identity_tracks_oauth_account_across_token_refresh() {
+    fn inventory_identity_is_stable_across_token_refresh() {
         let root = tempfile::tempdir().unwrap();
         let root_path = root.path().to_string_lossy().to_string();
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
@@ -1283,14 +1353,46 @@ mod tests {
         save("account-b", "refresh-b");
         assert_ne!(account_a, resolve().unwrap().into_identity().unwrap());
 
+        // With no account id the fallback must not move when the refresh token
+        // rotates: the refresh job stores the catalog it fetched under the key
+        // it planned with, and the next read resolves that same key.
         let mut token = cache.load().unwrap();
         token.account_id = None;
         cache.save(&token).unwrap();
         let unknown_account = resolve().unwrap().into_identity().unwrap();
         assert_ne!(account_a, unknown_account);
-        token.refresh_token = "another-account-refresh".to_string();
+        token.refresh_token = "rotated-refresh-b".to_string();
         cache.save(&token).unwrap();
-        assert_ne!(unknown_account, resolve().unwrap().into_identity().unwrap());
+        assert_eq!(unknown_account, resolve().unwrap().into_identity().unwrap());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn token_cache_lock_serializes_independent_handles() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+
+        // Two handles on one cache are two independent opens of the lock file,
+        // exactly as two goose processes are, and flock makes them contend.
+        let held = TokenCache::new().lock_exclusive().await.unwrap();
+        let waiter = {
+            let second = TokenCache::new();
+            tokio::spawn(async move { second.lock_exclusive().await })
+        };
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(
+            !waiter.is_finished(),
+            "lock was acquired while another handle still held it"
+        );
+
+        drop(held);
+        let acquired = tokio::time::timeout(std::time::Duration::from_secs(5), waiter)
+            .await
+            .expect("second handle never acquired the released lock")
+            .unwrap();
+        assert!(acquired.is_ok());
     }
 
     #[cfg(unix)]
