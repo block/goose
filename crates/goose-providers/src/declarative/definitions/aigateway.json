@@ -66,7 +66,7 @@
     },
     {
       "name": "deepseek/deepseek-v4-pro",
-      "context_limit": 163840,
+      "context_limit": 131072,
       "input_token_cost": 0.00000055,
       "output_token_cost": 0.00000219,
       "currency": "USD"
@@ -74,8 +74,8 @@
     {
       "name": "moonshot/kimi-k2.6",
       "context_limit": 262144,
-      "input_token_cost": 0.0000006,
-      "output_token_cost": 0.0000025,
+      "input_token_cost": 0.00000095,
+      "output_token_cost": 0.000004,
       "currency": "USD"
     },
     {
@@ -87,7 +87,7 @@
     },
     {
       "name": "meta/llama-4-scout-17b-16e-instruct",
-      "context_limit": 10000000,
+      "context_limit": 131072,
       "input_token_cost": 0.00000008,
       "output_token_cost": 0.0000003,
       "currency": "USD"
