@@ -11,8 +11,8 @@ use crate::documents::{
     ASSISTANT_ROLE_REASON, UNSUPPORTED_MEDIA_TYPE_REASON,
 };
 use crate::formats::openai::{
-    extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
-    openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
+    extract_reasoning_effort, is_valid_function_name, openai_reasoning_effort_for_thinking,
+    sanitize_function_name, validate_tool_schemas,
 };
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::mcp_utils::extract_text_from_resource;
@@ -349,27 +349,17 @@ pub fn format_tools(tools: &[Tool], _model_name: &str) -> anyhow::Result<Vec<Val
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let has_properties = tool
-            .input_schema
-            .get("properties")
-            .and_then(|v| v.as_object())
-            .is_some_and(|p| !p.is_empty());
-
         // Databricks serving endpoints (including Gemini-backed ones) use the
         // OpenAI-compatible chat format, so tools always use "parameters" — not
-        // the Google-native "parametersJsonSchema" field.
-        let mut def = json!({
-            "name": tool.name,
-            "description": tool.description,
-        });
-        if has_properties {
-            def["parameters"] = json!(tool.input_schema);
-        }
-        let function_def = def;
-
+        // the Google-native "parametersJsonSchema" field. "parameters" is
+        // required even when a tool takes no arguments, so it is always sent.
         result.push(json!({
             "type": "function",
-            "function": function_def,
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.input_schema,
+            },
         }));
     }
 
@@ -542,14 +532,8 @@ pub fn create_request_for_provider(
     tools: &[Tool],
     image_format: &ImageFormat,
 ) -> anyhow::Result<Value, Error> {
-    if model_config.model_name.starts_with("o1-mini") {
-        return Err(anyhow!(
-            "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
-        ));
-    }
-
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
-    let is_openai_reasoning_model = is_openai_responses_model(&model_name);
+    let is_openai_reasoning_model = model_config.openai_reasoning_for_model(&model_name);
     let reasoning_effort = if is_openai_reasoning_model {
         model_config
             .thinking_effort()
@@ -979,6 +963,29 @@ mod tests {
         assert_eq!(spec[1]["role"], "tool");
         assert_eq!(spec[1]["content"], "Result");
         assert_eq!(spec[1]["tool_call_id"], spec[0]["tool_calls"][0]["id"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_tools_zero_arg_still_sends_parameters() -> anyhow::Result<()> {
+        let tool = Tool::new(
+            "list_sessions",
+            "A tool that takes no arguments",
+            object!({
+                "type": "object",
+                "properties": {}
+            }),
+        );
+
+        let spec = format_tools(std::slice::from_ref(&tool), "glm-5-3")?;
+
+        let function = &spec[0]["function"];
+        assert!(
+            function.get("parameters").is_some(),
+            "Databricks rejects a function object without `parameters`"
+        );
+        assert_eq!(function["parameters"]["type"], "object");
 
         Ok(())
     }
@@ -1421,7 +1428,7 @@ mod tests {
             request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        assert_eq!(request["reasoning_effort"], "high");
+        assert_eq!(request["reasoning_effort"], "xhigh");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
     }
