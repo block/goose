@@ -332,7 +332,8 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         let error_message = error.to_string();
                                         match agent_bg
                                             .provider_inventory
-                                            .store_refresh_error_for_identity(
+                                            .store_refresh_error_after_fetch(
+                                                &refresh_provider_id,
                                                 &refresh_identity,
                                                 error_message.clone(),
                                             )

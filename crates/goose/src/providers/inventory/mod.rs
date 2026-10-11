@@ -587,6 +587,53 @@ impl ProviderInventoryService {
         Ok(())
     }
 
+    pub(crate) async fn store_refresh_error_after_fetch(
+        &self,
+        provider_id: &str,
+        planned_identity: &InventoryIdentity,
+        error: impl Into<String>,
+    ) -> Result<()> {
+        let previous = self.read_snapshot(planned_identity).await?;
+        let model_ids = previous
+            .as_ref()
+            .map(|snapshot| {
+                snapshot
+                    .models
+                    .iter()
+                    .map(|model| model.id.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let identity = refresh_identity_after_fetch(provider_id, planned_identity, &model_ids)
+            .await
+            .unwrap_or_else(|_| planned_identity.clone());
+
+        if identity != *planned_identity && previous.is_some() {
+            let pool = self.storage.pool().await?;
+            let mut tx = pool.begin().await?;
+            let inserted = sqlx::query(
+                "INSERT OR IGNORE INTO provider_inventory_entries (inventory_key, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error) SELECT ?, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error FROM provider_inventory_entries WHERE inventory_key = ?",
+            )
+            .bind(&identity.inventory_key)
+            .bind(&planned_identity.inventory_key)
+            .execute(&mut *tx)
+            .await?;
+            if inserted.rows_affected() > 0 {
+                sqlx::query(
+                    "INSERT INTO provider_inventory_models (inventory_key, ordinal, model_id, name, family, context_limit, reasoning, recommended) SELECT ?, ordinal, model_id, name, family, context_limit, reasoning, recommended FROM provider_inventory_models WHERE inventory_key = ?",
+                )
+                .bind(&identity.inventory_key)
+                .bind(&planned_identity.inventory_key)
+                .execute(&mut *tx)
+                .await?;
+            }
+            tx.commit().await?;
+        }
+
+        self.store_refresh_error_for_identity(&identity, error)
+            .await
+    }
+
     fn clear_refreshing_many(&self, identities: &[InventoryIdentity]) {
         let mut refreshing_keys = self
             .refreshing_keys
@@ -673,7 +720,8 @@ impl ProviderInventoryService {
                         Err(error) => {
                             let error_message = error.to_string();
                             if let Err(store_error) = self
-                                .store_refresh_error_for_identity(
+                                .store_refresh_error_after_fetch(
+                                    &provider_id,
                                     &refresh_job.identity,
                                     error_message.clone(),
                                 )

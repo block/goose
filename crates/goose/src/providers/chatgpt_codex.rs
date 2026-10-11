@@ -499,6 +499,31 @@ impl TokenCache {
         let _ = std::fs::remove_file(self.catalog_path());
     }
 
+    fn bind_catalog_to_account(&self, account_id: &str) -> Result<()> {
+        let Ok(contents) = std::fs::read_to_string(self.catalog_path()) else {
+            return Ok(());
+        };
+        let Ok(mut snapshot) = serde_json::from_str::<CodexCatalogSnapshot>(&contents) else {
+            return Ok(());
+        };
+        if snapshot.account_id.is_none() {
+            snapshot.account_id = Some(account_id.to_string());
+            write_private_file(&self.catalog_path(), &serde_json::to_string(&snapshot)?)?;
+        }
+        Ok(())
+    }
+
+    fn restore_after_failed_oauth(&self, token: &TokenData, catalog: Option<&str>) -> Result<()> {
+        if self.load().is_some() {
+            return Ok(());
+        }
+        self.save(token)?;
+        if let Some(catalog) = catalog {
+            write_private_file(&self.catalog_path(), catalog)?;
+        }
+        Ok(())
+    }
+
     fn catalog_path(&self) -> PathBuf {
         self.cache_path.with_extension("json.models")
     }
@@ -1061,6 +1086,7 @@ impl ChatGptCodexAuthProvider {
     }
 
     async fn refresh_token(&self, token_data: &mut TokenData) -> Result<()> {
+        let account_was_unknown = token_data.account_id.is_none();
         let new_tokens =
             refresh_access_token_with_issuer(ISSUER, &token_data.refresh_token).await?;
         token_data.access_token = new_tokens.access_token;
@@ -1072,6 +1098,11 @@ impl ChatGptCodexAuthProvider {
             Utc::now() + chrono::Duration::seconds(new_tokens.expires_in.unwrap_or(3600));
         if token_data.account_id.is_none() {
             token_data.account_id = extract_account_id(token_data, self.state.as_ref()).await;
+        }
+        if account_was_unknown {
+            if let Some(account_id) = token_data.account_id.as_deref() {
+                self.cache.bind_catalog_to_account(account_id)?;
+            }
         }
         self.cache.save(token_data)?;
         Ok(())
@@ -1381,13 +1412,15 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let (previous_token, generation, cache_generation) = {
+        let (previous_token, previous_catalog, generation, cache_generation) = {
             let guard = self.auth_provider.state.token_mutex.lock().await;
             let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
             let previous_token = self.auth_provider.cache.load();
+            let previous_catalog =
+                std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
             let cache_generation = self.auth_provider.cache.generation();
             self.auth_provider.clear_cached_tokens();
-            (previous_token, *guard, cache_generation)
+            (previous_token, previous_catalog, *guard, cache_generation)
         };
 
         let result = perform_oauth_flow(self.auth_provider.state.as_ref()).await;
@@ -1408,9 +1441,15 @@ impl Provider for ChatGptCodexProvider {
 
         if let Err(e) = result {
             if let Some(previous_token) = previous_token.as_ref() {
-                if self.auth_provider.cache.load().is_none() {
-                    let _ = self.auth_provider.cache.save(previous_token);
-                }
+                self.auth_provider
+                    .cache
+                    .restore_after_failed_oauth(previous_token, previous_catalog.as_deref())
+                    .map_err(|restore_error| {
+                        ProviderError::Authentication(format!(
+                            "OAuth flow failed: {}; restoring previous credentials failed: {}",
+                            e, restore_error
+                        ))
+                    })?;
             }
             return Err(ProviderError::Authentication(format!(
                 "OAuth flow failed: {}",
@@ -1953,10 +1992,7 @@ mod tests {
             provider.fetch_supported_models().await.unwrap(),
             vec!["gpt-6-astra"]
         );
-        assert_eq!(
-            ChatGptCodexProvider::metadata().default_model,
-            "gpt-6-astra"
-        );
+        assert_eq!(default_model(), "gpt-6-astra");
         assert_eq!(
             reasoning_levels_for_model("gpt-6-astra"),
             vec!["high", "max"]
@@ -2025,6 +2061,110 @@ mod tests {
         )
         .await
         .is_err());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn failed_refresh_preserves_catalog_after_account_discovery() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let mut token = TokenData {
+            access_token: "access".to_string(),
+            refresh_token: "refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: None,
+        };
+        cache.save(&token).unwrap();
+        let planned = crate::providers::inventory::InventoryIdentityInput::new(
+            "chatgpt_codex",
+            "chatgpt_codex",
+        )
+        .with_secret("oauth_account", UNKNOWN_ACCOUNT_IDENTITY)
+        .into_identity()
+        .unwrap();
+        let service = crate::providers::inventory::ProviderInventoryService::new(Arc::new(
+            crate::session::session_manager::SessionStorage::new(root.path().to_path_buf()),
+        ));
+        service
+            .store_refreshed_models_for_identity(&planned, &["gpt-6-astra".to_string()])
+            .await
+            .unwrap();
+        let catalog = CodexCatalogSnapshot {
+            account_id: None,
+            models: vec![serde_json::from_value(json!({
+                "slug": "gpt-6-astra", "supported_in_api": true,
+                "supported_reasoning_levels": [{"effort": "high"}]
+            }))
+            .unwrap()],
+        };
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&catalog).unwrap(),
+        )
+        .unwrap();
+
+        cache.bind_catalog_to_account("account-1").unwrap();
+        token.account_id = Some("account-1".to_string());
+        cache.save(&token).unwrap();
+        service
+            .store_refresh_error_after_fetch("chatgpt_codex", &planned, "catalog unavailable")
+            .await
+            .unwrap();
+
+        let current = crate::providers::inventory::InventoryIdentityInput::new(
+            "chatgpt_codex",
+            "chatgpt_codex",
+        )
+        .with_secret("oauth_account", "account-1")
+        .into_identity()
+        .unwrap();
+        assert_ne!(current, planned);
+        let snapshot = service
+            .find_entry_for_provider("chatgpt_codex")
+            .await
+            .unwrap();
+        assert_eq!(snapshot.models[0].id, "gpt-6-astra");
+        assert_eq!(
+            snapshot.last_refresh_error.as_deref(),
+            Some("catalog unavailable")
+        );
+        assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn oauth_rollback_restores_the_catalog_with_credentials() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let token = TokenData {
+            access_token: "access".to_string(),
+            refresh_token: "refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: Some("account-1".to_string()),
+        };
+        let catalog = serde_json::to_string(&CodexCatalogSnapshot {
+            account_id: token.account_id.clone(),
+            models: vec![serde_json::from_value(json!({
+                "slug": "gpt-6-astra", "supported_in_api": true,
+                "supported_reasoning_levels": [{"effort": "high"}]
+            }))
+            .unwrap()],
+        })
+        .unwrap();
+        cache.save(&token).unwrap();
+        write_private_file(&cache.catalog_path(), &catalog).unwrap();
+        cache.clear();
+        cache
+            .restore_after_failed_oauth(&token, Some(&catalog))
+            .unwrap();
+        assert_eq!(default_model(), "gpt-6-astra");
+        assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
     }
 
     #[test]

@@ -916,7 +916,11 @@ impl GooseAcpAgent {
                     Err(error) => {
                         let error_message = error.to_string();
                         match provider_inventory
-                            .store_refresh_error_for_identity(&identity, error_message.clone())
+                            .store_refresh_error_after_fetch(
+                                &provider_id,
+                                &identity,
+                                error_message.clone(),
+                            )
                             .await
                         {
                             Ok(()) => refresh_guard.complete(),
