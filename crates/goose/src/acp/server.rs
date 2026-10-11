@@ -622,6 +622,12 @@ fn resolve_default_provider_model_config(
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve provider: {}", error))
     })?;
+    if resolved_provider == "chatgpt_codex"
+        && crate::providers::chatgpt_codex::default_model().is_none()
+    {
+        return Err(agent_client_protocol::Error::invalid_params()
+            .data("ChatGPT Codex catalog contains no selectable models"));
+    }
     let resolved_model = config.get_goose_model().map_err(|error| {
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve model: {}", error))
@@ -2565,6 +2571,12 @@ impl GooseAcpAgent {
         } else {
             provider_name.to_string()
         };
+        if resolved_provider_name == "chatgpt_codex"
+            && crate::providers::chatgpt_codex::default_model().is_none()
+        {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("ChatGPT Codex catalog contains no selectable models"));
+        }
         let is_changing_provider = resolved_provider_name != current_provider_name;
         let default_model = if let Some(model_name) = model_name {
             model_name.to_string()

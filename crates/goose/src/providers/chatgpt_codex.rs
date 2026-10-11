@@ -523,13 +523,11 @@ impl TokenCache {
         Ok(())
     }
 
-    fn restore_after_failed_oauth(&self, token: &TokenData, catalog: Option<&str>) -> Result<()> {
-        if self.load().is_some() {
-            return Ok(());
-        }
+    fn commit_oauth_token(&self, token: &TokenData) -> Result<()> {
+        let previous_account = self.load().and_then(|previous| previous.account_id);
         self.save(token)?;
-        if let Some(catalog) = catalog {
-            write_private_file(&self.catalog_path(), catalog)?;
+        if previous_account != token.account_id {
+            let _ = std::fs::remove_file(self.catalog_path());
         }
         Ok(())
     }
@@ -1104,10 +1102,6 @@ impl ChatGptCodexAuthProvider {
         }
     }
 
-    fn clear_cached_tokens(&self) {
-        self.cache.clear();
-    }
-
     async fn refresh_token(&self, token_data: &mut TokenData) -> Result<()> {
         let account_was_unknown = token_data.account_id.is_none();
         let new_tokens =
@@ -1168,7 +1162,6 @@ impl ChatGptCodexAuthProvider {
                     }
                     Err(e) => {
                         tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
-                        self.cache.clear();
                     }
                 }
             }
@@ -1198,7 +1191,7 @@ impl ChatGptCodexAuthProvider {
             ));
         }
         self.cache.bump_generation()?;
-        self.cache.save(&token_data)?;
+        self.cache.commit_oauth_token(&token_data)?;
         Ok(token_data)
     }
 }
@@ -1437,17 +1430,13 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let (result, (previous_token, previous_catalog, generation, cache_generation)) =
+        let (result, (generation, cache_generation)) =
             perform_oauth_flow(self.auth_provider.state.as_ref(), || async {
                 let guard = self.auth_provider.state.token_mutex.lock().await;
                 let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
-                let previous_token = self.auth_provider.cache.load();
-                let previous_catalog =
-                    std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
                 self.auth_provider.cache.bump_generation()?;
                 let cache_generation = self.auth_provider.cache.generation();
-                self.auth_provider.clear_cached_tokens();
-                Ok((previous_token, previous_catalog, *guard, cache_generation))
+                Ok((*guard, cache_generation))
             })
             .await?;
         let guard = self.auth_provider.state.token_mutex.lock().await;
@@ -1463,48 +1452,13 @@ impl Provider for ChatGptCodexProvider {
                 "ChatGPT Codex credentials were removed during OAuth".to_string(),
             ));
         }
-        let result = result.and_then(|token_data| {
-            self.auth_provider.cache.bump_generation()?;
-            self.auth_provider.cache.save(&token_data)?;
-            if previous_token
-                .as_ref()
-                .and_then(|token| token.account_id.as_ref())
-                .is_some()
-                && previous_token
-                    .as_ref()
-                    .and_then(|token| token.account_id.as_ref())
-                    == token_data.account_id.as_ref()
-            {
-                if let Some(catalog) = previous_catalog.as_deref() {
-                    if serde_json::from_str::<CodexCatalogSnapshot>(catalog)
-                        .is_ok_and(|snapshot| snapshot.account_id == token_data.account_id)
-                    {
-                        write_private_file(&self.auth_provider.cache.catalog_path(), catalog)?;
-                    }
-                }
-            }
-            Ok(())
-        });
-
-        if let Err(e) = result {
-            if let Some(previous_token) = previous_token.as_ref() {
-                self.auth_provider
-                    .cache
-                    .restore_after_failed_oauth(previous_token, previous_catalog.as_deref())
-                    .map_err(|restore_error| {
-                        ProviderError::Authentication(format!(
-                            "OAuth flow failed: {}; restoring previous credentials failed: {}",
-                            e, restore_error
-                        ))
-                    })?;
-            }
-            return Err(ProviderError::Authentication(format!(
-                "OAuth flow failed: {}",
-                e
-            )));
-        }
-
-        Ok(())
+        result
+            .and_then(|token_data| {
+                self.auth_provider.cache.bump_generation()?;
+                self.auth_provider.cache.commit_oauth_token(&token_data)?;
+                Ok(())
+            })
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {e}")))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -2211,7 +2165,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn oauth_rollback_restores_the_catalog_with_credentials() {
+    fn oauth_replacement_preserves_existing_account_until_commit() {
         let root = tempfile::tempdir().unwrap();
         let root_path = root.path().to_string_lossy().to_string();
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
@@ -2234,12 +2188,20 @@ mod tests {
         .unwrap();
         cache.save(&token).unwrap();
         write_private_file(&cache.catalog_path(), &catalog).unwrap();
-        cache.clear();
-        cache
-            .restore_after_failed_oauth(&token, Some(&catalog))
-            .unwrap();
+        cache.bump_generation().unwrap();
+        assert_eq!(cache.load().unwrap().access_token, "access");
         assert_eq!(default_model().as_deref(), Some("gpt-6-astra"));
         assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+
+        let mut replacement = token.clone();
+        replacement.access_token = "new-access".to_string();
+        cache.commit_oauth_token(&replacement).unwrap();
+        assert_eq!(cache.load().unwrap().access_token, "new-access");
+        assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+
+        replacement.account_id = Some("account-2".to_string());
+        cache.commit_oauth_token(&replacement).unwrap();
+        assert!(cache.catalog_snapshot().is_none());
     }
 
     #[test]
