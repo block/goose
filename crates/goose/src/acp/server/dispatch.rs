@@ -216,7 +216,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             responder.respond(SetSessionConfigOptionResponse::new(config_options))?;
 
                             let maybe_refresh = if config_id == "provider" {
-                                let provider_id = if value_id.0 == DEFAULT_PROVIDER_ID {
+                                let provider_id = if value_id.0.as_ref() == DEFAULT_PROVIDER_ID {
                                     Config::global().get_goose_provider().unwrap_or_default()
                                 } else {
                                     value_id.0.to_string()
