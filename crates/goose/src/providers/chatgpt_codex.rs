@@ -420,6 +420,28 @@ impl TokenCache {
         let _ = std::fs::remove_file(&self.cache_path);
     }
 
+    /// Deletion marker for the cache, in its own sidecar so `clear()` can remove
+    /// the credentials without erasing the record that they were deleted. An
+    /// OAuth flow releases the cache lock for the browser round trip, which can
+    /// take minutes; without this, a delete in another process would be undone
+    /// by a flow that started before it.
+    fn generation_path(&self) -> PathBuf {
+        self.cache_path.with_extension("json.generation")
+    }
+
+    fn generation(&self) -> u64 {
+        std::fs::read_to_string(self.generation_path())
+            .ok()
+            .and_then(|contents| contents.trim().parse().ok())
+            .unwrap_or(0)
+    }
+
+    fn bump_generation(&self) -> Result<()> {
+        let next = self.generation().wrapping_add(1);
+        write_private_file(&self.generation_path(), &next.to_string())?;
+        Ok(())
+    }
+
     /// Lock file for the cache. It is a sidecar, never the cache file itself,
     /// so the lock can be held without disturbing readers of the cache.
     fn lock_path(&self) -> PathBuf {
@@ -999,6 +1021,10 @@ impl ChatGptCodexAuthProvider {
 
         let generation = *guard;
         drop(guard);
+        let cache_generation = {
+            let _cache_lock = self.cache.lock_exclusive().await?;
+            self.cache.generation()
+        };
 
         tracing::info!("Starting OAuth flow for ChatGPT Codex");
         let token_data = perform_oauth_flow(self.state.as_ref()).await?;
@@ -1008,7 +1034,13 @@ impl ChatGptCodexAuthProvider {
                 "ChatGPT Codex credentials were removed during OAuth"
             ));
         }
+        drop(guard);
         let _cache_lock = self.cache.lock_exclusive().await?;
+        if self.cache.generation() != cache_generation {
+            return Err(anyhow!(
+                "ChatGPT Codex credentials were removed during OAuth"
+            ));
+        }
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -1044,6 +1076,7 @@ impl ChatGptCodexProvider {
         *generation = generation.wrapping_add(1);
         let cache = TokenCache::new();
         let _cache_lock = cache.lock_exclusive().await?;
+        cache.bump_generation()?;
         cache.clear();
         Ok(())
     }
@@ -1230,12 +1263,13 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let (previous_token, generation) = {
+        let (previous_token, generation, cache_generation) = {
             let guard = self.auth_provider.state.token_mutex.lock().await;
             let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
             let previous_token = self.auth_provider.cache.load();
+            let cache_generation = self.auth_provider.cache.generation();
             self.auth_provider.clear_cached_tokens();
-            (previous_token, *guard)
+            (previous_token, *guard, cache_generation)
         };
 
         let result = perform_oauth_flow(self.auth_provider.state.as_ref()).await;
@@ -1245,7 +1279,13 @@ impl Provider for ChatGptCodexProvider {
                 "ChatGPT Codex credentials were removed during OAuth".to_string(),
             ));
         }
+        drop(guard);
         let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
+        if self.auth_provider.cache.generation() != cache_generation {
+            return Err(ProviderError::Authentication(
+                "ChatGPT Codex credentials were removed during OAuth".to_string(),
+            ));
+        }
         let result = result.and_then(|token_data| self.auth_provider.cache.save(&token_data));
 
         if let Err(e) = result {
@@ -1393,6 +1433,37 @@ mod tests {
             .expect("second handle never acquired the released lock")
             .unwrap();
         assert!(acquired.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn cleanup_advances_the_deletion_generation_for_other_handles() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+
+        TokenCache::new()
+            .save(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: "refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                account_id: Some("account".to_string()),
+            })
+            .unwrap();
+
+        // Separate handles are separate opens of the same files, exactly as two
+        // goose processes are, so this is the desktop-deletes-while-the-cli-runs
+        // case an in-process counter cannot see.
+        let generation = TokenCache::new().generation();
+        ChatGptCodexProvider::cleanup().await.unwrap();
+
+        assert!(!TokenCache::new().has_token());
+        assert_ne!(
+            generation,
+            TokenCache::new().generation(),
+            "an OAuth flow that started before a deletion in another handle must be able to see it"
+        );
     }
 
     #[cfg(unix)]

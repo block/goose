@@ -634,7 +634,17 @@ impl ProviderInventoryService {
                                     .catch_unwind()
                                     .await
                                 {
-                                    Ok(Ok(models)) => Ok(models),
+                                    // The fetch can refresh credentials, which can move the
+                                    // identity it was planned with (a token refresh that
+                                    // discovers an account id). Storing that catalog under the
+                                    // planned key would put it where no later read looks, so
+                                    // re-check and let the next plan fetch under the new key.
+                                    Ok(Ok(models)) => ensure_refresh_identity_current(
+                                        &provider_id,
+                                        &refresh_job.identity,
+                                    )
+                                    .await
+                                    .map(|()| models),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
                                     Err(_) => Err(anyhow::anyhow!(
                                         "provider inventory refresh task panicked"
