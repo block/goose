@@ -380,7 +380,7 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
 
     model_config
         .thinking_effort()
-        .map(|effort| {
+        .and_then(|effort| {
             let valid_levels = reasoning_levels_for_model(&model_config.model_name);
             let preferred_levels: &[&str] = match effort {
                 ThinkingEffort::Off => {
@@ -404,7 +404,6 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
                 .find(|level| valid_levels.iter().any(|valid| valid.as_str() == **level))
                 .map(|level| (*level).to_string())
         })
-        .flatten()
         .or_else(|| Some(get_reasoning_effort(&model_config.model_name)))
 }
 
