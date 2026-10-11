@@ -49,11 +49,11 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.6-sol";
 
-pub(crate) fn default_model() -> String {
-    TokenCache::new()
-        .catalog_snapshot()
-        .and_then(|snapshot| snapshot.models.first().map(|model| model.slug.clone()))
-        .unwrap_or_else(|| CHATGPT_CODEX_DEFAULT_MODEL.to_string())
+pub(crate) fn default_model() -> Option<String> {
+    match TokenCache::new().catalog_snapshot() {
+        Some(snapshot) => snapshot.models.first().map(|model| model.slug.clone()),
+        None => Some(CHATGPT_CODEX_DEFAULT_MODEL.to_string()),
+    }
 }
 
 /// Inventory identity used when an OAuth response carries no account id. It is
@@ -1173,6 +1173,7 @@ impl ChatGptCodexAuthProvider {
                 "ChatGPT Codex credentials were removed during OAuth"
             ));
         }
+        self.cache.bump_generation()?;
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -1327,7 +1328,7 @@ impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
             CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
-            &default_model(),
+            &default_model().unwrap_or_default(),
             known_model_names(),
             CHATGPT_CODEX_DOC_URL,
             vec![ConfigKey::new_oauth(
@@ -1437,7 +1438,10 @@ impl Provider for ChatGptCodexProvider {
                 "ChatGPT Codex credentials were removed during OAuth".to_string(),
             ));
         }
-        let result = result.and_then(|token_data| self.auth_provider.cache.save(&token_data));
+        let result = result.and_then(|token_data| {
+            self.auth_provider.cache.bump_generation()?;
+            self.auth_provider.cache.save(&token_data)
+        });
 
         if let Err(e) = result {
             if let Some(previous_token) = previous_token.as_ref() {
@@ -1621,6 +1625,34 @@ mod tests {
             TokenCache::new().generation(),
             "an OAuth flow that started before a deletion in another handle must be able to see it"
         );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn empty_catalog_has_no_default_model() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let token = TokenData {
+            access_token: "access".to_string(),
+            refresh_token: "refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: Some("account".to_string()),
+        };
+        cache.save(&token).unwrap();
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&CodexCatalogSnapshot {
+                account_id: token.account_id,
+                models: vec![],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(default_model(), None);
     }
 
     #[cfg(unix)]
@@ -1992,7 +2024,7 @@ mod tests {
             provider.fetch_supported_models().await.unwrap(),
             vec!["gpt-6-astra"]
         );
-        assert_eq!(default_model(), "gpt-6-astra");
+        assert_eq!(default_model().as_deref(), Some("gpt-6-astra"));
         assert_eq!(
             reasoning_levels_for_model("gpt-6-astra"),
             vec!["high", "max"]
@@ -2163,7 +2195,7 @@ mod tests {
         cache
             .restore_after_failed_oauth(&token, Some(&catalog))
             .unwrap();
-        assert_eq!(default_model(), "gpt-6-astra");
+        assert_eq!(default_model().as_deref(), Some("gpt-6-astra"));
         assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
     }
 
