@@ -8,7 +8,7 @@ pub(super) use crate::acp::response_builder::{
     session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
-use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
+use crate::acp::PermissionDecision;
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
@@ -645,18 +645,20 @@ async fn resolve_provider_default_model_config(
             agent_client_protocol::Error::invalid_params()
                 .data(format!("Unknown provider '{}': {}", provider_name, error))
         })?;
-    crate::model_config::model_config_from_user_config(
-        provider_name,
-        &if provider_name == "chatgpt_codex" {
-            crate::providers::chatgpt_codex::default_model()
-        } else {
-            entry.metadata().default_model.clone()
+    let default_model = if provider_name == "chatgpt_codex" {
+        crate::providers::chatgpt_codex::default_model().ok_or_else(|| {
+            agent_client_protocol::Error::invalid_params()
+                .data("ChatGPT Codex catalog contains no selectable models")
+        })?
+    } else {
+        entry.metadata().default_model.clone()
+    };
+    crate::model_config::model_config_from_user_config(provider_name, &default_model).map_err(
+        |error| {
+            agent_client_protocol::Error::internal_error()
+                .data(format!("Failed to resolve model: {}", error))
         },
     )
-    .map_err(|error| {
-        agent_client_protocol::Error::internal_error()
-            .data(format!("Failed to resolve model: {}", error))
-    })
 }
 
 fn render_resource_link(link: &ResourceLink) -> String {
@@ -2598,14 +2600,17 @@ impl GooseAcpAgent {
             crate::providers::get_from_registry(&resolved_provider_name)
                 .await
                 .ok()
-                .map(|entry| {
+                .and_then(|entry| {
                     if resolved_provider_name == "chatgpt_codex" {
                         crate::providers::chatgpt_codex::default_model()
                     } else {
-                        entry.metadata().default_model.clone()
+                        Some(entry.metadata().default_model.clone())
                     }
                 })
-                .unwrap_or(ACP_CURRENT_MODEL.to_string())
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data("Provider has no selectable default model")
+                })?
         } else {
             current_model
         };

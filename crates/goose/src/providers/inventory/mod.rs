@@ -305,7 +305,7 @@ impl ProviderInventoryService {
             descriptor.supports_refresh,
         );
         let default_model = if descriptor.provider_id == "chatgpt_codex" {
-            crate::providers::chatgpt_codex::default_model()
+            crate::providers::chatgpt_codex::default_model().unwrap_or_default()
         } else {
             descriptor.default_model
         };
