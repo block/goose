@@ -1130,10 +1130,8 @@ impl Agent {
             .await
             .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
 
-        let model_config = normalize_legacy_provider_thinking_effort(
-            model_config,
-            &provider.thinking_effort_support(),
-        );
+        let effort_support = provider.thinking_effort_support_for_model(&model_config);
+        let model_config = normalize_legacy_provider_thinking_effort(model_config, &effort_support);
         let effective_model_config = match registry_entry {
             Some(entry) => entry
                 .normalize_model_config(model_config.clone())
@@ -1193,15 +1191,14 @@ impl Agent {
     /// which is not always a `ThinkingEffort` member.
     pub async fn update_thinking_effort(&self, session_id: &str, effort: &str) -> Result<()> {
         let current_provider = self.provider(session_id).await?;
+        let model_config = self.model_config_for_session(session_id).await?;
         // Context rather than a formatted string: the caller distinguishes a
         // value rejection from an operational failure by downcasting to
         // `ProviderError`, which stringifying would destroy.
         let provider_handled = current_provider
-            .set_thinking_effort(session_id, effort)
+            .set_thinking_effort_for_model(session_id, &model_config, effort)
             .await
             .context("Provider rejected thinking effort update")?;
-
-        let model_config = self.model_config_for_session(session_id).await?;
 
         if provider_handled {
             let model_config = model_config.with_merged_request_params(HashMap::from([(

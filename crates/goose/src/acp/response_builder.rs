@@ -239,9 +239,14 @@ pub(super) async fn agent_thinking_effort_support(
     agent: &Agent,
     session_id: &str,
 ) -> ThinkingEffortSupport {
-    match agent.provider(session_id).await {
-        Ok(provider) => provider.thinking_effort_support(),
-        Err(_) => ThinkingEffortSupport::Unspecified,
+    match (
+        agent.provider(session_id).await,
+        agent.model_config_for_session(session_id).await,
+    ) {
+        (Ok(provider), Ok(model_config)) => {
+            provider.thinking_effort_support_for_model(&model_config)
+        }
+        _ => ThinkingEffortSupport::Unspecified,
     }
 }
 
@@ -343,6 +348,22 @@ fn build_thinking_effort_choices(
     effort_support: &ThinkingEffortSupport,
 ) -> (Vec<SessionConfigSelectOption>, String) {
     match effort_support {
+        ThinkingEffortSupport::ModelOptions(capability) => (
+            capability
+                .values
+                .iter()
+                .map(|option| {
+                    SessionConfigSelectOption::new(option.value.clone(), option.label.clone())
+                })
+                .collect(),
+            capability.current.clone().unwrap_or_else(|| {
+                capability
+                    .values
+                    .first()
+                    .map(|option| option.value.clone())
+                    .unwrap_or_default()
+            }),
+        ),
         ThinkingEffortSupport::Options(capability) => (
             capability
                 .values
@@ -926,6 +947,21 @@ mod tests {
                 SessionConfigSelectOption::new("default", "default"),
                 SessionConfigSelectOption::new("high", "high"),
                 SessionConfigSelectOption::new("xhigh", "xhigh"),
+            ]
+        );
+    }
+
+    #[test]
+    fn model_reasoning_choices_use_the_providers_effective_value() {
+        let support =
+            ThinkingEffortSupport::ModelOptions(effort_capability(&["low", "medium"], "medium"));
+        let (current, values) = build_effort_option("gpt-6-terra", Some("ultra"), &support);
+        assert_eq!(current, "medium");
+        assert_eq!(
+            values,
+            vec![
+                SessionConfigSelectOption::new("low", "low"),
+                SessionConfigSelectOption::new("medium", "medium"),
             ]
         );
     }

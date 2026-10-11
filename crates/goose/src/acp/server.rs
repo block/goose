@@ -2491,7 +2491,7 @@ impl GooseAcpAgent {
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
-            &provider.thinking_effort_support(),
+            &provider.thinking_effort_support_for_model(&current_model_config),
         );
         let notification = SessionNotification::new(
             session_id.clone(),
