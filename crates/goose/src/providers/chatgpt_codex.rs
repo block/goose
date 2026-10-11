@@ -31,6 +31,7 @@ use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
 use tokio::sync::{oneshot, watch, Mutex as TokioMutex};
@@ -106,6 +107,59 @@ pub(crate) const CODEX_REASONING_OPTION_ID: &str = "codex_reasoning_effort";
 
 static CODEX_CATALOG_UPDATES: LazyLock<watch::Sender<ThinkingEffortSupport>> =
     LazyLock::new(|| watch::channel(ThinkingEffortSupport::Unspecified).0);
+static CODEX_CATALOG_POLLING: AtomicBool = AtomicBool::new(false);
+
+struct CatalogPollGuard;
+
+impl Drop for CatalogPollGuard {
+    fn drop(&mut self) {
+        CODEX_CATALOG_POLLING.store(false, Ordering::Release);
+    }
+}
+
+fn catalog_file_state() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+    let cache = TokenCache::new();
+    (
+        std::fs::read(&cache.cache_path).ok(),
+        std::fs::read(cache.catalog_path()).ok(),
+    )
+}
+
+fn start_catalog_polling() {
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    if CODEX_CATALOG_POLLING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let mut updates = CODEX_CATALOG_UPDATES.subscribe();
+    let mut last_state = catalog_file_state();
+    handle.spawn(async move {
+        let _guard = CatalogPollGuard;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        interval.tick().await;
+        loop {
+            tokio::select! {
+                changed = updates.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    last_state = catalog_file_state();
+                }
+                _ = interval.tick() => {
+                    if CODEX_CATALOG_UPDATES.receiver_count() <= 1 {
+                        continue;
+                    }
+                    let state = catalog_file_state();
+                    if state != last_state {
+                        last_state = state;
+                        notify_catalog_inventory_update();
+                    }
+                }
+            }
+        }
+    });
+}
 
 pub(crate) fn notify_catalog_inventory_update() {
     CODEX_CATALOG_UPDATES.send_replace(ThinkingEffortSupport::Unspecified);
@@ -540,13 +594,12 @@ impl TokenCache {
         Ok(())
     }
 
-    fn restore_after_failed_oauth(&self, token: &TokenData, catalog: Option<&str>) -> Result<()> {
-        if self.load().is_some() {
-            return Ok(());
-        }
+    fn commit_oauth_token(&self, token: &TokenData) -> Result<()> {
+        let previous_account = self.load().and_then(|previous| previous.account_id);
         self.save(token)?;
-        if let Some(catalog) = catalog {
-            write_private_file(&self.catalog_path(), catalog)?;
+        if previous_account != token.account_id {
+            let _ = std::fs::remove_file(self.catalog_path());
+            notify_catalog_inventory_update();
         }
         Ok(())
     }
@@ -1121,10 +1174,6 @@ impl ChatGptCodexAuthProvider {
         }
     }
 
-    fn clear_cached_tokens(&self) {
-        self.cache.clear();
-    }
-
     async fn refresh_token(&self, token_data: &mut TokenData) -> Result<()> {
         let account_was_unknown = token_data.account_id.is_none();
         let new_tokens =
@@ -1185,7 +1234,6 @@ impl ChatGptCodexAuthProvider {
                     }
                     Err(e) => {
                         tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
-                        self.cache.clear();
                     }
                 }
             }
@@ -1215,7 +1263,7 @@ impl ChatGptCodexAuthProvider {
             ));
         }
         self.cache.bump_generation()?;
-        self.cache.save(&token_data)?;
+        self.cache.commit_oauth_token(&token_data)?;
         Ok(token_data)
     }
 }
@@ -1319,6 +1367,7 @@ impl ChatGptCodexProvider {
             .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
         )
         .map_err(|error| ProviderError::ExecutionError(error.to_string()))?;
+        notify_catalog_inventory_update();
         Ok(models.into_iter().map(|model| model.slug).collect())
     }
 
@@ -1460,7 +1509,9 @@ impl Provider for ChatGptCodexProvider {
     }
 
     fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
-        Some(CODEX_CATALOG_UPDATES.subscribe())
+        let rx = CODEX_CATALOG_UPDATES.subscribe();
+        start_catalog_polling();
+        Some(rx)
     }
 
     /// The Codex catalog is already scoped to the account's API-supported
@@ -1507,17 +1558,13 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        let (result, (previous_token, previous_catalog, generation, cache_generation)) =
+        let (result, (generation, cache_generation)) =
             perform_oauth_flow(self.auth_provider.state.as_ref(), || async {
                 let guard = self.auth_provider.state.token_mutex.lock().await;
                 let _cache_lock = self.auth_provider.cache.lock_exclusive().await?;
-                let previous_token = self.auth_provider.cache.load();
-                let previous_catalog =
-                    std::fs::read_to_string(self.auth_provider.cache.catalog_path()).ok();
                 self.auth_provider.cache.bump_generation()?;
                 let cache_generation = self.auth_provider.cache.generation();
-                self.auth_provider.clear_cached_tokens();
-                Ok((previous_token, previous_catalog, *guard, cache_generation))
+                Ok((*guard, cache_generation))
             })
             .await?;
         let guard = self.auth_provider.state.token_mutex.lock().await;
@@ -1533,48 +1580,13 @@ impl Provider for ChatGptCodexProvider {
                 "ChatGPT Codex credentials were removed during OAuth".to_string(),
             ));
         }
-        let result = result.and_then(|token_data| {
-            self.auth_provider.cache.bump_generation()?;
-            self.auth_provider.cache.save(&token_data)?;
-            if previous_token
-                .as_ref()
-                .and_then(|token| token.account_id.as_ref())
-                .is_some()
-                && previous_token
-                    .as_ref()
-                    .and_then(|token| token.account_id.as_ref())
-                    == token_data.account_id.as_ref()
-            {
-                if let Some(catalog) = previous_catalog.as_deref() {
-                    if serde_json::from_str::<CodexCatalogSnapshot>(catalog)
-                        .is_ok_and(|snapshot| snapshot.account_id == token_data.account_id)
-                    {
-                        write_private_file(&self.auth_provider.cache.catalog_path(), catalog)?;
-                    }
-                }
-            }
-            Ok(())
-        });
-
-        if let Err(e) = result {
-            if let Some(previous_token) = previous_token.as_ref() {
-                self.auth_provider
-                    .cache
-                    .restore_after_failed_oauth(previous_token, previous_catalog.as_deref())
-                    .map_err(|restore_error| {
-                        ProviderError::Authentication(format!(
-                            "OAuth flow failed: {}; restoring previous credentials failed: {}",
-                            e, restore_error
-                        ))
-                    })?;
-            }
-            return Err(ProviderError::Authentication(format!(
-                "OAuth flow failed: {}",
-                e
-            )));
-        }
-
-        Ok(())
+        result
+            .and_then(|token_data| {
+                self.auth_provider.cache.bump_generation()?;
+                self.auth_provider.cache.commit_oauth_token(&token_data)?;
+                Ok(())
+            })
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {e}")))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -2261,6 +2273,28 @@ mod tests {
 
     #[tokio::test]
     #[serial_test::serial]
+    async fn catalog_changes_from_another_process_notify_open_sessions() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        save_token(&cache.cache_path);
+        let provider = provider_with_endpoint("http://localhost", cache.cache_path.clone());
+        let mut updates = provider.subscribe_thinking_effort_support().unwrap();
+
+        write_private_file(
+            &cache.catalog_path(),
+            "{\"account_id\":\"account-1\",\"models\":[]}",
+        )
+        .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(3), updates.changed())
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
     async fn inventory_refresh_rekeys_when_token_discovers_account_id() {
         let root = tempfile::tempdir().unwrap();
         let root_path = root.path().to_string_lossy().to_string();
@@ -2388,7 +2422,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn oauth_rollback_restores_the_catalog_with_credentials() {
+    fn oauth_replacement_preserves_existing_account_until_commit() {
         let root = tempfile::tempdir().unwrap();
         let root_path = root.path().to_string_lossy().to_string();
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
@@ -2411,12 +2445,20 @@ mod tests {
         .unwrap();
         cache.save(&token).unwrap();
         write_private_file(&cache.catalog_path(), &catalog).unwrap();
-        cache.clear();
-        cache
-            .restore_after_failed_oauth(&token, Some(&catalog))
-            .unwrap();
+        cache.bump_generation().unwrap();
+        assert_eq!(cache.load().unwrap().access_token, "access");
         assert_eq!(default_model().as_deref(), Some("gpt-6-astra"));
         assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+
+        let mut replacement = token.clone();
+        replacement.access_token = "new-access".to_string();
+        cache.commit_oauth_token(&replacement).unwrap();
+        assert_eq!(cache.load().unwrap().access_token, "new-access");
+        assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+
+        replacement.account_id = Some("account-2".to_string());
+        cache.commit_oauth_token(&replacement).unwrap();
+        assert!(cache.catalog_snapshot().is_none());
     }
 
     #[test]
