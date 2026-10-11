@@ -1,5 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
+use crate::agents::extension_manager::{
+    get_tool_owner, get_tool_resource_uri, is_tool_owned_by_extension, CallRequest, ExtensionLease,
+};
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::reply_parts::is_tool_visible_to_model;
 use crate::agents::tool_execution::ToolCallContext;
@@ -75,21 +77,13 @@ impl CodeExecutionClient {
         })
     }
 
-    async fn load_callback_configs(&self, session_id: &str) -> Option<Vec<CallbackConfig>> {
-        let manager = self
-            .context
-            .extension_manager
-            .as_ref()
-            .and_then(|w| w.upgrade())?;
-
-        let tools = manager
-            .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
-            .await
-            .ok()?;
-
+    fn callback_configs(tools: Vec<McpTool>) -> Vec<CallbackConfig> {
         let mut cfgs = vec![];
         for tool in tools {
-            if get_tool_resource_uri(&tool).is_some() || !is_tool_visible_to_model(&tool) {
+            if get_tool_resource_uri(&tool).is_some()
+                || !is_tool_visible_to_model(&tool)
+                || is_summon_delegate(&tool)
+            {
                 continue;
             }
 
@@ -109,15 +103,19 @@ impl CodeExecutionClient {
                 output_schema: None,
             })
         }
-        Some(cfgs)
+        cfgs
     }
 
     /// Get the cached CodeMode, rebuilding if callback configs have changed
-    async fn get_code_mode(&self, session_id: &str) -> Result<CodeMode, String> {
-        let cfgs = self
-            .load_callback_configs(session_id)
-            .await
-            .ok_or("Failed to load callback configs")?;
+    async fn get_code_mode(&self, lease: &ExtensionLease) -> Result<CodeMode, String> {
+        let cfgs = Self::callback_configs(lease.tools_excluding(EXTENSION_NAME).await);
+        self.get_code_mode_for_configs(cfgs).await
+    }
+
+    async fn get_code_mode_for_configs(
+        &self,
+        cfgs: Vec<CallbackConfig>,
+    ) -> Result<CodeMode, String> {
         let current_hash = CodeModeState::hash(&cfgs);
 
         // Use cache if no state change
@@ -187,8 +185,11 @@ impl CodeExecutionClient {
     }
 
     /// Handle the list_functions tool call
-    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<ContentBlock>, String> {
-        let code_mode = self.get_code_mode(session_id).await?;
+    async fn handle_list_functions(
+        &self,
+        lease: &ExtensionLease,
+    ) -> Result<Vec<ContentBlock>, String> {
+        let code_mode = self.get_code_mode(lease).await?;
         let output = code_mode.list_functions();
 
         Ok(vec![ContentBlock::text(output.code)])
@@ -197,7 +198,7 @@ impl CodeExecutionClient {
     /// Handle the get_function_details tool call
     async fn handle_get_function_details(
         &self,
-        session_id: &str,
+        lease: &ExtensionLease,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<ContentBlock>, String> {
         let input: GetFunctionDetailsInput = arguments
@@ -206,7 +207,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for get_function_details")?;
 
-        let code_mode = self.get_code_mode(session_id).await?;
+        let code_mode = self.get_code_mode(lease).await?;
         let output = code_mode.get_function_details(input);
 
         Ok(vec![ContentBlock::text(output.code)])
@@ -215,7 +216,7 @@ impl CodeExecutionClient {
     /// Handle the execute bash tool call
     async fn handle_execute_bash(
         &self,
-        session_id: &str,
+        lease: &ExtensionLease,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<ContentBlock>, String> {
@@ -225,7 +226,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute_bash")?;
         let command = input.command;
-        let code_mode = self.get_code_mode(session_id).await?;
+        let code_mode = self.get_code_mode(lease).await?;
 
         let dispatch_token = cancellation_token.child_token();
         let output = run_in_deno_runtime(
@@ -260,8 +261,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute_typescript")?;
 
-        let session_id = &ctx.session_id;
-        let code_mode = self.get_code_mode(session_id).await?;
+        let code_mode = self.get_code_mode(dispatching_lease(ctx)).await?;
         let dispatch_token = cancellation_token.child_token();
         let rt = tokio::runtime::Handle::current();
         let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone(), rt)?;
@@ -283,6 +283,10 @@ impl CodeExecutionClient {
 
         Ok(vec![ContentBlock::text(output.markdown())])
     }
+}
+
+fn is_summon_delegate(tool: &McpTool) -> bool {
+    tool.name == "delegate" && is_tool_owned_by_extension(tool, super::summon::EXTENSION_NAME)
 }
 
 fn execution_timeout() -> Duration {
@@ -356,6 +360,11 @@ where
     .map_err(|e| format!("Execution task failed: {e}"))?
 }
 
+fn dispatching_lease(ctx: &ToolCallContext) -> &ExtensionLease {
+    ctx.extension_lease()
+        .expect("platform tool calls are dispatched through a lease")
+}
+
 fn create_tool_callback(
     ctx: ToolCallContext,
     full_name: String,
@@ -379,11 +388,15 @@ fn create_tool_callback(
             };
 
             let handle = rt.spawn(async move {
-                match manager
-                    .dispatch_tool_call(&ctx, tool_call, cancellation_token)
-                    .await
-                {
-                    Ok(dispatch_result) => match dispatch_result.result.await {
+                let dispatch_result = dispatching_lease(&ctx)
+                    .call(tool_call, CallRequest::from(&ctx), cancellation_token)
+                    .await;
+                match dispatch_result {
+                    Ok(dispatch_result) => match manager
+                        .applying_mutation(dispatch_result, &ctx.session_id)
+                        .result
+                        .await
+                    {
                         Ok(result) => Ok(callback_result_to_value(&result)),
                         Err(e) => Err(format!("Tool error: {}", e.message)),
                     },
@@ -551,15 +564,12 @@ impl McpClientTrait for CodeExecutionClient {
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let session_id = &ctx.session_id;
+        let lease = dispatching_lease(ctx);
         let result = match name {
-            "list_functions" => self.handle_list_functions(session_id).await,
-            "get_function_details" => {
-                self.handle_get_function_details(session_id, arguments)
-                    .await
-            }
+            "list_functions" => self.handle_list_functions(lease).await,
+            "get_function_details" => self.handle_get_function_details(lease, arguments).await,
             "execute_bash" => {
-                self.handle_execute_bash(session_id, arguments, cancellation_token)
+                self.handle_execute_bash(lease, arguments, cancellation_token)
                     .await
             }
             "execute_typescript" => {
@@ -581,8 +591,11 @@ impl McpClientTrait for CodeExecutionClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self, session_id: &str) -> Option<String> {
-        let code_mode = self.get_code_mode(session_id).await.ok()?;
+    async fn get_moim(&self, _session_id: &str, tools: &[McpTool]) -> Option<String> {
+        let code_mode = self
+            .get_code_mode_for_configs(Self::callback_configs(tools.to_vec()))
+            .await
+            .ok()?;
 
         let disclosure_style_moim = match self.disclosure {
             ToolDisclosure::Catalog => {
@@ -784,12 +797,10 @@ mod tests {
     #[tokio::test]
     async fn callback_configs_exclude_tools_hidden_from_model() {
         let temp = tempfile::tempdir().unwrap();
-        let manager = Arc::new(ExtensionManager::new_without_provider(
-            temp.path().join("manager"),
-        ));
+        let manager = Arc::new(ExtensionManager::with_data_dir(temp.path().join("manager")));
         manager
             .add_client(
-                "visibility".to_string(),
+                "test-session",
                 ExtensionConfig::Builtin {
                     name: "visibility".to_string(),
                     description: "Visibility test tools".to_string(),
@@ -803,10 +814,9 @@ mod tests {
             )
             .await;
 
-        let mut context = manager.get_context().clone();
-        context.extension_manager = Some(Arc::downgrade(&manager));
-        let client = CodeExecutionClient::new(context, ToolDisclosure::Catalog).unwrap();
-        let configs = client.load_callback_configs("test-session").await.unwrap();
+        let lease = manager.scope_lease("test-session").await;
+        let configs =
+            CodeExecutionClient::callback_configs(lease.tools_excluding(EXTENSION_NAME).await);
         let names = configs
             .iter()
             .map(|config| config.name.as_str())
@@ -816,6 +826,121 @@ mod tests {
         assert!(names.contains(&"model_visible"));
         assert!(names.contains(&"ordinary"));
         assert!(configs.iter().all(|config| config.output_schema.is_none()));
+    }
+
+    #[tokio::test]
+    async fn callback_configs_leave_delegate_to_direct_tool_calls() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::with_data_dir(temp.path().join("manager")));
+        let session = manager
+            .get_context()
+            .session_manager
+            .create_session(
+                temp.path().to_path_buf(),
+                "code-mode-delegate".to_string(),
+                crate::session::session_manager::SessionType::Hidden,
+                crate::config::GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        manager
+            .enable(
+                &session.id,
+                ExtensionConfig::Platform {
+                    name: super::super::summon::EXTENSION_NAME.to_string(),
+                    description: String::new(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: Vec::new(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let lease = manager.current_lease(&session.id).await.unwrap();
+        let configs =
+            CodeExecutionClient::callback_configs(lease.tools_excluding(EXTENSION_NAME).await);
+        let names = configs
+            .iter()
+            .map(|config| config.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(names.contains(&"load"));
+        assert!(!names.contains(&"delegate"));
+    }
+
+    #[tokio::test]
+    async fn callback_uses_lease_and_applies_extension_mutation() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::with_data_dir(temp.path().join("manager")));
+        let session = manager
+            .get_context()
+            .session_manager
+            .create_session(
+                temp.path().to_path_buf(),
+                "code-mode-mutation".to_string(),
+                crate::session::session_manager::SessionType::Hidden,
+                crate::config::GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        manager
+            .enable(
+                &session.id,
+                ExtensionConfig::Platform {
+                    name: "extensionmanager".to_string(),
+                    description: String::new(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: Vec::new(),
+                },
+            )
+            .await
+            .unwrap();
+        let lease = Arc::new(manager.current_lease(&session.id).await.unwrap());
+        manager
+            .disable(&session.id, "extensionmanager")
+            .await
+            .unwrap();
+        let callback = create_tool_callback(
+            ToolCallContext::new(
+                session.id.clone(),
+                Some(session.working_dir.clone()),
+                Some("manage".to_string()),
+            )
+            .with_extension_lease(lease),
+            "functions.extensionmanager__manage_extensions".to_string(),
+            Arc::clone(&manager),
+            CancellationToken::new(),
+            tokio::runtime::Handle::current(),
+        );
+
+        callback(Some(json!({
+            "action": "enable",
+            "extension_name": "analyze",
+        })))
+        .await
+        .unwrap();
+
+        assert!(manager
+            .list_extensions(&session.id)
+            .await
+            .unwrap()
+            .contains(&"analyze".to_string()));
+        let stored_session = manager
+            .get_context()
+            .session_manager
+            .get_session(&session.id, false)
+            .await
+            .unwrap();
+        let stored_extensions = crate::session::EnabledExtensionsState::from_extension_data(
+            &stored_session.extension_data,
+        )
+        .unwrap();
+        assert!(stored_extensions
+            .extensions
+            .iter()
+            .any(|config| config.key() == "analyze"));
     }
 
     #[tokio::test]
@@ -1032,16 +1157,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn moim_uses_the_supplied_tool_snapshot() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::with_data_dir(temp.path().join("manager")));
+        let mut context = manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&manager));
+        let client = CodeExecutionClient::new(context, ToolDisclosure::Catalog).unwrap();
+        let tool = McpTool::new(
+            "leased__tool".to_string(),
+            "Leased tool".to_string(),
+            JsonObject::new(),
+        );
+
+        let moim = client.get_moim("session", &[tool]).await.unwrap();
+        assert!(moim.contains("1 callback functions"));
+
+        let moim = client.get_moim("session", &[]).await.unwrap();
+        assert!(moim.contains("No execute_typescript callback functions"));
+    }
+
+    #[tokio::test]
     async fn execute_bash_annotations_require_approval() {
         let temp = tempfile::tempdir().unwrap();
         let client = CodeExecutionClient::new(
             PlatformExtensionContext {
                 extension_manager: None,
+                providers: Default::default(),
                 session_manager: Arc::new(crate::session::SessionManager::new(
                     temp.path().join("sessions"),
                 )),
                 scheduler: None,
-                session: None,
                 use_login_shell_path: false,
             },
             ToolDisclosure::Filesystem,

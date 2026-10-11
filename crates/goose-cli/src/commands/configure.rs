@@ -1794,7 +1794,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "Tool Permission Configuration".to_string(),
             SessionType::Hidden,
-            agent.config.goose_mode,
+            config.get_goose_mode().unwrap_or_default(),
         )
         .await?;
 
@@ -1819,16 +1819,14 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let extensions = extension_config.into_iter().collect::<Vec<_>>();
-    let new_provider = create(&provider_name, extensions).await?;
     agent
-        .update_provider(new_provider, model_config, &session.id)
+        .switch_provider(&session.id, &provider_name, model_config)
         .await?;
 
     let permission_manager = PermissionManager::instance();
     let selected_tools = agent
         .list_tools(&session.id, Some(selected_extension_name.clone()))
-        .await
+        .await?
         .into_iter()
         .map(|tool| {
             ToolInfo::new(

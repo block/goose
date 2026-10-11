@@ -151,7 +151,7 @@ async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
 
     pipeline.run(["keep going"]).await?;
     assert_eq!(api.call_count(), MAX_TURNS as usize);
-    assert_eq!(pipeline.calculator_total(), MAX_TURNS as i64 - 1);
+    assert_eq!(pipeline.calculator_total(), MAX_TURNS as i64);
     assert_eq!(maxed.invocations(), 0);
 
     Ok(())
@@ -297,6 +297,16 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
     pipeline.run(["first", "second"]).await?;
     assert_eq!(session_start.invocations(), 1);
     assert_eq!(api.call_count(), 2);
+
+    let opened_by_client = HookTestEnv::new("SessionStart", LOG_AND_ALLOW_SCRIPT);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(opened_by_client.hook_manager());
+    pipeline
+        .seed([crate::agents::state_machine::session_start_message(&[])])
+        .await?;
+    api.on("first").reply("ok");
+    pipeline.run(["first"]).await?;
+    assert_eq!(opened_by_client.invocations(), 0);
 
     let prompt_submit = HookTestEnv::new("UserPromptSubmit", LOG_AND_ALLOW_SCRIPT);
     let (pipeline, api) = test_pipeline().await?;
