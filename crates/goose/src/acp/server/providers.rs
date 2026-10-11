@@ -44,6 +44,7 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         provider_name: entry.provider_name,
         description: entry.description,
         default_model: entry.default_model,
+        enabled: entry.enabled,
         configured: entry.configured,
         available: entry.available,
         provider_type: format!("{:?}", entry.provider_type),
@@ -663,6 +664,8 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to refresh custom providers")?;
 
         let provider_id = config.name;
+        crate::config::providers::set_provider_enabled(Config::global(), &provider_id, true)
+            .internal_err_ctx("Failed to enable provider")?;
         let provider_ids = [provider_id.clone()];
         let status = Self::provider_config_status(provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
@@ -808,7 +811,7 @@ impl GooseAcpAgent {
                             Config::global(),
                             &provider_id,
                         )
-                        .is_some_and(|entry| entry.enabled && entry.configured),
+                        .is_some_and(|entry| entry.configured),
                     };
                 }
                 match tokio::task::spawn_blocking(move || entry.inventory_configured()).await {
@@ -981,6 +984,26 @@ impl GooseAcpAgent {
         })
     }
 
+    pub(super) async fn on_set_provider_enablement(
+        &self,
+        req: ProviderEnablementSetRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        crate::providers::get_from_registry(&req.provider_id)
+            .await
+            .invalid_params_err_ctx("Unknown provider")?;
+        self.provider_inventory
+            .ensure_enablement_migrated()
+            .await
+            .internal_err()?;
+        crate::config::providers::set_provider_enabled(
+            Config::global(),
+            &req.provider_id,
+            req.enabled,
+        )
+        .internal_err_ctx("Failed to save provider enablement")?;
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_save_provider_config(
         &self,
         req: ProviderConfigSaveRequest,
@@ -988,6 +1011,10 @@ impl GooseAcpAgent {
         let entry = crate::providers::get_from_registry(&req.provider_id)
             .await
             .invalid_params_err_ctx("Unknown provider")?;
+        self.provider_inventory
+            .ensure_enablement_migrated()
+            .await
+            .internal_err()?;
         let metadata = entry.metadata().clone();
         let config = Config::global();
         let mut config_updates = Vec::new();
@@ -1046,6 +1073,8 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to enable ACP provider")?;
         }
 
+        crate::config::providers::set_provider_enabled(config, &req.provider_id, true)
+            .internal_err_ctx("Failed to save provider enablement")?;
         let provider_ids = [req.provider_id.clone()];
         let status = Self::provider_config_status(req.provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
@@ -1085,6 +1114,8 @@ impl GooseAcpAgent {
                     .internal_err_ctx("Failed to disable ACP provider")?;
             }
         }
+        crate::config::providers::set_provider_enabled(config, &req.provider_id, false)
+            .internal_err_ctx("Failed to disable provider")?;
         crate::providers::cleanup_provider(&req.provider_id)
             .await
             .internal_err_ctx("Failed to clean up provider state")?;
@@ -1158,6 +1189,8 @@ impl GooseAcpAgent {
             }
         }
         Config::global().invalidate_secrets_cache();
+        crate::config::providers::set_provider_enabled(Config::global(), &req.provider_id, true)
+            .internal_err_ctx("Failed to enable provider")?;
 
         let provider_ids = [req.provider_id.clone()];
         let status = Self::provider_config_status(req.provider_id.clone()).await;
