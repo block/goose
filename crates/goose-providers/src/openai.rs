@@ -21,7 +21,8 @@ use crate::formats::openai_responses::{
 use crate::http_status::{extract_request_id, read_json_response};
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
-    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
+    annotate_request_id, handle_response_openai_compat, handle_status, stream_openai_compat,
+    stream_responses_compat,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::thinking::ThinkingEffort;
@@ -333,15 +334,17 @@ impl OpenAiProvider {
             stream_responses_compat(response, log)
         } else {
             let request_id = extract_request_id(response.headers());
-            let json: serde_json::Value = read_json_response(response).await?;
+            let annotate = |e| annotate_request_id(e, request_id.as_deref());
+            let json: serde_json::Value = read_json_response(response).await.map_err(annotate)?;
             let parsed: ResponsesApiResponse =
                 serde_json::from_value(json.clone()).map_err(|e| {
-                    ProviderError::ExecutionError(format!(
+                    annotate(ProviderError::ExecutionError(format!(
                         "Failed to parse responses API response: {}",
                         e
-                    ))
+                    )))
                 })?;
-            let message = responses_api_to_message(&parsed)?;
+            let message =
+                responses_api_to_message(&parsed).map_err(|e| annotate(ProviderError::from(e)))?;
             let usage_data = get_responses_usage(&parsed);
             let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
             let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
@@ -859,10 +862,15 @@ impl Provider for OpenAiProvider {
                 stream_openai_compat(response, log)
             } else {
                 let request_id = extract_request_id(response.headers());
-                let json: serde_json::Value = read_json_response(response).await?;
+                let annotate = |e| annotate_request_id(e, request_id.as_deref());
+                let json: serde_json::Value =
+                    read_json_response(response).await.map_err(annotate)?;
 
                 let message = response_to_message(&json).map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+                    annotate(ProviderError::RequestFailed(format!(
+                        "Failed to parse message: {}",
+                        e
+                    )))
                 })?;
 
                 let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);

@@ -129,9 +129,13 @@ impl OpenAiCompatibleProvider {
             stream_openai_compat(response, log)
         } else {
             let request_id = extract_request_id(response.headers());
-            let json = read_json_response(response).await?;
+            let annotate = |e| annotate_request_id(e, request_id.as_deref());
+            let json = read_json_response(response).await.map_err(annotate)?;
             let message = response_to_message(&json).map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+                annotate(ProviderError::RequestFailed(format!(
+                    "Failed to parse message: {}",
+                    e
+                )))
             })?;
             let usage_json = json.get("usage").unwrap_or(&Value::Null);
             let usage_data = get_usage(usage_json);
@@ -237,8 +241,12 @@ pub use super::http_status::{
 // Legacy alias kept for callers that haven't migrated their import path yet.
 pub use super::http_status::handle_response as handle_response_openai_compat;
 
-/// SSE error frames arrive after a 200, so the header id is only available here.
-fn annotate_request_id(mut error: ProviderError, request_id: Option<&str>) -> ProviderError {
+/// Errors raised after a 200 (SSE error frames, malformed bodies) bypass `handle_status`, so the
+/// header id has to be folded in by the caller that still holds it.
+pub(crate) fn annotate_request_id(
+    mut error: ProviderError,
+    request_id: Option<&str>,
+) -> ProviderError {
     if let (Some(details), Some(id)) = (error.details_mut(), request_id) {
         if parse_request_id_suffix(details).is_none() {
             details.push_str(&request_id_message_suffix(Some(id)));
@@ -490,6 +498,40 @@ mod tests {
             .stream(&ModelConfig::new("test-model"), "", &[], &[])
             .await
             .expect("legitimate non-streaming response should be accepted");
+    }
+
+    #[test_case(wiremock::ResponseTemplate::new(200).set_body_string("not json") ; "malformed body")]
+    #[test_case(wiremock::ResponseTemplate::new(200).set_body_json(json!({"choices": []})) ; "invalid completion")]
+    #[tokio::test]
+    async fn nonstreaming_decode_errors_carry_request_id(template: wiremock::ResponseTemplate) {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(template.insert_header("x-request-id", "req_nonstream"))
+            .mount(&server)
+            .await;
+
+        let provider = OpenAiCompatibleProvider::new(
+            "test".to_string(),
+            ApiClient::new_with_tls(server.uri(), crate::api_client::AuthMethod::NoAuth, None)
+                .unwrap(),
+            String::new(),
+        )
+        .with_supports_streaming(false);
+
+        let Err(err) = provider
+            .stream(&ModelConfig::new("test-model"), "", &[], &[])
+            .await
+        else {
+            panic!("expected a decode error");
+        };
+        assert_eq!(
+            parse_request_id_suffix(&err.to_string()).as_deref(),
+            Some("req_nonstream")
+        );
     }
 
     #[tokio::test]
