@@ -28,7 +28,7 @@ const CONTINUED: &str = "continued";
 pub(crate) fn is_answer_content(content: &MessageContent) -> bool {
     match content {
         MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => false,
-        MessageContent::Text(text) => !text.text.is_empty(),
+        MessageContent::Text(text) => !text.text.trim().is_empty(),
         MessageContent::Image(image) => !image.data.is_empty(),
         MessageContent::SystemNotification(notification) => !notification.msg.is_empty(),
         _ => true,

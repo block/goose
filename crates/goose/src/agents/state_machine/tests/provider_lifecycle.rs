@@ -402,6 +402,21 @@ async fn thinking_only_response_is_prompted_to_continue() -> Result<()> {
 }
 
 #[tokio::test]
+async fn thinking_only_response_with_whitespace_is_prompted_to_continue() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("think with blank text")
+        .reasoning("still thinking")
+        .reply(" \n\t ");
+    api.on("did not produce an answer")
+        .reply("recovered after thinking");
+
+    let result = pipeline.run(["think with blank text"]).await?;
+    assert_eq!(api.call_count(), 2);
+    result.assert_message(-1, Agent, "recovered after thinking");
+    Ok(())
+}
+
+#[tokio::test]
 async fn persistent_thinking_only_responses_surface_a_message() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
 
