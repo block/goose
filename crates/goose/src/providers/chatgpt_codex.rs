@@ -597,7 +597,7 @@ impl TokenCache {
     fn commit_oauth_token(&self, token: &TokenData) -> Result<()> {
         let previous_account = self.load().and_then(|previous| previous.account_id);
         self.save(token)?;
-        if previous_account != token.account_id {
+        if previous_account.is_none() || previous_account != token.account_id {
             let _ = std::fs::remove_file(self.catalog_path());
             notify_catalog_inventory_update();
         }
@@ -2457,6 +2457,40 @@ mod tests {
         assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
 
         replacement.account_id = Some("account-2".to_string());
+        cache.commit_oauth_token(&replacement).unwrap();
+        assert!(cache.catalog_snapshot().is_none());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn oauth_replacement_clears_catalog_without_verified_account_id() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let token = TokenData {
+            access_token: "first".to_string(),
+            refresh_token: "first-refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: None,
+        };
+        cache.save(&token).unwrap();
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&CodexCatalogSnapshot {
+                account_id: None,
+                models: vec![serde_json::from_value(json!({
+                    "slug": "gpt-6-astra", "supported_in_api": true
+                }))
+                .unwrap()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        let mut replacement = token;
+        replacement.access_token = "second".to_string();
         cache.commit_oauth_token(&replacement).unwrap();
         assert!(cache.catalog_snapshot().is_none());
     }
