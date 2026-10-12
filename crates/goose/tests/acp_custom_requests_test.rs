@@ -205,8 +205,7 @@ fn test_live_voice_availability_is_bound_to_an_accessible_main_session() {
             conn.cx(),
             "_goose/unstable/session/live-voice/availability",
             serde_json::json!({
-                "sessionId": session.session_id().0,
-                "_meta": { "goose": { "unrolledAgentLoop": true } }
+                "sessionId": session.session_id().0
             }),
         )
         .await
@@ -237,28 +236,11 @@ fn test_live_voice_availability_is_bound_to_an_accessible_main_session() {
         .await
         .unwrap();
 
-        let legacy_loop = send_custom(
-            conn.cx(),
-            "_goose/unstable/session/live-voice/availability",
-            serde_json::json!({
-                "sessionId": session.session_id().0,
-                "_meta": { "goose": { "unrolledAgentLoop": false } }
-            }),
-        )
-        .await
-        .unwrap();
-        assert_eq!(legacy_loop["status"], "unavailable");
-        assert_eq!(
-            legacy_loop["message"],
-            "Live voice is unavailable while Use Legacy Agent Loop is enabled"
-        );
-
         let response = send_custom(
             conn.cx(),
             "_goose/unstable/session/live-voice/availability",
             serde_json::json!({
-                "sessionId": session.session_id().0,
-                "_meta": { "goose": { "unrolledAgentLoop": true } }
+                "sessionId": session.session_id().0
             }),
         )
         .await
@@ -270,8 +252,7 @@ fn test_live_voice_availability_is_bound_to_an_accessible_main_session() {
             conn.cx(),
             "_goose/unstable/session/live-voice/availability",
             serde_json::json!({
-                "sessionId": "not-loaded-on-this-connection",
-                "_meta": { "goose": { "unrolledAgentLoop": true } }
+                "sessionId": "not-loaded-on-this-connection"
             }),
         )
         .await;
@@ -613,7 +594,7 @@ fn test_steer_session_adds_input_to_active_prompt() {
         // steer queued before the turn ends keeps the loop alive (it flips
         // `exit_chat` back to false), so a second provider request fires whose
         // body must now contain the steered text.
-        let openai = OpenAiFixture::new(
+        let openai = OpenAiFixture::with_response_delay(
             vec![
                 (
                     "start work".to_string(),
@@ -625,6 +606,7 @@ fn test_steer_session_adds_input_to_active_prompt() {
                 ),
             ],
             Arc::new(IgnoreSessionId),
+            Duration::from_millis(500),
         )
         .await;
         let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -1135,21 +1117,18 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(
-            |provider_name, _extensions, _working_dir, use_default_model| {
-                assert!(use_default_model);
-                Box::pin(async move {
-                    Ok(Arc::new(MockProvider {
-                        name: provider_name,
-                        recommended_models: vec!["canonical-filtered-model".to_string()],
-                        supported_models: Ok(vec![
-                            "goose-claude-opus-4-8".to_string(),
-                            "raw-databricks-endpoint".to_string(),
-                        ]),
-                    }) as Arc<dyn Provider>)
-                })
-            },
-        );
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name| {
+            Box::pin(async move {
+                Ok(Arc::new(MockProvider {
+                    name: provider_name,
+                    recommended_models: vec!["canonical-filtered-model".to_string()],
+                    supported_models: Ok(vec![
+                        "goose-claude-opus-4-8".to_string(),
+                        "raw-databricks-endpoint".to_string(),
+                    ]),
+                }) as Arc<dyn Provider>)
+            })
+        });
         let conn = AcpServerConnection::new(
             TestConnectionConfig {
                 provider_factory: Some(provider_factory),
@@ -1187,7 +1166,7 @@ fn test_custom_provider_supported_models_maps_not_configured_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,
@@ -1224,7 +1203,7 @@ fn test_custom_provider_supported_models_maps_authentication_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,

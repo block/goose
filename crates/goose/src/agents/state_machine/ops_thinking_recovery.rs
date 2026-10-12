@@ -103,7 +103,7 @@ impl Operation<Session, GooseEffect> for ThinkingRecoveryOperation {
         } else {
             warn!("Provider returned a thinking-only response after retries; ending turn");
             let message = Message::assistant().with_text(THINKING_ONLY_TURN_MESSAGE);
-            let message = emit.message(message).await;
+            let message = emit.message(message);
             applied([message.into()])
         }
     }

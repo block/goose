@@ -34,41 +34,6 @@ pub fn system_prompt_block() -> Option<String> {
     }
 }
 
-pub(super) async fn compute_compaction_info(
-    session_id: &str,
-    extension_manager: &ExtensionManager,
-) -> Option<String> {
-    let session = extension_manager
-        .get_context()
-        .session_manager
-        .get_session(session_id, false)
-        .await
-        .ok();
-    let session_model_config = session
-        .as_ref()
-        .and_then(|session| session.model_config.clone());
-    let context_limit = if let Some(model_config) = session_model_config.as_ref() {
-        let provider = extension_manager.get_provider().lock().await.clone();
-        match provider {
-            Some(provider) => {
-                crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
-                    .await
-                    .ok()
-            }
-            None => None,
-        }
-    } else {
-        None
-    };
-    let total_tokens = session
-        .as_ref()
-        .and_then(|session| session.usage.total_tokens);
-    let compaction_threshold = crate::config::Config::global()
-        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-        .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
-    compaction_remaining_line(total_tokens, context_limit, compaction_threshold)
-}
-
 pub async fn turn_context_message(
     session_id: &str,
     extension_manager: &ExtensionManager,
@@ -91,18 +56,24 @@ pub async fn turn_context_message(
     let session_model_config = session
         .as_ref()
         .and_then(|session| session.model_config.clone());
-    let context_limit = if let Some(model_config) = session_model_config.as_ref() {
-        let provider = extension_manager.get_provider().lock().await.clone();
-        match provider {
-            Some(provider) => {
-                crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
-                    .await
-                    .ok()
+    let context_limit = match (session.as_ref(), session_model_config.as_ref()) {
+        (Some(session), Some(model_config)) => {
+            match extension_manager
+                .get_context()
+                .providers
+                .provider_for(session)
+                .await
+            {
+                Ok(provider) => crate::context_limit::get_context_limit(
+                    provider.as_ref(),
+                    &model_config.model_name,
+                )
+                .await
+                .ok(),
+                Err(_) => None,
             }
-            None => None,
         }
-    } else {
-        None
+        _ => None,
     };
     if should_skip_moim(context_limit) {
         return None;
@@ -184,29 +155,6 @@ fn escape_xml_text(value: &str) -> String {
         .replace('>', "&gt;")
 }
 
-fn compaction_remaining_line(
-    total_tokens: Option<i32>,
-    context_limit: Option<usize>,
-    threshold: f64,
-) -> Option<String> {
-    let total_tokens = total_tokens?;
-    let context_limit = context_limit?;
-
-    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
-        return None;
-    }
-
-    let compaction_at = (context_limit as f64 * threshold) as i32;
-    if compaction_at <= 0 || (total_tokens as f64 / compaction_at as f64) < 0.5 {
-        return None;
-    }
-
-    Some(format!(
-        "~{}k tokens remaining",
-        compaction_at.saturating_sub(total_tokens) / 1000
-    ))
-}
-
 fn turn_budget_part(turns_taken: u32, max_turns: u32) -> Option<String> {
     if max_turns == 0 || turns_taken.saturating_mul(2) < max_turns {
         return None;
@@ -221,6 +169,7 @@ fn turn_budget_part(turns_taken: u32, max_turns: u32) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension_manager::ExtensionSet;
     use crate::agents::mcp_client::McpClientTrait;
     use crate::agents::tool_execution::ToolCallContext;
     use crate::config::ExtensionConfig;
@@ -267,7 +216,7 @@ mod tests {
 
     fn moim_extension() -> ExtensionConfig {
         ExtensionConfig::Platform {
-            name: "context".to_string(),
+            name: "todo".to_string(),
             description: String::new(),
             display_name: None,
             bundled: None,
@@ -275,9 +224,11 @@ mod tests {
         }
     }
 
-    async fn session_and_manager() -> (String, ExtensionManager, tempfile::TempDir) {
+    async fn session_and_manager() -> (String, Arc<ExtensionManager>, tempfile::TempDir) {
         let temp_dir = tempfile::tempdir().unwrap();
-        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let em = Arc::new(ExtensionManager::with_data_dir(
+            temp_dir.path().to_path_buf(),
+        ));
         let session = em
             .get_context()
             .session_manager
@@ -295,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn turn_context_message_is_an_agent_only_user_message() {
         let (session_id, em, _tmp) = session_and_manager().await;
-        let lease = em.current_lease(&session_id, None).await;
+        let lease = em.current_lease(&session_id).await.unwrap();
 
         let message =
             turn_context_message(&session_id, &em, &lease, 0, 100, chrono::Local::now(), None)
@@ -314,7 +265,7 @@ mod tests {
     #[tokio::test]
     async fn turn_context_bytes_are_stable_for_a_turn() {
         let (session_id, em, _tmp) = session_and_manager().await;
-        let lease = em.current_lease(&session_id, None).await;
+        let lease = em.current_lease(&session_id).await.unwrap();
         let turn_start = chrono::Local::now();
 
         let first = turn_context_message(&session_id, &em, &lease, 0, 100, turn_start, None)
@@ -335,16 +286,16 @@ mod tests {
     async fn turn_context_uses_the_inference_lease() {
         let (session_id, em, _tmp) = session_and_manager().await;
         em.add_client(
+            &session_id,
             moim_extension(),
-            None,
             Arc::new(MoimClient("old context")),
             None,
         )
         .await;
-        let lease = em.current_lease(&session_id, None).await;
+        let lease = em.current_lease(&session_id).await.unwrap();
         em.add_client(
+            &session_id,
             moim_extension(),
-            None,
             Arc::new(MoimClient("new context")),
             None,
         )
@@ -365,7 +316,7 @@ mod tests {
         let (session_id, em, _tmp) = session_and_manager().await;
         let leased_working_dir = PathBuf::from("/leased/dir");
         let lease = em
-            .current_lease(&session_id, Some(&leased_working_dir))
+            .resolve(&ExtensionSet::new(&session_id, Some(leased_working_dir), vec![]).unwrap())
             .await;
 
         let message =

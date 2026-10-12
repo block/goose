@@ -27,9 +27,31 @@ use crate::hooks::HookManager;
 use crate::providers::base::Provider;
 use crate::session::Session;
 
+pub(crate) fn final_output_tool(session: &Session) -> Result<Option<FinalOutputTool>> {
+    session
+        .recipe
+        .as_ref()
+        .and_then(|recipe| recipe.response.clone())
+        .map(FinalOutputTool::try_new)
+        .transpose()
+        .map_err(|error| anyhow!(error))
+}
+
+pub(crate) fn recipe_prompt_parts(session: &Session) -> Result<Vec<(String, String)>> {
+    let instructions = session
+        .recipe
+        .as_ref()
+        .and_then(|recipe| recipe.instructions.clone())
+        .map(|instructions| ("recipe".to_string(), instructions));
+    let final_output =
+        final_output_tool(session)?.map(|tool| ("final_output".to_string(), tool.system_prompt()));
+    Ok(instructions.into_iter().chain(final_output).collect())
+}
+
 pub struct RecipeOperation {
     provider: Arc<dyn Provider>,
     hook_manager: HookManager,
+    response: std::sync::Mutex<Option<Message>>,
 }
 
 impl RecipeOperation {
@@ -37,20 +59,15 @@ impl RecipeOperation {
         Self {
             provider,
             hook_manager,
+            response: std::sync::Mutex::default(),
         }
     }
 
-    fn final_output(session: &Session) -> Result<Option<FinalOutputTool>> {
-        session
-            .recipe
-            .as_ref()
-            .and_then(|recipe| recipe.response.clone())
-            .map(FinalOutputTool::try_new)
-            .transpose()
-            .map_err(|error| anyhow!(error))
+    fn take_response(&self) -> Option<Message> {
+        self.response.lock().unwrap().take()
     }
 
-    async fn command_error(
+    fn command_error(
         &self,
         conversation: &Conversation,
         message: String,
@@ -68,8 +85,8 @@ impl RecipeOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.message(command).await;
-        let response = emit.message(response).await;
+        emit.message(command);
+        let response = emit.message(response);
         yielded_with([
             ConversationEffect::SetMessageVisibility {
                 message_id,
@@ -88,6 +105,18 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         "recipe"
     }
 
+    async fn finalize_cancellation(
+        &self,
+        _session: &Session,
+        _conversation: &Conversation,
+        emit: &Emitter,
+    ) -> Vec<GooseEffect> {
+        match self.take_response() {
+            Some(response) => vec![emit.message(response).into()],
+            None => Vec::new(),
+        }
+    }
+
     async fn run_command(
         &self,
         command: &SlashCommand<'_>,
@@ -101,14 +130,16 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         ) {
             Ok(Some(recipe)) => recipe,
             Ok(None) => return not_applicable(),
-            Err(error) => return self.command_error(conversation, error, emit).await,
+            Err(error) => return self.command_error(conversation, error, emit),
         };
 
         if let Some(response) = recipe.response.clone() {
             if let Err(error) = FinalOutputTool::try_new(response) {
-                return self
-                    .command_error(conversation, format!("Recipe is not valid: {error}"), emit)
-                    .await;
+                return self.command_error(
+                    conversation,
+                    format!("Recipe is not valid: {error}"),
+                    emit,
+                );
             }
         }
 
@@ -138,7 +169,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
     }
 
     async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
-        Ok(Self::final_output(session)?
+        Ok(final_output_tool(session)?
             .as_ref()
             .map(FinalOutputTool::tool)
             .into_iter()
@@ -150,11 +181,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         session: &Session,
         _conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
-        Ok(Self::final_output(session)?
-            .as_ref()
-            .map(|tool| ("final_output".to_string(), tool.system_prompt()))
-            .into_iter()
-            .collect())
+        recipe_prompt_parts(session)
     }
 
     async fn run(
@@ -163,18 +190,16 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
-        let Some(mut final_output) = Self::final_output(session)? else {
+        let Some(mut final_output) = final_output_tool(session)? else {
             return not_applicable();
         };
 
         if !self.provider.supports_builtin_tools() {
-            return self
-                .command_error(
-                    conversation,
-                    structured_output_unsupported_message(self.provider.get_name()),
-                    emit,
-                )
-                .await;
+            return self.command_error(
+                conversation,
+                structured_output_unsupported_message(self.provider.get_name()),
+                emit,
+            );
         }
 
         let messages = messages_since_kickoff(conversation)?;
@@ -197,7 +222,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                     )])),
                     request.metadata.as_ref(),
                 );
-                let response = emit.message(response).await;
+                let response = emit.message(response);
                 return applied([response.into()]);
             }
             if FinalOutputTool::has_unanswered_siblings(messages, &request.id) {
@@ -210,13 +235,12 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
             let span = tool_span(&tool_call.name, &request.id, &session.id);
             // `recipe__final_output` is executed here rather than by
             // ToolExecutionOperation, which is registered after this one. Run the
-            // same hook lifecycle it would have run, so the state machine and the
-            // legacy loop agree on what a final-output call emits.
+            // same hook lifecycle it would have run there.
             let tool_input = tool_call
                 .arguments
                 .as_ref()
                 .map(|arguments| serde_json::Value::Object(arguments.clone()));
-            let output = match run_pre_tool_hooks(
+            let pre_tool = run_pre_tool_hooks(
                 &self.hook_manager,
                 session,
                 &request.id,
@@ -224,12 +248,12 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                 tool_input.as_ref(),
             )
             .instrument(span.clone())
-            .await
-            {
+            .await;
+            let output = match &pre_tool {
                 // A denial returns before execution and emits no post event, the
                 // same shape ToolExecutionOperation has: its dispatch returns the
                 // denial before the post-hook wrapper is ever applied.
-                Err(denial) => Err(denial),
+                Err(denial) => Err(denial.clone()),
                 Ok(()) => {
                     let result = final_output
                         .execute_tool_call(tool_call.clone())
@@ -245,42 +269,52 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                         }
                         _ => {}
                     }
-                    // Post event carries the same tool_call_id as the pre events.
-                    // The large-response rewrite ToolExecutionOperation applies is
-                    // deliberately not reused: the recipe's structured output is
-                    // the deliverable, not a payload to offload to a temp file.
-                    emit_post_tool_use(
-                        &self.hook_manager,
-                        &session.id,
-                        &session.working_dir.to_string_lossy(),
-                        &tool_call.name,
-                        &request.id,
-                        tool_input.as_ref(),
-                        &output,
-                    )
-                    .instrument(span.clone())
-                    .await;
                     output
                 }
             };
-            let mut response = Message::user();
-            response.add_tool_response_with_metadata(request.id, output, request.metadata.as_ref());
-            let response = emit.message(response).await;
+            let mut response = Message::user().with_generated_id_if_missing();
+            response.add_tool_response_with_metadata(
+                request.id.clone(),
+                output.clone(),
+                request.metadata.as_ref(),
+            );
+            *self.response.lock().unwrap() = Some(response);
+            if pre_tool.is_ok() {
+                // Post event carries the same tool_call_id as the pre events.
+                // The large-response rewrite ToolExecutionOperation applies is
+                // deliberately not reused: the recipe's structured output is
+                // the deliverable, not a payload to offload to a temp file.
+                emit_post_tool_use(
+                    &self.hook_manager,
+                    &session.id,
+                    &session.working_dir.to_string_lossy(),
+                    &tool_call.name,
+                    &request.id,
+                    tool_input.as_ref(),
+                    &output,
+                )
+                .instrument(span.clone())
+                .await;
+            }
+            let response = self.take_response().expect("recipe response held");
+            let response = emit.message(response);
             return applied([response.into()]);
         }
 
         if let Some(output) = FinalOutputTool::successful_output(messages) {
             if last_effective_role(messages)? == EffectiveRole::Tool {
                 let message = Message::assistant().with_text(output);
-                let message = emit.message(message).await;
+                let message = emit.message(message);
                 return applied([message.into()]);
             }
             return not_applicable();
         }
 
         if ends_turn(messages) {
-            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-            let message = emit.message(message).await;
+            let message = Message::user()
+                .with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+                .agent_only();
+            let message = emit.message(message);
             return applied([message.into()]);
         }
 

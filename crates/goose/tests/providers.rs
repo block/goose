@@ -2,6 +2,7 @@ use anyhow::Result;
 use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::acp::ACP_CURRENT_MODEL;
+use goose::agents::extension_manager::CallRequest;
 use goose::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, PromptManager, SessionConfig};
 use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -13,7 +14,7 @@ use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
-use goose::providers::create_with_named_model;
+use goose::providers::create;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
@@ -240,7 +241,7 @@ impl ProviderFixture {
             available_tools: vec![],
         };
 
-        let provider = create_with_named_model(
+        let provider = create(
             &config.name.to_lowercase(),
             vec![mcp_extension.clone(), developer_extension.clone()],
         )
@@ -259,7 +260,6 @@ impl ProviderFixture {
             session_manager.clone(),
             permission_manager,
             None,
-            mode,
             true,
             GoosePlatform::GooseCli,
         ));
@@ -268,7 +268,7 @@ impl ProviderFixture {
                 std::env::current_dir()?,
                 "provider_test".to_string(),
                 SessionType::User,
-                GooseMode::default(),
+                mode,
             )
             .await?;
         let session_id = session.id;
@@ -306,18 +306,13 @@ impl ProviderFixture {
         prompt: &str,
         model_config: Option<goose_providers::model::ModelConfig>,
     ) -> Result<Message> {
-        let tools = self
+        let lease = self
             .agent
             .extension_manager
-            .get_prefixed_tools(&self.session_id, None)
-            .await
-            .unwrap();
-
-        let info = self
-            .agent
-            .extension_manager
-            .get_extensions_info(std::path::Path::new("."))
-            .await;
+            .current_lease(&self.session_id)
+            .await?;
+        let tools = lease.tools().await;
+        let info = lease.instructions().await;
         let system = PromptManager::new()
             .builder()
             .with_extensions(info.into_iter())
@@ -363,7 +358,9 @@ impl ProviderFixture {
         let result = self
             .agent
             .extension_manager
-            .dispatch_tool_call(&ctx, params, CancellationToken::new())
+            .current_lease(&ctx.session_id)
+            .await?
+            .call(params, CallRequest::from(&ctx), CancellationToken::new())
             .await
             .unwrap()
             .result
@@ -585,18 +582,9 @@ impl ProviderFixture {
             id: self.session_id.clone(),
             schedule_id: None,
             max_turns: Some(5),
-            retry_config: None,
         };
 
-        let mut stream = self
-            .agent
-            .reply(
-                message,
-                session_config,
-                goose::agents::state_machine::enabled(),
-                None,
-            )
-            .await?;
+        let mut stream = self.agent.reply(message, session_config, None).await?;
         let mut saw_action_required = false;
 
         while let Some(event) = stream.next().await {

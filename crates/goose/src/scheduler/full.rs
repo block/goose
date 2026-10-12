@@ -18,7 +18,6 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 #[cfg(feature = "telemetry")]
 use crate::posthog;
-use crate::providers::create;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::validate_recipe::{
     recipe_file_format, validate_recipe_for_scheduling, SchedulerRecipeError,
@@ -862,7 +861,6 @@ async fn execute_job(
         session_manager,
         PermissionManager::instance(),
         None,
-        GooseMode::Auto,
         true,
         GoosePlatform::GooseCli,
     ));
@@ -895,9 +893,8 @@ async fn execute_job(
         agent.add_extension(ext.clone(), &session.id).await?;
     }
 
-    let agent_provider = create(&provider_name, extensions).await?;
     agent
-        .update_provider(agent_provider, model_config, &session.id)
+        .switch_provider(&session.id, &provider_name, model_config)
         .await?;
     agent
         .update_goose_mode(GooseMode::Auto, &session.id)
@@ -976,23 +973,16 @@ async fn execute_job(
         id: session.id.clone(),
         schedule_id: Some(job.id.clone()),
         max_turns: None,
-        retry_config: None,
     };
 
     let stream = agent
-        .reply(
-            user_message,
-            session_config,
-            crate::agents::state_machine::enabled(),
-            Some(cancel_token.clone()),
-        )
+        .reply(user_message, session_config, Some(cancel_token.clone()))
         .await?;
 
     use futures::StreamExt;
     let mut stream = std::pin::pin!(stream);
 
     let mut stream_error = false;
-    let mut failed_before_stop = false;
     while let Some(message_result) = stream.next().await {
         tokio::task::yield_now().await;
 
@@ -1007,14 +997,9 @@ async fn execute_job(
             Err(e) => {
                 tracing::error!("Error in agent stream: {}", e);
                 stream_error = true;
-                failed_before_stop = !cancel_token.is_cancelled();
                 break;
             }
         }
-    }
-
-    if cancel_token.is_cancelled() && !failed_before_stop {
-        agent.cancel_foreground_subagents(&session.id).await;
     }
 
     {

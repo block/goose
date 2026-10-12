@@ -120,7 +120,7 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     let _guard = env_lock::lock_env([
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ("OPENAI_HOST", Some(host.as_str())),
-        ("OPENAI_BASE_PATH", Some("v1/chat/completions")),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
     let child_path = pipeline.working_dir().join("bounded-child.yaml");
@@ -186,11 +186,12 @@ settings:
 #[tokio::test]
 async fn final_output_beside_delegate_is_not_shown_before_the_subagent_runs() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_max_turns(2);
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ("OPENAI_HOST", Some(host.as_str())),
-        ("OPENAI_BASE_PATH", Some("v1/chat/completions")),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
     let recipe = Recipe::builder()
@@ -218,7 +219,7 @@ async fn final_output_beside_delegate_is_not_shown_before_the_subagent_runs() ->
         (
             "call_delegate",
             "delegate",
-            json!({ "instructions": "Find the answer" }),
+            json!({ "instructions": "Find the answer", "max_turns": 1 }),
         ),
         (
             "call_early_output",
@@ -276,6 +277,7 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     exhausted.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
 
     let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_max_turns(2);
     api.on("compute the answer").reply("thinking about it");
     api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
         .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
@@ -299,6 +301,77 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     assert!(api.calls()[0].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
     assert!(api.calls()[1].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
     completed.assert_message(-1, Agent, r#"{"result":"42"}"#);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_responses_hand_the_turn_to_recipe_operations() -> Result<()> {
+    let shows_empty_fallback = |conversation: &crate::conversation::Conversation| {
+        conversation.iter().any(|message| {
+            message.is_user_visible() && message.as_concat_text().contains("empty response")
+        })
+    };
+    let retry = |check: &str| RetryConfig {
+        max_retries: 1,
+        checks: vec![SuccessCheck::Shell {
+            command: check.to_string(),
+        }],
+        on_failure: None,
+        timeout_seconds: None,
+        on_failure_timeout_seconds: None,
+    };
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("compute the answer").reply("");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .instructions("Compute the answer")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let nudged = pipeline.run(["compute the answer"]).await?;
+    nudged.assert_message(-1, Agent, r#"{"result":"42"}"#);
+    assert!(!shows_empty_fallback(nudged.conversation()));
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("check the work").reply("");
+    let recipe = Recipe::builder()
+        .title("passing retry")
+        .description("passing retry")
+        .prompt("check the work")
+        .retry(retry("true"))
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let passed = pipeline.run(["check the work"]).await?;
+    assert!(!shows_empty_fallback(passed.conversation()));
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("never succeed").reply("");
+    let recipe = Recipe::builder()
+        .title("failing retry")
+        .description("failing retry")
+        .prompt("never succeed")
+        .retry(retry("exit 1"))
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let (_pipeline, exhausted, _) = pipeline
+        .run_reconstructing_each_step("never succeed")
+        .await?;
+    exhausted.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
+    assert!(!shows_empty_fallback(exhausted.conversation()));
 
     Ok(())
 }
@@ -582,6 +655,7 @@ async fn scheduled_run_attaches_recipe_to_session_before_inference() -> Result<(
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("GOOSE_PROVIDER", Some("openai")),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("GOOSE_MODEL", Some("gpt-4o")),
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ("OPENAI_HOST", Some(host.as_str())),

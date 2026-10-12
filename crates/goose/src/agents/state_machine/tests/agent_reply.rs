@@ -16,6 +16,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calculator_extension::{delayed_value, value, CalculatorExtension, ADD};
 use super::dummy_api::{DummyApi, ProviderFeatures};
+use super::pipeline::calculator_extension;
 use crate::acp::server::GooseAcpAgent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::McpClientTrait;
@@ -39,6 +40,7 @@ async fn agent_with_dummy_api() -> Result<(Agent, Arc<DummyApi>, String, tempfil
     .with_request_builder(crate::session_context::session_id_request_builder());
     let provider: Arc<dyn Provider> = Arc::new(
         goose_providers::openai::OpenAiProviderBuilder::new(api_client)
+            .base_path("chat/completions")
             .name("openai")
             .build(),
     );
@@ -57,7 +59,6 @@ async fn agent_with_dummy_api() -> Result<(Agent, Arc<DummyApi>, String, tempfil
         session_manager,
         Arc::new(PermissionManager::new(temp_dir.path().join("permissions"))),
         None,
-        GooseMode::Auto,
         true,
         GoosePlatform::GooseCli,
     ));
@@ -90,23 +91,13 @@ async fn agent_with_calculator() -> Result<(
     agent
         .extension_manager
         .add_client(
-            calculator_config(),
-            Some(temp_dir.path().to_path_buf()),
+            &session_id,
+            calculator_extension(),
             calculator.clone(),
             calculator.get_info().cloned(),
         )
         .await;
     Ok((agent, api, session_id, calculator, temp_dir))
-}
-
-fn calculator_config() -> ExtensionConfig {
-    ExtensionConfig::Platform {
-        name: "calculator".to_string(),
-        description: "Stateful test calculator".to_string(),
-        display_name: None,
-        bundled: None,
-        available_tools: vec![],
-    }
 }
 
 async fn enable_developer(agent: &Agent, session_id: &str) -> Result<()> {
@@ -163,7 +154,6 @@ async fn stream_messages(
 
 #[tokio::test]
 async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (mut agent, api, session_id, calculator, temp_dir) = agent_with_calculator().await?;
     let hook_dir = tempfile::tempdir()?;
     let plugin_dir = hook_dir.path().join("test-plugin");
@@ -188,13 +178,11 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let mut stream = agent
         .reply(
             Message::user().with_text("add one"),
             session_config.clone(),
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -222,9 +210,6 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .working_dir(new_working_dir.path().to_path_buf())
         .apply()
         .await?;
-    agent
-        .update_extension_working_dir(&session_config.id, new_working_dir.path())
-        .await?;
 
     {
         let session = agent
@@ -248,8 +233,8 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
     agent
         .extension_manager
         .add_client(
-            calculator_config(),
-            Some(new_working_dir.path().to_path_buf()),
+            &session_config.id,
+            calculator_extension(),
             replacement.clone(),
             replacement.get_info().cloned(),
         )
@@ -404,8 +389,65 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
 }
 
 #[tokio::test]
+async fn stop_at_a_confirmation_interrupts_the_waiting_call() -> Result<()> {
+    let (agent, api, session_id, calculator, _temp_dir) = agent_with_calculator().await?;
+    let agent = Arc::new(agent);
+    api.on("add one").calls([("call_add", ADD, value(1))]);
+
+    let cancel = CancellationToken::new();
+    let session_config = SessionConfig {
+        id: session_id.clone(),
+        schedule_id: None,
+        max_turns: Some(2),
+    };
+    let mut stream = agent
+        .reply(
+            Message::user().with_text("add one"),
+            session_config,
+            Some(cancel.clone()),
+        )
+        .await?;
+    loop {
+        let event = stream
+            .next()
+            .await
+            .expect("state machine should request confirmation")?;
+        if let AgentEvent::Message(message) = event {
+            if !confirmation_ids(std::slice::from_ref(&message)).is_empty() {
+                break;
+            }
+        }
+    }
+    while let Ok(Some(_)) = tokio::time::timeout(Duration::from_millis(50), stream.next()).await {}
+    cancel.cancel();
+    tokio::time::timeout(Duration::from_secs(5), stream_messages(stream)).await??;
+
+    let session = agent
+        .config
+        .session_manager
+        .get_session(&session_id, true)
+        .await?;
+    let conversation = session.conversation.expect("session conversation");
+    let add_response = conversation
+        .messages()
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_response)
+        .find(|response| response.id == "call_add")
+        .expect("the waiting call is answered");
+    assert_eq!(
+        add_response.tool_result.as_ref().unwrap().content[0]
+            .as_text()
+            .unwrap()
+            .text,
+        "Tool call was interrupted before completing"
+    );
+    assert_eq!(calculator.total(), 0);
+    Ok(())
+}
+
+#[tokio::test]
 async fn state_machine_skill_approval_uses_its_leased_working_dir() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (agent, api, session_id, old_working_dir) = agent_with_dummy_api().await?;
     install_skill(old_working_dir.path(), "OLD_SKILL_CONTENT")?;
     agent
@@ -421,13 +463,11 @@ async fn state_machine_skill_approval_uses_its_leased_working_dir() -> Result<()
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let mut stream = agent
         .reply(
             Message::user().with_text("load review"),
             session_config.clone(),
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -453,9 +493,6 @@ async fn state_machine_skill_approval_uses_its_leased_working_dir() -> Result<()
         .apply()
         .await?;
     agent
-        .update_extension_working_dir(&session_config.id, new_working_dir.path())
-        .await?;
-    agent
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;
     let messages = stream_messages(stream).await?;
@@ -476,7 +513,6 @@ async fn state_machine_skill_approval_uses_its_leased_working_dir() -> Result<()
 
 #[tokio::test]
 async fn state_machine_rejects_resumed_skill_approval_without_its_lease() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (agent, api, session_id, working_dir) = agent_with_dummy_api().await?;
     install_skill(working_dir.path(), "SKILL_MUST_NOT_LOAD")?;
     agent
@@ -492,13 +528,11 @@ async fn state_machine_rejects_resumed_skill_approval_without_its_lease() -> Res
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let mut stream = agent
         .reply(
             Message::user().with_text("load review"),
             session_config.clone(),
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -535,7 +569,6 @@ async fn state_machine_rejects_resumed_skill_approval_without_its_lease() -> Res
 
 #[tokio::test]
 async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (agent, api, session_id, calculator, _temp_dir) = agent_with_calculator().await?;
     let agent = Arc::new(agent);
 
@@ -546,13 +579,11 @@ async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let mut stream = agent
         .reply(
             Message::user().with_text("add one"),
             session_config.clone(),
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -600,7 +631,6 @@ async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()
 
 #[tokio::test]
 async fn state_machine_rejects_resumed_bang_shell_without_its_lease() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
     api.on(EXPIRED_APPROVAL_RESPONSE).reply("request it again");
     enable_developer(&agent, &session_id).await?;
@@ -612,13 +642,11 @@ async fn state_machine_rejects_resumed_bang_shell_without_its_lease() -> Result<
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let mut stream = agent
         .reply(
             Message::user().with_text("!echo should-not-run"),
             session_config.clone(),
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -669,8 +697,7 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
     let session_config = SessionConfig {
         id: session_id.clone(),
         schedule_id: None,
-        max_turns: Some(2),
-        retry_config: None,
+        max_turns: Some(1),
     };
     let stream = agent
         .reply_with_state_machine(
@@ -692,10 +719,7 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
     })
     .await??;
 
-    assert!(
-        replies.iter().any(|reply| reply == "still here"),
-        "expected the scripted reply, got {replies:?}"
-    );
+    assert_eq!(replies.last().map(String::as_str), Some("still here"));
     assert_eq!(api.call_count(), 1);
 
     Ok(())
@@ -709,13 +733,11 @@ async fn bang_shell_uses_state_machine_when_explicitly_enabled() -> Result<()> {
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
-        retry_config: None,
     };
     let stream = agent
         .reply(
             Message::user().with_text("!echo hello"),
             session_config,
-            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -758,9 +780,7 @@ async fn reply_messages(
                 id: session_id,
                 schedule_id: None,
                 max_turns: Some(2),
-                retry_config: None,
             },
-            crate::agents::state_machine::enabled(),
             Some(CancellationToken::new()),
         )
         .await?;
@@ -904,19 +924,6 @@ async fn assert_bang_shell_uses_only_user_visible_content() -> Result<()> {
 }
 
 #[tokio::test]
-async fn bang_shell_not_executed_in_legacy_loop() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
-    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
-    api.on("!echo hello").reply("treated as text");
-    let messages =
-        reply_messages(&agent, session_id, Message::user().with_text("!echo hello")).await?;
-    assert!(shell_commands(&messages).is_empty());
-    assert_eq!(api.call_count(), 1);
-    Ok(())
-}
-
-#[tokio::test]
 async fn bang_shell_visibility_is_enforced_when_state_machine_is_enabled() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
     assert_bang_shell_uses_only_user_visible_content().await
 }
