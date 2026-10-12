@@ -56,6 +56,18 @@ pub(crate) fn default_model() -> Option<String> {
     }
 }
 
+pub(crate) fn saved_model_or_catalog_default(saved_model: &str) -> Option<String> {
+    match TokenCache::new().catalog_snapshot() {
+        Some(snapshot) => snapshot
+            .models
+            .iter()
+            .find(|model| model.slug == saved_model)
+            .or_else(|| snapshot.models.first())
+            .map(|model| model.slug.clone()),
+        None => Some(saved_model.to_string()),
+    }
+}
+
 /// Inventory identity used when an OAuth response carries no account id. It is
 /// deliberately not derived from the refresh token: that token rotates on every
 /// refresh, so keying the inventory on it would move the snapshot out from
@@ -526,7 +538,7 @@ impl TokenCache {
     fn commit_oauth_token(&self, token: &TokenData) -> Result<()> {
         let previous_account = self.load().and_then(|previous| previous.account_id);
         self.save(token)?;
-        if previous_account != token.account_id {
+        if previous_account.is_none() || previous_account != token.account_id {
             let _ = std::fs::remove_file(self.catalog_path());
         }
         Ok(())
@@ -1650,6 +1662,46 @@ mod tests {
         .unwrap();
 
         assert_eq!(default_model(), None);
+        assert_eq!(saved_model_or_catalog_default("gpt-5.4"), None);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn saved_model_excluded_by_catalog_uses_catalog_default() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        cache
+            .save(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: "refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                account_id: Some("account".to_string()),
+            })
+            .unwrap();
+        write_private_file(
+            &cache.catalog_path(),
+            &serde_json::to_string(&CodexCatalogSnapshot {
+                account_id: Some("account".to_string()),
+                models: vec![serde_json::from_value(json!({
+                    "slug": "gpt-6-astra", "supported_in_api": true
+                }))
+                .unwrap()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            saved_model_or_catalog_default("gpt-5.4").as_deref(),
+            Some("gpt-6-astra")
+        );
+        assert_eq!(
+            saved_model_or_catalog_default("gpt-6-astra").as_deref(),
+            Some("gpt-6-astra")
+        );
     }
 
     #[cfg(unix)]
@@ -2138,11 +2190,6 @@ mod tests {
         cache.bind_catalog_to_account("account-1").unwrap();
         token.account_id = Some("account-1".to_string());
         cache.save(&token).unwrap();
-        service
-            .store_refresh_error_after_fetch("chatgpt_codex", &planned, "catalog unavailable")
-            .await
-            .unwrap();
-
         let current = crate::providers::inventory::InventoryIdentityInput::new(
             "chatgpt_codex",
             "chatgpt_codex",
@@ -2150,6 +2197,15 @@ mod tests {
         .with_secret("oauth_account", "account-1")
         .into_identity()
         .unwrap();
+        service
+            .store_refresh_error_for_identity(&current, "pending refresh")
+            .await
+            .unwrap();
+        service
+            .store_refresh_error_after_fetch("chatgpt_codex", &planned, "catalog unavailable")
+            .await
+            .unwrap();
+
         assert_ne!(current, planned);
         let snapshot = service
             .find_entry_for_provider("chatgpt_codex")
@@ -2161,6 +2217,53 @@ mod tests {
             Some("catalog unavailable")
         );
         assert_eq!(reasoning_levels_for_model("gpt-6-astra"), vec!["high"]);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn failed_first_refresh_reports_error_after_account_discovery() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+        let cache = TokenCache::new();
+        let mut token = TokenData {
+            access_token: "access".to_string(),
+            refresh_token: "refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: None,
+        };
+        cache.save(&token).unwrap();
+        let planned = crate::providers::inventory::InventoryIdentityInput::new(
+            "chatgpt_codex",
+            "chatgpt_codex",
+        )
+        .with_secret("oauth_account", UNKNOWN_ACCOUNT_IDENTITY)
+        .into_identity()
+        .unwrap();
+        let service = crate::providers::inventory::ProviderInventoryService::new(Arc::new(
+            crate::session::session_manager::SessionStorage::new(root.path().to_path_buf()),
+        ));
+        service
+            .store_refresh_error_for_identity(&planned, "pending refresh")
+            .await
+            .unwrap();
+
+        token.account_id = Some("account-1".to_string());
+        cache.save(&token).unwrap();
+        service
+            .store_refresh_error_after_fetch("chatgpt_codex", &planned, "catalog unavailable")
+            .await
+            .unwrap();
+
+        let entry = service
+            .find_entry_for_provider("chatgpt_codex")
+            .await
+            .unwrap();
+        assert_eq!(
+            entry.last_refresh_error.as_deref(),
+            Some("catalog unavailable")
+        );
     }
 
     #[test]

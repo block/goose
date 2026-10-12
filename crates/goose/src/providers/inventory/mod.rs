@@ -611,26 +611,62 @@ impl ProviderInventoryService {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let identity = refresh_identity_after_fetch(provider_id, planned_identity, &model_ids)
-            .await
-            .unwrap_or_else(|_| planned_identity.clone());
+        let identity =
+            match refresh_identity_after_fetch(provider_id, planned_identity, &model_ids).await {
+                Ok(identity) => identity,
+                Err(_)
+                    if provider_id == "chatgpt_codex"
+                        && previous.as_ref().is_none_or(|snapshot| {
+                            snapshot.last_updated_at.is_none() && snapshot.models.is_empty()
+                        }) =>
+                {
+                    let current = crate::providers::inventory_identity(provider_id)
+                        .await?
+                        .into_identity()?;
+                    let unknown = InventoryIdentityInput::new(provider_id, provider_id)
+                        .with_secret(
+                            "oauth_account",
+                            crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
+                        )
+                        .into_identity()?;
+                    if *planned_identity == unknown {
+                        current
+                    } else {
+                        planned_identity.clone()
+                    }
+                }
+                Err(_) => planned_identity.clone(),
+            };
 
         if identity != *planned_identity && previous.is_some() {
             let pool = self.storage.pool().await?;
             let mut tx = pool.begin().await?;
-            let inserted = sqlx::query(
+            sqlx::query(
                 "INSERT OR IGNORE INTO provider_inventory_entries (inventory_key, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error) SELECT ?, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error FROM provider_inventory_entries WHERE inventory_key = ?",
             )
             .bind(&identity.inventory_key)
             .bind(&planned_identity.inventory_key)
             .execute(&mut *tx)
             .await?;
-            if inserted.rows_affected() > 0 {
+            let destination_updated_at: Option<String> = sqlx::query_scalar(
+                "SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = ?",
+            )
+            .bind(&identity.inventory_key)
+            .fetch_one(&mut *tx)
+            .await?;
+            if destination_updated_at.is_none() {
                 sqlx::query(
-                    "INSERT INTO provider_inventory_models (inventory_key, ordinal, model_id, name, family, context_limit, reasoning, recommended) SELECT ?, ordinal, model_id, name, family, context_limit, reasoning, recommended FROM provider_inventory_models WHERE inventory_key = ?",
+                    "INSERT OR IGNORE INTO provider_inventory_models (inventory_key, ordinal, model_id, name, family, context_limit, reasoning, recommended) SELECT ?, ordinal, model_id, name, family, context_limit, reasoning, recommended FROM provider_inventory_models WHERE inventory_key = ?",
                 )
                 .bind(&identity.inventory_key)
                 .bind(&planned_identity.inventory_key)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "UPDATE provider_inventory_entries SET last_updated_at = (SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = ?) WHERE inventory_key = ?",
+                )
+                .bind(&planned_identity.inventory_key)
+                .bind(&identity.inventory_key)
                 .execute(&mut *tx)
                 .await?;
             }
