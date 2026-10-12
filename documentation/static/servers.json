@@ -17,6 +17,18 @@
     ]
   },
   {
+    "id": "aiapplyd",
+    "name": "AI Applyd",
+    "description": "Find matched jobs, tailor resumes and cover letters, and apply on employers' own hiring systems",
+    "type": "streamable-http",
+    "url": "https://mcp.aiapplyd.com/mcp",
+    "link": "https://github.com/aiapplyd/aiapplyd-mcp",
+    "installation_notes": "Streamable HTTP extension with OAuth browser sign-in to your AI Applyd account. No API key.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "alby-mcp",
     "name": "Alby",
     "description": "Bitcoin Lightning Network integration",
