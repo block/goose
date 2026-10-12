@@ -57,13 +57,14 @@ pub(crate) fn default_model() -> Option<String> {
 }
 
 pub(crate) fn saved_model_or_catalog_default(saved_model: &str) -> Option<String> {
+    let normalized = ModelConfig::new(saved_model);
     match TokenCache::new().catalog_snapshot() {
         Some(snapshot) => snapshot
             .models
             .iter()
-            .find(|model| model.slug == saved_model)
-            .or_else(|| snapshot.models.first())
-            .map(|model| model.slug.clone()),
+            .find(|model| model.slug == normalized.model_name)
+            .map(|_| saved_model.to_string())
+            .or_else(|| snapshot.models.first().map(|model| model.slug.clone())),
         None => Some(saved_model.to_string()),
     }
 }
@@ -535,13 +536,14 @@ impl TokenCache {
         Ok(())
     }
 
-    fn commit_oauth_token(&self, token: &TokenData) -> Result<()> {
+    fn commit_oauth_token(&self, token: &TokenData) -> Result<bool> {
         let previous_account = self.load().and_then(|previous| previous.account_id);
+        let refresh_catalog = previous_account.is_none() || previous_account != token.account_id;
         self.save(token)?;
-        if previous_account.is_none() || previous_account != token.account_id {
+        if refresh_catalog {
             let _ = std::fs::remove_file(self.catalog_path());
         }
-        Ok(())
+        Ok(refresh_catalog)
     }
 
     fn catalog_path(&self) -> PathBuf {
@@ -1139,7 +1141,7 @@ impl ChatGptCodexAuthProvider {
 
     /// Token for read-only model discovery: refreshes an expired token but never
     /// starts the interactive OAuth flow, so listing models cannot open a browser.
-    async fn get_cached_token(&self) -> Result<TokenData, ProviderError> {
+    async fn get_cached_token(&self) -> Result<(TokenData, u64), ProviderError> {
         let _guard = self.state.token_mutex.lock().await;
         let _cache_lock = self
             .cache
@@ -1154,7 +1156,7 @@ impl ChatGptCodexAuthProvider {
                 .await
                 .map_err(|e| ProviderError::Authentication(e.to_string()))?;
         }
-        Ok(token_data)
+        Ok((token_data, self.cache.generation()))
     }
 
     async fn get_valid_token(&self) -> Result<TokenData> {
@@ -1203,7 +1205,19 @@ impl ChatGptCodexAuthProvider {
             ));
         }
         self.cache.bump_generation()?;
-        self.cache.commit_oauth_token(&token_data)?;
+        let refresh_catalog = self.cache.commit_oauth_token(&token_data)?;
+        let catalog_generation = self.cache.generation();
+        drop(_cache_lock);
+        if refresh_catalog {
+            fetch_catalog_with_token(
+                &self.cache,
+                CODEX_MODELS_ENDPOINT,
+                &token_data,
+                catalog_generation,
+            )
+            .await
+            .map_err(|error| anyhow!(error.to_string()))?;
+        }
         Ok(token_data)
     }
 }
@@ -1259,51 +1273,14 @@ impl ChatGptCodexProvider {
     }
 
     async fn fetch_catalog(&self) -> Result<Vec<String>, ProviderError> {
-        let token_data = self.auth_provider.get_cached_token().await?;
-
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
-            .timeout(std::time::Duration::from_secs(
-                DEFAULT_PROVIDER_TIMEOUT_SECS,
-            ))
-            .build()
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-
-        let mut url = reqwest::Url::parse(&self.models_endpoint)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        url.query_pairs_mut()
-            .append_pair("client_version", codex_client_version());
-
-        let mut request = client.get(url).bearer_auth(&token_data.access_token);
-        if let Some(account_id) = &token_data.account_id {
-            request = request.header("chatgpt-account-id", account_id);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let response = handle_status(response).await?;
-        let catalog: CodexCatalog =
-            goose_providers::http_status::read_json_response(response).await?;
-        let models = selectable_models(catalog);
-        let cache = &self.auth_provider.cache;
-        let _cache_lock = cache.lock_exclusive().await?;
-        if cache.load().and_then(|token| token.account_id) != token_data.account_id {
-            return Err(ProviderError::Authentication(
-                "ChatGPT Codex account changed during model discovery".to_string(),
-            ));
-        }
-        write_private_file(
-            &cache.catalog_path(),
-            &serde_json::to_string(&CodexCatalogSnapshot {
-                account_id: token_data.account_id,
-                models: models.clone(),
-            })
-            .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
+        let (token_data, generation) = self.auth_provider.get_cached_token().await?;
+        fetch_catalog_with_token(
+            &self.auth_provider.cache,
+            &self.models_endpoint,
+            &token_data,
+            generation,
         )
-        .map_err(|error| ProviderError::ExecutionError(error.to_string()))?;
-        Ok(models.into_iter().map(|model| model.slug).collect())
+        .await
     }
 
     async fn post_streaming(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
@@ -1349,6 +1326,67 @@ impl ChatGptCodexProvider {
 
         handle_status(response).await
     }
+}
+
+async fn fetch_catalog_with_token(
+    cache: &TokenCache,
+    models_endpoint: &str,
+    token_data: &TokenData,
+    generation: u64,
+) -> Result<Vec<String>, ProviderError> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+        .timeout(std::time::Duration::from_secs(
+            DEFAULT_PROVIDER_TIMEOUT_SECS,
+        ))
+        .build()
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+
+    let mut url = reqwest::Url::parse(models_endpoint)
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+    url.query_pairs_mut()
+        .append_pair("client_version", codex_client_version());
+
+    let mut request = client.get(url).bearer_auth(&token_data.access_token);
+    if let Some(account_id) = &token_data.account_id {
+        request = request.header("chatgpt-account-id", account_id);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+    let response = handle_status(response).await?;
+    let catalog: CodexCatalog = goose_providers::http_status::read_json_response(response).await?;
+    let models = selectable_models(catalog);
+    store_catalog_if_current(cache, token_data, generation, &models).await?;
+    Ok(models.into_iter().map(|model| model.slug).collect())
+}
+
+async fn store_catalog_if_current(
+    cache: &TokenCache,
+    token_data: &TokenData,
+    generation: u64,
+    models: &[CodexCatalogEntry],
+) -> Result<(), ProviderError> {
+    let _cache_lock = cache.lock_exclusive().await?;
+    if cache.generation() != generation
+        || cache.load().and_then(|token| token.account_id) != token_data.account_id
+    {
+        return Err(ProviderError::Authentication(
+            "ChatGPT Codex account changed during model discovery".to_string(),
+        ));
+    }
+    write_private_file(
+        &cache.catalog_path(),
+        &serde_json::to_string(&CodexCatalogSnapshot {
+            account_id: token_data.account_id.clone(),
+            models: models.to_vec(),
+        })
+        .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
+    )
+    .map_err(|error| ProviderError::ExecutionError(error.to_string()))?;
+    Ok(())
 }
 
 impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
@@ -1412,6 +1450,10 @@ impl Provider for ChatGptCodexProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        self.auth_provider
+            .get_valid_token()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))?;
         let mut payload = create_codex_request(model_config, system, messages, tools)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);
@@ -1685,10 +1727,15 @@ mod tests {
             &cache.catalog_path(),
             &serde_json::to_string(&CodexCatalogSnapshot {
                 account_id: Some("account".to_string()),
-                models: vec![serde_json::from_value(json!({
-                    "slug": "gpt-6-astra", "supported_in_api": true
-                }))
-                .unwrap()],
+                models: ["gpt-6-luna", "gpt-6-astra"]
+                    .into_iter()
+                    .map(|slug| {
+                        serde_json::from_value(json!({
+                            "slug": slug, "supported_in_api": true
+                        }))
+                        .unwrap()
+                    })
+                    .collect(),
             })
             .unwrap(),
         )
@@ -1696,11 +1743,95 @@ mod tests {
 
         assert_eq!(
             saved_model_or_catalog_default("gpt-5.4").as_deref(),
-            Some("gpt-6-astra")
+            Some("gpt-6-luna")
         );
         assert_eq!(
             saved_model_or_catalog_default("gpt-6-astra").as_deref(),
             Some("gpt-6-astra")
+        );
+        assert_eq!(
+            saved_model_or_catalog_default("gpt-6-astra-high").as_deref(),
+            Some("gpt-6-astra-high")
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_account_replacement_rejects_old_catalog() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = TokenCache {
+            cache_path: directory.path().join("tokens.json"),
+        };
+        let old_token = TokenData {
+            access_token: "old-access".to_string(),
+            refresh_token: "old-refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: None,
+        };
+        cache.save(&old_token).unwrap();
+        let old_generation = cache.generation();
+        let mut replacement = old_token.clone();
+        replacement.access_token = "new-access".to_string();
+        cache.bump_generation().unwrap();
+        assert!(cache.commit_oauth_token(&replacement).unwrap());
+        let models = vec![serde_json::from_value(json!({
+            "slug": "old-account-model", "supported_in_api": true
+        }))
+        .unwrap()];
+
+        assert!(matches!(
+            store_catalog_if_current(&cache, &old_token, old_generation, &models).await,
+            Err(ProviderError::Authentication(_))
+        ));
+        assert!(cache.catalog_snapshot().is_none());
+    }
+
+    #[tokio::test]
+    async fn unknown_account_replacement_refetches_reasoning_capabilities() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [{
+                    "slug": "gpt-6-astra", "supported_in_api": true,
+                    "supported_reasoning_levels": [{"effort": "high"}, {"effort": "max"}]
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let directory = tempfile::tempdir().unwrap();
+        let cache = TokenCache {
+            cache_path: directory.path().join("tokens.json"),
+        };
+        let old_token = TokenData {
+            access_token: "old-access".to_string(),
+            refresh_token: "old-refresh".to_string(),
+            id_token: None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            account_id: None,
+        };
+        cache.save(&old_token).unwrap();
+        let mut replacement = old_token.clone();
+        replacement.access_token = "new-access".to_string();
+        cache.bump_generation().unwrap();
+        assert!(cache.commit_oauth_token(&replacement).unwrap());
+        let models = fetch_catalog_with_token(
+            &cache,
+            &format!("{}/models", server.uri()),
+            &replacement,
+            cache.generation(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(models, vec!["gpt-6-astra"]);
+        assert_eq!(
+            cache.catalog_snapshot().unwrap().models[0]
+                .supported_reasoning_levels
+                .iter()
+                .map(|level| level.effort.as_str())
+                .collect::<Vec<_>>(),
+            vec!["high", "max"]
         );
     }
 
