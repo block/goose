@@ -303,17 +303,12 @@ impl ProviderInventoryService {
             &descriptor.static_models,
             descriptor.supports_refresh,
         );
-        let default_model = if descriptor.provider_id == "chatgpt_codex" {
-            crate::providers::chatgpt_codex::default_model().unwrap_or_default()
-        } else {
-            descriptor.default_model
-        };
 
         Ok(Some(ProviderInventoryEntry {
             provider_id: descriptor.provider_id,
             provider_name: descriptor.provider_name,
             description: descriptor.description,
-            default_model,
+            default_model: descriptor.default_model,
             configured: descriptor.configured,
             available: descriptor.available,
             provider_type: descriptor.provider_type,
@@ -466,14 +461,7 @@ impl ProviderInventoryService {
         identity: &InventoryIdentity,
         model_ids: &[String],
     ) -> Result<()> {
-        let mut models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
-        if identity.provider_family == "chatgpt_codex" {
-            for model in &mut models {
-                model.reasoning =
-                    crate::providers::chatgpt_codex::catalog_model_has_reasoning(&model.id)
-                        .or(model.reasoning);
-            }
-        }
+        let models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
         let now = Utc::now();
         let pool = self.storage.pool().await?;
         let mut tx = pool.begin().await?;
@@ -594,89 +582,6 @@ impl ProviderInventoryService {
         Ok(())
     }
 
-    pub(crate) async fn store_refresh_error_after_fetch(
-        &self,
-        provider_id: &str,
-        planned_identity: &InventoryIdentity,
-        error: impl Into<String>,
-    ) -> Result<()> {
-        let previous = self.read_snapshot(planned_identity).await?;
-        let model_ids = previous
-            .as_ref()
-            .map(|snapshot| {
-                snapshot
-                    .models
-                    .iter()
-                    .map(|model| model.id.clone())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let identity =
-            match refresh_identity_after_fetch(provider_id, planned_identity, &model_ids).await {
-                Ok(identity) => identity,
-                Err(_)
-                    if provider_id == "chatgpt_codex"
-                        && previous.as_ref().is_none_or(|snapshot| {
-                            snapshot.last_updated_at.is_none() && snapshot.models.is_empty()
-                        }) =>
-                {
-                    let current = crate::providers::inventory_identity(provider_id)
-                        .await?
-                        .into_identity()?;
-                    let unknown = InventoryIdentityInput::new(provider_id, provider_id)
-                        .with_secret(
-                            "oauth_account",
-                            crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
-                        )
-                        .into_identity()?;
-                    if *planned_identity == unknown {
-                        current
-                    } else {
-                        planned_identity.clone()
-                    }
-                }
-                Err(_) => planned_identity.clone(),
-            };
-
-        if identity != *planned_identity && previous.is_some() {
-            let pool = self.storage.pool().await?;
-            let mut tx = pool.begin().await?;
-            sqlx::query(
-                "INSERT OR IGNORE INTO provider_inventory_entries (inventory_key, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error) SELECT ?, provider_id, provider_family, last_updated_at, last_refresh_attempt_at, last_refresh_error FROM provider_inventory_entries WHERE inventory_key = ?",
-            )
-            .bind(&identity.inventory_key)
-            .bind(&planned_identity.inventory_key)
-            .execute(&mut *tx)
-            .await?;
-            let destination_updated_at: Option<String> = sqlx::query_scalar(
-                "SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = ?",
-            )
-            .bind(&identity.inventory_key)
-            .fetch_one(&mut *tx)
-            .await?;
-            if destination_updated_at.is_none() {
-                sqlx::query(
-                    "INSERT OR IGNORE INTO provider_inventory_models (inventory_key, ordinal, model_id, name, family, context_limit, reasoning, recommended) SELECT ?, ordinal, model_id, name, family, context_limit, reasoning, recommended FROM provider_inventory_models WHERE inventory_key = ?",
-                )
-                .bind(&identity.inventory_key)
-                .bind(&planned_identity.inventory_key)
-                .execute(&mut *tx)
-                .await?;
-                sqlx::query(
-                    "UPDATE provider_inventory_entries SET last_updated_at = (SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = ?) WHERE inventory_key = ?",
-                )
-                .bind(&planned_identity.inventory_key)
-                .bind(&identity.inventory_key)
-                .execute(&mut *tx)
-                .await?;
-            }
-            tx.commit().await?;
-        }
-
-        self.store_refresh_error_for_identity(&identity, error)
-            .await
-    }
-
     fn clear_refreshing_many(&self, identities: &[InventoryIdentity]) {
         let mut refreshing_keys = self
             .refreshing_keys
@@ -720,7 +625,7 @@ impl ProviderInventoryService {
                 if let Some(refresh_job) = refresh_job {
                     let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
                     let toolshim = refresh_job.toolshim;
-                    let fetch_result: Result<(Vec<String>, InventoryIdentity)> =
+                    let fetch_result: Result<Vec<String>> =
                         match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
                             .await
                         {
@@ -729,13 +634,7 @@ impl ProviderInventoryService {
                                     .catch_unwind()
                                     .await
                                 {
-                                    Ok(Ok(models)) => refresh_identity_after_fetch(
-                                        &provider_id,
-                                        &refresh_job.identity,
-                                        &models,
-                                    )
-                                    .await
-                                    .map(|identity| (models, identity)),
+                                    Ok(Ok(models)) => Ok(models),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
                                     Err(_) => Err(anyhow::anyhow!(
                                         "provider inventory refresh task panicked"
@@ -745,9 +644,9 @@ impl ProviderInventoryService {
                             Err(error) => Err(error),
                         };
                     match fetch_result {
-                        Ok((models, identity)) => {
+                        Ok(models) => {
                             if let Err(error) = self
-                                .store_refreshed_models_for_identity(&identity, &models)
+                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
                                 .await
                             {
                                 warn!(
@@ -763,8 +662,7 @@ impl ProviderInventoryService {
                         Err(error) => {
                             let error_message = error.to_string();
                             if let Err(store_error) = self
-                                .store_refresh_error_after_fetch(
-                                    &provider_id,
+                                .store_refresh_error_for_identity(
                                     &refresh_job.identity,
                                     error_message.clone(),
                                 )
@@ -981,33 +879,6 @@ pub(crate) async fn ensure_refresh_identity_current(
         anyhow::bail!("provider inventory identity changed before refresh completed");
     }
     Ok(())
-}
-
-pub(crate) async fn refresh_identity_after_fetch(
-    provider_id: &str,
-    planned_identity: &InventoryIdentity,
-    models: &[String],
-) -> Result<InventoryIdentity> {
-    let current = crate::providers::inventory_identity(provider_id)
-        .await?
-        .into_identity()?;
-    if current == *planned_identity {
-        return Ok(current);
-    }
-    if provider_id == "chatgpt_codex" {
-        let unknown = InventoryIdentityInput::new(provider_id, provider_id)
-            .with_secret(
-                "oauth_account",
-                crate::providers::chatgpt_codex::UNKNOWN_ACCOUNT_IDENTITY,
-            )
-            .into_identity()?;
-        if *planned_identity == unknown
-            && crate::providers::chatgpt_codex::TokenCache::new().catalog_matches_models(models)
-        {
-            return Ok(current);
-        }
-    }
-    anyhow::bail!("provider inventory identity changed before refresh completed")
 }
 
 pub fn default_inventory_identity(
