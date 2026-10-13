@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import os from 'node:os';
 
 import type { Logger } from './gooseServe';
 
@@ -18,7 +19,7 @@ const resolveLoginShellPath = (logger?: Logger): Promise<string | null> => {
     return Promise.resolve(null);
   }
 
-  const shell = process.env.SHELL || 'bash';
+  const shell = process.env.SHELL || os.userInfo().shell || 'bash';
 
   return new Promise((resolve) => {
     // detached: a new session keeps the interactive shell's job-control setup
