@@ -1409,8 +1409,20 @@
   "hub.goodMorning": {
     "defaultMessage": "Good morning"
   },
+  "huggingFaceModelSearch.checking": {
+    "defaultMessage": "Checking suitability, compatibility, memory and benchmarks…"
+  },
+  "huggingFaceModelSearch.compatibilityUnknown": {
+    "defaultMessage": "Eredu compatibility unverified"
+  },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Download"
+  },
+  "huggingFaceModelSearch.downloadAnyway": {
+    "defaultMessage": "Download anyway"
+  },
+  "huggingFaceModelSearch.downloadSize": {
+    "defaultMessage": "Download size: {size}"
   },
   "huggingFaceModelSearch.downloaded": {
     "defaultMessage": "Downloaded"
@@ -1418,14 +1430,44 @@
   "huggingFaceModelSearch.downloading": {
     "defaultMessage": "Downloading…"
   },
+  "huggingFaceModelSearch.estimateLowerBound": {
+    "defaultMessage": "Estimated peak memory: at least {lower}"
+  },
+  "huggingFaceModelSearch.estimates": {
+    "defaultMessage": "Estimated peak memory: {lower}–{upper}"
+  },
+  "huggingFaceModelSearch.incompatible": {
+    "defaultMessage": "Not compatible with eredu"
+  },
+  "huggingFaceModelSearch.likelyFit": {
+    "defaultMessage": "Likely fits"
+  },
   "huggingFaceModelSearch.loadingVariants": {
     "defaultMessage": "Loading variants..."
   },
+  "huggingFaceModelSearch.more": {
+    "defaultMessage": "Check more models"
+  },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "No compatible local models found for this query."
+    "defaultMessage": "No models found for this query."
+  },
+  "huggingFaceModelSearch.noRecommendations": {
+    "defaultMessage": "No recommendations available. Search Hugging Face to browse models."
+  },
+  "huggingFaceModelSearch.noVariants": {
+    "defaultMessage": "No downloadable local variants found in this repository."
+  },
+  "huggingFaceModelSearch.original": {
+    "defaultMessage": "Benchmark results for the original model: {model}"
+  },
+  "huggingFaceModelSearch.popularFit": {
+    "defaultMessage": "Popular · likely fits"
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Recommended"
+  },
+  "huggingFaceModelSearch.retry": {
+    "defaultMessage": "Retry assessment"
   },
   "huggingFaceModelSearch.searchError": {
     "defaultMessage": "Search error: {details}"
@@ -1442,8 +1484,20 @@
   "huggingFaceModelSearch.searchPlaceholder": {
     "defaultMessage": "Search for local models..."
   },
+  "huggingFaceModelSearch.suggestions": {
+    "defaultMessage": "Models for your machine"
+  },
+  "huggingFaceModelSearch.suitabilityUnknown": {
+    "defaultMessage": "Conversational suitability unverified"
+  },
   "huggingFaceModelSearch.tooLarge": {
-    "defaultMessage": "May not fit in memory ({size} model, {available} available)"
+    "defaultMessage": "Eredu forecasts a memory shortfall ({available} available)"
+  },
+  "huggingFaceModelSearch.unavailable": {
+    "defaultMessage": "Assessment unavailable. Expand to retry; the model has not been excluded."
+  },
+  "huggingFaceModelSearch.unsuitable": {
+    "defaultMessage": "Not recommended for conversational use in goose"
   },
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Failed to sign in to Hugging Face: {error}"
@@ -1805,11 +1859,17 @@
   "loadingGoose.waiting": {
     "defaultMessage": "goose is waiting…"
   },
+  "localInference.aaAttribution": {
+    "defaultMessage": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
+  },
+  "localInference.aaEvaluation": {
+    "defaultMessage": "Evaluation details on Artificial Analysis"
+  },
   "localInferenceSettings.deleteConfirm": {
     "defaultMessage": "Delete this model? You can re-download it later."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search Hugging Face for GGUF or MLX models."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search Hugging Face for GGUF or SafeTensors models."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Dismiss"
@@ -1843,9 +1903,6 @@
   },
   "localInferenceSettings.modelSettingsTitle": {
     "defaultMessage": "Model settings"
-  },
-  "localInferenceSettings.noModels": {
-    "defaultMessage": "No models available"
   },
   "localInferenceSettings.recommended": {
     "defaultMessage": "Recommended"
@@ -2198,6 +2255,9 @@
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Switch models"
   },
+  "modelSettingsPanel.automaticBackend": {
+    "defaultMessage": "Automatic"
+  },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Batch size"
   },
@@ -2260,6 +2320,12 @@
   },
   "modelSettingsPanel.gpuLayersDescription": {
     "defaultMessage": "Layers to offload to GPU"
+  },
+  "modelSettingsPanel.inferenceBackend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.inferenceBackendDescription": {
+    "defaultMessage": "Automatic uses llama.cpp for GGUF and eredu for SafeTensors. Eredu checks checkpoint compatibility when loading."
   },
   "modelSettingsPanel.loadingSettings": {
     "defaultMessage": "Loading settings..."

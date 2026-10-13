@@ -46,10 +46,6 @@ const i18n = defineMessages({
     id: 'localInferenceSettings.modelSettings',
     defaultMessage: 'Model Settings',
   },
-  noModels: {
-    id: 'localInferenceSettings.noModels',
-    defaultMessage: 'No models available',
-  },
   downloadProgress: {
     id: 'localInferenceSettings.downloadProgress',
     defaultMessage: '{downloaded} / {total} ({percent}%)',
@@ -575,12 +571,6 @@ export const LocalInferenceSettings = () => {
           }
         />
       </div>
-
-      {models.length === 0 && (
-        <div className="text-center py-6 text-text-muted text-sm">
-          {intl.formatMessage(i18n.noModels)}
-        </div>
-      )}
 
       <Dialog
         open={!!settingsOpenFor}

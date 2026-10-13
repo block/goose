@@ -38,6 +38,8 @@ const response: RepoVariantsResponse = {
       supported: true,
       assessment: {
         fit: 'likelyShortfall',
+        compatibility: 'compatible',
+        suitability: 'suitable',
         recommended: false,
         inputTokens: 4096,
         outputTokens: 1024,
@@ -63,7 +65,7 @@ describe('local model discovery', () => {
     vi.useRealTimers();
   });
 
-  it('starts the settings landing page without a query and keeps shortfalls downloadable', async () => {
+  it('hides shortfalls on the landing page but keeps them downloadable in search', async () => {
     vi.mocked(searchHfModels).mockResolvedValue([model('org/model')]);
     vi.mocked(getRepoFiles).mockResolvedValue(response);
     vi.mocked(downloadHfModel).mockResolvedValue('org/model:Q4');
@@ -75,6 +77,14 @@ describe('local model discovery', () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(searchHfModels).toHaveBeenCalledWith('', 20);
+    expect(screen.queryByText('org/model')).not.toBeInTheDocument();
+    expect(screen.getByText(/No recommendations available/)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Search for local models...'), {
+      target: { value: 'model' },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
     fireEvent.click(screen.getByText('org/model'));
     const download = screen.getByRole('button', { name: 'Download anyway' });
     expect(download).not.toBeDisabled();
@@ -85,6 +95,174 @@ describe('local model discovery', () => {
       'org/model:Q4',
       expect.objectContaining({ variantId: 'Q4' })
     );
+  });
+
+  it('shows pre-assessed catalogue recommendations without fetching repository metadata', async () => {
+    const quality = {
+      evaluatedModelId: 'org/model',
+      inherited: false,
+      aaModelId: 'aa-model',
+      sourceUrl: 'https://artificialanalysis.ai/models/model',
+      evaluationName: 'Model (reasoning)',
+      catalogueOrder: 1,
+    };
+    vi.mocked(searchHfModels).mockResolvedValue([
+      {
+        ...model('org/model'),
+        quality,
+        variants: [
+          {
+            ...response.variants[0],
+            assessment: {
+              ...response.variants[0].assessment!,
+              fit: 'likelyFit',
+              revision: 'a'.repeat(40),
+            },
+          },
+        ],
+      },
+    ]);
+    render(
+      <HuggingFaceModelSearch
+        showRecommendations
+        downloadedModelIds={new Set()}
+        onDownloadStarted={vi.fn()}
+      />,
+      {
+        wrapper: IntlTestWrapper,
+      }
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText('org/model')).toBeInTheDocument();
+    expect(screen.queryByText('Recommended')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Recommendations ordered using Artificial Analysis/ })
+    ).toHaveAttribute('href', 'https://artificialanalysis.ai/');
+    expect(getRepoFiles).not.toHaveBeenCalled();
+    vi.mocked(downloadHfModel).mockResolvedValue('org/model:Q4');
+    vi.mocked(getRepoFiles).mockResolvedValue({
+      ...response,
+      quality,
+      variants: [
+        {
+          ...response.variants[0],
+          assessment: {
+            ...response.variants[0].assessment!,
+            fit: 'likelyFit',
+            revision: 'a'.repeat(40),
+          },
+        },
+      ],
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('org/model'));
+    });
+    expect(
+      screen.getByRole('link', { name: 'Evaluation details on Artificial Analysis' })
+    ).toHaveAttribute('href', quality.sourceUrl);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    });
+    expect(downloadHfModel).toHaveBeenCalledWith(
+      expect.objectContaining({ revision: 'a'.repeat(40) })
+    );
+  });
+
+  it('limits the front page to ten distinct checkpoints but highlights every fitting catalogue search result', async () => {
+    const models: HfModelInfo[] = Array.from({ length: 11 }, (_, index) => ({
+      ...model(`org/model-${index}`),
+      quality: {
+        evaluatedModelId: `org/model-${index}`,
+        inherited: false,
+        aaModelId: 'aa-model',
+        sourceUrl: 'https://artificialanalysis.ai/models/model',
+        evaluationName: 'Model (reasoning)',
+        catalogueOrder: index + 1,
+      },
+      variants: [
+        {
+          ...response.variants[0],
+          assessment: {
+            ...response.variants[0].assessment!,
+            fit: index === 0 ? 'unknown' : 'likelyFit',
+            lowerBytes: 1,
+            upperBytes: undefined,
+          },
+        },
+      ],
+    }));
+    models.push({ ...models[0], repoId: 'org/model-0-copy', downloads: 1 });
+    vi.mocked(searchHfModels).mockResolvedValue(models);
+    const { rerender } = render(
+      <HuggingFaceModelSearch showRecommendations onDownloadStarted={vi.fn()} />,
+      {
+        wrapper: IntlTestWrapper,
+      }
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.queryByText('Recommended')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^org\/model-\d+$/)).toHaveLength(10);
+    expect(screen.getByText('org/model-0')).toBeInTheDocument();
+    expect(screen.queryByText('Memory fit unknown')).not.toBeInTheDocument();
+    expect(screen.queryByText('org/model-0-copy')).not.toBeInTheDocument();
+    expect(screen.queryByText('org/model-10')).not.toBeInTheDocument();
+    rerender(
+      <HuggingFaceModelSearch
+        showRecommendations
+        downloadedModelIds={new Set(['org/model-0:Q8'])}
+        onDownloadStarted={vi.fn()}
+      />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.queryByText('org/model-0')).not.toBeInTheDocument();
+    expect(screen.queryByText('org/model-0-copy')).not.toBeInTheDocument();
+    expect(screen.getByText('org/model-10')).toBeInTheDocument();
+    expect(screen.getAllByText(/^org\/model-\d+$/)).toHaveLength(10);
+    fireEvent.change(screen.getByPlaceholderText('Search for local models...'), {
+      target: { value: 'model' },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(screen.getAllByText('Recommended')).toHaveLength(12);
+    expect(getRepoFiles).not.toHaveBeenCalled();
+  });
+
+  it('keeps unsupported and specialised search results downloadable', async () => {
+    vi.mocked(searchHfModels).mockResolvedValue([model('org/specialist')]);
+    vi.mocked(getRepoFiles).mockResolvedValue({
+      ...response,
+      variants: [
+        {
+          ...response.variants[0],
+          assessment: {
+            ...response.variants[0].assessment!,
+            fit: 'unknown',
+            compatibility: 'incompatible',
+            suitability: 'unsuitable',
+          },
+        },
+      ],
+    });
+    render(<HuggingFaceModelSearch onDownloadStarted={vi.fn()} />, { wrapper: IntlTestWrapper });
+    fireEvent.change(screen.getByPlaceholderText('Search for local models...'), {
+      target: { value: 'specialist' },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(screen.getByText('Not compatible with eredu')).toBeInTheDocument();
+    expect(screen.getByText('Not recommended for conversational use in goose')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByText('org/specialist'));
+    });
+    expect(screen.getByRole('button', { name: 'Download anyway' })).not.toBeDisabled();
   });
 
   it('does not replace a new query with late search results', async () => {

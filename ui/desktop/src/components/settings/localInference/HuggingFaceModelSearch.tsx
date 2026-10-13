@@ -20,7 +20,7 @@ import {
   type RepoVariantsResponse,
 } from '../../../acp/local-inference';
 import { defineMessages, useIntl } from '../../../i18n';
-import { compareQuality, fitRank } from './modelRecommendations';
+import { compareQuality, fitRank, recommendedVariant } from './modelRecommendations';
 
 const i18n = defineMessages({
   noRecommendations: {
@@ -35,16 +35,22 @@ const i18n = defineMessages({
     id: 'huggingFaceModelSearch.suggestions',
     defaultMessage: 'Models for your machine',
   },
-  profile: {
-    id: 'huggingFaceModelSearch.profile',
-    defaultMessage:
-      'Estimates include loading, 4,096 input tokens, 1,024 output tokens and a 1 GiB reserve. Text only; custom settings and draft models may need more memory.',
-  },
   likelyFit: { id: 'huggingFaceModelSearch.likelyFit', defaultMessage: 'Likely fits' },
-  unknownFit: { id: 'huggingFaceModelSearch.unknownFit', defaultMessage: 'Memory fit unknown' },
   incompatible: {
     id: 'huggingFaceModelSearch.incompatible',
-    defaultMessage: 'Not supported by eredu forecasting',
+    defaultMessage: 'Not compatible with eredu',
+  },
+  compatibilityUnknown: {
+    id: 'huggingFaceModelSearch.compatibilityUnknown',
+    defaultMessage: 'Eredu compatibility unverified',
+  },
+  unsuitable: {
+    id: 'huggingFaceModelSearch.unsuitable',
+    defaultMessage: 'Not recommended for conversational use in goose',
+  },
+  suitabilityUnknown: {
+    id: 'huggingFaceModelSearch.suitabilityUnknown',
+    defaultMessage: 'Conversational suitability unverified',
   },
   downloadAnyway: {
     id: 'huggingFaceModelSearch.downloadAnyway',
@@ -53,7 +59,7 @@ const i18n = defineMessages({
   popularFit: { id: 'huggingFaceModelSearch.popularFit', defaultMessage: 'Popular · likely fits' },
   checking: {
     id: 'huggingFaceModelSearch.checking',
-    defaultMessage: 'Checking memory and benchmarks…',
+    defaultMessage: 'Checking suitability, compatibility, memory and benchmarks…',
   },
   more: { id: 'huggingFaceModelSearch.more', defaultMessage: 'Check more models' },
   retry: { id: 'huggingFaceModelSearch.retry', defaultMessage: 'Retry assessment' },
@@ -61,13 +67,18 @@ const i18n = defineMessages({
     id: 'huggingFaceModelSearch.original',
     defaultMessage: 'Benchmark results for the original model: {model}',
   },
-  verified: { id: 'huggingFaceModelSearch.verified', defaultMessage: 'Verified evaluation' },
-  reported: { id: 'huggingFaceModelSearch.reported', defaultMessage: 'Reported evaluation' },
+  downloadSize: {
+    id: 'huggingFaceModelSearch.downloadSize',
+    defaultMessage: 'Download size: {size}',
+  },
   estimates: {
     id: 'huggingFaceModelSearch.estimates',
-    defaultMessage: 'Estimated peak: {lower}–{upper}',
+    defaultMessage: 'Estimated peak memory: {lower}–{upper}',
   },
-  details: { id: 'huggingFaceModelSearch.details', defaultMessage: 'Forecast details' },
+  estimateLowerBound: {
+    id: 'huggingFaceModelSearch.estimateLowerBound',
+    defaultMessage: 'Estimated peak memory: at least {lower}',
+  },
   unavailable: {
     id: 'huggingFaceModelSearch.unavailable',
     defaultMessage: 'Assessment unavailable. Expand to retry; the model has not been excluded.',
@@ -107,7 +118,7 @@ const i18n = defineMessages({
   },
   noGgufModels: {
     id: 'huggingFaceModelSearch.noGgufModels',
-    defaultMessage: 'No compatible local models found for this query.',
+    defaultMessage: 'No models found for this query.',
   },
   searchError: {
     id: 'huggingFaceModelSearch.searchError',
@@ -130,6 +141,12 @@ const formatBytes = (bytes: number): string => {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
+
+const formatName = (format: string): string =>
+  format === 'safetensors' ? 'SafeTensors' : format.toUpperCase();
+
+const variantName = (variant: HfModelVariant): string =>
+  variant.format === 'safetensors' ? variant.label.replace(/^SafeTensors\s*/i, '') : variant.label;
 
 const formatDownloads = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -162,17 +179,28 @@ export const HuggingFaceModelSearch = ({
   downloadedModelIds,
 }: Props) => {
   const intl = useIntl();
+  const peakMemoryEstimate = (assessment: HfModelVariant['assessment']) => {
+    if (assessment?.lowerBytes == null) return null;
+    return intl.formatMessage(
+      assessment.upperBytes == null ? i18n.estimateLowerBound : i18n.estimates,
+      {
+        lower: formatBytes(assessment.lowerBytes),
+        upper: assessment.upperBytes == null ? undefined : formatBytes(assessment.upperBytes),
+      }
+    );
+  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HfModelInfo[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
   const [repoData, setRepoData] = useState<Record<string, RepoData>>({});
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(showRecommendations);
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(12);
   const [assessmentErrors, setAssessmentErrors] = useState<Set<string>>(new Set());
   const generation = useRef(0);
+  const repoDataRef = useRef<Record<string, RepoData>>({});
   const activeRequests = useRef(new Map<string, Promise<void>>());
   const isFrontPage = showRecommendations && !query.trim();
 
@@ -183,33 +211,31 @@ export const HuggingFaceModelSearch = ({
     const request = (async () => {
       setLoadingFiles((prev) => new Set(prev).add(repoId));
       try {
+        let merged = repoDataRef.current[repoId]?.variants ?? [];
+        let mergedQuality = repoDataRef.current[repoId]?.quality;
         const publish = (response: RepoVariantsResponse, assessedVariant?: string) => {
           if (generation.current !== run) return;
-          setRepoData((prev) => {
-            const previous = prev[repoId];
-            const variants = response.variants.map((variant) =>
-              assessedVariant && variant.variantId !== assessedVariant
-                ? (previous?.variants.find((old) => old.variantId === variant.variantId) ?? variant)
-                : variant
-            );
-            const quality = response.quality ?? previous?.quality;
-            const best = quality?.evidence.length
-              ? variants
-                  .filter((variant) => variant.supported && variant.assessment?.fit === 'likelyFit')
-                  .sort((a, b) => b.qualityRank - a.qualityRank)[0]
-              : undefined;
-            return {
-              ...prev,
-              [repoId]: {
-                variants,
-                recommendedVariantId: best?.variantId,
-                quality,
-                availableMemoryBytes: response.availableMemoryBytes,
-                downloadedQuants: new Set(response.downloadedQuants),
-                downloadedVariants: new Set(response.downloadedVariants),
-              },
-            };
-          });
+          merged = response.quality
+            ? response.variants
+            : response.variants.map((variant) =>
+                !assessedVariant || variant.variantId !== assessedVariant
+                  ? (merged.find((old) => old.variantId === variant.variantId) ?? variant)
+                  : variant
+              );
+          mergedQuality = response.quality ?? mergedQuality;
+          const variants = merged;
+          const quality = mergedQuality;
+          const best = recommendedVariant(variants, quality);
+          const data = {
+            variants,
+            recommendedVariantId: best?.variantId,
+            quality,
+            availableMemoryBytes: response.availableMemoryBytes,
+            downloadedQuants: new Set(response.downloadedQuants),
+            downloadedVariants: new Set(response.downloadedVariants),
+          };
+          repoDataRef.current = { ...repoDataRef.current, [repoId]: data };
+          setRepoData((prev) => ({ ...prev, [repoId]: data }));
         };
         const listing = await getRepoFiles(repoId, false);
         publish(listing);
@@ -217,10 +243,11 @@ export const HuggingFaceModelSearch = ({
         const variants = [...listing.variants].sort(
           (a, b) => Math.abs(a.qualityRank - 45) - Math.abs(b.qualityRank - 45)
         );
-        for (const variant of variants) {
+        for (const variant of listing.quality ? [] : variants) {
           if (generation.current !== run) return;
           publish(await getRepoFiles(repoId, true, variant.variantId), variant.variantId);
         }
+        if (generation.current !== run) return;
         setAssessmentErrors((prev) => {
           const next = new Set(prev);
           next.delete(repoId);
@@ -237,6 +264,7 @@ export const HuggingFaceModelSearch = ({
             return next;
           });
       }
+      return undefined;
     })();
     activeRequests.current.set(key, request);
     return request;
@@ -260,6 +288,7 @@ export const HuggingFaceModelSearch = ({
     const run = ++generation.current;
     setResults([]);
     setRepoData({});
+    repoDataRef.current = {};
     setLoadingFiles(new Set());
     setAssessmentErrors(new Set());
     setVisibleCount(12);
@@ -274,10 +303,29 @@ export const HuggingFaceModelSearch = ({
         try {
           const models = await searchHfModels(query, 20);
           if (generation.current !== run) return;
+          const initial: Record<string, RepoData> = {};
+          for (const model of models) {
+            if (!model.variants?.length) continue;
+            initial[model.repoId] = {
+              variants: model.variants,
+              recommendedVariantId: recommendedVariant(model.variants, model.quality)?.variantId,
+              quality: model.quality,
+              availableMemoryBytes: model.variants[0].assessment?.availableMemoryBytes ?? 0,
+              downloadedQuants: new Set(),
+              downloadedVariants: new Set(),
+            };
+          }
+          repoDataRef.current = initial;
+          setRepoData(initial);
           setResults(models);
           setSearching(false);
           if (models.length === 0 && query.trim()) setError(intl.formatMessage(i18n.noGgufModels));
-          void assessPage(models.slice(0, 12), run);
+          if (query.trim()) {
+            void assessPage(
+              models.slice(0, 12).filter((model) => !model.variants?.length),
+              run
+            );
+          }
         } catch {
           if (generation.current === run) {
             setError(intl.formatMessage(i18n.searchFailed));
@@ -289,13 +337,19 @@ export const HuggingFaceModelSearch = ({
     );
     return () => {
       clearTimeout(timer);
-      ++generation.current;
+      generation.current = run + 1;
     };
   }, [query, showRecommendations, intl, assessPage]);
 
+  useEffect(() => {
+    if (expandedRepo && repoDataRef.current[expandedRepo]?.quality) {
+      void assessRepo(expandedRepo, generation.current);
+    }
+  }, [expandedRepo, downloadedModelIds, activeDownloadIds, assessRepo]);
+
   const toggleRepo = (repoId: string) => {
     setExpandedRepo((prev) => (prev === repoId ? null : repoId));
-    if (!repoData[repoId]) void assessRepo(repoId, generation.current);
+    if (expandedRepo !== repoId) void assessRepo(repoId, generation.current);
   };
 
   const showMore = () => {
@@ -304,23 +358,40 @@ export const HuggingFaceModelSearch = ({
     void assessPage(results.slice(visibleCount, next), generation.current);
   };
 
-  const visibleResults = results.slice(0, visibleCount);
+  const visibleResults = isFrontPage ? [...results] : results.slice(0, visibleCount);
   const rankedResults = [...visibleResults].sort(
     (a, b) =>
       fitRank(repoData[a.repoId]?.variants ?? []) - fitRank(repoData[b.repoId]?.variants ?? []) ||
       compareQuality(repoData[a.repoId]?.quality, repoData[b.repoId]?.quality) ||
       b.downloads - a.downloads
   );
+  const downloadedRepos = new Set(
+    [...(downloadedModelIds ?? [])].map((modelId) => modelId.split(':')[0])
+  );
+  const downloadedCheckpoints = new Set(downloadedRepos);
+  for (const model of results) {
+    const data = repoData[model.repoId];
+    const isDownloaded = downloadedModelIds
+      ? downloadedRepos.has(model.repoId)
+      : (data?.downloadedVariants.size ?? 0) > 0 || (data?.downloadedQuants.size ?? 0) > 0;
+    if (isDownloaded) {
+      downloadedRepos.add(model.repoId);
+      if (data?.quality) downloadedCheckpoints.add(data.quality.evaluatedModelId);
+    }
+  }
   const recommendedRepos = new Set<string>();
   const recommendedCheckpoints = new Set<string>();
   for (const model of rankedResults) {
     const data = repoData[model.repoId];
     const checkpoint = data?.quality?.evaluatedModelId;
     if (
-      recommendedRepos.size < 3 &&
+      (!isFrontPage || recommendedRepos.size < 10) &&
       data?.recommendedVariantId &&
       checkpoint &&
-      !recommendedCheckpoints.has(checkpoint)
+      (!isFrontPage ||
+        (!downloadedRepos.has(model.repoId) &&
+          !downloadedCheckpoints.has(checkpoint) &&
+          !recommendedCheckpoints.has(checkpoint)))
     ) {
       recommendedRepos.add(model.repoId);
       recommendedCheckpoints.add(checkpoint);
@@ -332,6 +403,7 @@ export const HuggingFaceModelSearch = ({
   const seenCheckpoints = new Set<string>();
   const displayedResults = visibleResults.filter((model) => {
     if (!isFrontPage) return true;
+    if (!recommendedRepos.has(model.repoId)) return false;
     const parent = repoData[model.repoId]?.quality?.evaluatedModelId;
     if (!parent || !repoData[model.repoId]?.recommendedVariantId) return true;
     if (seenCheckpoints.has(parent)) return false;
@@ -346,6 +418,7 @@ export const HuggingFaceModelSearch = ({
       backendId: variant.backendId,
       format: variant.format,
       variantId: variant.variantId,
+      revision: repoData[repoId]?.quality ? variant.assessment?.revision : undefined,
     };
     setDownloading((prev) => new Set(prev).add(downloadKey));
     try {
@@ -384,11 +457,27 @@ export const HuggingFaceModelSearch = ({
       </div>
 
       {isFrontPage && (
-        <h4 className="text-sm font-medium">{intl.formatMessage(i18n.suggestions)}</h4>
+        <>
+          <hr className="border-border-subtle" />
+          <h4 className="text-sm font-medium">{intl.formatMessage(i18n.suggestions)}</h4>
+          <p className="text-xs text-text-muted">
+            <a
+              href="https://artificialanalysis.ai/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              {intl.formatMessage({
+                id: 'localInference.aaAttribution',
+                defaultMessage:
+                  'Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis.',
+              })}
+            </a>
+          </p>
+        </>
       )}
-      <p className="text-xs text-text-muted">{intl.formatMessage(i18n.profile)}</p>
       {error && !searching && <p className="text-xs text-text-muted">{error}</p>}
-      {isFrontPage && !searching && !error && results.length === 0 && (
+      {isFrontPage && !searching && !error && displayedResults.length === 0 && (
         <p className="text-xs text-text-muted">{intl.formatMessage(i18n.noRecommendations)}</p>
       )}
 
@@ -402,9 +491,21 @@ export const HuggingFaceModelSearch = ({
               ? data?.recommendedVariantId
               : null;
             const quality = data?.quality;
+            const recommendedModelVariant = variants.find(
+              (variant) => variant.variantId === recommendedVariantId
+            );
+            const summaryVariant =
+              recommendedModelVariant ?? (variants.length === 1 ? variants[0] : undefined);
+            const summaryEstimate = peakMemoryEstimate(summaryVariant?.assessment);
             const hasFit = variants.some(
               (variant) => variant.supported && variant.assessment?.fit === 'likelyFit'
             );
+            const unsuitable = variants.some(
+              (variant) => variant.assessment?.suitability === 'unsuitable'
+            );
+            const incompatible =
+              variants.length > 0 &&
+              variants.every((variant) => variant.assessment?.compatibility === 'incompatible');
             const availableMemory = data?.availableMemoryBytes ?? 0;
             const allShortfall =
               variants.length > 0 &&
@@ -415,7 +516,7 @@ export const HuggingFaceModelSearch = ({
             return (
               <div
                 key={model.repoId}
-                className={`border border-border-subtle rounded-lg ${allShortfall ? 'opacity-60 hover:opacity-100' : ''}`}
+                className={`border border-border-subtle rounded-lg ${allShortfall || unsuitable || incompatible ? 'opacity-60 hover:opacity-100' : ''}`}
               >
                 <button
                   onClick={() => toggleRepo(model.repoId)}
@@ -426,14 +527,27 @@ export const HuggingFaceModelSearch = ({
                       <span className="text-sm font-medium text-text-default truncate">
                         {model.repoId}
                       </span>
+                      <span className="ml-auto mr-2 shrink-0 text-xs text-text-muted">
+                        ↓ {formatDownloads(model.downloads)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      {recommendedVariantId && (
+                    <div className="flex flex-wrap items-center gap-3 mt-0.5 empty:hidden">
+                      {!isFrontPage && recommendedVariantId && (
                         <span className="text-xs text-blue-500">
                           {intl.formatMessage(i18n.recommended)}
                         </span>
                       )}
-                      {!recommendedVariantId && hasFit && (
+                      {unsuitable && (
+                        <span className="text-xs text-amber-500">
+                          {intl.formatMessage(i18n.unsuitable)}
+                        </span>
+                      )}
+                      {incompatible && (
+                        <span className="text-xs text-amber-500">
+                          {intl.formatMessage(i18n.incompatible)}
+                        </span>
+                      )}
+                      {!recommendedVariantId && !unsuitable && !incompatible && hasFit && (
                         <span className="text-xs text-text-muted">
                           {intl.formatMessage(
                             model.downloads > 0 ? i18n.popularFit : i18n.likelyFit
@@ -457,10 +571,17 @@ export const HuggingFaceModelSearch = ({
                           {intl.formatMessage(i18n.unavailable)}
                         </span>
                       )}
-                      <span className="text-xs text-text-muted">
-                        ↓ {formatDownloads(model.downloads)}
-                      </span>
                     </div>
+                    {summaryVariant && (
+                      <div className="mt-1 space-y-0.5 text-xs text-text-muted">
+                        <p>
+                          {intl.formatMessage(i18n.downloadSize, {
+                            size: formatBytes(summaryVariant.sizeBytes),
+                          })}
+                        </p>
+                        {summaryEstimate && <p>{summaryEstimate}</p>}
+                      </div>
+                    )}
                   </div>
                   {isExpanded ? (
                     <ChevronUp className="w-4 h-4 text-text-muted flex-shrink-0" />
@@ -489,22 +610,18 @@ export const HuggingFaceModelSearch = ({
                             {intl.formatMessage(i18n.original, { model: quality.evaluatedModelId })}
                           </p>
                         )}
-                        {quality.evidence.map((evidence) => (
-                          <div key={evidence.benchmark}>
-                            <a
-                              href={evidence.sourceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="underline"
-                              title={evidence.notes}
-                            >
-                              {evidence.benchmark}: {evidence.score} · #{evidence.rank}/
-                              {evidence.participants}
-                            </a>
-                            {' · '}
-                            {intl.formatMessage(evidence.verified ? i18n.verified : i18n.reported)}
-                          </div>
-                        ))}
+                        <a
+                          href={quality.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline"
+                          title={quality.evaluationName}
+                        >
+                          {intl.formatMessage({
+                            id: 'localInference.aaEvaluation',
+                            defaultMessage: 'Evaluation details on Artificial Analysis',
+                          })}
+                        </a>
                       </div>
                     )}
                     {assessmentErrors.has(model.repoId) && (
@@ -522,12 +639,17 @@ export const HuggingFaceModelSearch = ({
                       const assessment = variant.assessment;
                       const modelId = variant.modelId;
                       const isActiveDownload = activeDownloadIds?.has(modelId) ?? false;
-                      const isDownloaded = downloadedModelIds
-                        ? downloadedModelIds.has(modelId)
-                        : downloadedVariants.has(modelId) ||
-                          downloadedQuants.has(variant.variantId);
+                      const isDownloaded =
+                        quality || !downloadedModelIds
+                          ? downloadedVariants.has(modelId) ||
+                            downloadedQuants.has(variant.variantId)
+                          : downloadedModelIds.has(modelId);
                       const tooLarge = assessment?.fit === 'likelyShortfall';
                       const isSupported = variant.supported ?? true;
+                      const disrecommended =
+                        tooLarge ||
+                        assessment?.compatibility === 'incompatible' ||
+                        assessment?.suitability === 'unsuitable';
 
                       return (
                         <div
@@ -537,22 +659,21 @@ export const HuggingFaceModelSearch = ({
                               ? 'bg-green-500/5 border border-green-500/20'
                               : isRecommended
                                 ? 'bg-blue-500/5 border border-blue-500/20'
-                                : tooLarge
+                                : disrecommended
                                   ? 'opacity-60 hover:opacity-100'
                                   : 'hover:bg-background-subtle'
                           }`}
                         >
                           <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-3">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs rounded bg-background-muted border border-border-subtle px-1.5 py-0.5 text-text-muted uppercase">
-                                {variant.format}
+                              <span className="text-xs rounded bg-background-muted border border-border-subtle px-1.5 py-0.5 text-text-muted">
+                                {formatName(variant.format)}
                               </span>
-                              <span className="text-xs font-mono font-medium text-text-default">
-                                {variant.label}
-                              </span>
-                              <span className="text-xs text-text-muted">
-                                {formatBytes(variant.sizeBytes)}
-                              </span>
+                              {variantName(variant) && (
+                                <span className="text-xs font-mono font-medium text-text-default">
+                                  {variantName(variant)}
+                                </span>
+                              )}
                               {isRecommended && !isDownloaded && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">
                                   <Star className="w-3 h-3" />
@@ -560,42 +681,47 @@ export const HuggingFaceModelSearch = ({
                                 </span>
                               )}
                             </div>
-                            {assessment && (
+                            {variants.length > 1 && (
+                              <>
+                                <span className="text-xs text-text-muted">
+                                  {intl.formatMessage(i18n.downloadSize, {
+                                    size: formatBytes(variant.sizeBytes),
+                                  })}
+                                </span>
+                                {assessment?.lowerBytes != null && (
+                                  <span className="text-xs text-text-muted">
+                                    {peakMemoryEstimate(assessment)}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {assessment && assessment.fit !== 'unknown' && (
                               <span className="text-xs text-text-muted">
                                 {intl.formatMessage(
-                                  assessment.fit === 'likelyFit'
-                                    ? i18n.likelyFit
-                                    : assessment.fit === 'incompatible'
-                                      ? i18n.incompatible
-                                      : assessment.fit === 'unknown'
-                                        ? i18n.unknownFit
-                                        : i18n.tooLarge,
+                                  assessment.fit === 'likelyFit' ? i18n.likelyFit : i18n.tooLarge,
                                   { available: formatBytes(availableMemory) }
                                 )}
                               </span>
                             )}
-                            {assessment && (
-                              <details className="text-xs text-text-muted">
-                                <summary className="cursor-pointer">
-                                  {intl.formatMessage(i18n.details)}
-                                </summary>
-                                {assessment.lowerBytes != null && (
-                                  <p>
-                                    {intl.formatMessage(i18n.estimates, {
-                                      lower: formatBytes(assessment.lowerBytes),
-                                      upper:
-                                        assessment.upperBytes == null
-                                          ? '?'
-                                          : formatBytes(assessment.upperBytes),
-                                    })}
-                                  </p>
+                            {assessment && assessment.compatibility !== 'compatible' && (
+                              <span className="text-xs text-amber-500">
+                                {intl.formatMessage(
+                                  assessment.compatibility === 'incompatible'
+                                    ? i18n.incompatible
+                                    : i18n.compatibilityUnknown
                                 )}
-                                {assessment.reasons.map((reason, index) => (
-                                  <p key={index}>{reason}</p>
-                                ))}
-                              </details>
+                              </span>
                             )}
-                            {variant.description && (
+                            {assessment && assessment.suitability !== 'suitable' && (
+                              <span className="text-xs text-text-muted">
+                                {intl.formatMessage(
+                                  assessment.suitability === 'unsuitable'
+                                    ? i18n.unsuitable
+                                    : i18n.suitabilityUnknown
+                                )}
+                              </span>
+                            )}
+                            {variant.format !== 'safetensors' && variant.description && (
                               <span className="text-xs text-text-muted">{variant.description}</span>
                             )}
                             {!isSupported && variant.unsupportedReason && (
@@ -628,7 +754,7 @@ export const HuggingFaceModelSearch = ({
                                 <>
                                   <Download className="w-3 h-3 mr-1" />
                                   {intl.formatMessage(
-                                    tooLarge ? i18n.downloadAnyway : i18n.download
+                                    disrecommended ? i18n.downloadAnyway : i18n.download
                                   )}
                                 </>
                               )}
@@ -644,7 +770,7 @@ export const HuggingFaceModelSearch = ({
           })}
         </div>
       )}
-      {visibleCount < results.length && (
+      {!isFrontPage && visibleCount < results.length && (
         <Button variant="outline" size="sm" onClick={showMore}>
           {intl.formatMessage(i18n.more)}
         </Button>

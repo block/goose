@@ -1388,8 +1388,20 @@
   "hub.goodMorning": {
     "defaultMessage": "Доброе утро"
   },
+  "huggingFaceModelSearch.checking": {
+    "defaultMessage": "Checking suitability, compatibility, memory and benchmarks…"
+  },
+  "huggingFaceModelSearch.compatibilityUnknown": {
+    "defaultMessage": "Eredu compatibility unverified"
+  },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Скачать"
+  },
+  "huggingFaceModelSearch.downloadAnyway": {
+    "defaultMessage": "Download anyway"
+  },
+  "huggingFaceModelSearch.downloadSize": {
+    "defaultMessage": "Download size: {size}"
   },
   "huggingFaceModelSearch.downloaded": {
     "defaultMessage": "Скачано"
@@ -1397,14 +1409,44 @@
   "huggingFaceModelSearch.downloading": {
     "defaultMessage": "Скачивание…"
   },
+  "huggingFaceModelSearch.estimateLowerBound": {
+    "defaultMessage": "Estimated peak memory: at least {lower}"
+  },
+  "huggingFaceModelSearch.estimates": {
+    "defaultMessage": "Estimated peak memory: {lower}–{upper}"
+  },
+  "huggingFaceModelSearch.incompatible": {
+    "defaultMessage": "Not compatible with eredu"
+  },
+  "huggingFaceModelSearch.likelyFit": {
+    "defaultMessage": "Likely fits"
+  },
   "huggingFaceModelSearch.loadingVariants": {
     "defaultMessage": "Загрузка вариантов..."
   },
+  "huggingFaceModelSearch.more": {
+    "defaultMessage": "Check more models"
+  },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "По этому запросу модели GGUF не найдены."
+    "defaultMessage": "No models found for this query."
+  },
+  "huggingFaceModelSearch.noRecommendations": {
+    "defaultMessage": "No recommendations available. Search Hugging Face to browse models."
+  },
+  "huggingFaceModelSearch.noVariants": {
+    "defaultMessage": "No downloadable local variants found in this repository."
+  },
+  "huggingFaceModelSearch.original": {
+    "defaultMessage": "Benchmark results for the original model: {model}"
+  },
+  "huggingFaceModelSearch.popularFit": {
+    "defaultMessage": "Popular · likely fits"
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Рекомендуется"
+  },
+  "huggingFaceModelSearch.retry": {
+    "defaultMessage": "Retry assessment"
   },
   "huggingFaceModelSearch.searchError": {
     "defaultMessage": "Ошибка поиска: {details}"
@@ -1421,8 +1463,20 @@
   "huggingFaceModelSearch.searchPlaceholder": {
     "defaultMessage": "Поиск моделей GGUF..."
   },
+  "huggingFaceModelSearch.suggestions": {
+    "defaultMessage": "Models for your machine"
+  },
+  "huggingFaceModelSearch.suitabilityUnknown": {
+    "defaultMessage": "Conversational suitability unverified"
+  },
   "huggingFaceModelSearch.tooLarge": {
-    "defaultMessage": "Может не поместиться в память (модель {size}, доступно {available})"
+    "defaultMessage": "Eredu forecasts a memory shortfall ({available} available)"
+  },
+  "huggingFaceModelSearch.unavailable": {
+    "defaultMessage": "Assessment unavailable. Expand to retry; the model has not been excluded."
+  },
+  "huggingFaceModelSearch.unsuitable": {
+    "defaultMessage": "Not recommended for conversational use in goose"
   },
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Не удалось войти в Hugging Face: {error}"
@@ -1788,7 +1842,7 @@
     "defaultMessage": "Удалить эту модель? Позже ее можно скачать снова."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Скачивайте и управляйте локальными LLM-моделями для инференса без API-ключей. Ищите модели GGUF или MLX на Hugging Face."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search Hugging Face for GGUF or SafeTensors models."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Скрыть"
@@ -1822,9 +1876,6 @@
   },
   "localInferenceSettings.modelSettingsTitle": {
     "defaultMessage": "Настройки модели"
-  },
-  "localInferenceSettings.noModels": {
-    "defaultMessage": "Нет доступных моделей"
   },
   "localInferenceSettings.recommended": {
     "defaultMessage": "Рекомендуется"
@@ -2177,6 +2228,9 @@
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Переключить модели"
   },
+  "modelSettingsPanel.automaticBackend": {
+    "defaultMessage": "Automatic"
+  },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Размер пакета"
   },
@@ -2239,6 +2293,12 @@
   },
   "modelSettingsPanel.gpuLayersDescription": {
     "defaultMessage": "Слои для выгрузки на GPU"
+  },
+  "modelSettingsPanel.inferenceBackend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.inferenceBackendDescription": {
+    "defaultMessage": "Automatic uses llama.cpp for GGUF and eredu for SafeTensors. Eredu checks checkpoint compatibility when loading."
   },
   "modelSettingsPanel.loadingSettings": {
     "defaultMessage": "Загрузка настроек..."
@@ -4738,5 +4798,7 @@
   },
   "settings.agentLoop.title": {
     "defaultMessage": "Цикл агента"
-  }
+  },
+  "localInference.aaEvaluation": "Evaluation details on Artificial Analysis",
+  "localInference.aaAttribution": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
 }

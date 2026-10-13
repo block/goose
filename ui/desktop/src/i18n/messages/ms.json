@@ -1388,8 +1388,20 @@
   "hub.goodMorning": {
     "defaultMessage": "Selamat pagi"
   },
+  "huggingFaceModelSearch.checking": {
+    "defaultMessage": "Checking suitability, compatibility, memory and benchmarks…"
+  },
+  "huggingFaceModelSearch.compatibilityUnknown": {
+    "defaultMessage": "Eredu compatibility unverified"
+  },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Muat Turun"
+  },
+  "huggingFaceModelSearch.downloadAnyway": {
+    "defaultMessage": "Download anyway"
+  },
+  "huggingFaceModelSearch.downloadSize": {
+    "defaultMessage": "Download size: {size}"
   },
   "huggingFaceModelSearch.downloaded": {
     "defaultMessage": "Dimuat turun"
@@ -1397,14 +1409,44 @@
   "huggingFaceModelSearch.downloading": {
     "defaultMessage": "Memuat turun…"
   },
+  "huggingFaceModelSearch.estimateLowerBound": {
+    "defaultMessage": "Estimated peak memory: at least {lower}"
+  },
+  "huggingFaceModelSearch.estimates": {
+    "defaultMessage": "Estimated peak memory: {lower}–{upper}"
+  },
+  "huggingFaceModelSearch.incompatible": {
+    "defaultMessage": "Not compatible with eredu"
+  },
+  "huggingFaceModelSearch.likelyFit": {
+    "defaultMessage": "Likely fits"
+  },
   "huggingFaceModelSearch.loadingVariants": {
     "defaultMessage": "Memuatkan varian..."
   },
+  "huggingFaceModelSearch.more": {
+    "defaultMessage": "Check more models"
+  },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "Tiada model tempatan serasi dijumpai untuk pertanyaan ini."
+    "defaultMessage": "No models found for this query."
+  },
+  "huggingFaceModelSearch.noRecommendations": {
+    "defaultMessage": "No recommendations available. Search Hugging Face to browse models."
+  },
+  "huggingFaceModelSearch.noVariants": {
+    "defaultMessage": "No downloadable local variants found in this repository."
+  },
+  "huggingFaceModelSearch.original": {
+    "defaultMessage": "Benchmark results for the original model: {model}"
+  },
+  "huggingFaceModelSearch.popularFit": {
+    "defaultMessage": "Popular · likely fits"
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Disyorkan"
+  },
+  "huggingFaceModelSearch.retry": {
+    "defaultMessage": "Retry assessment"
   },
   "huggingFaceModelSearch.searchError": {
     "defaultMessage": "Ralat carian: {details}"
@@ -1421,8 +1463,20 @@
   "huggingFaceModelSearch.searchPlaceholder": {
     "defaultMessage": "Cari model tempatan..."
   },
+  "huggingFaceModelSearch.suggestions": {
+    "defaultMessage": "Models for your machine"
+  },
+  "huggingFaceModelSearch.suitabilityUnknown": {
+    "defaultMessage": "Conversational suitability unverified"
+  },
   "huggingFaceModelSearch.tooLarge": {
-    "defaultMessage": "Mungkin tidak muat dalam memori (model {size}, {available} tersedia)"
+    "defaultMessage": "Eredu forecasts a memory shortfall ({available} available)"
+  },
+  "huggingFaceModelSearch.unavailable": {
+    "defaultMessage": "Assessment unavailable. Expand to retry; the model has not been excluded."
+  },
+  "huggingFaceModelSearch.unsuitable": {
+    "defaultMessage": "Not recommended for conversational use in goose"
   },
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Gagal log masuk ke Hugging Face: {error}"
@@ -1788,7 +1842,7 @@
     "defaultMessage": "Padam model ini? Anda boleh memuat turunnya semula kemudian."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Muat turun dan urus model LLM tempatan untuk inferens tanpa kunci API. Cari model GGUF atau MLX di Hugging Face."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search Hugging Face for GGUF or SafeTensors models."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "Ketepikan"
@@ -1822,9 +1876,6 @@
   },
   "localInferenceSettings.modelSettingsTitle": {
     "defaultMessage": "Tetapan model"
-  },
-  "localInferenceSettings.noModels": {
-    "defaultMessage": "Tiada model tersedia"
   },
   "localInferenceSettings.recommended": {
     "defaultMessage": "Disyorkan"
@@ -2177,6 +2228,9 @@
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "Tukar model"
   },
+  "modelSettingsPanel.automaticBackend": {
+    "defaultMessage": "Automatic"
+  },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "Saiz kelompok"
   },
@@ -2239,6 +2293,12 @@
   },
   "modelSettingsPanel.gpuLayersDescription": {
     "defaultMessage": "Lapisan untuk dipunggah ke GPU"
+  },
+  "modelSettingsPanel.inferenceBackend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.inferenceBackendDescription": {
+    "defaultMessage": "Automatic uses llama.cpp for GGUF and eredu for SafeTensors. Eredu checks checkpoint compatibility when loading."
   },
   "modelSettingsPanel.loadingSettings": {
     "defaultMessage": "Memuatkan tetapan..."
@@ -4738,5 +4798,7 @@
   },
   "settings.agentLoop.title": {
     "defaultMessage": "Gelung ejen"
-  }
+  },
+  "localInference.aaEvaluation": "Evaluation details on Artificial Analysis",
+  "localInference.aaAttribution": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
 }

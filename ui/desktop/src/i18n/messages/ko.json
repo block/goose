@@ -1388,8 +1388,20 @@
   "hub.goodMorning": {
     "defaultMessage": "좋은 아침이에요"
   },
+  "huggingFaceModelSearch.checking": {
+    "defaultMessage": "Checking suitability, compatibility, memory and benchmarks…"
+  },
+  "huggingFaceModelSearch.compatibilityUnknown": {
+    "defaultMessage": "Eredu compatibility unverified"
+  },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "다운로드"
+  },
+  "huggingFaceModelSearch.downloadAnyway": {
+    "defaultMessage": "Download anyway"
+  },
+  "huggingFaceModelSearch.downloadSize": {
+    "defaultMessage": "Download size: {size}"
   },
   "huggingFaceModelSearch.downloaded": {
     "defaultMessage": "다운로드됨"
@@ -1397,14 +1409,44 @@
   "huggingFaceModelSearch.downloading": {
     "defaultMessage": "다운로드 중…"
   },
+  "huggingFaceModelSearch.estimateLowerBound": {
+    "defaultMessage": "Estimated peak memory: at least {lower}"
+  },
+  "huggingFaceModelSearch.estimates": {
+    "defaultMessage": "Estimated peak memory: {lower}–{upper}"
+  },
+  "huggingFaceModelSearch.incompatible": {
+    "defaultMessage": "Not compatible with eredu"
+  },
+  "huggingFaceModelSearch.likelyFit": {
+    "defaultMessage": "Likely fits"
+  },
   "huggingFaceModelSearch.loadingVariants": {
     "defaultMessage": "변형 로드 중..."
   },
+  "huggingFaceModelSearch.more": {
+    "defaultMessage": "Check more models"
+  },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "이 검색어와 호환되는 로컬 모델을 찾을 수 없습니다."
+    "defaultMessage": "No models found for this query."
+  },
+  "huggingFaceModelSearch.noRecommendations": {
+    "defaultMessage": "No recommendations available. Search Hugging Face to browse models."
+  },
+  "huggingFaceModelSearch.noVariants": {
+    "defaultMessage": "No downloadable local variants found in this repository."
+  },
+  "huggingFaceModelSearch.original": {
+    "defaultMessage": "Benchmark results for the original model: {model}"
+  },
+  "huggingFaceModelSearch.popularFit": {
+    "defaultMessage": "Popular · likely fits"
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "추천"
+  },
+  "huggingFaceModelSearch.retry": {
+    "defaultMessage": "Retry assessment"
   },
   "huggingFaceModelSearch.searchError": {
     "defaultMessage": "검색 오류: {details}"
@@ -1421,8 +1463,20 @@
   "huggingFaceModelSearch.searchPlaceholder": {
     "defaultMessage": "로컬 모델 검색..."
   },
+  "huggingFaceModelSearch.suggestions": {
+    "defaultMessage": "Models for your machine"
+  },
+  "huggingFaceModelSearch.suitabilityUnknown": {
+    "defaultMessage": "Conversational suitability unverified"
+  },
   "huggingFaceModelSearch.tooLarge": {
-    "defaultMessage": "메모리에 맞지 않을 수 있습니다. ({size} 모델, {available} 사용 가능)"
+    "defaultMessage": "Eredu forecasts a memory shortfall ({available} available)"
+  },
+  "huggingFaceModelSearch.unavailable": {
+    "defaultMessage": "Assessment unavailable. Expand to retry; the model has not been excluded."
+  },
+  "huggingFaceModelSearch.unsuitable": {
+    "defaultMessage": "Not recommended for conversational use in goose"
   },
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Hugging Face에 로그인하지 못했습니다: {error}"
@@ -1788,7 +1842,7 @@
     "defaultMessage": "이 모델을 삭제하시겠습니까? 나중에 다시 다운로드할 수 있습니다."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "API 키 없이 추론에 사용할 로컬 LLM 모델을 다운로드하고 관리하세요. Hugging Face에서 GGUF 또는 MLX 모델을 검색하세요."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search Hugging Face for GGUF or SafeTensors models."
   },
   "localInferenceSettings.dismiss": {
     "defaultMessage": "닫기"
@@ -1822,9 +1876,6 @@
   },
   "localInferenceSettings.modelSettingsTitle": {
     "defaultMessage": "모델 설정"
-  },
-  "localInferenceSettings.noModels": {
-    "defaultMessage": "사용 가능한 모델이 없습니다."
   },
   "localInferenceSettings.recommended": {
     "defaultMessage": "추천"
@@ -2177,6 +2228,9 @@
   "modelSettingsButtons.switchModels": {
     "defaultMessage": "모델 전환"
   },
+  "modelSettingsPanel.automaticBackend": {
+    "defaultMessage": "Automatic"
+  },
   "modelSettingsPanel.batchSize": {
     "defaultMessage": "배치 크기"
   },
@@ -2239,6 +2293,12 @@
   },
   "modelSettingsPanel.gpuLayersDescription": {
     "defaultMessage": "GPU로 오프로드할 레이어"
+  },
+  "modelSettingsPanel.inferenceBackend": {
+    "defaultMessage": "Inference backend"
+  },
+  "modelSettingsPanel.inferenceBackendDescription": {
+    "defaultMessage": "Automatic uses llama.cpp for GGUF and eredu for SafeTensors. Eredu checks checkpoint compatibility when loading."
   },
   "modelSettingsPanel.loadingSettings": {
     "defaultMessage": "설정 로드 중..."
@@ -4738,5 +4798,7 @@
   },
   "settings.agentLoop.title": {
     "defaultMessage": "에이전트 루프"
-  }
+  },
+  "localInference.aaEvaluation": "Evaluation details on Artificial Analysis",
+  "localInference.aaAttribution": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
 }

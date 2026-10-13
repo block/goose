@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { HfModelInfo, HfModelVariant } from '../../../acp/local-inference';
-import { compareQuality, fitRank } from './modelRecommendations';
+import {
+  compareQuality,
+  catalogueOrder,
+  fitRank,
+  isEligibleVariant,
+  recommendedVariant,
+} from './modelRecommendations';
 
 const quality = (rank: number): HfModelInfo['quality'] => ({
   evaluatedModelId: 'org/model',
   inherited: true,
-  evidence: [
-    {
-      benchmark: 'TIGER-Lab/MMLU-Pro',
-      rank,
-      participants: 100,
-      score: 50,
-      verified: false,
-      sourceUrl: 'https://huggingface.co/org/model',
-      notes: '',
-    },
-  ],
+  aaModelId: 'aa-model',
+  sourceUrl: 'https://artificialanalysis.ai/models/model',
+  evaluationName: 'Model (reasoning)',
+  catalogueOrder: rank,
 });
 
 const variant = (
@@ -35,6 +34,8 @@ const variant = (
   supported,
   assessment: {
     fit,
+    compatibility: 'compatible',
+    suitability: 'suitable',
     recommended: false,
     inputTokens: 4096,
     outputTokens: 1024,
@@ -56,5 +57,50 @@ describe('local recommendation ranking', () => {
     expect(fitRank([variant('likelyFit')])).toBe(0);
     expect(fitRank([variant('likelyFit', false)])).not.toBe(0);
     expect(fitRank([])).toBe(1);
+  });
+});
+
+describe('recommendation eligibility', () => {
+  it('requires positive suitability, compatibility, fit and benchmark evidence', () => {
+    const model = variant('likelyFit');
+    expect(recommendedVariant([model], quality(1))).toBe(model);
+    expect(recommendedVariant([model], undefined)).toBeUndefined();
+    for (const compatibility of ['unknown', 'incompatible'] as const) {
+      const rejected = { ...model, assessment: { ...model.assessment!, compatibility } };
+      expect(isEligibleVariant(rejected)).toBe(false);
+      expect(recommendedVariant([rejected], quality(1))).toBeUndefined();
+    }
+    for (const suitability of ['unknown', 'unsuitable'] as const) {
+      expect(
+        isEligibleVariant({ ...model, assessment: { ...model.assessment!, suitability } })
+      ).toBe(false);
+    }
+  });
+});
+
+describe('catalogue ordering and unbounded forecasts', () => {
+  it('preserves catalogue ordering and rejects a missing order', () => {
+    expect(catalogueOrder(quality(3))).toBe(3);
+    expect(catalogueOrder(quality(0))).toBeUndefined();
+    expect(compareQuality(quality(0), quality(3))).toBeGreaterThan(0);
+  });
+
+  it('surfaces uncertain upper bounds without treating missing or oversized forecasts as fits', () => {
+    const uncertain = variant('unknown');
+    uncertain.assessment!.lowerBytes = 7e9;
+    expect(isEligibleVariant(uncertain)).toBe(true);
+    expect(fitRank([uncertain])).toBe(0);
+    expect(recommendedVariant([uncertain], quality(1))).toBe(uncertain);
+    const bounded = { ...variant('likelyFit'), qualityRank: 1 };
+    expect(recommendedVariant([uncertain, bounded], quality(1))).toBe(bounded);
+    uncertain.assessment!.lowerBytes = 7e9 + 1;
+    expect(isEligibleVariant(uncertain)).toBe(false);
+    uncertain.assessment!.lowerBytes = 7e9;
+    uncertain.assessment!.upperBytes = 10e9;
+    expect(isEligibleVariant(uncertain)).toBe(false);
+    delete uncertain.assessment!.upperBytes;
+    uncertain.assessment!.availableMemoryBytes = 0;
+    expect(isEligibleVariant(uncertain)).toBe(false);
+    expect(isEligibleVariant(variant('unknown'))).toBe(false);
   });
 });
