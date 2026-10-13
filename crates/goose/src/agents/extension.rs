@@ -254,6 +254,20 @@ pub enum ExtensionConfig {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
+    /// Tools the ACP client serves over its own connection (MCP-over-ACP).
+    /// Only the ACP server can run it: a session reloaded without that
+    /// client declines it.
+    #[serde(rename = "acp")]
+    Acp {
+        name: String,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        description: String,
+        server_id: String,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        available_tools: Vec<String>,
+    },
 }
 
 impl Default for ExtensionConfig {
@@ -356,6 +370,7 @@ impl ExtensionConfig {
             Self::Stdio { name, .. } => name,
             Self::Builtin { name, .. } => name,
             Self::Platform { name, .. } => name,
+            Self::Acp { name, .. } => name,
         }
         .to_string()
     }
@@ -372,6 +387,9 @@ impl ExtensionConfig {
                 available_tools, ..
             }
             | Self::Platform {
+                available_tools, ..
+            }
+            | Self::Acp {
                 available_tools, ..
             } => available_tools,
         };
@@ -537,6 +555,9 @@ impl std::fmt::Display for ExtensionConfig {
             }
             ExtensionConfig::Builtin { name, .. } => write!(f, "Builtin({})", name),
             ExtensionConfig::Platform { name, .. } => write!(f, "Platform({})", name),
+            ExtensionConfig::Acp {
+                name, server_id, ..
+            } => write!(f, "Acp({}: {})", name, server_id),
         }
     }
 }

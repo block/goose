@@ -64,6 +64,11 @@ impl GooseAcpAgent {
         req: AddConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let conversion = goose_extension_to_config(req.extension)?;
+        if matches!(conversion.config, ExtensionConfig::Acp { .. }) {
+            return Err(agent_client_protocol::Error::invalid_params().data(
+                "an acp MCP server lives only as long as its connection; declare it per session",
+            ));
+        }
 
         Config::global()
             .set_secret_values(&conversion.secret_updates)
@@ -231,6 +236,8 @@ fn config_to_goose_extension(
                 available_tools: available_tools_to_wire(available_tools),
             }
         }
+        // Only the connection that serves it can describe it.
+        ExtensionConfig::Acp { .. } => return Ok(None),
     };
     Ok(Some(extension))
 }
@@ -338,6 +345,12 @@ fn goose_extension_to_config(
                 return Err(agent_client_protocol::Error::invalid_params()
                     .data("SSE is unsupported, migrate to streamable_http"));
             }
+            McpServer::Acp(acp) => ExtensionConfig::Acp {
+                name: acp.name,
+                description: description.unwrap_or_default(),
+                server_id: acp.server_id.0.to_string(),
+                available_tools: available_tools.unwrap_or_default(),
+            },
             _ => {
                 return Err(
                     agent_client_protocol::Error::invalid_params().data("unsupported MCP server")

@@ -453,6 +453,9 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 bundled,
                 available_tools: available_tools_to_wire(available_tools),
             },
+            ExtensionConfig::Acp { name, .. } => {
+                anyhow::bail!("extension {name} is served by an ACP client and cannot be saved")
+            }
         })
     }
 }

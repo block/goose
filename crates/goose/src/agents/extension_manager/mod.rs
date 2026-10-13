@@ -847,6 +847,8 @@ impl ExtensionManager {
             ExtensionConfig::Platform { name, .. } => {
                 builtin::connect(name, container, ctx(None, client_working_dir)).await?
             }
+            // The ACP server injects the client while its connection is open.
+            ExtensionConfig::Acp { .. } => return Ok(None),
             ExtensionConfig::Stdio {
                 cmd,
                 args,

@@ -1,3 +1,4 @@
+use crate::acp::client_mcp::AcpClientMcp;
 use crate::acp::custom_notifications::*;
 use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
@@ -512,8 +513,39 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
             })
         }
         McpServer::Sse(_) => Err("SSE is unsupported, migrate to streamable_http".to_string()),
+        McpServer::Acp(acp) => Ok(ExtensionConfig::Acp {
+            name: acp.name,
+            description: String::new(),
+            server_id: acp.server_id.0.to_string(),
+            available_tools: vec![],
+        }),
         _ => Err("Unknown MCP server type".to_string()),
     }
+}
+
+/// Connects each `acp` MCP server the session selected to this connection.
+async fn install_client_served_tools(
+    cx: &ConnectionTo<Client>,
+    agent: &Arc<Agent>,
+    session: &Session,
+) -> Result<(), agent_client_protocol::Error> {
+    let configs = agent
+        .extension_manager
+        .get_extension_configs(&session.id)
+        .await
+        .internal_err()?;
+    for config in configs {
+        let ExtensionConfig::Acp { server_id, .. } = &config else {
+            continue;
+        };
+        let client: Arc<dyn McpClientTrait> =
+            Arc::new(AcpClientMcp::new(cx.clone(), server_id.clone()));
+        agent
+            .extension_manager
+            .add_client(&session.id, config, client, None)
+            .await;
+    }
+    Ok(())
 }
 
 fn mcp_server_configs(
@@ -574,11 +606,21 @@ fn initial_session_extensions(
     goose_extensions: Option<Vec<GooseExtension>>,
     recipe_extensions: Option<&[ExtensionConfig]>,
 ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    // Only this client can serve its `acp` servers, so they join every
+    // selection, including an explicit list or a recipe's.
+    let (client_served, mcp_servers): (Vec<_>, Vec<_>) = mcp_servers
+        .into_iter()
+        .partition(|server| matches!(server, McpServer::Acp(_)));
+    let client_served = mcp_server_configs(client_served)?;
+
     // A selection the client sends is the whole session: an empty list starts no
     // extensions, and `[memory]` starts Memory without the default built-ins.
     if let (None, Some(goose_extensions)) = (recipe_extensions, goose_extensions) {
         let mut selected = Vec::new();
         for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+            push_or_replace_extension(&mut selected, extension);
+        }
+        for extension in client_served {
             push_or_replace_extension(&mut selected, extension);
         }
         return Ok(selected);
@@ -599,6 +641,9 @@ fn initial_session_extensions(
             push_or_replace_extension(&mut extensions, extension);
         }
         add_mcp_servers(&mut extensions, mcp_servers)?;
+    }
+    for extension in client_served {
+        push_or_replace_extension(&mut extensions, extension);
     }
 
     Ok(extensions)
@@ -1139,6 +1184,7 @@ impl GooseAcpAgent {
             .await?;
         self.apply_acp_extension_overrides(cx, &agent, session)
             .await?;
+        install_client_served_tools(cx, &agent, session).await?;
         // Leases start extensions on first use anyway; starting them here is
         // what lets the session response report extensions that fail.
         let extension_results = agent
@@ -1834,7 +1880,7 @@ impl GooseAcpAgent {
                     .audio(false)
                     .embedded_context(true),
             )
-            .mcp_capabilities(McpCapabilities::new().http(true))
+            .mcp_capabilities(McpCapabilities::new().http(true).acp(true))
             .meta(agent_capabilities_meta());
         Ok(InitializeResponse::new(ProtocolVersion::LATEST)
             .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
@@ -3043,6 +3089,66 @@ extensions:
         assert_eq!(names, vec!["memory".to_string()]);
     }
 
+    fn buzz_acp_config() -> ExtensionConfig {
+        ExtensionConfig::Acp {
+            name: "buzz".to_string(),
+            description: String::new(),
+            server_id: "buzz:7a72".to_string(),
+            available_tools: vec![],
+        }
+    }
+
+    #[test]
+    fn client_selection_accepts_an_acp_mcp_server() {
+        let (config, _c, _s) = developer_enabled_config();
+        let project_root = tempfile::tempdir().unwrap();
+        let selection: Vec<GooseExtension> = serde_json::from_value(serde_json::json!([
+            { "type": "builtin", "name": "developer" },
+            { "type": "mcp", "server": { "type": "acp", "name": "buzz", "serverId": "buzz:7a72" } },
+        ]))
+        .unwrap();
+
+        let extensions = initial_session_extensions(
+            &config,
+            &default_builtin("developer"),
+            project_root.path(),
+            vec![],
+            Some(selection),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(extensions.len(), 2);
+        assert_eq!(extensions[0].name(), "developer");
+        assert_eq!(extensions[1], buzz_acp_config());
+    }
+
+    #[test]
+    fn client_selection_keeps_acp_servers_from_mcp_servers() {
+        let (config, _c, _s) = developer_enabled_config();
+        let project_root = tempfile::tempdir().unwrap();
+
+        let extensions = initial_session_extensions(
+            &config,
+            &default_builtin("developer"),
+            project_root.path(),
+            vec![
+                McpServer::Http(McpServerHttp::new("zed-mcp", "http://localhost/mcp")),
+                McpServer::Acp(agent_client_protocol::schema::v1::McpServerAcp::new(
+                    "buzz",
+                    "buzz:7a72",
+                )),
+            ],
+            Some(vec![requested_builtin("memory")]),
+            None,
+        )
+        .unwrap();
+
+        let names: Vec<String> = extensions.iter().map(ExtensionConfig::name).collect();
+        assert_eq!(names, vec!["memory".to_string(), "buzz".to_string()]);
+        assert_eq!(extensions[1], buzz_acp_config());
+    }
+
     #[test]
     fn recipe_extensions_still_load_with_the_builtins() {
         let (config, _c, _s) = developer_enabled_config();
@@ -3232,6 +3338,15 @@ extensions:
     #[test_case(
         McpServer::Sse(McpServerSse::new("test-sse", "https://agent-fin.biodnd.com/sse")),
         Err("SSE is unsupported, migrate to streamable_http".to_string())
+    )]
+    #[test_case(
+        McpServer::Acp(agent_client_protocol::schema::v1::McpServerAcp::new("buzz", "buzz:7a72")),
+        Ok(ExtensionConfig::Acp {
+            name: "buzz".to_string(),
+            description: String::new(),
+            server_id: "buzz:7a72".to_string(),
+            available_tools: vec![],
+        })
     )]
     fn test_mcp_server_to_extension_config(
         input: McpServer,

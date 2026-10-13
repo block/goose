@@ -1,3 +1,4 @@
+mod client_mcp;
 mod common;
 pub(crate) mod fs;
 mod handoff;

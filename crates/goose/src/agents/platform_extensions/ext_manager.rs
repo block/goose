@@ -471,7 +471,8 @@ fn search_available_extensions(enabled: &[String]) -> String {
                 ExtensionConfig::Builtin { description, .. }
                 | ExtensionConfig::Platform { description, .. }
                 | ExtensionConfig::StreamableHttp { description, .. }
-                | ExtensionConfig::Stdio { description, .. } => description.clone(),
+                | ExtensionConfig::Stdio { description, .. }
+                | ExtensionConfig::Acp { description, .. } => description.clone(),
             };
             format!("- {} - {}", extension.config.name(), description)
         })
