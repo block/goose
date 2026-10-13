@@ -15,7 +15,7 @@ workspace = true
 default = []
 cuda = ["llama-cpp-2/cuda"]
 vulkan = ["llama-cpp-2/vulkan"]
-mlx = [
+eredu = [
     "dep:eredu",
     "dep:eredu-core",
     "dep:eredu-backend-mlx",

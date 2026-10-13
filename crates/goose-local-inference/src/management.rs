@@ -132,7 +132,7 @@ pub async fn download_model(
 ) -> Result<LocalInferenceModelDownloadResponse> {
     let selection = explicit_model_selection(&req)?;
     let model_id = local_model_id_from_request(&req, selection.as_ref()).await?;
-    if matches!(req.backend_id.as_deref(), Some("eredu" | "mlx"))
+    if req.backend_id.as_deref() == Some("eredu")
         && selection
             .as_ref()
             .is_some_and(|selection| selection.backend_id == "llamacpp")
@@ -251,10 +251,7 @@ fn settings_model_path(model_id: &str) -> Result<std::path::PathBuf> {
 }
 
 pub fn get_model_settings(model_id: &str) -> Result<LocalInferenceModelSettingsReadResponse> {
-    let mut settings = crate::config_resolver::model_settings(model_id)?;
-    if settings.backend_id.as_deref() == Some("mlx") {
-        settings.backend_id = Some("eredu".into());
-    }
+    let settings = crate::config_resolver::model_settings(model_id)?;
     let path = settings_model_path(model_id)?;
     let default_backend = crate::selected_backend(&path, None)?.to_string();
     let mut available_backends = Vec::new();
@@ -588,7 +585,7 @@ fn explicit_model_selection(
 ) -> Result<Option<LocalModelSelection>> {
     let format_backend = match req.format.as_deref() {
         Some("gguf") => Some("llamacpp"),
-        Some("safetensors" | "mlx-safetensors") => Some("eredu"),
+        Some("safetensors") => Some("eredu"),
         Some(format) => anyhow::bail!("Unknown local checkpoint format '{format}'"),
         None => None,
     };
@@ -607,12 +604,12 @@ fn explicit_model_selection(
         let is_gguf = format_backend == Some("llamacpp") || parsed_variant_id.is_some();
         let variant_id = req.variant_id.clone().or(parsed_variant_id);
         match backend_id {
-            "eredu" | "mlx" if is_gguf => Ok(Some(LocalModelSelection {
+            "eredu" if is_gguf => Ok(Some(LocalModelSelection {
                 repo_id,
                 backend_id: "llamacpp".into(),
                 variant_id: variant_id.map(|id| hf_models::canonicalize_quantization(&id)),
             })),
-            "mlx" | "eredu" => Ok(Some(LocalModelSelection {
+            "eredu" => Ok(Some(LocalModelSelection {
                 repo_id,
                 backend_id: backend_id.to_string(),
                 variant_id,
@@ -636,7 +633,7 @@ async fn local_model_id_from_request(
 ) -> Result<String> {
     if let Some(selection) = selection {
         return match selection.backend_id.as_str() {
-            "mlx" | "eredu" => Ok(selection.repo_id.clone()),
+            "eredu" => Ok(selection.repo_id.clone()),
             "llamacpp" => {
                 let quantization = selection.variant_id.as_deref().ok_or_else(|| {
                     anyhow!(
@@ -664,11 +661,11 @@ async fn local_model_id_from_request(
     let has_llamacpp = variants
         .iter()
         .any(|variant| variant.backend_id == "llamacpp");
-    let mlx_variants: Vec<_> = variants
+    let eredu_variants: Vec<_> = variants
         .iter()
         .filter(|variant| variant.backend_id == "eredu")
         .collect();
-    if mlx_variants.len() == 1 && !has_llamacpp {
+    if eredu_variants.len() == 1 && !has_llamacpp {
         Ok(req.spec.clone())
     } else {
         anyhow::bail!(

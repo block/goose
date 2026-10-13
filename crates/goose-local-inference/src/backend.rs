@@ -12,7 +12,7 @@ pub(super) trait BackendLoadedModel: Send {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-#[cfg_attr(not(feature = "mlx"), allow(dead_code))]
+#[cfg_attr(not(feature = "eredu"), allow(dead_code))]
 pub(super) struct LocalGenerationRequest<'a> {
     pub model_name: String,
     pub system: &'a str,

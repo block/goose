@@ -184,7 +184,12 @@ impl InferenceRuntime {
             let state = slot.state.lock().await;
             if let ModelSlotState::Loaded { resolved, .. } = &*state {
                 if selected_backend(&resolved.model_path, backend_id).ok()
-                    == Some(key_backend(&resolved.backend_id))
+                    == Some(
+                        resolved
+                            .backend_id
+                            .as_deref()
+                            .unwrap_or(LLAMACPP_BACKEND_ID),
+                    )
                 {
                     return Some(resolved.as_ref().clone());
                 }
@@ -264,14 +269,6 @@ struct ExplicitModelPath {
     model_path: PathBuf,
 }
 
-fn key_backend(id: &Option<String>) -> &str {
-    match id.as_deref() {
-        Some("mlx") => EREDU_BACKEND_ID,
-        Some(id) => id,
-        None => LLAMACPP_BACKEND_ID,
-    }
-}
-
 fn selected_backend(path: &Path, requested: Option<&str>) -> Result<&'static str> {
     let gguf = has_extension(path, "gguf");
     match requested {
@@ -280,7 +277,7 @@ fn selected_backend(path: &Path, requested: Option<&str>) -> Result<&'static str
         } else {
             EREDU_BACKEND_ID
         }),
-        Some("eredu" | "mlx") => Ok(EREDU_BACKEND_ID),
+        Some("eredu") => Ok(EREDU_BACKEND_ID),
         Some("llamacpp") if gguf => Ok(LLAMACPP_BACKEND_ID),
         Some("llamacpp") => {
             bail!("llama.cpp requires a GGUF checkpoint; use eredu for SafeTensors")
@@ -326,14 +323,14 @@ fn explicit_model_path(model_id: &str) -> Result<Option<ExplicitModelPath>> {
         return Ok(Some(ExplicitModelPath { model_path: path }));
     }
 
-    let mlx_directory = if path.is_dir() {
+    let safetensors_directory = if path.is_dir() {
         Some(path.as_path())
     } else if path.is_file() && has_extension(&path, "safetensors") {
         path.parent()
     } else {
         None
     };
-    if let Some(directory) = mlx_directory {
+    if let Some(directory) = safetensors_directory {
         if is_safetensors_model_directory(directory)? {
             eredu::validate_model_directory(directory)
                 .map_err(|error| anyhow::anyhow!(error.to_string()))?;
@@ -761,7 +758,7 @@ impl ProviderDescriptor for LocalInferenceProvider {
         ProviderMetadata::new(
             PROVIDER_NAME,
             "Local Inference",
-            "Local inference using GGUF (llama.cpp) and MLX models",
+            "Local inference using llama.cpp and Eredu",
             "",
             vec![],
             "https://github.com/utilityai/llama-cpp-rs",
@@ -1080,7 +1077,7 @@ mod tests {
         assert_eq!(selected_backend(gguf, None).unwrap(), "llamacpp");
         assert_eq!(selected_backend(safetensors, None).unwrap(), "eredu");
         assert_eq!(selected_backend(gguf, Some("eredu")).unwrap(), "eredu");
-        assert_eq!(selected_backend(safetensors, Some("mlx")).unwrap(), "eredu");
+        assert!(selected_backend(safetensors, Some("mlx")).is_err());
         assert!(selected_backend(safetensors, Some("llamacpp")).is_err());
         assert!(selected_backend(gguf, Some("unknown")).is_err());
     }

@@ -6,23 +6,23 @@
 
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
 
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 use goose_provider_types::conversation::message::{Message, MessageContent};
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 use rmcp::model::{CallToolRequestParams, Tool};
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 use serde_json::json;
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 use std::borrow::Cow;
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 use uuid::Uuid;
 
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 pub(crate) const SHELL_TOOL: &str = "developer__shell";
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 pub(crate) const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
 
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 pub(crate) fn load_tiny_model_prompt() -> String {
     use std::env;
 
@@ -55,7 +55,7 @@ pub(crate) fn load_tiny_model_prompt() -> String {
     })
 }
 
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
     let mut tool_desc = String::new();
 
@@ -466,7 +466,7 @@ impl StreamingEmulatorParser {
     }
 }
 
-#[cfg(feature = "mlx")]
+#[cfg(feature = "eredu")]
 pub(crate) fn message_for_emulator_action(
     action: &EmulatorAction,
     message_id: &str,
@@ -721,7 +721,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "mlx")]
+    #[cfg(feature = "eredu")]
     #[test]
     fn tool_description_uses_execute_typescript_fence() {
         let description = build_emulator_tool_description(&[], true);

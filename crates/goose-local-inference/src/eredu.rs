@@ -89,14 +89,14 @@ pub(crate) const EREDU_BACKEND_ID: &str = "eredu";
 pub(crate) fn unavailable_reason() -> Option<&'static str> {
     if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         Some("The eredu backend in Goose requires Apple silicon macOS.")
-    } else if !cfg!(feature = "mlx") {
-        Some("Eredu support was not compiled in. Rebuild with the `mlx` feature.")
+    } else if !cfg!(feature = "eredu") {
+        Some("Eredu support was not compiled in. Rebuild with the `eredu` feature.")
     } else {
         None
     }
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod imp {
     use std::any::Any;
     use std::collections::HashMap;
@@ -1041,7 +1041,7 @@ mod imp {
     }
 }
 
-#[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
+#[cfg(not(all(feature = "eredu", target_os = "macos", target_arch = "aarch64")))]
 mod imp {
     use super::*;
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};

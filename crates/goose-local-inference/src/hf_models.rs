@@ -8,15 +8,15 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::eredu::snapshot_files_are_complete as mlx_snapshot_files_are_complete;
+use crate::eredu::snapshot_files_are_complete;
 use crate::huggingface_auth;
 
 const HF_DOWNLOAD_BASE: &str = "https://huggingface.co";
 const LLAMACPP_BACKEND_ID: &str = "llamacpp";
-const MLX_BACKEND_ID: &str = "eredu";
+const EREDU_BACKEND_ID: &str = "eredu";
 const GGUF_FORMAT: &str = "gguf";
-const MLX_FORMAT: &str = "safetensors";
-const MLX_VARIANT_ID: &str = "default";
+const SAFETENSORS_FORMAT: &str = "safetensors";
+const SAFETENSORS_VARIANT_ID: &str = "default";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfModelInfo {
@@ -1143,10 +1143,10 @@ mod tests {
             unsupported_reason: None,
         };
         let mlx_variant = HfModelVariant {
-            variant_id: MLX_VARIANT_ID.to_string(),
+            variant_id: SAFETENSORS_VARIANT_ID.to_string(),
             label: "Default".to_string(),
-            backend_id: MLX_BACKEND_ID.to_string(),
-            format: MLX_FORMAT.to_string(),
+            backend_id: EREDU_BACKEND_ID.to_string(),
+            format: SAFETENSORS_FORMAT.to_string(),
             model_id: repo_id.clone(),
             download_id: repo_id.clone(),
             size_bytes: 8,
@@ -1195,7 +1195,7 @@ mod tests {
         assert!(models[0]
             .variants
             .iter()
-            .any(|variant| variant.backend_id == MLX_BACKEND_ID));
+            .any(|variant| variant.backend_id == EREDU_BACKEND_ID));
     }
 
     fn sibling(filename: &str) -> RepoSibling {
@@ -1258,18 +1258,18 @@ mod tests {
             }
         });
 
-        assert!(!mlx_snapshot_files_are_complete(&cached, Some(&index)));
+        assert!(!snapshot_files_are_complete(&cached, Some(&index)));
         cached.insert("model-00002-of-00002.safetensors");
-        assert!(mlx_snapshot_files_are_complete(&cached, Some(&index)));
+        assert!(snapshot_files_are_complete(&cached, Some(&index)));
     }
 
     #[test]
     fn mlx_snapshot_requires_every_numbered_safetensors_shard_without_an_index() {
         let mut cached = std::collections::HashSet::from(["model-00001-of-00002.safetensors"]);
 
-        assert!(!mlx_snapshot_files_are_complete(&cached, None));
+        assert!(!snapshot_files_are_complete(&cached, None));
         cached.insert("model-00002-of-00002.safetensors");
-        assert!(mlx_snapshot_files_are_complete(&cached, None));
+        assert!(snapshot_files_are_complete(&cached, None));
     }
 
     #[test]
@@ -1277,7 +1277,7 @@ mod tests {
         let cached =
             std::collections::HashSet::from(["model.safetensors", "vision_model.safetensors"]);
 
-        assert!(mlx_snapshot_files_are_complete(&cached, None));
+        assert!(snapshot_files_are_complete(&cached, None));
     }
 
     #[test]
@@ -2137,8 +2137,8 @@ fn mlx_variants_from_model_info(
     vec![HfModelVariant {
         variant_id: variant_id.clone(),
         label: mlx_variant_label(&variant_id),
-        backend_id: MLX_BACKEND_ID.to_string(),
-        format: MLX_FORMAT.to_string(),
+        backend_id: EREDU_BACKEND_ID.to_string(),
+        format: SAFETENSORS_FORMAT.to_string(),
         model_id: repo_id.to_string(),
         download_id: repo_id.to_string(),
         size_bytes,
@@ -2243,14 +2243,14 @@ fn mlx_config_support(config: &Option<serde_json::Value>) -> Option<String> {
     mlx_config_support_for_value(config)
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 fn mlx_config_support_for_value(config: &serde_json::Value) -> Option<String> {
     eredu_architectures::configuration::resolve_model_config(config)
         .err()
         .map(|error| error.to_string())
 }
 
-#[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
+#[cfg(not(all(feature = "eredu", target_os = "macos", target_arch = "aarch64")))]
 fn mlx_config_support_for_value(_config: &serde_json::Value) -> Option<String> {
     None
 }
@@ -2367,11 +2367,11 @@ fn mlx_variant_id(repo_id: &str, config: &Option<serde_json::Value>) -> String {
         .and_then(|config| config.get("torch_dtype"))
         .and_then(|value| value.as_str())
         .map(|dtype| dtype.replace("float", "f"))
-        .unwrap_or_else(|| MLX_VARIANT_ID.to_string())
+        .unwrap_or_else(|| SAFETENSORS_VARIANT_ID.to_string())
 }
 
 fn mlx_variant_label(variant_id: &str) -> String {
-    if variant_id == MLX_VARIANT_ID {
+    if variant_id == SAFETENSORS_VARIANT_ID {
         "SafeTensors".to_string()
     } else {
         format!("SafeTensors {}", variant_id.to_uppercase())
@@ -2384,8 +2384,8 @@ pub async fn resolve_local_model_selection(
     variant_id: Option<&str>,
 ) -> Result<ResolvedLocalModel> {
     match backend_id {
-        MLX_BACKEND_ID | "mlx" => {
-            resolve_mlx_model(repo_id, variant_id.unwrap_or(MLX_VARIANT_ID)).await
+        EREDU_BACKEND_ID => {
+            resolve_mlx_model(repo_id, variant_id.unwrap_or(SAFETENSORS_VARIANT_ID)).await
         }
         LLAMACPP_BACKEND_ID => {
             let quantization = variant_id.ok_or_else(|| {
@@ -2496,7 +2496,7 @@ pub async fn resolve_local_model_spec(spec: &str) -> Result<ResolvedLocalModel> 
         let variants = get_repo_local_variants(spec).await?;
         let mlx_variants: Vec<_> = variants
             .iter()
-            .filter(|variant| variant.backend_id == MLX_BACKEND_ID)
+            .filter(|variant| variant.backend_id == EREDU_BACKEND_ID)
             .collect();
         if mlx_variants.len() == 1
             && !variants
@@ -2907,7 +2907,7 @@ pub async fn cached_local_models() -> Result<Vec<CachedLocalModel>> {
             if is_mlx_compatible_repo(&config, &repo_siblings)
                 && is_mlx_runtime_supported(&config)
                 && valid_index
-                && mlx_snapshot_files_are_complete(&cached_filenames, index.as_ref())
+                && snapshot_files_are_complete(&cached_filenames, index.as_ref())
             {
                 let cached_files: Vec<_> = revision
                     .files
@@ -2918,9 +2918,9 @@ pub async fn cached_local_models() -> Result<Vec<CachedLocalModel>> {
                     let model = CachedLocalModel {
                         id: repo.repo_id.clone(),
                         repo_id: repo.repo_id.clone(),
-                        filename: MLX_VARIANT_ID.to_string(),
+                        filename: SAFETENSORS_VARIANT_ID.to_string(),
                         quantization: mlx_variant_id(&repo.repo_id, &config),
-                        backend_id: MLX_BACKEND_ID.to_string(),
+                        backend_id: EREDU_BACKEND_ID.to_string(),
                         model_path: revision.snapshot_path.clone(),
                         size_bytes: cached_files.iter().map(|file| file.size_on_disk).sum(),
                         mmproj_path: None,
@@ -3029,7 +3029,7 @@ pub async fn delete_cached_local_model(model_id: &str) -> Result<()> {
         .flat_map(|repo| &repo.revisions)
         .flat_map(|revision| &revision.files)
         .filter(|file| {
-            if model.backend_id == MLX_BACKEND_ID {
+            if model.backend_id == EREDU_BACKEND_ID {
                 should_download_for_mlx(&file.file_name)
             } else {
                 let is_model_weight = file.file_name.ends_with(".gguf")

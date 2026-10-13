@@ -472,8 +472,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     save({ ...settings, [key]: value });
   };
 
-  const effectiveBackend =
-    settings.backendId === 'mlx' ? 'eredu' : settings.backendId || defaultBackend;
+  const effectiveBackend = settings.backendId || defaultBackend;
   const usesEredu = effectiveBackend === 'eredu';
 
   const samplingType: SamplingType = settings.sampling?.type ?? 'Temperature';
@@ -571,7 +570,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
       <SelectField<string>
         label={intl.formatMessage(i18n.inferenceBackend)}
         description={intl.formatMessage(i18n.inferenceBackendDescription)}
-        value={settings.backendId === 'mlx' ? 'eredu' : settings.backendId || 'auto'}
+        value={settings.backendId || 'auto'}
         options={[
           { value: 'auto', label: intl.formatMessage(i18n.automaticBackend) },
           ...Array.from(
