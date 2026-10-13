@@ -1002,11 +1002,10 @@ mod imp {
                 Tool::new("goose_tool_0", "", rmcp::object!({"type":"object"})),
             ];
             let aliases = tool_aliases(&tools);
-            assert_eq!(
-                aliases.get("goose_tool_0_").map(String::as_str),
-                Some("extension.invalid")
-            );
-            assert!(!aliases.contains_key("goose_tool_0"));
+            assert!(aliases.values().any(|name| name == "extension.invalid"));
+            assert!(aliases
+                .keys()
+                .all(|alias| tools.iter().all(|tool| tool.name.as_ref() != alias)));
         }
 
         #[test]

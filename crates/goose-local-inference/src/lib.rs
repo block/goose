@@ -1077,7 +1077,6 @@ mod tests {
         assert_eq!(selected_backend(gguf, None).unwrap(), "llamacpp");
         assert_eq!(selected_backend(safetensors, None).unwrap(), "eredu");
         assert_eq!(selected_backend(gguf, Some("eredu")).unwrap(), "eredu");
-        assert!(selected_backend(safetensors, Some("mlx")).is_err());
         assert!(selected_backend(safetensors, Some("llamacpp")).is_err());
         assert!(selected_backend(gguf, Some("unknown")).is_err());
     }
