@@ -15,7 +15,8 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
-    build_state_machine, Emitter, GooseEffect, PipelineConfig, RunStatus, StateMachine, SteerQueue,
+    awaits_tool_responses, build_state_machine, messages_since_kickoff, Emitter, GooseEffect,
+    PipelineConfig, RunStatus, StateMachine, SteerQueue,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -372,6 +373,7 @@ impl TestPipeline {
             let session = self.session().await?;
             let machine = self.machine(cancel.clone());
             let mut result = machine.step(&session, &emit).await?;
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -583,6 +585,7 @@ impl TestPipeline {
                     }
                 }
             };
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -1056,6 +1059,30 @@ impl TestRun {
     }
 }
 
+const TOOL_OPERATIONS: [&str; 6] = [
+    "tool_approval",
+    "skills",
+    "foreground_subagent",
+    "recipe",
+    "tool_execution",
+    "unknown_tool",
+];
+
+fn assert_only_tool_operations_act_on_open_calls(session: &Session, applied_step: Option<&str>) {
+    let Some(step) = applied_step else {
+        return;
+    };
+    let conversation = session
+        .conversation
+        .as_ref()
+        .expect("session has a conversation");
+    let turn = messages_since_kickoff(conversation).expect("conversation has a turn");
+    assert!(
+        TOOL_OPERATIONS.contains(&step) || !awaits_tool_responses(turn),
+        "{step} acted while a tool call was open"
+    );
+}
+
 pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEvent>> {
     let cancel = CancellationToken::new();
     let machine = pipeline.machine(cancel.clone());
@@ -1066,6 +1093,7 @@ pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEven
     loop {
         let session = pipeline.session().await?;
         let mut result = machine.step(&session, &emit).await?;
+        assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
         machine
             .apply(
                 pipeline.session_manager.as_ref(),
