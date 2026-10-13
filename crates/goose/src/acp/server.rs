@@ -100,8 +100,8 @@ use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_ti
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
 mod agent_mentions;
-pub use crate::execution::ActiveRunRegistry;
-use crate::execution::StartRunError;
+pub use crate::agents::ActiveRunRegistry;
+use crate::agents::StartRunError;
 mod apps;
 mod config;
 mod custom_dispatch;

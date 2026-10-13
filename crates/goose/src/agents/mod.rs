@@ -1,3 +1,4 @@
+mod active_run;
 pub mod container;
 pub mod execute_commands;
 pub mod extension;
@@ -28,6 +29,8 @@ mod tool_schema_normalize;
 pub mod types;
 pub mod validate_extensions;
 
+pub use active_run::ActiveRunRegistry;
+pub(crate) use active_run::StartRunError;
 pub use container::Container;
 pub use execute_commands::{context_management_unsupported_message, COMPACT_TRIGGERS};
 pub use extension::{ExtensionConfig, ExtensionError};
