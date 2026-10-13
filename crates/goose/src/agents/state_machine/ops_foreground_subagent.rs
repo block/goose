@@ -8,8 +8,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use crate::agents::state_machine::{
-    applied, awaits_tool_responses, messages_since_kickoff, not_applicable, Emitter, GooseEffect,
-    Operation, OperationResult,
+    applied, not_applicable, Emitter, GooseEffect, Operation, OperationResult,
 };
 use crate::agents::subagent_handler::{ForegroundSubagentRunner, SubagentOutcome, SubagentStart};
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
@@ -229,9 +228,6 @@ impl Operation<Session, GooseEffect> for ForegroundSubagentOperation {
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
         if session.session_type == SessionType::SubAgent {
-            return not_applicable();
-        }
-        if awaits_tool_responses(messages_since_kickoff(conversation)?) {
             return not_applicable();
         }
         let pending = pending_subagents(conversation.messages());
@@ -464,27 +460,6 @@ mod tests {
             messages.push(message);
         }
         assert_eq!(pending_subagents(&messages), ["waiting"]);
-    }
-
-    #[test]
-    fn waits_for_all_tool_responses_before_running_subagents() {
-        let requests = Message::assistant()
-            .with_tool_request("delegate-call", Ok(CallToolRequestParams::new("delegate")))
-            .with_tool_request("other-call", Ok(CallToolRequestParams::new("other")));
-        let response = Message::user().with_tool_response(
-            "delegate-call",
-            Ok(CallToolResult::success(vec![ContentBlock::text(
-                "delegated",
-            )])),
-        );
-        let mut messages = vec![requests, response];
-        assert!(awaits_tool_responses(&messages));
-
-        messages.push(Message::user().with_tool_response(
-            "other-call",
-            Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
-        ));
-        assert!(!awaits_tool_responses(&messages));
     }
 
     async fn save_final_output(manager: &SessionManager, subagent_id: &str) -> Result<()> {

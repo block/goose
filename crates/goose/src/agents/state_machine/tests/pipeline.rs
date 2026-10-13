@@ -1059,10 +1059,9 @@ impl TestRun {
     }
 }
 
-const TOOL_OPERATIONS: [&str; 6] = [
+const TOOL_OPERATIONS: [&str; 5] = [
     "tool_approval",
     "skills",
-    "foreground_subagent",
     "recipe",
     "tool_execution",
     "remaining_tool_calls",

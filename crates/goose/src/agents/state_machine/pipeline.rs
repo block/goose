@@ -71,13 +71,6 @@ pub(crate) fn build_state_machine(
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
-        // Before RecipeOperation: a `delegate` response only means the subagent
-        // started, so a final output from the same batch must not be shown until
-        // the subagents have run.
-        Arc::new(ForegroundSubagentOperation::new(
-            ForegroundSubagentRunner::new(session_manager.clone(), use_login_shell_path),
-            cancel.clone(),
-        )),
         Arc::new(RecipeOperation::new(provider.clone(), hook_manager.clone())),
         Arc::new(ToolExecutionOperation::new(
             Arc::clone(&extension_manager),
@@ -85,6 +78,10 @@ pub(crate) fn build_state_machine(
             Arc::clone(&extension_lease),
         )),
         Arc::new(RemainingToolCallsOperation::new(hook_manager.clone())),
+        Arc::new(ForegroundSubagentOperation::new(
+            ForegroundSubagentRunner::new(session_manager.clone(), use_login_shell_path),
+            cancel.clone(),
+        )),
         Arc::new(SteerOperation::new(steer_queue, hook_manager.clone())),
         Arc::new(BangShellOperation::new()),
     ];
