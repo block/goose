@@ -196,7 +196,7 @@ prompt: |
   ### amazee.ai Provider Validation
   When running from a goose source checkout:
   1. Run `cargo test -p goose-providers amazeeai` to verify amazee.ai is bundled, requires `AMAZEEAI_ENDPOINT`, uses it as the base URL, and loads models dynamically.
-  2. If `AMAZEEAI_API_KEY` and `AMAZEEAI_ENDPOINT` are set, run `goose run --provider amazeeai --model claude-sonnet-5-5 -t "Reply with OK"` and verify a streamed reply arrives.
+  2. If `AMAZEEAI_API_KEY` and `AMAZEEAI_ENDPOINT` are set, run `goose run --provider amazeeai --model chat -t "Reply with OK"` and verify a streamed reply arrives.
   If the source checkout or Rust toolchain is unavailable, mark step 1 as skipped; if credentials are unavailable, mark step 2 as skipped rather than failed.
 
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
