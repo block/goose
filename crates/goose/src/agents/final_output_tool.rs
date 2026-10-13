@@ -52,37 +52,6 @@ impl FinalOutputTool {
         })
     }
 
-    fn assistant_block_bounds(messages: &[Message], message_index: usize) -> (usize, usize) {
-        let start = (0..message_index)
-            .rev()
-            .take_while(|index| messages[*index].role == rmcp::model::Role::Assistant)
-            .last()
-            .unwrap_or(message_index);
-        let end = (message_index + 1..messages.len())
-            .take_while(|index| messages[*index].role == rmcp::model::Role::Assistant)
-            .last()
-            .map_or(message_index + 1, |index| index + 1);
-        (start, end)
-    }
-
-    pub(crate) fn has_sibling_tool_calls(messages: &[Message], request_id: &str) -> bool {
-        let Some(message_index) = messages.iter().position(|message| {
-            message
-                .content
-                .iter()
-                .filter_map(MessageContent::as_tool_request)
-                .any(|request| request.id == request_id)
-        }) else {
-            return false;
-        };
-        let (start, end) = Self::assistant_block_bounds(messages, message_index);
-        messages[start..end]
-            .iter()
-            .flat_map(|message| &message.content)
-            .filter_map(MessageContent::as_tool_request)
-            .any(|request| request.id != request_id && !request.was_executed_externally())
-    }
-
     pub(crate) fn successful_output(messages: &[Message]) -> Option<String> {
         let successful_responses: HashSet<&str> = messages
             .iter()
