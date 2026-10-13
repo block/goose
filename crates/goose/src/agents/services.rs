@@ -126,15 +126,14 @@ impl StateMachineServicesConfig {
             elicitation_handler: None,
             mcp_protocol_version: None,
             providers: Arc::default(),
-            max_sessions: DEFAULT_MAX_SESSIONS,
+            max_sessions: Config::global()
+                .get_goose_max_active_agents()
+                .unwrap_or(DEFAULT_MAX_SESSIONS),
         }
     }
 }
 
 const DEFAULT_MAX_SESSIONS: usize = 100;
-
-static INSTANCE: tokio::sync::OnceCell<Arc<StateMachineServices>> =
-    tokio::sync::OnceCell::const_new();
 
 pub struct StateMachineServices {
     pub config: StateMachineServicesConfig,
@@ -179,27 +178,6 @@ impl StateMachineServices {
             config.get_goose_disable_session_naming().unwrap_or(false),
             GoosePlatform::GooseCli,
         ))
-    }
-
-    /// The process-wide services for a `goose gateway`.
-    pub async fn instance() -> Arc<Self> {
-        INSTANCE
-            .get_or_init(|| async {
-                let config = Config::global();
-                let mut services_config = StateMachineServicesConfig::new(
-                    Arc::new(SessionManager::instance()),
-                    PermissionManager::instance(),
-                    None,
-                    config.get_goose_disable_session_naming().unwrap_or(false),
-                    GoosePlatform::GooseDesktop,
-                );
-                services_config.max_sessions = config
-                    .get_goose_max_active_agents()
-                    .unwrap_or(DEFAULT_MAX_SESSIONS);
-                Self::with_config(services_config)
-            })
-            .await
-            .clone()
     }
 
     pub fn with_config(config: StateMachineServicesConfig) -> Arc<Self> {
