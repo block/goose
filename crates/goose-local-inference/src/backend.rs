@@ -24,7 +24,6 @@ pub(super) struct LocalGenerationRequest<'a> {
     pub context_limit: usize,
     pub model_load_ms: Option<u64>,
     pub resolved_model: &'a ResolvedModelPaths,
-    pub draft_model_path: Option<std::path::PathBuf>,
     pub message_id: &'a str,
     pub tx: &'a StreamSender,
     pub log: &'a mut Option<Box<dyn RequestLogHandle>>,

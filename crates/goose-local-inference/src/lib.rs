@@ -1036,7 +1036,6 @@ impl Provider for LocalInferenceProvider {
                     context_limit,
                     model_load_ms,
                     resolved_model: &resolved_model,
-                    draft_model_path: resolved_model.draft_model_path.clone(),
                     message_id: &message_id,
                     tx: &tx,
                     log: &mut log,
