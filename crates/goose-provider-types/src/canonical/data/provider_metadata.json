@@ -8,7 +8,7 @@
     "env": [
       "302AI_API_KEY"
     ],
-    "model_count": 122
+    "model_count": 124
   },
   {
     "id": "abacus",
@@ -118,7 +118,7 @@
     "env": [
       "AIXY_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 7
   },
   {
     "id": "aki-io",
@@ -206,7 +206,7 @@
     "env": [
       "AMBIENT_API_KEY"
     ],
-    "model_count": 12
+    "model_count": 14
   },
   {
     "id": "amd",
@@ -416,7 +416,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 105
+    "model_count": 106
   },
   {
     "id": "crof",
@@ -438,7 +438,7 @@
     "env": [
       "CROSSMODEL_API_KEY"
     ],
-    "model_count": 68
+    "model_count": 69
   },
   {
     "id": "crusoe",
@@ -494,7 +494,7 @@
     "env": [
       "DIGITALOCEAN_ACCESS_TOKEN"
     ],
-    "model_count": 101
+    "model_count": 102
   },
   {
     "id": "dinference",
@@ -549,7 +549,7 @@
     "env": [
       "EDENAI_API_KEY"
     ],
-    "model_count": 295
+    "model_count": 309
   },
   {
     "id": "empiriolabs",
@@ -560,7 +560,7 @@
     "env": [
       "EMPIRIOLABS_API_KEY"
     ],
-    "model_count": 66
+    "model_count": 62
   },
   {
     "id": "engy",
@@ -648,7 +648,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 34
+    "model_count": 35
   },
   {
     "id": "gmicloud",
@@ -714,7 +714,7 @@
     "env": [
       "HF_TOKEN"
     ],
-    "model_count": 78
+    "model_count": 81
   },
   {
     "id": "hyper",
@@ -725,7 +725,7 @@
     "env": [
       "HYPER_API_KEY"
     ],
-    "model_count": 23
+    "model_count": 21
   },
   {
     "id": "iflowcn",
@@ -880,7 +880,7 @@
     "env": [
       "KENARI_API_KEY"
     ],
-    "model_count": 60
+    "model_count": 64
   },
   {
     "id": "kilo",
@@ -891,7 +891,7 @@
     "env": [
       "KILO_API_KEY"
     ],
-    "model_count": 396
+    "model_count": 387
   },
   {
     "id": "kimi-code-plan-cn",
@@ -968,7 +968,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 217
+    "model_count": 215
   },
   {
     "id": "llmgateway-providers",
@@ -979,7 +979,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 444
+    "model_count": 446
   },
   {
     "id": "llmtech",
@@ -1024,6 +1024,17 @@
       "LONGCAT_API_KEY"
     ],
     "model_count": 1
+  },
+  {
+    "id": "lowrouter",
+    "display_name": "LowRouter",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.lowrouter.ai/v1",
+    "doc": "https://lowrouter.ai/docs/models/available",
+    "env": [
+      "LOWROUTER_API_KEY"
+    ],
+    "model_count": 12
   },
   {
     "id": "lucidquery",
@@ -1078,7 +1089,7 @@
     "env": [
       "META_MODEL_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 6
   },
   {
     "id": "meta-llama",
@@ -1155,7 +1166,7 @@
     "env": [
       "MOARK_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 10
   },
   {
     "id": "modal",
@@ -1254,7 +1265,7 @@
     "env": [
       "NANO_GPT_API_KEY"
     ],
-    "model_count": 609
+    "model_count": 611
   },
   {
     "id": "nearai",
@@ -1265,7 +1276,7 @@
     "env": [
       "NEARAI_API_KEY"
     ],
-    "model_count": 32
+    "model_count": 56
   },
   {
     "id": "nebius",
@@ -1310,7 +1321,7 @@
     "env": [
       "NEURALWATT_API_KEY"
     ],
-    "model_count": 29
+    "model_count": 31
   },
   {
     "id": "nova",
@@ -1325,14 +1336,14 @@
   },
   {
     "id": "novita-ai",
-    "display_name": "NovitaAI",
+    "display_name": "Novita AI",
     "npm": "@ai-sdk/openai-compatible",
     "api": "https://api.novita.ai/openai",
     "doc": "https://novita.ai/docs/guides/introduction",
     "env": [
       "NOVITA_API_KEY"
     ],
-    "model_count": 107
+    "model_count": 84
   },
   {
     "id": "nvidia",
@@ -1365,7 +1376,7 @@
     "env": [
       "OFOX_API_KEY"
     ],
-    "model_count": 151
+    "model_count": 152
   },
   {
     "id": "ollama-cloud",
@@ -1380,25 +1391,25 @@
   },
   {
     "id": "opencode",
-    "display_name": "OpenCode Zen",
+    "display_name": "OpenCode",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://opencode.ai/zen/v1",
-    "doc": "https://opencode.ai/docs/zen",
+    "api": "https://opencode.ai/inference/v1",
+    "doc": "https://opencode.ai/v2/docs/console/models/",
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 119
+    "model_count": 120
   },
   {
     "id": "opencode-go",
     "display_name": "OpenCode Go",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://opencode.ai/zen/go/v1",
-    "doc": "https://opencode.ai/docs/go",
+    "api": "https://opencode.ai/inference/go/v1",
+    "doc": "https://opencode.ai/v2/docs/console/go/",
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 35
+    "model_count": 36
   },
   {
     "id": "openreason",
@@ -1442,7 +1453,7 @@
     "env": [
       "OVHCLOUD_API_KEY"
     ],
-    "model_count": 14
+    "model_count": 13
   },
   {
     "id": "pareto",
@@ -1511,6 +1522,17 @@
     "model_count": 3
   },
   {
+    "id": "prime",
+    "display_name": "Prime Inference",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.pinference.ai/api/v1",
+    "doc": "https://docs.primeintellect.ai/inference/overview",
+    "env": [
+      "PRIME_API_KEY"
+    ],
+    "model_count": 60
+  },
+  {
     "id": "privatemode-ai",
     "display_name": "Privatemode AI",
     "npm": "@ai-sdk/openai-compatible",
@@ -1564,7 +1586,7 @@
     "env": [
       "REQUESTY_API_KEY"
     ],
-    "model_count": 168
+    "model_count": 171
   },
   {
     "id": "routing-run",
@@ -1862,7 +1884,7 @@
     "env": [
       "TINFOIL_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 8
   },
   {
     "id": "tokengo",
@@ -1972,7 +1994,7 @@
     "env": [
       "VIVGRID_API_KEY"
     ],
-    "model_count": 36
+    "model_count": 37
   },
   {
     "id": "volcengine",
