@@ -11,6 +11,7 @@ impl AcpConnection {
         let source_session_id = &*args.session_id.0;
 
         let source = self
+            .services
             .session_manager
             .get_session(source_session_id, false)
             .await
@@ -28,6 +29,7 @@ impl AcpConnection {
         };
 
         let new_session = self
+            .services
             .session_manager
             .copy_session(source_session_id, fork_name)
             .await
@@ -35,13 +37,15 @@ impl AcpConnection {
         let new_session_id = new_session.id.clone();
 
         if let Some(conversation_before) = conversation_before {
-            self.session_manager
+            self.services
+                .session_manager
                 .truncate_conversation(&new_session_id, conversation_before)
                 .await
                 .internal_err()?;
         }
 
         let new_session = self
+            .services
             .session_manager
             .get_session(&new_session_id, true)
             .await

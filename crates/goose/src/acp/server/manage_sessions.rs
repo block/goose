@@ -15,6 +15,7 @@ impl AcpConnection {
         let session_id = &req.session_id;
 
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
@@ -24,7 +25,8 @@ impl AcpConnection {
             })?;
 
         self.open_session(session_id).await?;
-        self.session_manager
+        self.services
+            .session_manager
             .update(&session.id)
             .working_dir(path)
             .apply()
@@ -32,11 +34,12 @@ impl AcpConnection {
             .internal_err_ctx("Failed to update working directory")?;
 
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
             .internal_err_ctx("Failed to reload session")?;
-        self.services.config.providers.release(&session.id);
+        self.services.providers.release(&session.id);
         self.services
             .restore_provider_from_session(&session)
             .await
@@ -59,6 +62,7 @@ impl AcpConnection {
         let text = Some(req.text).filter(|text| !text.trim().is_empty());
         match req.mode {
             SessionSystemPromptMode::Set => self
+                .services
                 .session_manager
                 .update(session_id)
                 .system_prompt_override(text)
@@ -75,7 +79,8 @@ impl AcpConnection {
                         agent_client_protocol::Error::invalid_params()
                             .data("key cannot be empty for append mode")
                     })?;
-                self.session_manager
+                self.services
+                    .session_manager
                     .set_system_prompt_extra(session_id, key, text)
                     .await
                     .internal_err()?
@@ -92,7 +97,8 @@ impl AcpConnection {
         let session_id = req.session_id.0.to_string();
         self.active_runs.cancel_agent_run(&session_id);
         self.live_voice.stop_session_interaction(&session_id).await;
-        self.session_manager
+        self.services
+            .session_manager
             .delete_session(&session_id)
             .await
             .internal_err()?;
@@ -106,9 +112,15 @@ impl AcpConnection {
         req: ExportSessionRequest,
     ) -> Result<ExportSessionResponse, agent_client_protocol::Error> {
         let data = match req.format {
-            SessionExportFormat::Json => self.session_manager.export_session(&req.session_id).await,
+            SessionExportFormat::Json => {
+                self.services
+                    .session_manager
+                    .export_session(&req.session_id)
+                    .await
+            }
             SessionExportFormat::Markdown => {
-                self.session_manager
+                self.services
+                    .session_manager
                     .export_session_markdown(&req.session_id)
                     .await
             }
@@ -122,6 +134,7 @@ impl AcpConnection {
         req: ImportSessionRequest,
     ) -> Result<ImportSessionResponse, agent_client_protocol::Error> {
         let session = self
+            .services
             .session_manager
             .import_session(&req.input, None)
             .await
@@ -149,6 +162,7 @@ impl AcpConnection {
         }
 
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
@@ -173,7 +187,8 @@ impl AcpConnection {
             );
         }
 
-        self.session_manager
+        self.services
+            .session_manager
             .truncate_conversation(session_id, req.truncate_from)
             .await
             .internal_err()?;
@@ -190,6 +205,7 @@ impl AcpConnection {
                 .data(format!("Session not found: {session_id}"))
         };
         let updated = self
+            .services
             .session_manager
             .update_project_for_session_types(
                 session_id,
@@ -208,7 +224,8 @@ impl AcpConnection {
         &self,
         req: RenameSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.session_manager
+        self.services
+            .session_manager
             .update(&req.session_id)
             .user_provided_name(req.title)
             .apply()
@@ -221,7 +238,8 @@ impl AcpConnection {
         &self,
         req: ArchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.session_manager
+        self.services
+            .session_manager
             .update(&req.session_id)
             .archived_at(Some(chrono::Utc::now()))
             .apply()
@@ -236,7 +254,8 @@ impl AcpConnection {
         &self,
         req: UnarchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.session_manager
+        self.services
+            .session_manager
             .update(&req.session_id)
             .archived_at(None)
             .apply()

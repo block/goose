@@ -173,7 +173,7 @@ mod tests {
         let server = server(root.path().to_path_buf(), false);
 
         let services = server.services().await.unwrap();
-        assert!(services.config.scheduler_service.is_none());
+        assert!(services.scheduler.is_none());
         assert!(!root.path().join("schedule.json").exists());
     }
 
@@ -183,7 +183,7 @@ mod tests {
         let server = server(root.path().to_path_buf(), true);
 
         let services = server.services().await.unwrap();
-        assert!(services.config.scheduler_service.is_some());
+        assert!(services.scheduler.is_some());
     }
 
     #[tokio::test]

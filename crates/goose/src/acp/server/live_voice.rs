@@ -18,7 +18,8 @@ impl AcpConnection {
         &self,
         session_id: &str,
     ) -> Result<Session, agent_client_protocol::Error> {
-        self.session_manager
+        self.services
+            .session_manager
             .get_session(session_id, false)
             .await
             .map_err(|_| {
@@ -75,7 +76,7 @@ impl AcpConnection {
         let start = self.live_voice.start_interaction(
             reservation,
             offer,
-            self.session_manager.clone(),
+            self.services.session_manager.clone(),
             transcript_publisher,
             main_agent,
         );

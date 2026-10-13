@@ -68,7 +68,7 @@ impl super::AcpConnection {
                 "ACP URL elicitation is not supported"
             );
             record_acp_elicitation_response(
-                &self.session_manager,
+                &self.services.session_manager,
                 &session_id,
                 &elicitation_id,
                 ElicitationOutcome::Cancel,
@@ -82,7 +82,7 @@ impl super::AcpConnection {
                 Ok(schema) => schema,
                 Err(error) => {
                     record_acp_elicitation_response(
-                        &self.session_manager,
+                        &self.services.session_manager,
                         &session_id,
                         &elicitation_id,
                         ElicitationOutcome::Cancel,
@@ -101,7 +101,7 @@ impl super::AcpConnection {
         )
         .meta(meta);
 
-        let callback_session_manager = Arc::clone(&self.session_manager);
+        let callback_session_manager = Arc::clone(&self.services.session_manager);
         let callback_session_id = session_id.clone();
         let callback_elicitation_id = elicitation_id.clone();
         if let Err(error) = cx
@@ -132,7 +132,7 @@ impl super::AcpConnection {
             })
         {
             record_acp_elicitation_response(
-                &self.session_manager,
+                &self.services.session_manager,
                 &session_id,
                 &elicitation_id,
                 ElicitationOutcome::Cancel,
@@ -146,7 +146,7 @@ impl super::AcpConnection {
 
     async fn cancel_form_elicitation(&self, session_id: &str, elicitation_id: &str) {
         record_acp_elicitation_response(
-            &self.session_manager,
+            &self.services.session_manager,
             session_id,
             elicitation_id,
             ElicitationOutcome::Cancel,

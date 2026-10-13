@@ -1550,7 +1550,6 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
     }
     let services = StateMachineServices::with_config(agent_config);
     let session = services
-        .config
         .session_manager
         .create_session(
             std::env::current_dir()?,

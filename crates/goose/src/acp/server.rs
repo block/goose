@@ -334,7 +334,6 @@ pub struct AcpConnection {
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
-    goose_platform: GoosePlatform,
     connection_id: u64,
     client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
@@ -346,9 +345,6 @@ pub struct AcpConnection {
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     config_dir: std::path::PathBuf,
-    session_manager: Arc<SessionManager>,
-    permission_manager: Arc<PermissionManager>,
-    disable_session_naming: bool,
     provider_inventory: ProviderInventoryService,
     additional_source_roots: Vec<SourceRoot>,
     session_cwd: Option<PathBuf>,
@@ -869,7 +865,7 @@ impl AcpConnection {
     }
 
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
-        Arc::clone(&self.permission_manager)
+        Arc::clone(&self.services.permission_manager)
     }
 
     pub(super) fn supports_goose_custom_notifications(&self) -> bool {
@@ -885,6 +881,7 @@ impl AcpConnection {
     ) -> Result<(Session, SessionUsageTotals, usize), agent_client_protocol::Error> {
         loop {
             let session = self
+                .services
                 .session_manager
                 .get_session(session_id, false)
                 .await
@@ -908,6 +905,7 @@ impl AcpConnection {
                     .await
                     .internal_err_ctx("Failed to resolve context limit")?;
             let session = self
+                .services
                 .session_manager
                 .get_session(session_id, false)
                 .await
@@ -929,6 +927,7 @@ impl AcpConnection {
                 continue;
             }
             let totals = self
+                .services
                 .session_manager
                 .get_session_usage_totals(session_id)
                 .await
@@ -960,12 +959,8 @@ impl AcpConnection {
 
     pub async fn new(options: AcpConnectionOptions) -> Result<Self> {
         let services = options.services;
-        let agent_config = &services.config;
-        let session_manager = Arc::clone(&agent_config.session_manager);
-        let permission_manager = Arc::clone(&agent_config.permission_manager);
-        let disable_session_naming = agent_config.disable_session_naming;
-        let goose_platform = agent_config.goose_platform.clone();
-        let provider_inventory = ProviderInventoryService::new(session_manager.storage().clone());
+        let provider_inventory =
+            ProviderInventoryService::new(services.session_manager.storage().clone());
         let (thinking_effort_update_tx, thinking_effort_update_rx) = mpsc::unbounded_channel();
 
         Ok(Self {
@@ -979,7 +974,6 @@ impl AcpConnection {
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
-            goose_platform,
             connection_id: NEXT_CONNECTION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
@@ -990,9 +984,6 @@ impl AcpConnection {
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             config_dir: options.config_dir,
-            session_manager,
-            permission_manager,
-            disable_session_naming,
             provider_inventory,
             additional_source_roots: options.additional_source_roots,
             session_cwd: options.session_cwd,
@@ -1053,7 +1044,7 @@ impl AcpConnection {
     /// Points the session's name updates and extension starts at this connection.
     async fn attach_session(&self, cx: &ConnectionTo<Client>, session_id: &str) {
         self.services.touch_session(session_id).await;
-        if !self.disable_session_naming {
+        if !self.services.disable_session_naming {
             let tx = self
                 .session_name_update_tx
                 .get_or_init(|| spawn_session_name_update_notifier(cx.clone()));
@@ -1061,7 +1052,7 @@ impl AcpConnection {
                 .subscribe_session_name_updates(session_id, tx.clone());
         }
         let mut client = ClientContext::new(
-            &self.goose_platform,
+            &self.services.goose_platform,
             self.client_mcp_host_info.get().cloned(),
         );
         client.connection = Some(self.connection_id);
@@ -1173,7 +1164,7 @@ impl AcpConnection {
         include_messages_on_reload: bool,
     ) -> Result<Session, agent_client_protocol::Error> {
         let config = Config::global();
-        let mut builder = self.session_manager.update(&session.id);
+        let mut builder = self.services.session_manager.update(&session.id);
         let mut session_needs_update = false;
 
         if cwd != session.working_dir {
@@ -1192,7 +1183,8 @@ impl AcpConnection {
 
         if !mcp_servers.is_empty() {
             let extensions = mcp_server_configs(mcp_servers)?;
-            self.session_manager
+            self.services
+                .session_manager
                 .update_enabled_extensions(&session.id, |selected| {
                     for extension in extensions {
                         push_or_replace_extension(selected, extension);
@@ -1213,6 +1205,7 @@ impl AcpConnection {
             self.services.release_session(&session_id).await;
 
             session = self
+                .services
                 .session_manager
                 .get_session(&session_id, include_messages_on_reload)
                 .await
@@ -1507,7 +1500,7 @@ impl AcpConnection {
             &self.services,
             session_id,
             tool_call_notifier,
-            &self.session_manager,
+            &self.services.session_manager,
             chain,
         );
     }
@@ -1536,7 +1529,7 @@ impl AcpConnection {
             spawn_tool_title_enrichment(
                 &self.services,
                 tool_call_notifier,
-                &self.session_manager,
+                &self.services.session_manager,
                 session_id.0.as_ref(),
                 tool_request,
             );
@@ -1871,6 +1864,7 @@ impl AcpConnection {
                 .data(format!("Session not found: {}", session_id))
         })?;
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
@@ -2067,11 +2061,13 @@ impl AcpConnection {
         cached_context_limit: &mut Option<usize>,
     ) -> Result<Session, agent_client_protocol::Error> {
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
             .internal_err_ctx("Failed to load session")?;
         let totals = self
+            .services
             .session_manager
             .get_session_usage_totals(session_id)
             .await
@@ -2419,6 +2415,7 @@ impl AcpConnection {
         session_id: &SessionId,
     ) -> Result<(SessionNotification, Vec<SessionConfigOption>), agent_client_protocol::Error> {
         let session = self
+            .services
             .session_manager
             .get_session(&session_id.0, false)
             .await
@@ -2437,6 +2434,7 @@ impl AcpConnection {
             .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
         let goose_mode = self
+            .services
             .session_manager
             .get_session(&session_id.0, false)
             .await
@@ -2561,7 +2559,7 @@ impl AcpConnection {
             )
             .invalid_params_err_ctx("Invalid model config")?;
 
-        self.services.config.providers.release(session_id);
+        self.services.providers.release(session_id);
         self.services
             .switch_provider(session_id, &resolved_provider_name, model_config)
             .await
@@ -3736,6 +3734,7 @@ print(\"hello, world\")
             .unwrap(),
         );
         let session = server
+            .services
             .session_manager
             .create_session(
                 root.path().to_path_buf(),

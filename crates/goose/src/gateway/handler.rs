@@ -313,7 +313,6 @@ impl GatewayHandler {
         let config = Config::global();
         let session = self
             .services
-            .config
             .session_manager
             .create_session(
                 working_dir,
@@ -323,7 +322,7 @@ impl GatewayHandler {
             )
             .await?;
 
-        let manager = &self.services.config.session_manager;
+        let manager = &self.services.session_manager;
 
         // Store the current provider and model config on the session so the agent
         // can be restored after LRU eviction, matching the start_agent flow.
@@ -382,7 +381,7 @@ impl GatewayHandler {
     /// processes are torn down).
     async fn sync_session_config(&self, session: &Session) -> anyhow::Result<()> {
         let config = Config::global();
-        let manager = &self.services.config.session_manager;
+        let manager = &self.services.session_manager;
 
         // --- current global config ---
         let current_provider = config.get_goose_provider().ok();
@@ -459,7 +458,6 @@ impl GatewayHandler {
 
         let session = self
             .services
-            .config
             .session_manager
             .get_session(session_id, false)
             .await?;
@@ -472,7 +470,6 @@ impl GatewayHandler {
         // Re-read the session after sync so restore picks up the new values.
         let session = self
             .services
-            .config
             .session_manager
             .get_session(session_id, false)
             .await?;

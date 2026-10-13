@@ -296,7 +296,6 @@ impl CliSession {
         extension_loading: Option<AbortOnDropHandle<Result<Vec<ExtensionFailure>>>>,
     ) -> Self {
         let messages = services
-            .config
             .session_manager
             .get_session(&session_id, true)
             .await
@@ -1087,7 +1086,6 @@ impl CliSession {
 
         if let Err(e) = self
             .services
-            .config
             .session_manager
             .replace_conversation(&self.session_id, &Conversation::default())
             .await
@@ -1098,7 +1096,6 @@ impl CliSession {
 
         if let Err(e) = self
             .services
-            .config
             .session_manager
             .update(&self.session_id)
             .usage(goose_providers::conversation::token_usage::Usage::new(
@@ -1163,7 +1160,6 @@ impl CliSession {
 
         let mode = self
             .services
-            .config
             .session_manager
             .get_session(&self.session_id, false)
             .await?
@@ -1211,7 +1207,7 @@ impl CliSession {
     }
 
     async fn prepare_successor_session(&self) -> Result<String> {
-        let session_manager = &self.services.config.session_manager;
+        let session_manager = &self.services.session_manager;
         let old_session = session_manager.get_session(&self.session_id, false).await?;
         let new_session_id =
             create_successor_session(session_manager, &old_session, old_session.goose_mode).await?;
@@ -1221,7 +1217,6 @@ impl CliSession {
             .get_extension_configs(&self.session_id)
             .await?;
         self.services
-            .config
             .session_manager
             .update_enabled_extensions(&new_session_id, |selected| *selected = extensions)
             .await?;
@@ -1440,7 +1435,6 @@ impl CliSession {
                                             }),
                                         ));
                                         self.services
-                                            .config
                                             .session_manager
                                             .add_message(&self.session_id, &response_message)
                                             .await?;
@@ -1601,7 +1595,6 @@ impl CliSession {
             };
             let metadata = match self
                 .services
-                .config
                 .session_manager
                 .get_session_usage_totals(&self.session_id)
                 .await
@@ -1633,7 +1626,6 @@ impl CliSession {
         } else if is_stream_json_mode && terminal_error.is_none() {
             let totals = self
                 .services
-                .config
                 .session_manager
                 .get_session_usage_totals(&self.session_id)
                 .await
@@ -1922,7 +1914,6 @@ impl CliSession {
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
         self.services
-            .config
             .session_manager
             .get_session(&self.session_id, false)
             .await
@@ -2029,7 +2020,6 @@ impl CliSession {
                             for i in 0..(num_messages - 1) {
                                 let msg = &self.messages.messages()[start_len + i];
                                 self.services
-                                    .config
                                     .session_manager
                                     .add_message(&self.session_id, msg)
                                     .await?;
@@ -2062,12 +2052,11 @@ pub(crate) async fn session_provider(
     provider_name: &str,
 ) -> anyhow::Result<Arc<dyn Provider>> {
     let mut session = services
-        .config
         .session_manager
         .get_session(session_id, false)
         .await?;
     session.provider_name = Some(provider_name.to_string());
-    services.config.providers.provider_for(&session).await
+    services.providers.provider_for(&session).await
 }
 
 async fn create_successor_session(

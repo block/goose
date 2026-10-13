@@ -67,7 +67,6 @@ pub(crate) async fn prepare_subagent(
 
     let subagent_prompt = build_subagent_prompt(services, max_turns, session_id).await?;
     services
-        .config
         .session_manager
         .update(session_id)
         .system_prompt_override(Some(subagent_prompt))
@@ -105,7 +104,7 @@ impl SubagentRunner {
     }
 
     fn session_manager(&self) -> &SessionManager {
-        &self.services.config.session_manager
+        &self.services.session_manager
     }
 
     pub(crate) async fn start(

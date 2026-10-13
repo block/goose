@@ -13,6 +13,7 @@ impl AcpConnection {
         let session_id = &req.session_id;
         self.open_session(&req.session_id).await?;
         let goose_mode = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await
@@ -105,6 +106,7 @@ impl AcpConnection {
         };
 
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await

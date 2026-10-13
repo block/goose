@@ -93,7 +93,7 @@ async fn agent_with_calculator() -> Result<(
         .update_goose_mode(GooseMode::Approve, &session_id)
         .await?;
     let calculator = Arc::new(CalculatorExtension::new(
-        services.config.session_manager.action_required(),
+        services.session_manager.action_required(),
     ));
     services
         .extension_manager
@@ -211,7 +211,6 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
 
     let new_working_dir = tempfile::tempdir()?;
     services
-        .config
         .session_manager
         .update(&session_config.id)
         .working_dir(new_working_dir.path().to_path_buf())
@@ -220,7 +219,6 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
 
     {
         let session = services
-            .config
             .session_manager
             .get_session(&session_config.id, true)
             .await?;
@@ -235,7 +233,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
     }
 
     let replacement = Arc::new(CalculatorExtension::new(
-        services.config.session_manager.action_required(),
+        services.session_manager.action_required(),
     ));
     services
         .extension_manager
@@ -252,7 +250,6 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .await?;
     {
         let session = services
-            .config
             .session_manager
             .get_session(&session_config.id, true)
             .await?;
@@ -352,7 +349,6 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .is_err());
 
     let session = services
-        .config
         .session_manager
         .get_session(&session_config.id, true)
         .await?;
@@ -429,7 +425,6 @@ async fn stop_at_a_confirmation_interrupts_the_waiting_call() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(5), stream_messages(stream)).await??;
 
     let session = services
-        .config
         .session_manager
         .get_session(&session_id, true)
         .await?;
@@ -491,7 +486,6 @@ async fn state_machine_skill_approval_uses_its_leased_working_dir() -> Result<()
     let new_working_dir = tempfile::tempdir()?;
     install_skill(new_working_dir.path(), "NEW_SKILL_CONTENT")?;
     services
-        .config
         .session_manager
         .update(&session_config.id)
         .working_dir(new_working_dir.path().to_path_buf())
@@ -611,7 +605,6 @@ async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()
 
     assert_eq!(calculator.total(), 0);
     let session = services
-        .config
         .session_manager
         .get_session(&session_config.id, true)
         .await?;
@@ -671,7 +664,6 @@ async fn state_machine_rejects_resumed_bang_shell_without_its_lease() -> Result<
     stream_messages(stream).await?;
 
     let session = services
-        .config
         .session_manager
         .get_session(&session_config.id, true)
         .await?;
@@ -1036,7 +1028,6 @@ async fn a_subagent_asks_the_parents_client_for_approval_in_the_parents_mode() -
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
     services
-        .config
         .session_manager
         .update(&session_id)
         .goose_mode(GooseMode::Approve)
@@ -1197,7 +1188,7 @@ async fn a_subagents_elicitation_is_answered_by_the_parents_client() -> Result<(
             };
             elicitations += 1;
             crate::elicitation::complete_elicitation_with_generated_message(
-                &services.config.session_manager,
+                &services.session_manager,
                 &session_id,
                 id,
                 crate::action_required_manager::ElicitationOutcome::Accept(
@@ -1224,7 +1215,6 @@ async fn concurrent_subagents_get_their_own_answers_for_the_same_tool_call_id() 
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
     services
-        .config
         .session_manager
         .update(&session_id)
         .goose_mode(GooseMode::Approve)
@@ -1383,7 +1373,6 @@ async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
     ]);
     let (_hook_dir, hook_log) = install_hook_log(&mut services, &["SessionEnd"])?;
     services
-        .config
         .session_manager
         .update(&session_id)
         .goose_mode(GooseMode::Approve)
@@ -1467,7 +1456,6 @@ async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
 async fn a_parent_tool_call_id_that_looks_forwarded_is_still_the_parents() -> Result<()> {
     let (services, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
     services
-        .config
         .session_manager
         .update(&session_id)
         .goose_mode(GooseMode::Approve)

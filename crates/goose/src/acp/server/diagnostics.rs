@@ -10,7 +10,7 @@ impl AcpConnection {
             DiagnosticsReportLevel::Summary => DiagnosticsLevel::Summary,
             DiagnosticsReportLevel::Full => DiagnosticsLevel::Full,
         };
-        let report = generate_diagnostics(&self.session_manager, &req.session_id, level)
+        let report = generate_diagnostics(&self.services.session_manager, &req.session_id, level)
             .await
             .internal_err()?;
         let report = serde_json::to_value(report).internal_err()?;

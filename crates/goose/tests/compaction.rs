@@ -216,7 +216,6 @@ async fn setup_test_session(
     messages: Vec<Message>,
 ) -> Result<Session> {
     let session = services
-        .config
         .session_manager
         .create_session(
             temp_dir.path().to_path_buf(),
@@ -228,14 +227,12 @@ async fn setup_test_session(
 
     let conversation = Conversation::new_unvalidated(messages);
     services
-        .config
         .session_manager
         .replace_conversation(&session.id, &conversation)
         .await?;
 
     // Set initial token counts
     services
-        .config
         .session_manager
         .update(&session.id)
         .usage(Usage::new(Some(600), Some(400), Some(1000)))
@@ -264,7 +261,6 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
     // Capture initial context size before triggering reply
     // Should be: system (6000) + 40 messages (4000) = ~10000 tokens
     let initial_session = services
-        .config
         .session_manager
         .get_session(&session.id, true)
         .await?;
@@ -302,7 +298,6 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
 
                 // Capture the input tokens immediately after compaction
                 let session_after_compact = services
-                    .config
                     .session_manager
                     .get_session(&session.id, true)
                     .await?;
@@ -314,7 +309,6 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
     }
 
     let updated_session = services
-        .config
         .session_manager
         .get_session(&session.id, true)
         .await?;

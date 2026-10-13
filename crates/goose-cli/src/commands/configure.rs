@@ -1788,7 +1788,6 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let services = StateMachineServices::new();
 
     let session = services
-        .config
         .session_manager
         .create_session(
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),

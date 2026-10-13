@@ -48,7 +48,8 @@ impl AcpConnection {
             .filter(|session_id| !session_id.is_empty())
         {
             Some(
-                self.session_manager
+                self.services
+                    .session_manager
                     .get_session(session_id, false)
                     .await
                     .map_err(|_| {

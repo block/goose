@@ -502,7 +502,6 @@ async fn handle_resumed_session_workdir(
     interactive: bool,
 ) {
     let session = services
-        .config
         .session_manager
         .get_session(session_id, false)
         .await
@@ -570,12 +569,8 @@ async fn collect_extension_configs(
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
     let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        EnabledExtensionsState::for_session(
-            &services.config.session_manager,
-            session_id,
-            Config::global(),
-        )
-        .await
+        EnabledExtensionsState::for_session(&services.session_manager, session_id, Config::global())
+            .await
     } else if session_config.no_profile {
         Vec::new()
     } else {
@@ -656,7 +651,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let config = Config::global();
     let services = StateMachineServices::new();
 
-    let session_manager = services.config.session_manager.clone();
+    let session_manager = services.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
@@ -721,7 +716,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         };
     if let Err(e) = services
-        .config
         .session_manager
         .update_enabled_extensions(&session_id, |selected| {
             *selected = extensions_for_provider.clone()

@@ -151,7 +151,7 @@ impl AcpConnection {
             .collect();
         *self.recipe_path_cache.lock().await = recipe_file_hash_map;
 
-        let scheduled_jobs = match self.services.config.scheduler_service.clone() {
+        let scheduled_jobs = match self.services.scheduler.clone() {
             Some(scheduler) => scheduler.list_scheduled_jobs().await,
             None => Vec::new(),
         };
@@ -334,13 +334,15 @@ impl AcpConnection {
         else {
             return Ok(());
         };
-        self.session_manager
+        self.services
+            .session_manager
             .update(&session.id)
             .recipe(Some(rendered))
             .apply()
             .await
             .internal_err()?;
         session.recipe = self
+            .services
             .session_manager
             .get_session(&session.id, false)
             .await

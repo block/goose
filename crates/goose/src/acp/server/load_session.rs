@@ -378,6 +378,7 @@ impl AcpConnection {
         let session_id_str = args.session_id.0.to_string();
 
         let mut session = self
+            .services
             .session_manager
             .get_session(&session_id_str, true)
             .await
@@ -410,6 +411,7 @@ impl AcpConnection {
             .internal_err_ctx("Failed to get provider while loading ACP session")?;
         resume_saved_provider_session(&provider, session.conversation.as_ref()).await;
         session = self
+            .services
             .session_manager
             .get_session(&session_id_str, false)
             .await

@@ -130,7 +130,6 @@ mod tests {
 
         async fn add_scheduler_extension(services: &Arc<StateMachineServices>) -> String {
             let session = services
-                .config
                 .session_manager
                 .create_session(
                     PathBuf::from("."),
@@ -545,7 +544,6 @@ mod tests {
             let user_message = Message::user().with_text("Hello");
 
             let session = services
-                .config
                 .session_manager
                 .create_session(
                     PathBuf::default(),
@@ -2499,7 +2497,6 @@ mod tests {
         ) -> Result<(Vec<Message>, Vec<Message>)> {
             let services = StateMachineServices::new();
             let session = services
-                .config
                 .session_manager
                 .create_session(
                     PathBuf::default(),
@@ -2532,7 +2529,6 @@ mod tests {
             }
 
             let persisted = services
-                .config
                 .session_manager
                 .get_session(&session_id, true)
                 .await?
@@ -2598,7 +2594,6 @@ mod tests {
         async fn test_empty_response_with_steer_drops_empty_message() -> Result<()> {
             let services = StateMachineServices::new();
             let session = services
-                .config
                 .session_manager
                 .create_session(
                     PathBuf::default(),
@@ -2644,7 +2639,6 @@ mod tests {
             }
 
             let persisted = services
-                .config
                 .session_manager
                 .get_session(&session_id, true)
                 .await?

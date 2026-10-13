@@ -19,7 +19,6 @@ async fn main() -> anyhow::Result<()> {
     let services = StateMachineServices::new();
 
     let session = services
-        .config
         .session_manager
         .create_session(
             PathBuf::default(),

@@ -883,7 +883,6 @@ async fn execute_job(
             .with_cache_ttl_clamped();
 
     let session = services
-        .config
         .session_manager
         .create_session(
             std::env::current_dir()?,
@@ -975,7 +974,6 @@ async fn execute_job(
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
         services
-            .config
             .session_manager
             .update(&session.id)
             .schedule_id(Some(job.id.clone()))
@@ -1020,7 +1018,6 @@ async fn execute_job(
             let session_duration = start_time.elapsed();
             let exit_type = if stream_error { "error" } else { "normal" };
             let (total_tokens, message_count) = services
-                .config
                 .session_manager
                 .get_session(&session.id, false)
                 .await

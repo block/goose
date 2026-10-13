@@ -197,6 +197,7 @@ impl AcpConnection {
 
         // ACP clients see their own (Acp) sessions plus legacy User/Scheduled ones.
         let page = self
+            .services
             .session_manager
             .list_sessions_paged(SessionListPageQuery {
                 filters: SessionListFilters {

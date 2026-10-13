@@ -107,6 +107,7 @@ impl AcpConnection {
     ) -> Result<GetSessionExtensionsResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
         let session = self
+            .services
             .session_manager
             .get_session(session_id, false)
             .await

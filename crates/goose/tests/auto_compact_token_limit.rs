@@ -80,7 +80,6 @@ async fn effective_trigger_and_agent_execution_follow_the_current_model() -> Res
 
     let services = StateMachineServices::new();
     let session = services
-        .config
         .session_manager
         .create_session(
             temp_dir.path().to_path_buf(),
@@ -135,7 +134,6 @@ async fn verify_reply(
         )
         .await?;
     services
-        .config
         .session_manager
         .replace_conversation(
             session_id,
@@ -146,7 +144,6 @@ async fn verify_reply(
         )
         .await?;
     services
-        .config
         .session_manager
         .update(session_id)
         .usage(Usage::new(Some(tokens), Some(0), Some(tokens)))

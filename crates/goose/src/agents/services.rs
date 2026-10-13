@@ -136,7 +136,13 @@ impl StateMachineServicesConfig {
 const DEFAULT_MAX_SESSIONS: usize = 100;
 
 pub struct StateMachineServices {
-    pub config: StateMachineServicesConfig,
+    pub session_manager: Arc<SessionManager>,
+    pub permission_manager: Arc<PermissionManager>,
+    pub providers: Arc<ProviderManager>,
+    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
+    pub goose_platform: GoosePlatform,
+    pub disable_session_naming: bool,
+    max_sessions: usize,
     loaded_sessions: Mutex<lru::LruCache<String, ()>>,
 
     pub extension_manager: Arc<ExtensionManager>,
@@ -181,30 +187,30 @@ impl StateMachineServices {
     }
 
     pub fn with_config(config: StateMachineServicesConfig) -> Arc<Self> {
-        let providers = config.providers.clone();
-
         let mut default_client = ClientContext::new(&config.goose_platform, None);
-        default_client.capabilities.elicitation_handler = config.elicitation_handler.clone();
-        default_client.capabilities.protocol_version = config.mcp_protocol_version.clone();
-        let session_manager = Arc::clone(&config.session_manager);
-        let scheduler = config.scheduler_service.clone();
-        let inspection_session_manager = Arc::clone(&config.session_manager);
-        let permission_manager = Arc::clone(&config.permission_manager);
+        default_client.capabilities.elicitation_handler = config.elicitation_handler;
+        default_client.capabilities.protocol_version = config.mcp_protocol_version;
         Arc::new(Self {
-            config,
-            loaded_sessions: Mutex::new(lru::LruCache::unbounded()),
             extension_manager: Arc::new(ExtensionManager::new(
-                providers.clone(),
-                session_manager,
-                scheduler,
+                config.providers.clone(),
+                config.session_manager.clone(),
+                config.scheduler_service.clone(),
                 default_client,
             )),
-            tool_confirmation_coordinator: ToolConfirmationCoordinator::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(
-                permission_manager,
-                providers,
-                inspection_session_manager,
+                config.permission_manager.clone(),
+                config.providers.clone(),
+                config.session_manager.clone(),
             ),
+            session_manager: config.session_manager,
+            permission_manager: config.permission_manager,
+            providers: config.providers,
+            scheduler: config.scheduler_service,
+            goose_platform: config.goose_platform,
+            disable_session_naming: config.disable_session_naming,
+            max_sessions: config.max_sessions,
+            loaded_sessions: Mutex::new(lru::LruCache::unbounded()),
+            tool_confirmation_coordinator: ToolConfirmationCoordinator::new(),
             hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
@@ -259,8 +265,7 @@ impl StateMachineServices {
             .hook_manager
             .emit_collecting_banners(event, crate::hooks::HookContext::new(event, session_id))
             .await;
-        self.config
-            .session_manager
+        self.session_manager
             .add_message(
                 session_id,
                 &crate::agents::state_machine::session_start_message(&banners),
@@ -312,7 +317,7 @@ impl StateMachineServices {
         let evicted = {
             let mut loaded = self.loaded_sessions.lock().await;
             loaded.put(session_id.to_string(), ());
-            let excess = loaded.len().saturating_sub(self.config.max_sessions.max(1));
+            let excess = loaded.len().saturating_sub(self.max_sessions.max(1));
             let evicted: Vec<String> = loaded
                 .iter()
                 .rev()
@@ -341,8 +346,7 @@ impl StateMachineServices {
         self.loaded_sessions.lock().await.pop(session_id);
         self.discard_pending_steers(session_id).await;
         self.tool_confirmation_coordinator.release(session_id);
-        self.config
-            .session_manager
+        self.session_manager
             .action_required()
             .forget_forwarded_from(session_id);
         self.session_name_updates
@@ -350,7 +354,7 @@ impl StateMachineServices {
             .expect("session name subscribers unavailable")
             .remove(session_id);
         self.extension_manager.release(session_id).await;
-        self.config.providers.release(session_id);
+        self.providers.release(session_id);
     }
 
     async fn steer_queue(&self, session_id: &str) -> SteerQueue {
@@ -394,23 +398,15 @@ impl StateMachineServices {
     }
 
     pub async fn provider(&self, session_id: &str) -> Result<Arc<dyn Provider>> {
-        let session = self
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await?;
-        self.config.providers.provider_for(&session).await
+        let session = self.session_manager.get_session(session_id, false).await?;
+        self.providers.provider_for(&session).await
     }
 
     pub async fn model_config_for_session(
         &self,
         session_id: &str,
     ) -> Result<goose_providers::model::ModelConfig> {
-        let session = self
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await?;
+        let session = self.session_manager.get_session(session_id, false).await?;
         crate::agents::provider_manager::model_config_for(&session)
     }
 
@@ -442,7 +438,6 @@ impl StateMachineServices {
 
         if include_final_output {
             let final_output_tool = self
-                .config
                 .session_manager
                 .get_session(session_id, false)
                 .await
@@ -461,13 +456,9 @@ impl StateMachineServices {
         request_id: &str,
         permission: Permission,
     ) -> Result<()> {
-        self.config
-            .session_manager
-            .get_session(session_id, false)
-            .await?;
+        self.session_manager.get_session(session_id, false).await?;
 
         let (session_id, request_id) = self
-            .config
             .session_manager
             .action_required()
             .answered_request(session_id, request_id)?;
@@ -512,7 +503,7 @@ impl StateMachineServices {
 
         if state.contains_request(request_id) {
             persist_tool_confirmation_decision(
-                self.config.session_manager.as_ref(),
+                self.session_manager.as_ref(),
                 session_id,
                 request_id,
                 &state_machine_permission,
@@ -612,7 +603,7 @@ impl StateMachineServices {
                 tool_pair_compaction_enabled,
             )),
             Arc::new(ToolApprovalOperation::new(&self.tool_inspection_manager)),
-            Arc::new(DoctorOperation::new(self.config.session_manager.clone())),
+            Arc::new(DoctorOperation::new(self.session_manager.clone())),
             Arc::new(ProjectOperation),
             Arc::new(SkillOperation::new(
                 self.hook_manager.clone(),
@@ -722,7 +713,7 @@ impl StateMachineServices {
         cancel: CancellationToken,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let user_message = user_message.with_generated_id_if_missing();
-        let session_manager = self.config.session_manager.clone();
+        let session_manager = self.session_manager.clone();
         let session_id = session_config.id.clone();
 
         let message_text_for_trace = agent_visible_message_text(&user_message);
@@ -789,7 +780,7 @@ impl StateMachineServices {
             .add_message(&session_config.id, &user_message)
             .await?;
 
-        if !self.config.disable_session_naming {
+        if !self.disable_session_naming {
             let provider = self.provider(&session_config.id).await?;
             let manager = session_manager.clone();
             let tx = self
@@ -839,7 +830,6 @@ impl StateMachineServices {
         cancel: CancellationToken,
     ) -> Result<Option<BoxStream<'static, Result<AgentEvent>>>> {
         let session = self
-            .config
             .session_manager
             .get_session(&session_config.id, true)
             .await?;
@@ -884,11 +874,7 @@ impl StateMachineServices {
                 let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
                     return None;
                 };
-                let forwarded = self
-                    .config
-                    .session_manager
-                    .action_required()
-                    .is_forwarded(id);
+                let forwarded = self.session_manager.action_required().is_forwarded(id);
                 (!forwarded).then(|| id.clone())
             })
             .collect()
@@ -945,7 +931,7 @@ impl StateMachineServices {
         session_config: SessionConfig,
         cancel: CancellationToken,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let session_manager = self.config.session_manager.clone();
+        let session_manager = self.session_manager.clone();
         let session_id = session_config.id.clone();
         let provider = self.provider(&session_id).await?;
         let model_config = self.effective_model_config_for_session(&session_id).await?;
@@ -1010,10 +996,7 @@ impl StateMachineServices {
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
-        self.config
-            .providers
-            .set_provider(session_id, provider)
-            .await;
+        self.providers.set_provider(session_id, provider).await;
         self.switch_provider(session_id, &provider_name, model_config)
             .await
     }
@@ -1024,11 +1007,7 @@ impl StateMachineServices {
         provider_name: &str,
         model_config: goose_providers::model::ModelConfig,
     ) -> Result<()> {
-        let mut session = self
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await?;
+        let mut session = self.session_manager.get_session(session_id, false).await?;
         let registry_entry = crate::providers::get_from_registry(provider_name)
             .await
             .ok();
@@ -1042,7 +1021,6 @@ impl StateMachineServices {
         session.provider_name = Some(provider_name.to_string());
         session.model_config = Some(model_config.clone());
         let provider = self
-            .config
             .providers
             .provider_for(&session)
             .await
@@ -1069,8 +1047,7 @@ impl StateMachineServices {
             warn!("Failed to apply model selection to provider: {e}");
         }
 
-        self.config
-            .session_manager
+        self.session_manager
             .clone()
             .update(session_id)
             .provider_name(provider_name)
@@ -1087,8 +1064,7 @@ impl StateMachineServices {
                 .await
                 .map_err(|e| anyhow::anyhow!("Provider rejected mode update: {e}"))?;
         }
-        self.config
-            .session_manager
+        self.session_manager
             .clone()
             .update(session_id)
             .goose_mode(mode)
@@ -1118,7 +1094,6 @@ impl StateMachineServices {
                 Value::String(effort.to_string()),
             )]));
             return self
-                .config
                 .session_manager
                 .clone()
                 .update(session_id)
@@ -1285,7 +1260,7 @@ mod tests {
             serve: crate::builtin_extension::SpawnServerFn,
         ) -> String {
             crate::builtin_extension::register_builtin_extension(fixture, serve);
-            let session_manager = &services.config.session_manager;
+            let session_manager = &services.session_manager;
             let session = session_manager
                 .create_session(
                     temp_dir.path().to_path_buf(),
@@ -2481,7 +2456,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert_eq!(marker.id.as_deref(), Some("provider-output-limit"));
 
         let session = services
-            .config
             .session_manager
             .get_session(&session_id, true)
             .await?;
@@ -2512,7 +2486,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         assert_eq!(provider.call_count(), 1);
         let session = services
-            .config
             .session_manager
             .get_session(&session_id, true)
             .await?;
@@ -2585,7 +2558,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }));
 
         let stored_session = services
-            .config
             .session_manager
             .get_session(&session_id, true)
             .await?;
