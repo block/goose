@@ -1,6 +1,8 @@
 use dotenvy::dotenv;
 use futures::StreamExt;
-use goose::agents::{AgentEvent, ExtensionConfig, SessionConfig, StateMachineServices};
+use goose::agents::{
+    AgentEvent, ExtensionConfig, SessionConfig, StateMachineServices, StateMachineServicesConfig,
+};
 use goose::config::{GooseMode, DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::conversation::message::Message;
 use goose::providers::create;
@@ -16,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     let model_config =
         goose::model_config::model_config_from_user_config("databricks", DATABRICKS_DEFAULT_MODEL)?;
 
-    let services = StateMachineServices::new();
+    let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
 
     let session = services
         .session_manager

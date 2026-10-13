@@ -110,6 +110,19 @@ pub struct StateMachineServicesConfig {
 }
 
 impl StateMachineServicesConfig {
+    /// What a CLI process runs on: the process's session store and permissions.
+    pub fn cli() -> Self {
+        Self::new(
+            Arc::new(SessionManager::instance()),
+            PermissionManager::instance(),
+            None,
+            Config::global()
+                .get_goose_disable_session_naming()
+                .unwrap_or(false),
+            GoosePlatform::GooseCli,
+        )
+    }
+
     pub fn new(
         session_manager: Arc<SessionManager>,
         permission_manager: Arc<PermissionManager>,
@@ -175,17 +188,6 @@ fn agent_visible_message_text(message: &Message) -> String {
 }
 
 impl StateMachineServices {
-    pub fn new() -> Arc<Self> {
-        let config = Config::global();
-        Self::with_config(StateMachineServicesConfig::new(
-            Arc::new(SessionManager::instance()),
-            PermissionManager::instance(),
-            None,
-            config.get_goose_disable_session_naming().unwrap_or(false),
-            GoosePlatform::GooseCli,
-        ))
-    }
-
     pub fn with_config(config: StateMachineServicesConfig) -> Arc<Self> {
         let mut default_client = ClientContext::new(&config.goose_platform, None);
         default_client.capabilities.elicitation_handler = config.elicitation_handler;
@@ -2647,7 +2649,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
-        let services = StateMachineServices::new();
+        let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
 
         // Verify that the tool inspection manager has all expected inspectors
         let inspector_names = services.tool_inspection_manager.inspector_names();

@@ -3,8 +3,7 @@ use goose::agents::StateMachineServices;
 use goose::gateway::manager::GatewayManager;
 use std::sync::Arc;
 
-pub async fn handle_gateway_status() -> Result<()> {
-    let services = StateMachineServices::new();
+pub async fn handle_gateway_status(services: Arc<StateMachineServices>) -> Result<()> {
     let gateway_manager = Arc::new(GatewayManager::new(services)?);
     let statuses = gateway_manager.status().await;
 
@@ -35,10 +34,10 @@ pub async fn handle_gateway_status() -> Result<()> {
 }
 
 pub async fn handle_gateway_start(
+    services: Arc<StateMachineServices>,
     gateway_type: String,
     platform_config: serde_json::Value,
 ) -> Result<()> {
-    let services = StateMachineServices::new();
     let gateway_manager = Arc::new(GatewayManager::new(services)?);
 
     let mut config = goose::gateway::GatewayConfig {
@@ -58,16 +57,20 @@ pub async fn handle_gateway_start(
     Ok(())
 }
 
-pub async fn handle_gateway_stop(gateway_type: String) -> Result<()> {
-    let services = StateMachineServices::new();
+pub async fn handle_gateway_stop(
+    services: Arc<StateMachineServices>,
+    gateway_type: String,
+) -> Result<()> {
     let gateway_manager = Arc::new(GatewayManager::new(services)?);
     gateway_manager.stop_gateway(&gateway_type).await?;
     println!("Gateway '{}' stopped.", gateway_type);
     Ok(())
 }
 
-pub async fn handle_gateway_pair(gateway_type: String) -> Result<()> {
-    let services = StateMachineServices::new();
+pub async fn handle_gateway_pair(
+    services: Arc<StateMachineServices>,
+    gateway_type: String,
+) -> Result<()> {
     let gateway_manager = Arc::new(GatewayManager::new(services)?);
     let (code, expires_at) = gateway_manager.generate_pairing_code(&gateway_type).await?;
 

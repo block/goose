@@ -6,7 +6,7 @@ use super::{
 };
 use console::style;
 use goose::agents::final_output_tool::FinalOutputTool;
-use goose::agents::{Container, ExtensionError, StateMachineServices};
+use goose::agents::{Container, ExtensionError, StateMachineServices, StateMachineServicesConfig};
 use goose::config::extensions::name_to_key;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
@@ -649,7 +649,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let services = StateMachineServices::new();
+    let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
 
     let session_manager = services.session_manager.clone();
 

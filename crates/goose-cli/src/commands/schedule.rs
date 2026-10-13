@@ -1,6 +1,5 @@
 use anyhow::{bail, Context, Result};
-use goose::agents::{GoosePlatform, StateMachineServices, StateMachineServicesConfig};
-use goose::config::permission::PermissionManager;
+use goose::agents::{StateMachineServices, StateMachineServicesConfig};
 use goose::scheduler::{
     get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
@@ -249,13 +248,10 @@ pub async fn handle_schedule_run_now(schedule_id: String) -> Result<()> {
     let scheduler = Scheduler::new(scheduler_storage_path, session_manager.clone())
         .await
         .context("Failed to initialize scheduler")?;
-    let services = StateMachineServices::with_config(StateMachineServicesConfig::new(
-        session_manager,
-        PermissionManager::instance(),
-        Some(scheduler.clone()),
-        true,
-        GoosePlatform::GooseCli,
-    ));
+    let mut config = StateMachineServicesConfig::cli();
+    config.scheduler_service = Some(scheduler.clone());
+    config.disable_session_naming = true;
+    let services = StateMachineServices::with_config(config);
     scheduler.attach_services(&services);
 
     match scheduler.run_now(&schedule_id).await {

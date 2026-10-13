@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
-use goose::agents::{AgentEvent, SessionConfig, StateMachineServices};
+use goose::agents::{AgentEvent, SessionConfig, StateMachineServices, StateMachineServicesConfig};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
@@ -246,7 +246,7 @@ async fn setup_test_session(
 #[tokio::test]
 async fn test_auto_compaction_during_reply() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let services = StateMachineServices::new();
+    let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
 
     // Setup session with many messages to have substantial context
     // 20 exchanges = 40 messages * 100 tokens = ~4000 tokens in conversation

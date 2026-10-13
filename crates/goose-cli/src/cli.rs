@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use clap_complete_nushell::Nushell as ClapNushell;
-use goose::agents::GoosePlatform;
+use goose::agents::{GoosePlatform, StateMachineServices, StateMachineServicesConfig};
 #[cfg(feature = "bundled-mcp")]
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{Config, GooseMode};
@@ -1504,20 +1504,15 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
     }
 
     let config = goose::config::Config::global();
-    let mut agent_config = StateMachineServicesConfig::new(
-        std::sync::Arc::new(SessionManager::instance()),
-        goose::config::permission::PermissionManager::instance(),
-        None,
-        true,
-        GoosePlatform::GooseCli,
-    );
+    let mut services_config = StateMachineServicesConfig::cli();
+    services_config.disable_session_naming = true;
     if let Some(protocol_version) = script.protocol_version.as_deref() {
-        agent_config.mcp_protocol_version = Some(serde_json::from_value(
+        services_config.mcp_protocol_version = Some(serde_json::from_value(
             serde_json::Value::String(protocol_version.to_string()),
         )?);
     }
     if let Some(action) = script.elicitation.clone() {
-        agent_config.elicitation_handler =
+        services_config.elicitation_handler =
             Some(std::sync::Arc::new(move |request| match &action {
                 McpProbeElicitation::Accept { content } => {
                     ElicitResult::new(ElicitationAction::Accept).with_content(content.clone())
@@ -1548,7 +1543,7 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
                 McpProbeElicitation::Cancel => ElicitResult::new(ElicitationAction::Cancel),
             }));
     }
-    let services = StateMachineServices::with_config(agent_config);
+    let services = StateMachineServices::with_config(services_config);
     let session = services
         .session_manager
         .create_session(
@@ -2357,8 +2352,9 @@ async fn handle_run_command(
 async fn handle_gateway_command(command: GatewayCommand) -> Result<()> {
     use crate::commands::gateway;
 
+    let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
     match command {
-        GatewayCommand::Status {} => gateway::handle_gateway_status().await,
+        GatewayCommand::Status {} => gateway::handle_gateway_status(services).await,
         GatewayCommand::Start {
             gateway_type,
             bot_token,
@@ -2367,10 +2363,14 @@ async fn handle_gateway_command(command: GatewayCommand) -> Result<()> {
             if let Some(ids) = goose::gateway::manager::saved_allowed_user_ids(&gateway_type) {
                 platform_config["allowed_user_ids"] = serde_json::json!(ids);
             }
-            gateway::handle_gateway_start(gateway_type, platform_config).await
+            gateway::handle_gateway_start(services, gateway_type, platform_config).await
         }
-        GatewayCommand::Stop { gateway_type } => gateway::handle_gateway_stop(gateway_type).await,
-        GatewayCommand::Pair { gateway_type } => gateway::handle_gateway_pair(gateway_type).await,
+        GatewayCommand::Stop { gateway_type } => {
+            gateway::handle_gateway_stop(services, gateway_type).await
+        }
+        GatewayCommand::Pair { gateway_type } => {
+            gateway::handle_gateway_pair(services, gateway_type).await
+        }
     }
 }
 

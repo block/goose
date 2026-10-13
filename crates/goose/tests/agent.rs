@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::StreamExt;
-use goose::agents::{AgentEvent, GoosePlatform, StateMachineServices};
+use goose::agents::{AgentEvent, GoosePlatform, StateMachineServices, StateMachineServicesConfig};
 use goose::config::extensions::{set_extension, ExtensionEntry};
 
 #[cfg(test)]
@@ -278,7 +278,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_no_schedule_management_tool_without_scheduler() {
-            let services = StateMachineServices::new();
+            let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
             let session_id = add_scheduler_extension(&services).await;
 
             let tools = services.list_tools(&session_id, None).await.unwrap();
@@ -539,7 +539,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_max_turns_limit() -> Result<()> {
-            let services = StateMachineServices::new();
+            let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
             let provider = Arc::new(MockToolProvider::new());
             let user_message = Message::user().with_text("Hello");
 
@@ -2495,7 +2495,7 @@ mod tests {
             provider: Arc<dyn Provider>,
             session_name: &str,
         ) -> Result<(Vec<Message>, Vec<Message>)> {
-            let services = StateMachineServices::new();
+            let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
             let session = services
                 .session_manager
                 .create_session(
@@ -2592,7 +2592,7 @@ mod tests {
         /// must still not be persisted ahead of the steer.
         #[tokio::test]
         async fn test_empty_response_with_steer_drops_empty_message() -> Result<()> {
-            let services = StateMachineServices::new();
+            let services = StateMachineServices::with_config(StateMachineServicesConfig::cli());
             let session = services
                 .session_manager
                 .create_session(
