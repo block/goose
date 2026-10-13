@@ -2,6 +2,17 @@ use lopdf::{content::Content as PdfContent, Document, Object};
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 use std::{fs, path::Path};
 
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(path)?;
+    // An older goose may have created the directory with the default mode, so set it every time.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
+}
+
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
@@ -118,14 +129,7 @@ pub async fn pdf_tool(
 
         "extract_images" => {
             let cache_dir = cache_dir.join("pdf_images");
-            let mut dir_builder = fs::DirBuilder::new();
-            dir_builder.recursive(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                dir_builder.mode(0o700);
-            }
-            dir_builder.create(&cache_dir).map_err(|e| {
+            create_private_dir(&cache_dir).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     format!("Failed to create image cache directory: {}", e),
@@ -448,21 +452,23 @@ mod tests {
 
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test_image.pdf");
-        let cache_dir = tempfile::tempdir().unwrap();
+        let new_cache = tempfile::tempdir().unwrap();
+        let old_cache = tempfile::tempdir().unwrap();
+        let old_images = old_cache.path().join("pdf_images");
+        fs::create_dir(&old_images).unwrap();
+        fs::set_permissions(&old_images, fs::Permissions::from_mode(0o755)).unwrap();
 
-        pdf_tool(
-            test_pdf_path.to_str().unwrap(),
-            "extract_images",
-            cache_dir.path(),
-        )
-        .await
-        .unwrap();
+        for cache_dir in [new_cache.path(), old_cache.path()] {
+            pdf_tool(test_pdf_path.to_str().unwrap(), "extract_images", cache_dir)
+                .await
+                .unwrap();
 
-        let mode = fs::metadata(cache_dir.path().join("pdf_images"))
-            .unwrap()
-            .permissions()
-            .mode();
-        assert_eq!(mode & 0o777, 0o700);
+            let mode = fs::metadata(cache_dir.join("pdf_images"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o700, "{}", cache_dir.display());
+        }
     }
 
     #[tokio::test]
