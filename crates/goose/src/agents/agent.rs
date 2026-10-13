@@ -18,16 +18,10 @@ use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabil
 use crate::agents::provider_manager::ProviderManager;
 use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
-    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
-    persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
-    DoctorOperation, Emitter, EmptyResponseOperation, ExitOnErrorOperation,
-    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
+    build_state_machine, has_unapplied_tool_confirmation_response, pending_tool_confirmations,
+    persist_tool_confirmation_decision, run_goose, Emitter, GooseEffect, PipelineConfig,
+    StateMachine, SteerQueue,
 };
-use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
@@ -604,93 +598,27 @@ impl Agent {
             .unwrap_or_else(|_| {
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
-        let manages_own_context = provider.manages_own_context();
-        let tool_pair_compaction_enabled =
-            crate::context_mgmt::tool_pair_summarization_enabled() && !manages_own_context;
 
-        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
-            Arc::new(BangShellOperation::new()),
-        ];
-        if !manages_own_context {
-            operations.push(Arc::new(CompactionOperation::new(
-                provider.clone(),
-                model_config.clone(),
-                context_limit,
-                compaction_threshold,
-            )));
-        }
-        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(ToolPairCompactionOperation::new(
-                provider.clone(),
-                model_config.clone(),
-                tool_call_cutoff,
-                tool_pair_compaction_enabled,
-            )),
-            Arc::new(ToolApprovalOperation::new(&self.tool_inspection_manager)),
-            Arc::new(DoctorOperation::new(self.config.session_manager.clone())),
-            Arc::new(ProjectOperation),
-            Arc::new(SkillOperation::new(
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            // Before RecipeOperation: a `delegate` response only means the subagent
-            // started, so a final output from the same batch must not be shown until
-            // the subagents have run.
-            Arc::new(ForegroundSubagentOperation::new(
-                ForegroundSubagentRunner::new(
-                    self.config.session_manager.clone(),
-                    self.config.resolve_use_login_shell_path(),
-                ),
-                cancel.clone(),
-            )),
-            Arc::new(RecipeOperation::new(
-                provider.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(ToolExecutionOperation::new(
-                self.extension_manager.clone(),
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
-            Arc::new(RetryOperation::new(
-                std::time::Duration::from_secs(retry_timeout),
-                std::time::Duration::from_secs(on_failure_timeout),
-            )),
-            Arc::new(EmptyResponseOperation),
-            Arc::new(StopHookOperation::new(
-                self.hook_manager.clone(),
-                stop_hook_block_cap,
-            )),
-            Arc::new(ExitOnErrorOperation),
-            Arc::new(MaxTurnsOperation::new(max_turns)),
-        ];
-        operations.extend(remaining_operations);
-        let request_preparer = GooseInferenceRequestPreparer {
+        build_state_machine(PipelineConfig {
+            provider,
+            model_config,
+            context_limit,
+            compaction_threshold,
+            tool_call_cutoff,
+            tool_pair_summarization: crate::context_mgmt::tool_pair_summarization_enabled(),
+            session_manager: self.config.session_manager.clone(),
             extension_manager: Arc::clone(&self.extension_manager),
             extension_lease,
             tool_inspection_manager: &self.tool_inspection_manager,
-            context_limit,
-        };
-        let status_operation =
-            Arc::new(StatusOperation::new(provider.clone(), model_config.clone()));
-        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
-        let inference = Arc::new(
-            InferenceRunner::new(inference_provider, model_config)
-                .with_request_preparer(Arc::new(request_preparer)),
-        );
-        let mut command_handlers = operations.clone();
-        command_handlers.push(status_operation);
-        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
-            Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
-
-        StateMachine::new(steps, cancel)
+            hook_manager: self.hook_manager.clone(),
+            steer_queue,
+            use_login_shell_path: self.config.resolve_use_login_shell_path(),
+            retry_timeout: std::time::Duration::from_secs(retry_timeout),
+            on_failure_timeout: std::time::Duration::from_secs(on_failure_timeout),
+            stop_hook_block_cap,
+            max_turns,
+            cancel,
+        })
     }
 
     pub(crate) async fn reply_with_state_machine(

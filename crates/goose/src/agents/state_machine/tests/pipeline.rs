@@ -15,15 +15,8 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, RunStatus, SkillOperation, SlashCommandOperation,
-    StateMachine, StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation,
-    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation,
+    build_state_machine, Emitter, GooseEffect, PipelineConfig, RunStatus, StateMachine, SteerQueue,
 };
-use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -111,93 +104,30 @@ impl TestPipeline {
         &self,
         cancel: CancellationToken,
     ) -> StateMachine<'_, Session, GooseEffect> {
-        let provider = self.provider.clone();
-        let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
-            self.model_config.context_limit(),
-            COMPACTION_THRESHOLD,
-        );
-        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(SteerOperation::new(
-                self.steer_queue.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(BangShellOperation::new()),
-        ];
-        if !self.provider_features.manages_own_context {
-            operations.push(Arc::new(CompactionOperation::new(
-                provider.clone(),
-                self.model_config.clone(),
-                self.model_config.context_limit(),
+        let context_limit = self.model_config.context_limit();
+        build_state_machine(PipelineConfig {
+            provider: self.provider.clone(),
+            model_config: self.model_config.clone(),
+            context_limit,
+            compaction_threshold: COMPACTION_THRESHOLD,
+            tool_call_cutoff: crate::context_mgmt::compute_tool_call_cutoff(
+                context_limit,
                 COMPACTION_THRESHOLD,
-            )));
-        }
-        let extension_lease = Arc::clone(&self.extension_lease);
-        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(ToolPairCompactionOperation::new(
-                provider.clone(),
-                self.model_config.clone(),
-                tool_call_cutoff,
-                !self.provider_features.manages_own_context,
-            )),
-            Arc::new(ToolApprovalOperation::new(&self.tool_inspection_manager)),
-            Arc::new(DoctorOperation::new(self.session_manager.clone())),
-            Arc::new(ProjectOperation),
-            Arc::new(SkillOperation::new(
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(ForegroundSubagentOperation::new(
-                ForegroundSubagentRunner::new(self.session_manager.clone(), false),
-                cancel.clone(),
-            )),
-            Arc::new(RecipeOperation::new(
-                provider.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(ToolExecutionOperation::new(
-                self.extension_manager.clone(),
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
-            Arc::new(RetryOperation::new(
-                std::time::Duration::from_secs(1),
-                std::time::Duration::from_secs(1),
-            )),
-            Arc::new(StopHookOperation::new(
-                self.hook_manager.clone(),
-                self.stop_hook_block_cap,
-            )),
-            Arc::new(ExitOnErrorOperation),
-            Arc::new(MaxTurnsOperation::new(self.max_turns)),
-        ];
-        operations.extend(remaining_operations);
-        let request_preparer = GooseInferenceRequestPreparer {
-            extension_manager: Arc::clone(&self.extension_manager),
-            extension_lease,
+            ),
+            tool_pair_summarization: true,
+            session_manager: self.session_manager.clone(),
+            extension_manager: self.extension_manager.clone(),
+            extension_lease: Arc::clone(&self.extension_lease),
             tool_inspection_manager: &self.tool_inspection_manager,
-            context_limit: self.model_config.context_limit(),
-        };
-        let status_operation = Arc::new(StatusOperation::new(
-            provider.clone(),
-            self.model_config.clone(),
-        ));
-        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
-        let inference = Arc::new(
-            InferenceRunner::new(inference_provider, self.model_config.clone())
-                .with_request_preparer(Arc::new(request_preparer)),
-        );
-        let mut command_handlers = operations.clone();
-        command_handlers.push(status_operation);
-        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
-            Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
-
-        StateMachine::new(steps, cancel)
+            hook_manager: self.hook_manager.clone(),
+            steer_queue: self.steer_queue.clone(),
+            use_login_shell_path: false,
+            retry_timeout: std::time::Duration::from_secs(1),
+            on_failure_timeout: std::time::Duration::from_secs(1),
+            stop_hook_block_cap: self.stop_hook_block_cap,
+            max_turns: self.max_turns,
+            cancel,
+        })
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {
