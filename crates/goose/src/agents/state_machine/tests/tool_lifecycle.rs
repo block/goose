@@ -12,6 +12,7 @@ use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
 use super::pipeline::TestPipeline;
 use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
+use crate::agents::state_machine::MAX_TURNS_MESSAGE;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
@@ -80,6 +81,22 @@ async fn steer_waits_for_an_open_tool_confirmation() -> Result<()> {
         .expect("gated call was answered");
     assert!(gated_answer < steer);
     assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
+
+#[tokio::test]
+async fn max_turns_waits_for_an_open_tool_confirmation() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+    let pipeline = pipeline.with_max_turns(1);
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    awaiting_confirmation.assert_message(-1, ToolResponse, "result: 4");
+
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, MAX_TURNS_MESSAGE);
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert_eq!(api.call_count(), 1);
     Ok(())
 }
 

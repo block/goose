@@ -1065,7 +1065,7 @@ const TOOL_OPERATIONS: [&str; 6] = [
     "foreground_subagent",
     "recipe",
     "tool_execution",
-    "unknown_tool",
+    "remaining_tool_calls",
 ];
 
 fn assert_only_tool_operations_act_on_open_calls(session: &Session, applied_step: Option<&str>) {

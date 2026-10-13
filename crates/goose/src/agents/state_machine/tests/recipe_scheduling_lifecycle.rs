@@ -16,6 +16,7 @@ use crate::agents::types::{RetryConfig, SuccessCheck};
 #[cfg(feature = "code-mode")]
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
+use crate::conversation::message::Message;
 #[cfg(feature = "code-mode")]
 use crate::conversation::message::MessageContent;
 use crate::recipe::build_recipe::build_recipe_from_template;
@@ -245,6 +246,47 @@ async fn final_output_beside_delegate_is_not_shown_before_the_subagent_runs() ->
     assert_eq!(shown_outputs, vec![r#"{"result":"final"}"#.to_string()]);
     result.assert_message(-1, Agent, r#"{"result":"final"}"#);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn final_output_nudge_goes_in_before_a_queued_steer() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe = Recipe::builder()
+        .title("Structured answer")
+        .description("Returns structured output")
+        .prompt("Research the topic")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    pipeline
+        .steer(Message::user().with_text("then be brief"))
+        .await;
+    api.on("Research the topic").reply("draft");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "done" }));
+    api.on("then be brief")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "brief" }));
+
+    let result = pipeline.run(["Research the topic"]).await?;
+
+    assert_eq!(api.call_count(), 3);
+    let messages = result.conversation().messages();
+    let position = |text: &str| {
+        messages
+            .iter()
+            .position(|message| message.as_concat_text().contains(text))
+            .unwrap_or_else(|| panic!("{text} was persisted"))
+    };
+    assert!(position(FINAL_OUTPUT_CONTINUATION_MESSAGE) < position("then be brief"));
+    result.assert_message(-1, Agent, r#"{"result":"brief"}"#);
     Ok(())
 }
 

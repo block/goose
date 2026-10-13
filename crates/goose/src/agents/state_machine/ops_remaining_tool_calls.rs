@@ -1,4 +1,4 @@
-//! Turns tool requests that no operation can handle into tool errors.
+//! Answers tool requests that no other operation handled, and waits while any remain open.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,7 +12,8 @@ use crate::agents::state_machine::ops_toolcalling::{
     run_pre_tool_hooks, tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
+    applied, awaits_tool_responses, messages_since_kickoff, not_applicable, yielded, Emitter,
+    Operation, OperationResult,
 };
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::GooseMode;
@@ -23,20 +24,20 @@ use crate::session::Session;
 
 pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 
-pub struct UnknownToolOperation {
+pub struct RemainingToolCallsOperation {
     hook_manager: HookManager,
 }
 
-impl UnknownToolOperation {
+impl RemainingToolCallsOperation {
     pub fn new(hook_manager: HookManager) -> Self {
         Self { hook_manager }
     }
 }
 
 #[async_trait]
-impl Operation<Session, GooseEffect> for UnknownToolOperation {
+impl Operation<Session, GooseEffect> for RemainingToolCallsOperation {
     fn name(&self) -> &'static str {
-        "unknown_tool"
+        "remaining_tool_calls"
     }
 
     async fn run(
@@ -68,6 +69,9 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
             })
             .collect();
         if pending.is_empty() {
+            if awaits_tool_responses(messages) {
+                return yielded();
+            }
             return not_applicable();
         }
 
