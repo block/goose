@@ -12,7 +12,7 @@ import {
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import log from './logger';
-import { githubUpdater } from './githubUpdater';
+import { githubUpdater, isInstallerManaged } from './githubUpdater';
 import { loadRecentDirs } from './recentDirs';
 import { errorMessage } from './conversionUtils';
 import {
@@ -54,6 +54,18 @@ export function setAutoDownloadDisabled(disabled: boolean) {
 
 export function getAutoDownloadDisabled(): boolean {
   return autoDownloadDisabled;
+}
+
+// A copy set up by the Windows installer updates by running the next installer, so it never
+// uses the GitHub fallback: the fallback's directory swap would delete the uninstaller.
+function canUseGithubFallback(error: Error): boolean {
+  return (
+    !isInstallerManaged(app.getPath('exe')) &&
+    (error.message.includes('HttpError: 404') ||
+      error.message.includes('ERR_CONNECTION_REFUSED') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('No published versions'))
+  );
 }
 
 // Register IPC handlers (only once)
@@ -121,13 +133,7 @@ export function registerUpdateIpcHandlers() {
       });
 
       // If electron-updater fails, try GitHub API fallback
-      if (
-        error instanceof Error &&
-        (error.message.includes('HttpError: 404') ||
-          error.message.includes('ERR_CONNECTION_REFUSED') ||
-          error.message.includes('ENOTFOUND') ||
-          error.message.includes('No published versions'))
-      ) {
+      if (error instanceof Error && canUseGithubFallback(error)) {
         log.info('Using GitHub API fallback in check-for-updates...');
         log.info('Manual fallback triggered by error:', error.message);
         isUsingGitHubFallback = true;
@@ -345,6 +351,9 @@ export function setupAutoUpdater(tray?: Tray) {
     owner: 'aaif-goose',
     repo: 'goose',
     releaseType: 'release' as const,
+    // The installer manifest has its own name (scripts/generate-windows-update-manifest.js) so
+    // ZIP copies, which request latest.yml, are never moved onto the installer.
+    ...(isInstallerManaged(app.getPath('exe')) ? { channel: 'installer' } : {}),
   };
 
   log.info('Setting feed URL with config:', feedConfig);
@@ -447,12 +456,7 @@ export function setupAutoUpdater(tray?: Tray) {
         });
 
         // If electron-updater fails, try GitHub API as fallback
-        if (
-          err.message.includes('HttpError: 404') ||
-          err.message.includes('ERR_CONNECTION_REFUSED') ||
-          err.message.includes('ENOTFOUND') ||
-          err.message.includes('No published versions')
-        ) {
+        if (canUseGithubFallback(err)) {
           log.info('Using GitHub API fallback for startup update check...');
           log.info('Fallback triggered by error containing:', err.message);
           isUsingGitHubFallback = true;
@@ -568,12 +572,7 @@ export function setupAutoUpdater(tray?: Tray) {
     });
 
     // Check if this is a 404 error (missing update files) or connection error
-    if (
-      err.message.includes('HttpError: 404') ||
-      err.message.includes('ERR_CONNECTION_REFUSED') ||
-      err.message.includes('ENOTFOUND') ||
-      err.message.includes('No published versions')
-    ) {
+    if (canUseGithubFallback(err)) {
       log.info('Falling back to GitHub API for update check...');
       log.info('Fallback triggered by error:', err.message);
       isUsingGitHubFallback = true;

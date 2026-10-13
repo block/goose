@@ -296,6 +296,12 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
 
 if (started) app.quit();
 
+// The installer's shortcuts carry this AppUserModelID (electron-builder appId). The running app
+// must use the same one so Windows groups it with them on the taskbar and shows its notifications.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.electron.goose');
+}
+
 // Certificate trust for active backend leases. Renderer requests and
 // main-process net.fetch both pin to the exact cert fingerprint. Each backend
 // lease owns a trust record so old windows keep working after settings change.

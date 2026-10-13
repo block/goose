@@ -133,6 +133,11 @@ jobs:
       - name: Generate macOS update manifest
         run: node ui/desktop/scripts/generate-mac-update-manifest.js --version "${GITHUB_REF_NAME}" --directory .
 
+      # Only copies set up by the Windows installer request installer.yml, so it needs no
+      # rollout flag: ZIP copies request latest.yml, which is never published for Windows.
+      - name: Generate Windows update manifest
+        run: node ui/desktop/scripts/generate-windows-update-manifest.js --version "${GITHUB_REF_NAME}" --directory .
+
       - name: Attest macOS update manifest
         if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
@@ -147,11 +152,13 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            Goose*.exe
             *.deb
             *.rpm
             *.flatpak
             download_cli.sh
             mac-update-requirements.json
+            installer.yml
 
       # Create/update the versioned release
       - name: Release versioned
@@ -163,11 +170,13 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            Goose*.exe
             *.deb
             *.rpm
             *.flatpak
             download_cli.sh
             mac-update-requirements.json
+            installer.yml
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
@@ -184,11 +193,13 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            Goose*.exe
             *.deb
             *.rpm
             *.flatpak
             download_cli.sh
             mac-update-requirements.json
+            installer.yml
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
