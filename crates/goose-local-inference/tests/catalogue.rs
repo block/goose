@@ -99,7 +99,6 @@ fn fit_boundaries_preserve_reserve_straddling_and_unknown_information() {
     let mut memory = MemoryForecast {
         lower_bytes: 100,
         upper_bytes: Some(200),
-        uncertainties: vec![],
     };
     assert_eq!(memory_fit(&memory, 0), Fit::Unknown);
     assert_eq!(

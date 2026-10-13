@@ -97,15 +97,14 @@ async fn inspect_repo(
             Ok((super::worker::inspect(metadata).await?, lineage))
         }
         .await;
-        let (memory, assumptions, embedded_template, lineage) = match result {
+        let (memory, embedded_template, lineage) = match result {
             Ok((
                 super::worker::Outcome::Compatible {
                     memory,
-                    assumptions,
                     chat_template,
                 },
                 lineage,
-            )) => (memory, assumptions, chat_template, lineage),
+            )) => (memory, chat_template, lineage),
             Ok((super::worker::Outcome::Unverified(reason), _)) => {
                 excluded.push(Exclusion {
                     repo: repo.into(),
@@ -173,7 +172,6 @@ async fn inspect_repo(
             files,
             projector,
             suitability_evidence: vec![evidence],
-            forecast_assumptions: assumptions,
             memory,
         });
     }
@@ -274,6 +272,7 @@ pub async fn rebuild(path: &Path, report_path: &Path) -> Result<()> {
                 (
                     eredu_revision(),
                     POLICY_VERSION,
+                    SCHEMA_VERSION,
                     serde_json::to_string(&Profile::default()).unwrap(),
                     serde_json::to_string(
                         &candidates

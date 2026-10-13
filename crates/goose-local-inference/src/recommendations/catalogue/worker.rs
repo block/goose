@@ -37,7 +37,6 @@ struct Input {
 pub(super) enum Outcome {
     Compatible {
         memory: MemoryForecast,
-        assumptions: Vec<String>,
         chat_template: bool,
     },
     Incompatible(Vec<String>),
@@ -202,12 +201,10 @@ pub fn run_worker() -> Result<()> {
             let memory = MemoryForecast {
                 lower_bytes: peak.lower_bytes,
                 upper_bytes: peak.upper_bytes,
-                uncertainties: forecast.estimate.uncertainties.clone(),
             };
             verify_memory_fit(&forecast.request, &memory)?;
             Outcome::Compatible {
                 memory,
-                assumptions: forecast.estimate.assumptions.clone(),
                 chat_template,
             }
         }

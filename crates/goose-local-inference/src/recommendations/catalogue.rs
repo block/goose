@@ -17,7 +17,7 @@ mod worker;
 #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub use worker::run_worker;
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 pub const POLICY_VERSION: u32 = 6;
 pub const ALLOCATOR_BYTES: u64 = 256 * 1024 * 1024;
 pub const DEFAULT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/data/model-catalogue.json");
@@ -83,7 +83,6 @@ pub struct Variant {
     pub files: Vec<File>,
     pub projector: Option<String>,
     pub suitability_evidence: Vec<String>,
-    pub forecast_assumptions: Vec<String>,
     pub memory: MemoryForecast,
 }
 
@@ -92,7 +91,6 @@ pub struct Variant {
 pub struct MemoryForecast {
     pub lower_bytes: u64,
     pub upper_bytes: Option<u64>,
-    pub uncertainties: Vec<String>,
 }
 
 /// The catalogue profile is cold, fully resident and unified: no resident bytes
@@ -269,12 +267,6 @@ pub fn assess(model: &Model, variant: &Variant, available: u64) -> Result<Assess
     assessment.revision = Some(model.revision.clone());
     assessment.suitability = Suitability::Suitable;
     assessment.reasons = variant.suitability_evidence.clone();
-    assessment
-        .reasons
-        .extend(variant.forecast_assumptions.iter().cloned());
-    assessment
-        .reasons
-        .extend(variant.memory.uncertainties.iter().cloned());
     if super::supported() {
         assessment.compatibility = Compatibility::Compatible;
         assessment.fit = memory_fit(&variant.memory, available);
