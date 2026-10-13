@@ -5,14 +5,11 @@ use crate::acp::server::{
 use crate::agents::GoosePlatform;
 use crate::agents::StateMachineServices;
 use crate::config::paths::Paths;
-#[cfg(feature = "scheduler")]
 use crate::scheduler_trait::SchedulerTrait;
-#[cfg(feature = "scheduler")]
 use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
 use anyhow::Result;
 use std::sync::Arc;
-#[cfg(feature = "scheduler")]
 use tokio::sync::OnceCell;
 use tracing::info;
 
@@ -31,9 +28,7 @@ pub struct AcpServerFactoryConfig {
 pub struct AcpServer {
     config: AcpServerFactoryConfig,
     data_dir: std::path::PathBuf,
-    #[cfg(feature = "scheduler")]
-    scheduler: OnceCell<Arc<dyn SchedulerTrait>>,
-    services: tokio::sync::OnceCell<Arc<StateMachineServices>>,
+    services: OnceCell<Arc<StateMachineServices>>,
     active_runs: Arc<ActiveRunRegistry>,
     live_voice: Arc<crate::acp::server::LiveVoiceService>,
 }
@@ -46,42 +41,55 @@ impl AcpServer {
         Self {
             config,
             data_dir,
-            #[cfg(feature = "scheduler")]
-            scheduler: OnceCell::new(),
-            services: tokio::sync::OnceCell::new(),
+            services: OnceCell::new(),
             active_runs,
             live_voice,
         }
     }
 
-    #[cfg(feature = "scheduler")]
-    /// Start the scheduler now instead of on first client connect, so a
-    /// headless `goose serve` runs scheduled jobs; on failure `create_agent`
-    /// retries. No-op when the scheduler is disabled.
+    /// Builds the services, and with them the scheduler, before any client connects, so
+    /// a headless `goose serve` runs scheduled jobs; on failure the first connection retries.
     pub async fn start_scheduler(&self) -> Result<()> {
-        self.scheduler().await.map(|_| ())
+        self.services().await.map(|_| ())
     }
 
-    #[cfg(feature = "scheduler")]
-    async fn scheduler(&self) -> Result<Option<Arc<dyn SchedulerTrait>>> {
-        if !self.config.enable_scheduler {
-            return Ok(None);
-        }
-
-        let data_dir = self.data_dir.clone();
-        self.scheduler
-            .get_or_try_init(|| async move {
-                let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
-                let schedule_file_path = data_dir.join("schedule.json");
-                let scheduler =
-                    crate::scheduler::Scheduler::new(schedule_file_path, session_manager)
-                        .await
-                        .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>)?;
-                Ok(scheduler)
+    async fn services(&self) -> Result<Arc<StateMachineServices>> {
+        self.services
+            .get_or_try_init(|| async {
+                let session_manager = Arc::new(SessionManager::new(self.data_dir.clone()));
+                #[cfg(feature = "scheduler")]
+                let scheduler = if self.config.enable_scheduler {
+                    Some(
+                        crate::scheduler::Scheduler::new(
+                            self.data_dir.join("schedule.json"),
+                            session_manager.clone(),
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                #[cfg(not(feature = "scheduler"))]
+                let scheduler: Option<Arc<dyn SchedulerTrait>> = None;
+                let services = new_acp_services(
+                    session_manager,
+                    self.config.config_dir.clone(),
+                    scheduler
+                        .clone()
+                        .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>),
+                    crate::config::Config::global()
+                        .get_goose_disable_session_naming()
+                        .unwrap_or(false),
+                    self.config.goose_platform.clone(),
+                );
+                #[cfg(feature = "scheduler")]
+                if let Some(scheduler) = scheduler {
+                    scheduler.attach_services(&services);
+                }
+                anyhow::Ok(services)
             })
             .await
             .cloned()
-            .map(Some)
     }
 
     pub async fn create_connection(&self) -> Result<Arc<AcpConnection>> {
@@ -100,29 +108,7 @@ impl AcpServer {
         &self,
         session_cwd: Option<std::path::PathBuf>,
     ) -> Result<Arc<AcpConnection>> {
-        #[cfg(feature = "scheduler")]
-        let scheduler = self.scheduler().await?;
-        #[cfg(feature = "scheduler")]
-        if let Some(scheduler) = &scheduler {
-            scheduler.list_scheduled_jobs().await;
-        }
-        #[cfg(not(feature = "scheduler"))]
-        let scheduler = None;
-        let services = self
-            .services
-            .get_or_init(|| async {
-                new_acp_services(
-                    self.data_dir.clone(),
-                    self.config.config_dir.clone(),
-                    scheduler,
-                    crate::config::Config::global()
-                        .get_goose_disable_session_naming()
-                        .unwrap_or(false),
-                    self.config.goose_platform.clone(),
-                )
-            })
-            .await
-            .clone();
+        let services = self.services().await?;
 
         let provider_factory: AcpProviderFactory = Arc::new(|provider_name| {
             Box::pin(async move {
@@ -156,9 +142,7 @@ impl AcpServer {
         Self {
             config,
             data_dir,
-            #[cfg(feature = "scheduler")]
-            scheduler: OnceCell::new(),
-            services: tokio::sync::OnceCell::new(),
+            services: OnceCell::new(),
             active_runs,
             live_voice,
         }
@@ -188,7 +172,8 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), false);
 
-        assert!(server.scheduler().await.unwrap().is_none());
+        let services = server.services().await.unwrap();
+        assert!(services.config.scheduler_service.is_none());
         assert!(!root.path().join("schedule.json").exists());
     }
 
@@ -197,7 +182,8 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), true);
 
-        assert!(server.scheduler().await.unwrap().is_some());
+        let services = server.services().await.unwrap();
+        assert!(services.config.scheduler_service.is_some());
     }
 
     #[tokio::test]
@@ -266,9 +252,9 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), true);
 
-        assert!(!server.scheduler.initialized());
+        assert!(!server.services.initialized());
         server.start_scheduler().await.unwrap();
-        assert!(server.scheduler.initialized());
+        assert!(server.services.initialized());
     }
 
     #[tokio::test]
@@ -278,14 +264,5 @@ mod tests {
 
         server.start_scheduler().await.unwrap();
         server.start_scheduler().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn start_scheduler_does_not_construct_one_when_disabled() {
-        let root = tempfile::tempdir().unwrap();
-        let server = server(root.path().to_path_buf(), false);
-
-        server.start_scheduler().await.unwrap();
-        assert!(!server.scheduler.initialized());
     }
 }

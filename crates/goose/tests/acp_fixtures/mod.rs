@@ -415,7 +415,7 @@ pub async fn spawn_acp_server_in_process(
         },
         config_dir: data_root.to_path_buf(),
         services: goose::acp::server::new_acp_services(
-            data_root.to_path_buf(),
+            Arc::new(goose::session::SessionManager::new(data_root.to_path_buf())),
             data_root.to_path_buf(),
             Some(Arc::new(FixtureScheduler::new())),
             disable_session_naming,

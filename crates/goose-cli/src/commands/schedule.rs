@@ -1,4 +1,6 @@
 use anyhow::{bail, Context, Result};
+use goose::agents::{GoosePlatform, StateMachineServices, StateMachineServicesConfig};
+use goose::config::permission::PermissionManager;
 use goose::scheduler::{
     get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
@@ -244,9 +246,17 @@ pub async fn handle_schedule_run_now(schedule_id: String) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
     let session_manager = Arc::new(SessionManager::instance());
-    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager.clone())
         .await
         .context("Failed to initialize scheduler")?;
+    let services = StateMachineServices::with_config(StateMachineServicesConfig::new(
+        session_manager,
+        PermissionManager::instance(),
+        Some(scheduler.clone()),
+        true,
+        GoosePlatform::GooseCli,
+    ));
+    scheduler.attach_services(&services);
 
     match scheduler.run_now(&schedule_id).await {
         Ok(session_id) => {

@@ -301,13 +301,12 @@ pub struct AcpConnectionOptions {
 
 /// The services a `goose serve` process shares across its ACP connections.
 pub fn new_acp_services(
-    data_dir: std::path::PathBuf,
+    session_manager: Arc<SessionManager>,
     config_dir: std::path::PathBuf,
     scheduler: Option<Arc<dyn SchedulerTrait>>,
     disable_session_naming: bool,
     goose_platform: GoosePlatform,
 ) -> Arc<StateMachineServices> {
-    let session_manager = Arc::new(SessionManager::new(data_dir));
     // Eagerly initialize the SQLite pool so it's ready when providers/sessions need it.
     let storage = session_manager.storage().clone();
     tokio::spawn(async move {
@@ -3587,7 +3586,7 @@ print(\"hello, world\")
             builtin_selection: AcpBuiltinSelection::default(),
             config_dir: root.path().to_path_buf(),
             services: new_acp_services(
-                root.path().to_path_buf(),
+                Arc::new(SessionManager::new(root.path().to_path_buf())),
                 root.path().to_path_buf(),
                 None,
                 true,
@@ -3722,7 +3721,7 @@ print(\"hello, world\")
                 builtin_selection: AcpBuiltinSelection::default(),
                 config_dir: root.path().to_path_buf(),
                 services: new_acp_services(
-                    root.path().to_path_buf(),
+                    Arc::new(SessionManager::new(root.path().to_path_buf())),
                     root.path().to_path_buf(),
                     None,
                     true,
