@@ -419,9 +419,22 @@ async fn run_command(
     notification_emitter: Option<ToolCallNotificationEmitter>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
-    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+    let deadline = Some(resolve_shell_timeout(timeout_secs))
+        .filter(|secs| *secs > 0)
+        .map(|secs| tokio::time::Instant::now() + Duration::from_secs(secs));
+    let not_started = |timed_out| ExecutionOutput {
+        lines: Vec::new(),
+        exit_code: None,
+        timed_out,
+        output_truncated: false,
+        output_collection_error: None,
+    };
 
-    let mut command = build_shell_command(command_line, working_dir, session_id).await;
+    let mut command = tokio::select! {
+        command = build_shell_command(command_line, working_dir, session_id) => command,
+        _ = sleep_until_deadline(deadline) => return Ok(not_started(true)),
+        _ = cancellation_token.cancelled() => return Ok(not_started(false)),
+    };
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -450,35 +463,20 @@ async fn run_command(
     let abort_handle = output_task.abort_handle();
 
     let mut timed_out = false;
-    let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
-        tokio::select! {
-            result = tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()) => match result {
-                Ok(wait_result) => wait_result
-                    .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                    .code(),
-                Err(_) => {
-                    timed_out = true;
-                    let _ = child.start_kill();
-                    let _ = child.wait().await;
-                    None
-                }
-            },
-            _ = cancellation_token.cancelled() => {
-                let _ = child.start_kill();
-                let _ = child.wait().await;
-                None
-            }
+    let exit_code = tokio::select! {
+        result = child.wait() => result
+            .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+            .code(),
+        _ = sleep_until_deadline(deadline) => {
+            timed_out = true;
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            None
         }
-    } else {
-        tokio::select! {
-            result = child.wait() => result
-                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                .code(),
-            _ = cancellation_token.cancelled() => {
-                let _ = child.start_kill();
-                let _ = child.wait().await;
-                None
-            }
+        _ = cancellation_token.cancelled() => {
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            None
         }
     };
 
@@ -521,6 +519,13 @@ async fn run_command(
         output_truncated,
         output_collection_error,
     })
+}
+
+async fn sleep_until_deadline(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending().await,
+    }
 }
 
 /// Build the `Command` that executes a single command line via the configured shell.
