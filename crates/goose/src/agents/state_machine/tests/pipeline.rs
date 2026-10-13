@@ -16,13 +16,13 @@ use crate::agents::extension_manager::{
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner,
+    MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation, RetryOperation, RunStatus,
+    SkillOperation, SlashCommandOperation, StateMachine, StatusOperation, SteerOperation,
+    SteerQueue, Step, StopHookOperation, SubagentOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
-use crate::agents::subagent_handler::ForegroundSubagentRunner;
+use crate::agents::subagent_handler::SubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -102,6 +102,7 @@ pub(super) struct TestPipeline {
     steer_queue: SteerQueue,
     max_turns: u32,
     scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    subagent_host: Arc<crate::agents::Agent>,
     _temp_dir: Arc<tempfile::TempDir>,
 }
 
@@ -145,8 +146,8 @@ impl TestPipeline {
                 self.hook_manager.clone(),
                 Arc::clone(&extension_lease),
             )),
-            Arc::new(ForegroundSubagentOperation::new(
-                ForegroundSubagentRunner::new(self.session_manager.clone()),
+            Arc::new(SubagentOperation::new(
+                SubagentRunner::new(Arc::clone(&self.subagent_host)),
                 cancel.clone(),
             )),
             Arc::new(RecipeOperation::new(
@@ -440,21 +441,25 @@ impl TestPipeline {
         loop {
             let session = self.session().await?;
             let machine = self.machine(cancel.clone());
-            let Some(mut result) = machine.step(&session, &emit).await? else {
-                break;
-            };
+            let mut result = machine.step(&session, &emit).await?;
             machine
-                .apply(self.session_manager.as_ref(), &session, &mut result, &emit)
+                .apply(
+                    self.session_manager.as_ref(),
+                    &session,
+                    &mut result.effects,
+                    &emit,
+                )
                 .await?;
-            applied_steps += 1;
+            if result.applied_step.is_some() {
+                applied_steps += 1;
+            }
             while let Ok(event) = rx.try_recv() {
                 events.push(event);
             }
 
-            let yield_to_client = result.yield_to_client;
             drop(machine);
             self = self.reconstruct().await?;
-            if yield_to_client {
+            if result.status != RunStatus::Continuing {
                 break;
             }
         }
@@ -648,16 +653,18 @@ impl TestPipeline {
                     }
                 }
             };
-            let Some(ref mut result) = result else {
-                break;
-            };
             machine
-                .apply(self.session_manager.as_ref(), &session, result, &emit)
+                .apply(
+                    self.session_manager.as_ref(),
+                    &session,
+                    &mut result.effects,
+                    &emit,
+                )
                 .await?;
             while let Ok(event) = rx.try_recv() {
                 events.push(event);
             }
-            if result.yield_to_client {
+            if result.status != RunStatus::Continuing {
                 break;
             }
         }
@@ -818,6 +825,14 @@ async fn build_test_pipeline(
         .clone()
         .expect("test session has a model config");
     let calculator = Arc::new(CalculatorExtension::new(session_manager.action_required()));
+    let mut subagent_host = crate::agents::Agent::with_config(crate::agents::AgentConfig::new(
+        session_manager.clone(),
+        permission_manager.clone(),
+        None,
+        true,
+        crate::agents::GoosePlatform::GooseCli,
+    ));
+    subagent_host.set_hook_manager_for_test(HookManager::default());
     let pipeline = TestPipeline {
         session_manager,
         api,
@@ -836,6 +851,7 @@ async fn build_test_pipeline(
         steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
         max_turns: MAX_TURNS,
         scheduler,
+        subagent_host,
         _temp_dir: temp_dir,
     };
     let extension_manager = pipeline.extension_manager.clone();
@@ -1127,21 +1143,19 @@ pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEven
     pipeline.start_turn().await?;
     loop {
         let session = pipeline.session().await?;
-        let Some(mut result) = machine.step(&session, &emit).await? else {
-            break;
-        };
+        let mut result = machine.step(&session, &emit).await?;
         machine
             .apply(
                 pipeline.session_manager.as_ref(),
                 &session,
-                &mut result,
+                &mut result.effects,
                 &emit,
             )
             .await?;
         while let Ok(event) = rx.try_recv() {
             events.push(event);
         }
-        if result.yield_to_client {
+        if result.status != RunStatus::Continuing {
             break;
         }
     }

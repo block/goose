@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "你有未保存的更改"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard 错误：未提供元数据"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "未知提供商"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API 格式"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "取消"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "选择提供商"
