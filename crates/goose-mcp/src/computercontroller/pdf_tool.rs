@@ -118,7 +118,14 @@ pub async fn pdf_tool(
 
         "extract_images" => {
             let cache_dir = cache_dir.join("pdf_images");
-            fs::create_dir_all(&cache_dir).map_err(|e| {
+            let mut dir_builder = fs::DirBuilder::new();
+            dir_builder.recursive(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                dir_builder.mode(0o700);
+            }
+            dir_builder.create(&cache_dir).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     format!("Failed to create image cache directory: {}", e),
@@ -432,6 +439,30 @@ mod tests {
             println!("Verifying image file exists: {}", file_path);
             assert!(PathBuf::from(file_path).exists(), "Image file should exist");
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn image_cache_directory_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test_image.pdf");
+        let cache_dir = tempfile::tempdir().unwrap();
+
+        pdf_tool(
+            test_pdf_path.to_str().unwrap(),
+            "extract_images",
+            cache_dir.path(),
+        )
+        .await
+        .unwrap();
+
+        let mode = fs::metadata(cache_dir.path().join("pdf_images"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o700);
     }
 
     #[tokio::test]

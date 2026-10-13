@@ -223,6 +223,22 @@ pub struct ComputerControllerServer {
     peekaboo_installed: Arc<AtomicBool>,
 }
 
+// Without a cache directory, files go to the system temporary directory. A fresh directory that
+// only the owner can open keeps them away from other users of a shared temporary root.
+fn private_fallback_cache_dir() -> PathBuf {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("goose-computer-controller-");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(fs::Permissions::from_mode(0o700));
+    }
+    builder
+        .tempdir()
+        .map(tempfile::TempDir::keep)
+        .unwrap_or_else(|_| std::env::temp_dir())
+}
+
 impl Default for ComputerControllerServer {
     fn default() -> Self {
         Self::new()
@@ -235,10 +251,9 @@ impl ComputerControllerServer {
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
-        // keep previous behavior of defaulting to /tmp/
         let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_cache_dir("computer_controller"))
-            .unwrap_or_else(|_| std::env::temp_dir());
+            .unwrap_or_else(|_| private_fallback_cache_dir());
 
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
@@ -884,5 +899,25 @@ impl ServerHandler for ComputerControllerServer {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(self.instructions.clone())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn fallback_cache_dir_is_a_new_owner_only_directory() {
+        let first = private_fallback_cache_dir();
+        let second = private_fallback_cache_dir();
+
+        assert_ne!(first, second);
+        assert!(first.starts_with(std::env::temp_dir()));
+        let mode = fs::metadata(&first).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+
+        fs::remove_dir(&first).unwrap();
+        fs::remove_dir(&second).unwrap();
     }
 }
