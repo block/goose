@@ -4,7 +4,7 @@ async fn main() -> anyhow::Result<()> {
     use goose_local_inference::recommendations::catalogue;
     let mut args = std::env::args().skip(1);
     let action = args.next().unwrap_or_else(|| "--check".into());
-    #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+    #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
     if action == "--inspect-metadata" {
         return catalogue::run_worker();
     }
@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
             catalogue::validate(&catalogue)?;
             println!("Catalogue valid: {} models", catalogue.models.len());
         }
-        #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+        #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
         "--explain" => {
             catalogue::explain(
                 path.to_str()
@@ -26,10 +26,10 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?
         }
-        #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+        #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
         "--revalidate-lineage" => catalogue::revalidate_lineage(&path, &std::path::PathBuf::from(args.next().unwrap_or_else(|| "target/local-model-lineage-report.json".into()))).await?,
         "--rebuild" => {
-            #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+            #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
             catalogue::rebuild(
                 &path,
                 &std::path::PathBuf::from(
@@ -38,8 +38,8 @@ async fn main() -> anyhow::Result<()> {
                 ),
             )
             .await?;
-            #[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
-            anyhow::bail!("Rebuilding requires --features hf-hub,mlx on Apple silicon; no Metal device or weights are needed");
+            #[cfg(not(all(feature = "eredu", target_os = "macos", target_arch = "aarch64")))]
+            anyhow::bail!("Rebuilding requires --features hf-hub,eredu on Apple silicon; no Metal device or weights are needed");
         }
         _ => anyhow::bail!(
             "Usage: local-model-catalogue --check [catalogue.json] | --rebuild [catalogue.json] [report.json] | --explain owner/model | --revalidate-lineage [catalogue.json] [report.json]"

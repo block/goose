@@ -882,7 +882,7 @@ pub(crate) fn variants_from_manifest(
     Ok(variants)
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(crate) fn forecast_gguf_members(
     repo_id: &str,
     variant: &HfModelVariant,
@@ -911,7 +911,7 @@ pub(crate) fn forecast_gguf_members(
     Ok((members, projector))
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(crate) fn catalogue_files(
     repo: &str,
     variant: &HfModelVariant,

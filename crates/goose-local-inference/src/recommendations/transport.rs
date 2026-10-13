@@ -1,4 +1,4 @@
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use anyhow::Context;
 use anyhow::{ensure, Result};
 use futures::StreamExt;
@@ -42,7 +42,7 @@ impl Hub {
         })
     }
 
-    #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+    #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
     pub fn public(cache_dir: Option<std::path::PathBuf>) -> Result<Self> {
         Ok(Self {
             client: Client::builder()
@@ -57,7 +57,7 @@ impl Hub {
         })
     }
 
-    #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+    #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
     pub async fn pages(&self, path: &str, query: &[(&str, &str)]) -> Result<Vec<Value>> {
         let key = format!("pages:{}", Self::url(path, query)?);
         if let Some(bytes) = self.cached_bytes(&key) {
@@ -262,7 +262,7 @@ impl Hub {
             .await
     }
 
-    #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+    #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
     pub async fn file(&self, repo: &str, revision: &str, member: &str) -> Result<Vec<u8>> {
         let url = Self::url(&format!("{repo}/resolve/{revision}/{member}"), &[])?;
         let key = format!("file:{url}");
@@ -275,7 +275,7 @@ impl Hub {
         Ok(bytes)
     }
 
-    #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+    #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
     pub async fn range(
         &self,
         repo: &str,

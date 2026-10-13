@@ -1,20 +1,20 @@
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use super::transport::Hub;
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use anyhow::Context;
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use anyhow::Result;
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use futures::{stream, StreamExt};
 use goose_sdk_types::custom_requests::LocalInferenceModelQualityDto as Quality;
 use serde_json::Value;
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 use std::collections::HashMap;
 
 // Benchmark policy is shared across models; model IDs are always discovered.
 pub const BENCHMARKS: &[&str] = &["Artificial Analysis Intelligence Index"];
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 #[derive(Default)]
 pub(super) struct QualityIndex {
     pub models: HashMap<String, Quality>,
@@ -22,7 +22,7 @@ pub(super) struct QualityIndex {
     pub version: String,
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 impl QualityIndex {
     pub async fn fetch() -> Result<Self> {
         let key = if let Ok(path) = std::env::var("ARTIFICIAL_ANALYSIS_API_KEY_FILE") {
@@ -204,7 +204,7 @@ pub fn quantized_parent(info: &Value) -> Option<&str> {
     (explicit == Some("quantized") || tagged.contains(parent)).then_some(parent)
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(super) async fn derived_models(hub: &Hub, parent: &str) -> Result<Vec<Value>> {
     let filter = format!("base_model:quantized:{parent}");
     hub.pages(
@@ -273,7 +273,7 @@ pub fn has_recommendation_evidence(quality: Option<&Quality>) -> bool {
     })
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 fn weights_repo(page: &str) -> Result<Option<String>> {
     let links = regex::Regex::new(
         r#"href="https://huggingface\.co/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?">Hugging Face"#,
@@ -286,7 +286,7 @@ fn weights_repo(page: &str) -> Result<Option<String>> {
     Ok(repos.into_iter().next())
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 fn index_is_estimated(page: &str, model_id: &str) -> Result<bool> {
     // AA does not expose estimate status in its API. Read the page's identified
     // currentModel, never related-model entries or a page-wide estimate label.
@@ -316,7 +316,7 @@ fn index_is_estimated(page: &str, model_id: &str) -> Result<bool> {
     status.context("AA page has no matching current model with explicit estimate status")
 }
 
-#[cfg(all(test, feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(test, feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod tests {
     use super::*;
 

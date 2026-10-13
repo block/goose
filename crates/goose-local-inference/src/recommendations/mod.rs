@@ -1,6 +1,6 @@
 //! Automatic quality discovery and metadata-only, revision-pinned memory forecasts.
 pub mod catalogue;
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod forecast;
 pub mod gguf;
 pub mod lineage;
@@ -35,7 +35,7 @@ pub fn unknown_assessment(available: u64) -> Assessment {
 
 pub fn supported() -> bool {
     cfg!(all(
-        feature = "mlx",
+        feature = "eredu",
         target_os = "macos",
         target_arch = "aarch64"
     ))
@@ -162,9 +162,9 @@ pub async fn repo_variants(
                 {
                     return unknown.clone();
                 }
-                #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+                #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
                 let result = forecast::assess(hub, repo, variant, manifest, available).await;
-                #[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
+                #[cfg(not(all(feature = "eredu", target_os = "macos", target_arch = "aarch64")))]
                 let result: Result<Assessment> = {
                     let _ = (hub, repo, variant, manifest);
                     Err(anyhow::anyhow!("Eredu forecasting unavailable"))

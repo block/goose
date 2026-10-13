@@ -137,7 +137,7 @@ pub(super) async fn assess_checked(
     Ok(direct)
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(super) async fn fetch_chat_template_checked(
     hub: &Hub,
     repo: &str,
@@ -168,7 +168,7 @@ pub(super) async fn fetch_chat_template_checked(
     Ok(has_chat_template(&config))
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(super) async fn fetch_chat_template(
     hub: &Hub,
     repo: &str,

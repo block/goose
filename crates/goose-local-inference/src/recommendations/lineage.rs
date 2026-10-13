@@ -211,7 +211,7 @@ pub fn preserves_modification_claims(
     claims(repo, info).is_subset(&claims(parent, parent_info))
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(super) async fn evaluated(
     hub: &super::transport::Hub,
     repo: &str,
@@ -242,7 +242,7 @@ pub(super) async fn evaluated(
     ))
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 pub(super) async fn verify(
     hub: &super::transport::Hub,
     repo: &str,

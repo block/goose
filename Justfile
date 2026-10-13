@@ -345,7 +345,7 @@ build-canonical-models:
 
 # Refresh public benchmark candidates and inspect every conversion class (Apple silicon).
 rebuild-local-model-catalogue:
-    cargo run --release -p goose-local-inference --features hf-hub,mlx --bin local-model-catalogue --locked -- --rebuild
+    cargo run --release -p goose-local-inference --features hf-hub,eredu --bin local-model-catalogue --locked -- --rebuild
 
 # Offline schema, dependency and policy validation; works without eredu or Metal.
 check-local-model-catalogue:

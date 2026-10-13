@@ -50,7 +50,7 @@ fn manifest_requires_safe_unique_files_and_an_immutable_revision() {
     assert!(catalogue::validate(&catalogue).is_err());
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn offline_forecasts_reapply_memory_and_preserve_unknown_bounds() {
     use goose_sdk_types::custom_requests::LocalInferenceMemoryFit as Fit;
@@ -83,7 +83,7 @@ fn offline_forecasts_reapply_memory_and_preserve_unknown_bounds() {
     );
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 #[tokio::test]
 async fn landing_page_and_catalogue_variants_need_no_hub() {
     let models = goose_local_inference::recommendations::discover("", 20)
@@ -126,7 +126,7 @@ fn fit_boundaries_preserve_reserve_straddling_and_unknown_information() {
     assert_eq!(memory_fit(&memory, u64::MAX), Fit::LikelyShortfall);
 }
 
-#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn isolated_metadata_worker_reports_incompatibility_without_network_or_weights() {
     use base64::{engine::general_purpose::STANDARD, Engine};
