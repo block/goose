@@ -120,23 +120,28 @@ static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
     LazyLock::new(|| Arc::new(ChatGptCodexAuthState::new()));
 
 const SUPPORTED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
+const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 fn tool_result_image(data: &str, mime_type: &str) -> Value {
-    let (mime_type, image_url) = match data.strip_prefix("data:") {
+    let (mime_type, image_url, payload) = match data.strip_prefix("data:") {
         Some(rest) => (
             rest.split([';', ',']).next().unwrap_or_default(),
             data.to_string(),
+            rest.split_once(',').map_or("", |(_, payload)| payload),
         ),
-        None => (mime_type, format!("data:{mime_type};base64,{data}")),
+        None => (mime_type, format!("data:{mime_type};base64,{data}"), data),
     };
-    if SUPPORTED_IMAGE_TYPES.contains(&mime_type.to_ascii_lowercase().as_str()) {
-        json!({ "type": "input_image", "image_url": image_url })
-    } else {
-        json!({
-            "type": "input_text",
-            "text": format!("image content omitted because its type ({mime_type}) is not supported")
-        })
+    if !SUPPORTED_IMAGE_TYPES.contains(&mime_type.to_ascii_lowercase().as_str()) {
+        return json!({ "type": "input_text", "text": format!("[Image: {mime_type}]") });
     }
+    let len = payload.len() / 4 * 3;
+    if len > MAX_IMAGE_BYTES {
+        return json!({
+            "type": "input_text",
+            "text": format!("image is too large: {len} bytes exceeds {MAX_IMAGE_BYTES} byte limit")
+        });
+    }
+    json!({ "type": "input_image", "image_url": image_url })
 }
 
 fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
@@ -1281,11 +1286,31 @@ mod tests {
             output,
             &json!([
                 { "type": "input_text", "text": "img" },
-                {
-                    "type": "input_text",
-                    "text": "image content omitted because its type (image/svg+xml) is not supported"
-                }
+                { "type": "input_text", "text": "[Image: image/svg+xml]" }
             ])
+        );
+    }
+
+    #[test]
+    fn test_tool_response_oversized_image() {
+        let data = "A".repeat(MAX_IMAGE_BYTES / 3 * 4 + 4);
+        let messages = vec![Message::user().with_tool_response(
+            "call-1",
+            Ok(CallToolResult::success(vec![ContentBlock::image(
+                data,
+                "image/png",
+            )])),
+        )];
+        let output = &build_input_items(&messages).unwrap()[0]["output"];
+        assert_eq!(
+            output,
+            &json!([{
+                "type": "input_text",
+                "text": format!(
+                    "image is too large: {} bytes exceeds {MAX_IMAGE_BYTES} byte limit",
+                    MAX_IMAGE_BYTES / 3 * 3 + 3
+                )
+            }])
         );
     }
 
