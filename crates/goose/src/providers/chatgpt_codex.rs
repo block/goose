@@ -119,6 +119,26 @@ impl ChatGptCodexAuthState {
 static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
     LazyLock::new(|| Arc::new(ChatGptCodexAuthState::new()));
 
+const SUPPORTED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+fn tool_result_image(data: &str, mime_type: &str) -> Value {
+    let (mime_type, image_url) = match data.strip_prefix("data:") {
+        Some(rest) => (
+            rest.split([';', ',']).next().unwrap_or_default(),
+            data.to_string(),
+        ),
+        None => (mime_type, format!("data:{mime_type};base64,{data}")),
+    };
+    if SUPPORTED_IMAGE_TYPES.contains(&mime_type.to_ascii_lowercase().as_str()) {
+        json!({ "type": "input_image", "image_url": image_url })
+    } else {
+        json!({
+            "type": "input_text",
+            "text": format!("image content omitted because its type ({mime_type}) is not supported")
+        })
+    }
+}
+
 fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     let mut items = Vec::new();
 
@@ -184,12 +204,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                                         Some(json!({ "type": "input_text", "text": t.text }))
                                     }
                                     ContentBlock::Image(img) => {
-                                        let image_url = if img.data.starts_with("data:") {
-                                            img.data.clone()
-                                        } else {
-                                            format!("data:{};base64,{}", img.mime_type, img.data)
-                                        };
-                                        Some(json!({ "type": "input_image", "image_url": image_url }))
+                                        Some(tool_result_image(&img.data, &img.mime_type))
                                     }
                                     _ => None,
                                 })
@@ -1250,6 +1265,28 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_image_type() {
+        let messages = vec![Message::user().with_tool_response(
+            "call-1",
+            Ok(CallToolResult::success(vec![
+                ContentBlock::text("img"),
+                ContentBlock::image(TEST_IMAGE_B64, "image/svg+xml"),
+            ])),
+        )];
+        let output = &build_input_items(&messages).unwrap()[0]["output"];
+        assert_eq!(
+            output,
+            &json!([
+                { "type": "input_text", "text": "img" },
+                {
+                    "type": "input_text",
+                    "text": "image content omitted because its type (image/svg+xml) is not supported"
+                }
+            ])
+        );
     }
 
     #[test]
