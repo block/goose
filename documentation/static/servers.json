@@ -426,6 +426,17 @@
     ]
   },
   {
+    "id": "magents",
+    "name": "magents",
+    "description": "Read, search, hand off to, message, and spawn local Claude Code, Codex, Copilot CLI, Cursor, Gemini CLI, Grok, and OpenCode sessions from their on-disk transcripts",
+    "command": "magents mcp",
+    "link": "https://github.com/abnegate/magents",
+    "installation_notes": "Install the magents binary first: brew install abnegate/tap/magents (or cargo install magents --locked). No API key required.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "memory",
     "name": "Memory",
     "description": "Built-in memory system for persistent context and information storage",
