@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::Result;
@@ -15,8 +15,8 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
-    awaits_tool_responses, build_state_machine, messages_since_kickoff, Emitter, GooseEffect,
-    PipelineConfig, RunStatus, StateMachine, SteerQueue,
+    build_state_machine, messages_since_kickoff, Emitter, GooseEffect, PipelineConfig, RunStatus,
+    StateMachine, SteerQueue,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -1077,9 +1077,25 @@ fn assert_only_tool_operations_act_on_open_calls(session: &Session, applied_step
         .expect("session has a conversation");
     let turn = messages_since_kickoff(conversation).expect("conversation has a turn");
     assert!(
-        TOOL_OPERATIONS.contains(&step) || !awaits_tool_responses(turn),
+        TOOL_OPERATIONS.contains(&step) || !has_open_tool_call(turn),
         "{step} acted while a tool call was open"
     );
+}
+
+fn has_open_tool_call(turn: &[Message]) -> bool {
+    let mut open = HashSet::new();
+    for content in turn.iter().flat_map(|message| &message.content) {
+        match content {
+            MessageContent::ToolRequest(request) if !request.was_executed_externally() => {
+                open.insert(request.id.as_str());
+            }
+            MessageContent::ToolResponse(response) => {
+                open.remove(response.id.as_str());
+            }
+            _ => {}
+        }
+    }
+    !open.is_empty()
 }
 
 pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEvent>> {

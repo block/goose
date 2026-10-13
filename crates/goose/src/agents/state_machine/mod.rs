@@ -34,26 +34,6 @@ pub(crate) use session::session_start_message;
 mod tool_confirmation;
 mod usage;
 
-use std::collections::HashSet;
-
-use crate::conversation::message::{Message, MessageContent};
-
-/// Several operations answer parts of one tool batch in separate messages, so a
-/// tool tail alone does not mean the batch is complete.
-pub(super) fn awaits_tool_responses(messages: &[Message]) -> bool {
-    let answered: HashSet<&str> = messages
-        .iter()
-        .flat_map(Message::get_tool_response_ids)
-        .collect();
-    messages
-        .iter()
-        .flat_map(|message| &message.content)
-        .filter_map(MessageContent::as_tool_request)
-        .any(|request| {
-            !request.was_executed_externally() && !answered.contains(request.id.as_str())
-        })
-}
-
 #[cfg(test)]
 mod tests;
 

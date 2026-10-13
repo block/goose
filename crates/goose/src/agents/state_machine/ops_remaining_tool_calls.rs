@@ -1,5 +1,7 @@
 //! Answers tool requests that no other operation handled, and waits while any remain open.
 
+use std::collections::HashSet;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{CallToolResult, ContentBlock, ErrorCode, ErrorData};
@@ -12,17 +14,30 @@ use crate::agents::state_machine::ops_toolcalling::{
     run_pre_tool_hooks, tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
-    applied, awaits_tool_responses, messages_since_kickoff, not_applicable, yielded, Emitter,
-    Operation, OperationResult,
+    applied, messages_since_kickoff, not_applicable, yielded, Emitter, Operation, OperationResult,
 };
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::GooseMode;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::hooks::HookManager;
 use crate::session::Session;
 
 pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
+
+fn awaits_tool_responses(messages: &[Message]) -> bool {
+    let answered: HashSet<&str> = messages
+        .iter()
+        .flat_map(Message::get_tool_response_ids)
+        .collect();
+    messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_request)
+        .any(|request| {
+            !request.was_executed_externally() && !answered.contains(request.id.as_str())
+        })
+}
 
 pub struct RemainingToolCallsOperation {
     hook_manager: HookManager,
@@ -198,5 +213,53 @@ impl Operation<Session, GooseEffect> for RemainingToolCallsOperation {
 
         let response = emit.message(response);
         applied([response.into()])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::TOOL_META_EXTERNAL_DISPATCH_KEY;
+    use rmcp::model::CallToolRequestParams;
+
+    fn answer(id: &str) -> Message {
+        Message::user().with_tool_response(
+            id,
+            Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+        )
+    }
+
+    #[test]
+    fn a_reply_with_every_call_answered_is_not_open() {
+        let messages = [
+            Message::assistant().with_tool_request("call", Ok(CallToolRequestParams::new("tool"))),
+            answer("call"),
+        ];
+        assert!(!awaits_tool_responses(&messages));
+    }
+
+    #[test]
+    fn calls_answered_in_separate_messages_stay_open_until_the_last_answer() {
+        let mut messages = vec![
+            Message::assistant()
+                .with_tool_request("first", Ok(CallToolRequestParams::new("tool")))
+                .with_tool_request("second", Ok(CallToolRequestParams::new("tool"))),
+            answer("first"),
+        ];
+        assert!(awaits_tool_responses(&messages));
+
+        messages.push(answer("second"));
+        assert!(!awaits_tool_responses(&messages));
+    }
+
+    #[test]
+    fn an_externally_executed_call_is_never_open() {
+        let messages = [Message::assistant().with_tool_request_with_metadata(
+            "external",
+            Ok(CallToolRequestParams::new("tool")),
+            None,
+            Some(serde_json::json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
+        )];
+        assert!(!awaits_tool_responses(&messages));
     }
 }
