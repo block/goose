@@ -15,9 +15,9 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
-    build_state_machine, messages_since_kickoff, Emitter, GooseEffect, PipelineConfig, RunStatus,
-    StateMachine, SteerQueue,
+    messages_since_kickoff, Emitter, GooseEffect, RunStatus, StateMachine, SteerQueue,
 };
+use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -106,7 +106,7 @@ impl TestPipeline {
         cancel: CancellationToken,
     ) -> StateMachine<'_, Session, GooseEffect> {
         let context_limit = self.model_config.context_limit();
-        build_state_machine(PipelineConfig {
+        build_state_machine(StateMachineConfig {
             provider: self.provider.clone(),
             model_config: self.model_config.clone(),
             context_limit,

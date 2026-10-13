@@ -18,10 +18,10 @@ use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabil
 use crate::agents::provider_manager::ProviderManager;
 use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
-    build_state_machine, has_unapplied_tool_confirmation_response, pending_tool_confirmations,
-    persist_tool_confirmation_decision, run_goose, Emitter, GooseEffect, PipelineConfig,
-    StateMachine, SteerQueue,
+    has_unapplied_tool_confirmation_response, pending_tool_confirmations,
+    persist_tool_confirmation_decision, run_goose, Emitter, GooseEffect, StateMachine, SteerQueue,
 };
+use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
 use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
@@ -599,7 +599,7 @@ impl Agent {
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
 
-        build_state_machine(PipelineConfig {
+        build_state_machine(StateMachineConfig {
             provider,
             model_config,
             context_limit,

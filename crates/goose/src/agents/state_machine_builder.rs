@@ -19,7 +19,7 @@ use crate::providers::base::Provider;
 use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 
-pub(crate) struct PipelineConfig<'a> {
+pub(crate) struct StateMachineConfig<'a> {
     pub(crate) provider: Arc<dyn Provider>,
     pub(crate) model_config: ModelConfig,
     pub(crate) context_limit: usize,
@@ -41,9 +41,9 @@ pub(crate) struct PipelineConfig<'a> {
 }
 
 pub(crate) fn build_state_machine(
-    config: PipelineConfig<'_>,
+    config: StateMachineConfig<'_>,
 ) -> StateMachine<'_, Session, GooseEffect> {
-    let PipelineConfig {
+    let StateMachineConfig {
         provider,
         model_config,
         context_limit,
