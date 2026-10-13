@@ -1320,3 +1320,179 @@ async fn concurrent_subagents_get_their_own_answers_for_the_same_tool_call_id() 
     assert!(!calls.iter().any(|call| call.input_contains("ran-denied")));
     Ok(())
 }
+
+fn install_hook_log(
+    agent: &mut Arc<Agent>,
+    events: &[&str],
+) -> Result<(tempfile::TempDir, std::path::PathBuf)> {
+    let hook_dir = tempfile::tempdir()?;
+    let plugin_dir = hook_dir.path().join("test-plugin");
+    std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+    let log_command = json!([{ "hooks": [{
+        "type": "command",
+        "command": "payload=$(cat); printf '%s\\n' \"$payload\" >> \"$PLUGIN_ROOT/hook.log\""
+    }] }]);
+    let hooks: serde_json::Map<String, serde_json::Value> = events
+        .iter()
+        .map(|event| (event.to_string(), log_command.clone()))
+        .collect();
+    std::fs::write(
+        plugin_dir.join("hooks/hooks.json"),
+        json!({ "hooks": hooks }).to_string(),
+    )?;
+    agent.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
+        crate::plugins::discovery::DiscoveredPlugin {
+            name: "test-plugin".into(),
+            root: plugin_dir.clone(),
+            scope: crate::plugins::discovery::PluginScope::Project,
+        },
+    ]));
+    Ok((hook_dir, plugin_dir.join("hook.log")))
+}
+
+fn hook_sessions(log: &std::path::Path, event: &str) -> Vec<String> {
+    std::fs::read_to_string(log)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|payload| payload["event"].as_str() == Some(event))
+        .filter_map(|payload| payload["session_id"].as_str().map(str::to_string))
+        .collect()
+}
+
+#[tokio::test]
+async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
+    let (mut agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    let host = api.uri();
+    let _guard = env_lock::lock_env([
+        ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+        ("OPENAI_HOST", Some(host.as_str())),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
+        ("OPENAI_CUSTOM_HEADERS", Some("")),
+    ]);
+    let (_hook_dir, hook_log) = install_hook_log(&mut agent, &["SessionEnd"])?;
+    agent
+        .config
+        .session_manager
+        .update(&session_id)
+        .goose_mode(GooseMode::Approve)
+        .apply()
+        .await?;
+    enable_developer(&agent, &session_id).await?;
+    agent
+        .extension_manager
+        .enable(
+            &session_id,
+            ExtensionConfig::Platform {
+                name: "summon".to_string(),
+                description: "Delegate work".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+        )
+        .await?;
+    api.on("hand this off").call(
+        "delegate",
+        json!({ "instructions": "wait for approval", "max_turns": 3 }),
+    );
+    api.on("wait for approval")
+        .call("shell", json!({ "command": "echo never" }));
+
+    let cancel = CancellationToken::new();
+    let mut stream = agent
+        .reply(
+            Message::user().with_text("hand this off"),
+            SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+            },
+            Some(cancel.clone()),
+        )
+        .await?;
+    while let Some(event) = stream.next().await {
+        let AgentEvent::Message(message) = event? else {
+            continue;
+        };
+        for content in &message.content {
+            let MessageContent::ActionRequired(action) = content else {
+                continue;
+            };
+            let ActionRequiredData::ToolConfirmation { id, tool_name, .. } = &action.data else {
+                continue;
+            };
+            if tool_name == "shell" {
+                cancel.cancel();
+            } else {
+                agent
+                    .submit_tool_confirmation(&session_id, id, Permission::AllowOnce)
+                    .await?;
+            }
+        }
+    }
+
+    let subagent_id = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let [subagent_id] = hook_sessions(&hook_log, "SessionEnd").as_slice() {
+                return subagent_id.clone();
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await?;
+    assert_ne!(subagent_id, session_id);
+    assert!(!agent.tracks_confirmations_for(&subagent_id));
+    assert!(agent
+        .extension_manager
+        .scope_lease(&subagent_id)
+        .await
+        .configs()
+        .is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_parent_tool_call_id_that_looks_forwarded_is_still_the_parents() -> Result<()> {
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    agent
+        .config
+        .session_manager
+        .update(&session_id)
+        .goose_mode(GooseMode::Approve)
+        .apply()
+        .await?;
+    enable_developer(&agent, &session_id).await?;
+    api.on("run it").calls([(
+        "subagent:not-a-session:call",
+        "shell",
+        json!({ "command": "printf 'ran-%s' parent" }),
+    )]);
+    api.on("ran-parent").reply("the parent ran it");
+
+    let mut stream = agent
+        .reply(
+            Message::user().with_text("run it"),
+            SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(2),
+            },
+            None,
+        )
+        .await?;
+    let mut texts = Vec::new();
+    while let Some(event) = stream.next().await {
+        let AgentEvent::Message(message) = event? else {
+            continue;
+        };
+        texts.push(message.as_concat_text());
+        for id in confirmation_ids(std::slice::from_ref(&message)) {
+            agent
+                .submit_tool_confirmation(&session_id, &id, Permission::AllowOnce)
+                .await?;
+        }
+    }
+    assert!(texts.concat().ends_with("the parent ran it"));
+    Ok(())
+}

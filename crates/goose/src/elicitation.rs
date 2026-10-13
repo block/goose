@@ -3,7 +3,6 @@ use rmcp::model::ElicitationAction;
 use serde_json::Value;
 
 use crate::action_required_manager::ElicitationOutcome;
-use crate::agents::subagent_handler::answered_request;
 use crate::conversation::message::{Message, MessageContent};
 use crate::session::SessionManager;
 
@@ -43,8 +42,9 @@ pub(crate) async fn complete_elicitation_with_message(
     response: ElicitationOutcome,
     response_message: &Message,
 ) -> Result<()> {
-    let (session_id, elicitation_id) =
-        answered_request(session_manager, session_id, elicitation_id).await?;
+    let (session_id, elicitation_id) = session_manager
+        .action_required()
+        .answered_request(session_id, elicitation_id)?;
     let claim = session_manager
         .action_required()
         .claim_response(&session_id, &elicitation_id)
@@ -63,8 +63,9 @@ pub async fn complete_elicitation_with_generated_message(
     elicitation_id: &str,
     response: ElicitationOutcome,
 ) -> Result<()> {
-    let (session_id, elicitation_id) =
-        answered_request(session_manager, session_id, elicitation_id).await?;
+    let (session_id, elicitation_id) = session_manager
+        .action_required()
+        .answered_request(session_id, elicitation_id)?;
     let response_message = generated_elicitation_response_message(&elicitation_id, &response);
     complete_elicitation_with_message(
         session_manager,

@@ -27,7 +27,7 @@ use crate::agents::state_machine::{
     StopHookOperation, SubagentOperation, ToolApprovalOperation, ToolExecutionOperation,
     ToolPairCompactionOperation, UnknownToolOperation,
 };
-use crate::agents::subagent_handler::{answered_request, is_forwarded_request, SubagentRunner};
+use crate::agents::subagent_handler::SubagentRunner;
 use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
@@ -335,6 +335,10 @@ impl Agent {
     pub async fn release_session(&self, session_id: &str) {
         self.discard_pending_steers(session_id).await;
         self.tool_confirmation_coordinator.release(session_id);
+        self.config
+            .session_manager
+            .action_required()
+            .forget_forwarded_from(session_id);
         self.extension_manager.release(session_id).await;
         self.config.providers.release(session_id);
     }
@@ -492,8 +496,11 @@ impl Agent {
             .get_session(session_id, false)
             .await?;
 
-        let (session_id, request_id) =
-            answered_request(&self.config.session_manager, session_id, request_id).await?;
+        let (session_id, request_id) = self
+            .config
+            .session_manager
+            .action_required()
+            .answered_request(session_id, request_id)?;
         let (session_id, request_id) = (session_id.as_str(), request_id.as_str());
         let state = self.tool_confirmation_coordinator.session(session_id);
         let _confirmation_submission_guard = state.confirmation_submission_lock.lock().await;
@@ -846,7 +853,7 @@ impl Agent {
         Ok(Some(stream))
     }
 
-    fn tool_confirmation_request_ids(event: &AgentEvent) -> Vec<String> {
+    fn tool_confirmation_request_ids(&self, event: &AgentEvent) -> Vec<String> {
         let AgentEvent::Message(message) = event else {
             return Vec::new();
         };
@@ -861,7 +868,12 @@ impl Agent {
                 let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
                     return None;
                 };
-                (!is_forwarded_request(id)).then(|| id.clone())
+                let forwarded = self
+                    .config
+                    .session_manager
+                    .action_required()
+                    .is_forwarded(id);
+                (!forwarded).then(|| id.clone())
             })
             .collect()
     }
@@ -880,7 +892,7 @@ impl Agent {
                     let mut has_confirmations = false;
                     while let Some(event) = active_stream.next().await {
                         let event = event?;
-                        for request_id in Self::tool_confirmation_request_ids(&event) {
+                        for request_id in self.tool_confirmation_request_ids(&event) {
                             turn_guard.state().register_request(request_id);
                             has_confirmations = true;
                         }

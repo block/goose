@@ -147,6 +147,10 @@ impl SubagentRunner {
         cancel: CancellationToken,
         forward: mpsc::UnboundedSender<Message>,
     ) -> Result<()> {
+        let parent_id = subagent
+            .parent_session_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("Subagent {} has no parent", subagent.id))?;
         let session_config = prepare_subagent(&self.agent, subagent).await?;
         let mut events = self
             .agent
@@ -155,7 +159,12 @@ impl SubagentRunner {
         while let Some(event) = events.next().await {
             if let AgentEvent::Message(message) = event? {
                 if asks_for_a_decision(&message) {
-                    let _ = forward.send(forwarded(message, &subagent.id));
+                    let _ = forward.send(forwarded(
+                        message,
+                        parent_id,
+                        &subagent.id,
+                        self.session_manager(),
+                    ));
                 }
             }
         }
@@ -168,11 +177,13 @@ impl SubagentRunner {
         cancel: CancellationToken,
         forward: mpsc::UnboundedSender<Message>,
     ) -> SubagentOutcome {
+        let ending = SubagentEnding {
+            agent: Arc::clone(&self.agent),
+            subagent_id: subagent.id.clone(),
+            ended: false,
+        };
         let run_result = self.run_to_end(&subagent, cancel.clone(), forward).await;
-        self.agent
-            .emit_hook(crate::hooks::HookEvent::SessionEnd, &subagent.id)
-            .await;
-        self.agent.release_session(&subagent.id).await;
+        ending.end().await;
         let stopped = cancel.is_cancelled();
         let subagent = match self.session_manager().get_session(&subagent.id, true).await {
             Ok(subagent) => subagent,
@@ -199,39 +210,56 @@ impl SubagentRunner {
     }
 }
 
-const FORWARDED_PREFIX: &str = "subagent:";
-
-pub(crate) fn is_forwarded_request(request_id: &str) -> bool {
-    request_id.starts_with(FORWARDED_PREFIX)
+/// Aborting the parent's turn drops a running subagent's task, so the session is also ended
+/// from `Drop`.
+struct SubagentEnding {
+    agent: Arc<Agent>,
+    subagent_id: String,
+    ended: bool,
 }
 
-pub(crate) async fn answered_request(
-    session_manager: &SessionManager,
-    session_id: &str,
-    request_id: &str,
-) -> Result<(String, String)> {
-    let Some((subagent_id, subagent_request_id)) = request_id
-        .strip_prefix(FORWARDED_PREFIX)
-        .and_then(|request| request.split_once(':'))
-    else {
-        return Ok((session_id.to_string(), request_id.to_string()));
-    };
-    let subagent = session_manager.get_session(subagent_id, false).await?;
-    if subagent.parent_session_id.as_deref() != Some(session_id) {
-        return Err(anyhow!(
-            "Session {subagent_id} is not a subagent of {session_id}"
-        ));
+impl SubagentEnding {
+    async fn end(mut self) {
+        end_subagent(&self.agent, &self.subagent_id).await;
+        self.ended = true;
     }
-    Ok((subagent_id.to_string(), subagent_request_id.to_string()))
 }
 
-fn forwarded(mut message: Message, subagent_id: &str) -> Message {
+impl Drop for SubagentEnding {
+    fn drop(&mut self) {
+        if self.ended {
+            return;
+        }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let agent = Arc::clone(&self.agent);
+        let subagent_id = std::mem::take(&mut self.subagent_id);
+        runtime.spawn(async move { end_subagent(&agent, &subagent_id).await });
+    }
+}
+
+async fn end_subagent(agent: &Agent, subagent_id: &str) {
+    agent
+        .emit_hook(crate::hooks::HookEvent::SessionEnd, subagent_id)
+        .await;
+    agent.release_session(subagent_id).await;
+}
+
+fn forwarded(
+    mut message: Message,
+    parent_id: &str,
+    subagent_id: &str,
+    session_manager: &SessionManager,
+) -> Message {
     for content in &mut message.content {
         if let MessageContent::ActionRequired(action) = content {
             if let ActionRequiredData::ToolConfirmation { id, .. }
             | ActionRequiredData::Elicitation { id, .. } = &mut action.data
             {
-                *id = format!("{FORWARDED_PREFIX}{subagent_id}:{id}");
+                *id = session_manager
+                    .action_required()
+                    .forward(parent_id, subagent_id, id);
             }
         }
     }
