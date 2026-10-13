@@ -4799,6 +4799,10 @@
   "settings.agentLoop.title": {
     "defaultMessage": "エージェントループ"
   },
-  "localInference.aaEvaluation": "Evaluation details on Artificial Analysis",
-  "localInference.aaAttribution": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
+  "localInference.aaEvaluation": {
+    "defaultMessage": "Evaluation details on Artificial Analysis"
+  },
+  "localInference.aaAttribution": {
+    "defaultMessage": "Recommendations ordered using Artificial Analysis. Selection and memory estimates by goose; not endorsed by Artificial Analysis."
+  }
 }
