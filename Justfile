@@ -343,8 +343,17 @@ check-npm-versions:
 build-canonical-models:
     @cargo run --bin build_canonical_models
 
+# Refresh public benchmark candidates and inspect every conversion class (Apple silicon).
+rebuild-local-model-catalogue:
+    cargo run --release -p goose-local-inference --features hf-hub,mlx --bin local-model-catalogue --locked -- --rebuild
+
+# Offline schema, dependency and policy validation; works without eredu or Metal.
+check-local-model-catalogue:
+    cargo run --release -p goose-local-inference --features hf-hub --bin local-model-catalogue --locked -- --check
+
 # bump version, rebuild canonical models, and commit
 prepare-release version:
+    @just check-local-model-catalogue
     @just bump-version {{ version }}
     @just build-canonical-models
     @git add \
@@ -356,7 +365,8 @@ prepare-release version:
         ui/goose-binary/*/package.json \
         ui/pnpm-lock.yaml \
         crates/goose-provider-types/src/canonical/data/canonical_models.json \
-        crates/goose-provider-types/src/canonical/data/provider_metadata.json
+        crates/goose-provider-types/src/canonical/data/provider_metadata.json \
+        crates/goose-local-inference/data/model-catalogue.json
     @git commit --message "chore(release): release version {{ version }}"
 
 # extract version from Cargo.toml

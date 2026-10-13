@@ -13,7 +13,15 @@ on:
         type: string
 
 jobs:
+  local-model-catalogue:
+    uses: ./.github/workflows/local-model-catalogue.yml
+    secrets:
+      ARTIFICIAL_ANALYSIS_API_KEY: ${{ secrets.ARTIFICIAL_ANALYSIS_API_KEY }}
+    with:
+      ref: ${{ inputs.target_branch }}
+
   create-patch-release:
+    needs: local-model-catalogue
     runs-on: ubuntu-latest
     env:
       TARGET_BRANCH: ${{ inputs.target_branch }}
@@ -21,7 +29,7 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
-        ref: ${{ inputs.target_branch }}
+        ref: ${{ needs.local-model-catalogue.outputs.source-sha }}
         fetch-depth: 0
 
     - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
@@ -31,6 +39,12 @@ jobs:
       run: |
         sudo apt update -y
         sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+    - if: needs.local-model-catalogue.outputs.has-catalogue == 'true'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: local-model-catalogue
+        path: crates/goose-local-inference/data
 
     - name: Compute version and create release branch
       env:

@@ -1,0 +1,70 @@
+name: Rebuild local model catalogue
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+    secrets:
+      ARTIFICIAL_ANALYSIS_API_KEY:
+        required: true
+    outputs:
+      has-catalogue:
+        description: Whether this source revision contains the catalogue generator
+        value: ${{ jobs.catalogue.outputs.has-catalogue }}
+      source-sha:
+        description: Source commit used to inspect models
+        value: ${{ jobs.catalogue.outputs.source-sha }}
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        default: main
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  catalogue:
+    runs-on: macos-latest
+    timeout-minutes: 360
+    outputs:
+      has-catalogue: ${{ steps.source.outputs.available }}
+      source-sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - id: source
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [[ -f crates/goose-local-inference/src/bin/local-model-catalogue.rs ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "This revision predates the local model catalogue."
+          fi
+      - if: steps.source.outputs.available == 'true'
+        uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+      - name: Rebuild public model catalogue
+        if: steps.source.outputs.available == 'true'
+        env:
+          ARTIFICIAL_ANALYSIS_API_KEY: ${{ secrets.ARTIFICIAL_ANALYSIS_API_KEY }}
+        run: just rebuild-local-model-catalogue
+      - name: Validate generated catalogue
+        if: steps.source.outputs.available == 'true'
+        run: just check-local-model-catalogue
+      - if: steps.source.outputs.available == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: local-model-catalogue
+          path: crates/goose-local-inference/data/model-catalogue.json
+          if-no-files-found: error
+      - name: Upload inspection report
+        if: always() && steps.source.outputs.available == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: local-model-catalogue-report
+          path: target/local-model-catalogue-report.json
