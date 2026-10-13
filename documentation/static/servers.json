@@ -670,6 +670,18 @@
     ]
   },
   {
+    "id": "statorigin",
+    "name": "StatOrigin",
+    "description": "Search sourced industry statistics, each traced to its publisher and source sentence",
+    "url": "https://statorigin.org/mcp",
+    "link": "https://statorigin.org/docs/mcp",
+    "installation_notes": "Hosted remote server. Public and read-only; no account or API key needed.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "summon",
     "name": "Summon",
     "description": "Load skills and delegate tasks to subagents",
@@ -794,14 +806,14 @@
   "endorsed": false,
   "environmentVariables": [
     {
-      "name": "SCHOLAR_API_KEY",
-      "description": "Optional first-party API key (ssk_) from https://scholar-sidekick.com/account; raises rate limits. Sent as Authorization: Bearer.",
-      "required": false
+    "name": "SCHOLAR_API_KEY",
+    "description": "Optional first-party API key (ssk_) from https://scholar-sidekick.com/account; raises rate limits. Sent as Authorization: Bearer.",
+    "required": false
     },
     {
-      "name": "RAPIDAPI_KEY",
-      "description": "Optional RapidAPI key for paid/managed tiers; routes calls through the RapidAPI gateway.",
-      "required": false
+    "name": "RAPIDAPI_KEY",
+    "description": "Optional RapidAPI key for paid/managed tiers; routes calls through the RapidAPI gateway.",
+    "required": false
     }
   ]
 }
