@@ -2,8 +2,15 @@ use lopdf::{content::Content as PdfContent, Document, Object};
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 use std::{fs, path::Path};
 
-fn create_private_dir(path: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(path)?;
+fn create_private_dir(path: &Path) -> anyhow::Result<()> {
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path)?;
     // An older goose may have created the directory with the default mode, so set it every time.
     #[cfg(unix)]
     {

@@ -227,7 +227,7 @@ pub struct ComputerControllerServer {
 
 // Without a cache directory, files go to the system temporary directory. A fresh directory that
 // only the owner can open keeps them away from other users of a shared temporary root.
-fn private_fallback_cache_dir() -> std::io::Result<tempfile::TempDir> {
+fn private_fallback_cache_dir() -> anyhow::Result<tempfile::TempDir> {
     let mut builder = tempfile::Builder::new();
     builder.prefix("goose-computer-controller-");
     #[cfg(unix)]
@@ -235,7 +235,7 @@ fn private_fallback_cache_dir() -> std::io::Result<tempfile::TempDir> {
         use std::os::unix::fs::PermissionsExt;
         builder.permissions(fs::Permissions::from_mode(0o700));
     }
-    builder.tempdir()
+    Ok(builder.tempdir()?)
 }
 
 impl Default for ComputerControllerServer {
