@@ -132,7 +132,7 @@ impl ToolCatalog {
         let mut by_name = HashMap::new();
         for (extension, tools) in extensions.iter().zip(lists) {
             for tool in tools.iter() {
-                let name = tool.name.to_string();
+                let name = provider_safe_tool_name(&tool.name);
                 if by_name.contains_key(&name) {
                     warn!(
                         tool = %name,
@@ -155,9 +155,11 @@ impl ToolCatalog {
                 {
                     continue;
                 }
+                let mut tool = tool.clone();
+                tool.name = name.clone().into();
                 by_name.insert(name, entries.len());
                 entries.push(CatalogEntry {
-                    tool: tool.clone(),
+                    tool,
                     extension: Arc::clone(extension),
                     server_name,
                 });
@@ -169,6 +171,22 @@ impl ToolCatalog {
     fn get(&self, name: &str) -> Option<&CatalogEntry> {
         self.by_name.get(name).map(|&i| &self.entries[i])
     }
+}
+
+/// MCP allows tool names that providers reject (OpenAI requires
+/// `^[a-zA-Z0-9_-]{1,64}$`), so the catalog advertises a safe spelling and
+/// dispatches to the server under the original name.
+fn provider_safe_tool_name(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .take(64)
+        .collect()
 }
 
 #[derive(Clone)]

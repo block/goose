@@ -297,11 +297,21 @@ async fn extension_lifecycle_across_real_transports(stdio_version: ProtocolVersi
     let configs = vec![http.clone(), stdio.clone(), todo.clone(), skills.clone()];
     let lease = fx.resolve(&session, &configs).await;
 
-    // The catalog: prefixed per extension, filtered by available_tools.
+    // The catalog: prefixed per extension, filtered by available_tools, and
+    // spelled the way providers accept.
     let names = tool_names(&lease.tools().await);
+    for name in &names {
+        assert!(
+            name.len() <= 64
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
+            "{name}"
+        );
+    }
     for expected in [
         "fixture_http__get_code",
-        "fixture_http__db.query",
+        "fixture_http__db_query",
         "fixture_stdio__get_code",
         "fixture_stdio__inspect_context",
         "todo__todo_write",
@@ -383,15 +393,15 @@ async fn extension_lifecycle_across_real_transports(stdio_version: ProtocolVersi
     )
     .starts_with("Updated ("));
 
-    // Spellings a model mangles resolve to the same tools; an exact dotted
-    // name is never rewritten.
+    // Spellings a model mangles resolve to the same tools, and a sanitized
+    // name reaches the server under its original name.
     assert_eq!(call_text(&lease, "fixture_stdio.get_code").await, FAKE_CODE);
     assert_eq!(
         call_text(&lease, "functions.fixture_stdio__get_code").await,
         FAKE_CODE
     );
-    assert_eq!(call_text(&lease, "fixture_http__db.query").await, "rows");
-    assert_eq!(call_text(&lease, "fixture_http.db.query").await, "rows");
+    assert_eq!(call_text(&lease, "fixture_http__db_query").await, "rows");
+    assert_eq!(call_text(&lease, "fixture_http.db_query").await, "rows");
     let unknown = call(&lease, "no_such_tool", None).await.unwrap_err();
     assert_eq!(unknown.code, ErrorCode::RESOURCE_NOT_FOUND);
     assert!(
