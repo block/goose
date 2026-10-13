@@ -674,32 +674,104 @@ impl StateMachineServices {
         StateMachine::new(steps, cancel)
     }
 
-    pub(crate) async fn reply_with_state_machine(
+    #[instrument(
+        skip(self, user_message, session_config, cancel_token),
+        fields(
+            user_message,
+            trace_input,
+            trace_output = tracing::field::Empty,
+            session.id = %session_config.id,
+            gen_ai.operation.name = "invoke_agent",
+            gen_ai.agent.name = tracing::field::Empty,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+        )
+    )]
+    pub async fn reply(
         self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let reply_span = tracing::Span::current();
         let session_id = session_config.id.clone();
         let events = crate::session_context::with_session_id(
-            Some(session_id.clone()),
-            self.reply_with_state_machine_inner(user_message, session_config, cancel_token),
+            Some(session_id),
+            self.start_reply(
+                user_message,
+                session_config,
+                cancel_token.unwrap_or_default(),
+            ),
         )
         .await?;
-        Ok(crate::session_context::with_session_id_stream(
-            Some(session_id),
-            events,
+        // This is the single live-event boundary. Callers that intentionally stream
+        // multiple events for one logical message must assign their shared ID before this point.
+        Ok(Box::pin(
+            events
+                .try_filter_map(|event| async move { Ok(user_event(event)) })
+                .instrument(reply_span),
         ))
     }
 
-    async fn reply_with_state_machine_inner(
+    async fn start_reply(
         self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
+        cancel: CancellationToken,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let user_message = user_message.with_generated_id_if_missing();
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
+
+        let message_text_for_trace = agent_visible_message_text(&user_message);
+        if gen_ai_telemetry::capture_message_content() {
+            tracing::Span::current().record("user_message", message_text_for_trace.as_str());
+            tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
+            tracing::Span::current().record(
+                "gen_ai.input.messages",
+                gen_ai_telemetry::simple_input_json(&message_text_for_trace).as_str(),
+            );
+        }
+
+        for content in &user_message.content {
+            if let MessageContent::ActionRequired(action_required) = content {
+                if let ActionRequiredData::ElicitationResponse {
+                    id,
+                    user_data,
+                    action,
+                } = &action_required.data
+                {
+                    // Surface stale/cancelled/timed-out elicitations as a hard
+                    // error so callers (e.g. the HTTP handler) can propagate
+                    // failure to the client instead of silently reporting
+                    // success while the blocked tool call stays unblocked.
+                    // The success path returns an empty stream after the MCP
+                    // server receives the user's accept/decline/cancel action.
+                    let response = match action {
+                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
+                        ElicitationAction::Decline => ElicitationOutcome::Decline,
+                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                        _ => ElicitationOutcome::Cancel,
+                    };
+                    crate::elicitation::complete_elicitation_with_message(
+                        &session_manager,
+                        &session_config.id,
+                        id,
+                        response,
+                        &user_message,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to submit elicitation response: {}", e);
+                        anyhow!("Failed to submit elicitation response: {}", e)
+                    })?;
+                    return Ok(Box::pin(futures::stream::empty()));
+                }
+            }
+        }
+
         let turn_guard = self
             .tool_confirmation_coordinator
             .session(&session_id)
@@ -743,36 +815,25 @@ impl StateMachineServices {
             });
         }
 
-        let cancel = cancel_token.unwrap_or_default();
-        let initial_stream = self
-            .stream_state_machine_session(session_config.clone(), cancel.clone())
-            .await?;
-        Ok(
-            self.stream_state_machine_turn(
-                session_config,
-                cancel,
-                turn_guard,
-                Some(initial_stream),
-            ),
-        )
+        Ok(self.turn(session_config, cancel, turn_guard, true))
     }
 
-    pub(crate) async fn resume_state_machine_turn(
+    /// Runs a subagent on the conversation saved for it.
+    pub(super) fn run_subagent_turn(
         self: &Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
-    ) -> Result<Option<BoxStream<'static, Result<AgentEvent>>>> {
-        let session_id = session_config.id.clone();
-        let stream = crate::session_context::with_session_id(
-            Some(session_id.clone()),
-            self.resume_state_machine_turn_inner(session_config, cancel),
-        )
-        .await?;
-        Ok(stream
-            .map(|stream| crate::session_context::with_session_id_stream(Some(session_id), stream)))
+    ) -> Result<BoxStream<'static, Result<AgentEvent>>> {
+        let turn_guard = self
+            .tool_confirmation_coordinator
+            .session(&session_config.id)
+            .try_start_turn()?;
+        turn_guard.state().start_new_turn();
+        Ok(self.turn(session_config, cancel, turn_guard, true))
     }
 
-    async fn resume_state_machine_turn_inner(
+    /// Continues a turn that stopped for tool confirmations, or `None` when there is none.
+    pub(crate) async fn resume_turn(
         self: &Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
@@ -800,32 +861,12 @@ impl StateMachineServices {
         for request in pending_confirmations {
             turn_guard.state().register_request(request.id);
         }
-
-        let services = Arc::clone(self);
-        let stream = Box::pin(async_stream::try_stream! {
-            let initial_stream = if resume_from_persisted_response {
-                Some(
-                    services
-                        .stream_state_machine_session(
-                            session_config.clone(),
-                            cancel.clone(),
-                        )
-                        .await?,
-                )
-            } else {
-                None
-            };
-            let mut stream = services.stream_state_machine_turn(
-                session_config,
-                cancel,
-                turn_guard,
-                initial_stream,
-            );
-            while let Some(event) = stream.next().await {
-                yield event?;
-            }
-        });
-        Ok(Some(stream))
+        Ok(Some(self.turn(
+            session_config,
+            cancel,
+            turn_guard,
+            resume_from_persisted_response,
+        )))
     }
 
     fn tool_confirmation_request_ids(&self, event: &AgentEvent) -> Vec<String> {
@@ -853,76 +894,53 @@ impl StateMachineServices {
             .collect()
     }
 
-    fn stream_state_machine_turn<'a>(
-        self: &'a Arc<Self>,
+    /// Runs the state machine, and again each time the confirmations it stopped for are
+    /// all answered. `run_first` is false when the turn starts by waiting for answers.
+    fn turn(
+        self: &Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
         turn_guard: ActiveTurnGuard,
-        initial_stream: Option<BoxStream<'a, Result<AgentEvent>>>,
-    ) -> BoxStream<'a, Result<AgentEvent>> {
-        Box::pin(async_stream::try_stream! {
-            let mut stream = initial_stream;
+        run_first: bool,
+    ) -> BoxStream<'static, Result<AgentEvent>> {
+        let session_id = session_config.id.clone();
+        let services = Arc::clone(self);
+        let events = async_stream::try_stream! {
+            let mut run = run_first;
             loop {
-                if let Some(active_stream) = stream.as_mut() {
+                if run {
+                    let mut stream = services
+                        .run_machine(session_config.clone(), cancel.clone())
+                        .await?;
                     let mut has_confirmations = false;
-                    while let Some(event) = active_stream.next().await {
+                    while let Some(event) = stream.next().await {
                         let event = event?;
-                        for request_id in self.tool_confirmation_request_ids(&event) {
+                        for request_id in services.tool_confirmation_request_ids(&event) {
                             turn_guard.state().register_request(request_id);
                             has_confirmations = true;
                         }
                         yield event;
                     }
-
                     if !has_confirmations {
                         turn_guard.state().clear_confirmations();
                         return;
                     }
                 }
-
-                let resume = turn_guard
+                if !turn_guard
                     .state()
                     .wait_for_all_confirmation_answers(&cancel)
-                    .await;
-                if !resume {
+                    .await
+                {
                     turn_guard.state().clear_confirmations();
                     return;
                 }
-                stream = Some(
-                    self.stream_state_machine_session(
-                        session_config.clone(),
-                        cancel.clone(),
-                    )
-                    .await?,
-                );
+                run = true;
             }
-        })
+        };
+        crate::session_context::with_session_id_stream(Some(session_id), Box::pin(events))
     }
 
-    pub(super) async fn stream_subagent_turn(
-        self: &Arc<Self>,
-        session_config: SessionConfig,
-        cancel: CancellationToken,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let turn_guard = self
-            .tool_confirmation_coordinator
-            .session(&session_config.id)
-            .try_start_turn()?;
-        turn_guard.state().start_new_turn();
-        let initial_stream = self
-            .stream_state_machine_session(session_config.clone(), cancel.clone())
-            .await?;
-        Ok(
-            self.stream_state_machine_turn(
-                session_config,
-                cancel,
-                turn_guard,
-                Some(initial_stream),
-            ),
-        )
-    }
-
-    pub(super) async fn stream_state_machine_session(
+    async fn run_machine(
         self: &Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
@@ -981,120 +999,6 @@ impl StateMachineServices {
             }
             .instrument(reply_span),
         ))
-    }
-
-    pub(crate) async fn reply_live_delegation(
-        self: &Arc<Self>,
-        user_message: Message,
-        session_config: SessionConfig,
-        cancel_token: CancellationToken,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let user_message = user_message.agent_only();
-        let events = self
-            .reply_with_state_machine(user_message, session_config, Some(cancel_token))
-            .await?;
-        Ok(Box::pin(events.try_filter_map(|event| async move {
-            Ok(user_event(event))
-        })))
-    }
-
-    #[instrument(
-        skip(self, user_message, session_config, cancel_token),
-        fields(
-            user_message,
-            trace_input,
-            trace_output = tracing::field::Empty,
-            session.id = %session_config.id,
-            gen_ai.operation.name = "invoke_agent",
-            gen_ai.agent.name = tracing::field::Empty,
-            gen_ai.input.messages = tracing::field::Empty,
-            gen_ai.output.messages = tracing::field::Empty,
-            gen_ai.usage.input_tokens = tracing::field::Empty,
-            gen_ai.usage.output_tokens = tracing::field::Empty,
-        )
-    )]
-    pub async fn reply(
-        self: &Arc<Self>,
-        user_message: Message,
-        session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let reply_span = tracing::Span::current();
-        let session_id = session_config.id.clone();
-        let events = crate::session_context::with_session_id(
-            Some(session_id.clone()),
-            self.reply_impl(user_message, session_config, cancel_token),
-        )
-        .await?;
-        let events = crate::session_context::with_session_id_stream(Some(session_id), events);
-
-        // This is the single live-event boundary. Callers that intentionally stream
-        // multiple events for one logical message must assign their shared ID before this point.
-        Ok(Box::pin(
-            events
-                .try_filter_map(|event| async move { Ok(user_event(event)) })
-                .instrument(reply_span),
-        ))
-    }
-
-    async fn reply_impl(
-        self: &Arc<Self>,
-        user_message: Message,
-        session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let user_message = user_message.with_generated_id_if_missing();
-        let session_manager = self.config.session_manager.clone();
-
-        let message_text_for_trace = agent_visible_message_text(&user_message);
-        if gen_ai_telemetry::capture_message_content() {
-            tracing::Span::current().record("user_message", message_text_for_trace.as_str());
-            tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
-            tracing::Span::current().record(
-                "gen_ai.input.messages",
-                gen_ai_telemetry::simple_input_json(&message_text_for_trace).as_str(),
-            );
-        }
-
-        for content in &user_message.content {
-            if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse {
-                    id,
-                    user_data,
-                    action,
-                } = &action_required.data
-                {
-                    // Surface stale/cancelled/timed-out elicitations as a hard
-                    // error so callers (e.g. the HTTP handler) can propagate
-                    // failure to the client instead of silently reporting
-                    // success while the blocked tool call stays unblocked.
-                    // The success path returns an empty stream after the MCP
-                    // server receives the user's accept/decline/cancel action.
-                    let response = match action {
-                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
-                        ElicitationAction::Decline => ElicitationOutcome::Decline,
-                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
-                        _ => ElicitationOutcome::Cancel,
-                    };
-                    crate::elicitation::complete_elicitation_with_message(
-                        &session_manager,
-                        &session_config.id,
-                        id,
-                        response,
-                        &user_message,
-                    )
-                    .await
-                    .map_err(|e| {
-                        error!("Failed to submit elicitation response: {}", e);
-                        anyhow!("Failed to submit elicitation response: {}", e)
-                    })?;
-                    return Ok(Box::pin(futures::stream::empty()));
-                }
-            }
-        }
-
-        self.reply_with_state_machine(user_message, session_config, cancel_token)
-            .await
     }
 
     /// Pins `provider` to the session instead of letting the provider manager
@@ -1675,15 +1579,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn live_delegation_scopes_state_machine_setup_and_stream_to_session() {
+    async fn an_agent_only_reply_scopes_state_machine_setup_and_stream_to_session() {
         let (services, provider, mut session_config, _temp_dir) = session_context_agent().await;
         session_config.max_turns = Some(2);
         let session_id = session_config.id.clone();
         let mut events = services
-            .reply_live_delegation(
-                Message::user().with_text("continue"),
+            .reply(
+                Message::user().with_text("continue").agent_only(),
                 session_config,
-                CancellationToken::new(),
+                Some(CancellationToken::new()),
             )
             .await
             .unwrap();

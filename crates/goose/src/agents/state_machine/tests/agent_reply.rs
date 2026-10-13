@@ -302,7 +302,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
     assert_eq!(calculator.total(), 0);
     drop(stream);
     let stream = services
-        .resume_state_machine_turn(session_config.clone(), CancellationToken::new())
+        .resume_turn(session_config.clone(), CancellationToken::new())
         .await?
         .expect("persisted confirmation response should resume the state-machine turn");
     messages.extend(stream_messages(stream).await?);
@@ -702,7 +702,7 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
         max_turns: Some(1),
     };
     let stream = services
-        .reply_with_state_machine(
+        .reply(
             Message::user().with_text("are you there?"),
             session_config,
             Some(CancellationToken::new()),

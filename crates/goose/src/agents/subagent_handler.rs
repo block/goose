@@ -155,10 +155,7 @@ impl SubagentRunner {
             .as_deref()
             .ok_or_else(|| anyhow!("Subagent {} has no parent", subagent.id))?;
         let session_config = prepare_subagent(&self.services, subagent).await?;
-        let mut events = self
-            .services
-            .stream_subagent_turn(session_config, cancel)
-            .await?;
+        let mut events = self.services.run_subagent_turn(session_config, cancel)?;
         while let Some(event) = events.next().await {
             if let AgentEvent::Message(message) = event? {
                 if asks_for_a_decision(&message) {

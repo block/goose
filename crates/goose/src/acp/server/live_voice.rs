@@ -242,7 +242,11 @@ impl AcpConnection {
             Message::user().with_text(format!("{LIVE_DELEGATION_INSTRUCTION}\n\n{input}"));
         let mut stream = match self
             .services
-            .reply_live_delegation(input_message, session_config, cancel_token.clone())
+            .reply(
+                input_message.agent_only(),
+                session_config,
+                Some(cancel_token.clone()),
+            )
             .await
         {
             Ok(stream) => stream,

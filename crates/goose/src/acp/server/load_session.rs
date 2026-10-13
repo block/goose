@@ -270,7 +270,7 @@ impl AcpConnection {
         };
         let stream = match self
             .services
-            .resume_state_machine_turn(session_config, cancel_token.clone())
+            .resume_turn(session_config, cancel_token.clone())
             .await
         {
             Ok(Some(stream)) => stream,
