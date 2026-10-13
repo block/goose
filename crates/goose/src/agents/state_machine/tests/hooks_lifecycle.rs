@@ -8,7 +8,7 @@ use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::state_machine::ops_stop_hook::DENIED;
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
-use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
@@ -1362,7 +1362,8 @@ async fn recipe_final_output_denied_by_permission_receives_declined_response() -
         FINAL_OUTPUT_TOOL_NAME,
         serde_json::json!({ "answer": "denied" }),
     );
-    api.on("declined to run this tool").reply("understood");
+    api.on("permission: User permission denies this tool")
+        .reply("understood");
 
     let result = pipeline.run(["finish now"]).await?;
     let messages = result.conversation().messages();
@@ -1375,9 +1376,10 @@ async fn recipe_final_output_denied_by_permission_receives_declined_response() -
             MessageContent::ToolResponse(response) => {
                 response.tool_result.as_ref().is_ok_and(|result| {
                     result.content.iter().any(|block| {
-                        block
-                            .as_text()
-                            .is_some_and(|text| text.text == DECLINED_RESPONSE)
+                        block.as_text().is_some_and(|text| {
+                            text.text
+                                .contains("permission: User permission denies this tool")
+                        })
                     })
                 })
             }
@@ -1386,7 +1388,7 @@ async fn recipe_final_output_denied_by_permission_receives_declined_response() -
         .count();
     assert_eq!(
         declined, 1,
-        "the declined call must get one DECLINED_RESPONSE"
+        "the blocked call must get one response with the policy reason"
     );
 
     assert!(

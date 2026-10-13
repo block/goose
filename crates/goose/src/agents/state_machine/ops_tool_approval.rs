@@ -21,6 +21,7 @@ use crate::tool_inspection::{
 };
 
 pub const TOOL_EXECUTABLE_KEY: &str = "goose.executable";
+pub(super) const TOOL_INSPECTION_DENIAL_KEY: &str = "goose.inspection_denial";
 
 pub struct ToolApprovalOperation<'a> {
     tool_inspection_manager: &'a ToolInspectionManager,
@@ -101,7 +102,25 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                 );
 
             for request in permission_check_result.denied {
-                effects.push(mark_executable(&request.id, false));
+                let reasons = inspection_results
+                    .iter()
+                    .filter(|result| {
+                        result.tool_request_id == request.id
+                            && result.action == InspectionAction::Deny
+                    })
+                    .map(|result| format!("{}: {}", result.inspector_name, result.reason))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                effects.push(
+                    ConversationEffect::PatchToolRequestMeta {
+                        tool_call_id: request.id.clone(),
+                        patch: serde_json::json!({
+                            TOOL_EXECUTABLE_KEY: false,
+                            TOOL_INSPECTION_DENIAL_KEY: reasons,
+                        }),
+                    }
+                    .into(),
+                );
             }
 
             for request in permission_check_result.needs_approval {

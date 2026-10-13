@@ -9,7 +9,9 @@ use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorData
 
 use crate::agents::extension_manager::{CallRequest, ExtensionLease, ExtensionManager};
 use crate::agents::state_machine::ops_llm::{ADVERTISED_TOOLS_NOTE, LLM_OPERATION_NAME};
-use crate::agents::state_machine::ops_tool_approval::request_executable;
+use crate::agents::state_machine::ops_tool_approval::{
+    request_executable, TOOL_INSPECTION_DENIAL_KEY,
+};
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect, Emitter,
     GooseEffect, Operation, OperationResult, SlashCommand,
@@ -706,7 +708,13 @@ pub(super) fn pending_tool_requests(messages: &[Message]) -> Vec<(ToolRequest, T
                             {
                                 None
                             } else {
-                                Some((req.clone(), ToolDisposition::Decline))
+                                Some((
+                                    req.clone(),
+                                    ToolDisposition::Decline(denial_response(
+                                        req,
+                                        approvals.get(&req.id),
+                                    )),
+                                ))
                             }
                         }
                     }
@@ -783,8 +791,30 @@ fn request_has_approval_history(messages: &[Message], request: &ToolRequest) -> 
 #[derive(Clone, Eq, PartialEq)]
 pub(super) enum ToolDisposition {
     Execute,
-    Decline,
+    Decline(String),
     ParseError(String),
+}
+
+fn denial_response(
+    request: &ToolRequest,
+    permission: Option<&crate::permission::Permission>,
+) -> String {
+    use crate::permission::Permission;
+
+    if let Some(reason) = request
+        .tool_meta
+        .as_ref()
+        .and_then(|meta| meta.get(TOOL_INSPECTION_DENIAL_KEY))
+        .and_then(serde_json::Value::as_str)
+        .filter(|reason| !reason.is_empty())
+    {
+        return format!("Tool inspection blocked this call:\n{reason}\nDo not repeat this rejected action or work around the restriction. Continue with other authorized work.");
+    }
+    match permission {
+        Some(Permission::DenyOnce | Permission::AlwaysDeny) => DECLINED_RESPONSE.to_string(),
+        Some(Permission::Cancel) => "This tool call was cancelled before execution. Continue according to the user's latest instructions.".to_string(),
+        _ => "This tool call was not approved for execution. Do not repeat this rejected action without approval. Continue with other authorized work.".to_string(),
+    }
 }
 
 fn approval_denied(permission: Option<&crate::permission::Permission>) -> bool {
@@ -948,9 +978,9 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
                     ToolDisposition::Execute => {
                         CallToolResult::error(vec![ContentBlock::text(EXPIRED_APPROVAL_RESPONSE)])
                     }
-                    ToolDisposition::Decline => CallToolResult::error(vec![ContentBlock::text(
-                        DECLINED_RESPONSE,
-                    )]),
+                    ToolDisposition::Decline(reason) => {
+                        CallToolResult::error(vec![ContentBlock::text(reason)])
+                    }
                     ToolDisposition::ParseError(parse_error) => {
                         CallToolResult::error(vec![ContentBlock::text(format!(
                             "The tool call could not be parsed: {parse_error}. Correct the arguments and try again."
@@ -1046,11 +1076,11 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
             let mut batch = self.batch.lock().unwrap();
             match disposition {
                 ToolDisposition::Execute => {}
-                ToolDisposition::Decline => {
+                ToolDisposition::Decline(reason) => {
                     batch.record(
                         &request.id,
                         Ok(CallToolResult::error(vec![ContentBlock::text(
-                            DECLINED_RESPONSE,
+                            reason.clone(),
                         )])),
                         request.metadata.as_ref(),
                     );

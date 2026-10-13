@@ -148,9 +148,8 @@ where
     })
 }
 
-pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
-    DO NOT attempt to call this tool again. \
-    If there are no alternative methods to proceed, clearly explain the situation and STOP.";
+pub const DECLINED_RESPONSE: &str = "The user declined this tool call. \
+    Do not repeat the rejected action without new approval. Continue with other authorized work.";
 
 pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool call was skipped in goose chat mode. \
                                         DO NOT apologize for skipping the tool call. DO NOT say sorry. \

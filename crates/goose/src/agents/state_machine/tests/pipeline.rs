@@ -92,7 +92,7 @@ pub(super) struct TestPipeline {
     model_config: ModelConfig,
     extension_manager: Arc<ExtensionManager>,
     extension_lease: Arc<StdMutex<Option<Arc<ExtensionLease>>>>,
-    tool_inspection_manager: ToolInspectionManager,
+    pub(super) tool_inspection_manager: ToolInspectionManager,
     permission_manager: Arc<PermissionManager>,
     pub(super) hook_manager: HookManager,
     stop_hook_block_cap: u32,

@@ -311,6 +311,100 @@ async fn multiple_tool_calls_are_paired_and_executed_once() -> Result<()> {
 }
 
 #[tokio::test]
+async fn inspection_denial_preserves_reason_and_allows_other_calls_to_the_same_tool() -> Result<()>
+{
+    use crate::conversation::message::ToolRequest;
+    use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
+
+    struct NonnegativeInspector;
+
+    #[async_trait::async_trait]
+    impl ToolInspector for NonnegativeInspector {
+        fn name(&self) -> &'static str {
+            "nonnegative"
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        async fn inspect(
+            &self,
+            _session_id: &str,
+            requests: &[ToolRequest],
+            _messages: &[Message],
+            _mode: GooseMode,
+        ) -> Result<Vec<InspectionResult>> {
+            Ok(requests
+                .iter()
+                .filter(|request| {
+                    request
+                        .tool_call
+                        .as_ref()
+                        .ok()
+                        .and_then(|call| call.arguments.as_ref())
+                        .and_then(|args| args.get("value"))
+                        .and_then(serde_json::Value::as_i64)
+                        .is_some_and(|value| value < 0)
+                })
+                .map(|request| InspectionResult {
+                    tool_request_id: request.id.clone(),
+                    action: InspectionAction::Deny,
+                    reason: "Negative values are forbidden".into(),
+                    confidence: 1.0,
+                    inspector_name: self.name().into(),
+                    finding_id: None,
+                })
+                .collect())
+        }
+    }
+
+    let (mut pipeline, api) = test_pipeline().await?;
+    pipeline
+        .tool_inspection_manager
+        .add_inspector(Box::new(NonnegativeInspector));
+    api.on("subtract one").call(ADD, value(-1));
+    api.on("nonnegative: Negative values are forbidden")
+        .reply("That action is blocked by policy");
+    let result = pipeline.run(["subtract one"]).await?;
+    result.assert_message(
+        -2,
+        ToolResponse,
+        "Tool inspection blocked this call:\nnonnegative: Negative values are forbidden",
+    );
+    result.assert_message(-1, Agent, "That action is blocked by policy");
+    assert_eq!(pipeline.calculator_total(), 0);
+    let history = serde_json::to_string(result.conversation())?;
+    assert!(!history.contains("The user declined"));
+    assert!(!history.contains("DO NOT attempt to call this tool again"));
+
+    api.on("add one instead").call(ADD, value(1));
+    api.on("result: 1").reply("The authorized action ran");
+    let result = pipeline.run(["add one instead"]).await?;
+    result.assert_message(-2, ToolResponse, "result: 1");
+    assert_eq!(pipeline.calculator_total(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelled_tool_confirmation_is_not_a_user_refusal() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    api.on("add one").calls([("cancelled", ADD, value(1))]);
+    pipeline.run(["add one"]).await?;
+    pipeline.confirm("cancelled", Permission::Cancel).await?;
+    api.on("This tool call was cancelled before execution")
+        .reply("The call was cancelled");
+    let result = pipeline.resume().await?;
+    result.assert_message(
+        -2,
+        ToolResponse,
+        "This tool call was cancelled before execution",
+    );
+    assert_eq!(pipeline.calculator_total(), 0);
+    assert!(!serde_json::to_string(result.conversation())?.contains("The user declined"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn approvals_and_per_tool_permissions() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
@@ -337,7 +431,12 @@ async fn approvals_and_per_tool_permissions() -> Result<()> {
     pipeline.run(["deny this addition"]).await?;
     pipeline.confirm("denied", Permission::DenyOnce).await?;
     let result = pipeline.resume().await?;
-    result.assert_message(-2, ToolResponse, "DO NOT attempt to call this tool again");
+    result.assert_message(-2, ToolResponse, "The user declined this tool call");
+    result.assert_message(
+        -2,
+        ToolResponse,
+        "Do not repeat the rejected action without new approval",
+    );
     result.assert_message(-1, Agent, "I will not retry it");
     assert_eq!(pipeline.calculator_total(), 3);
 
@@ -356,7 +455,11 @@ async fn approvals_and_per_tool_permissions() -> Result<()> {
         .calls([("allowed", ADD, value(1)), ("blocked", DIVIDE, value(2))]);
     api.on("result: 4").reply("permissions applied");
     let result = pipeline.run(["apply the saved permissions"]).await?;
-    result.assert_message(-3, ToolResponse, DECLINED_RESPONSE);
+    result.assert_message(
+        -3,
+        ToolResponse,
+        "permission: User permission denies this tool",
+    );
     result.assert_message(-2, ToolResponse, "result: 4");
     result.assert_message(-1, Agent, "permissions applied");
     assert_eq!(pipeline.calculator_total(), 4);
