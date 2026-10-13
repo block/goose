@@ -570,7 +570,9 @@ pub fn from_declarative_config(
         api_client = api_client.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
     }
 
-    if !config.supports_streaming.unwrap_or(true) {
+    let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+    if !supports_streaming {
         return Err(anyhow::anyhow!(
             "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
             Please remove 'supports_streaming: false' from your provider configuration."
@@ -578,6 +580,7 @@ pub fn from_declarative_config(
     }
 
     Ok(AnthropicProviderBuilder::new(api_client)
+        .supports_streaming(supports_streaming)
         .name(config.name.clone())
         .custom_models(custom_models)
         .dynamic_models(config.dynamic_models)

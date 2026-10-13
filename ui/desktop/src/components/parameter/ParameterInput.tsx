@@ -115,26 +115,24 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
     <div className="parameter-input my-4 border rounded-lg bg-background-secondary shadow-sm relative">
       {/* Collapsed header - always visible */}
       <div
-        className={`flex items-center justify-between p-4 ${onToggleExpanded ? 'cursor-pointer hover:bg-background-primary/50' : ''} transition-colors`}
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-background-primary/50 transition-colors"
         onClick={handleToggleExpanded}
       >
         <div className="flex items-center gap-2 flex-1">
-          {onToggleExpanded && (
-            <button
-              type="button"
-              className="p-1 hover:bg-background-primary rounded transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleExpanded(key);
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-text-secondary" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-text-secondary" />
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            className="p-1 hover:bg-background-primary rounded transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpanded(key);
+            }}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-text-secondary" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-text-secondary" />
+            )}
+          </button>
 
           <div className="flex items-center gap-2">
             <span className="text-md font-bold text-text-primary">

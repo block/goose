@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "未保存の変更があります"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCardエラー: メタデータが提供されていません"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "不明なプロバイダー"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API形式"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "キャンセル"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "プロバイダーを選択"

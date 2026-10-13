@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Sie haben nicht gespeicherte Änderungen"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard-Fehler: Keine Metadaten bereitgestellt"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Unbekannter Anbieter"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API-Format"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Abbrechen"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Anbieter auswählen"

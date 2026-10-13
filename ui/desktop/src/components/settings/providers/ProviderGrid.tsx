@@ -280,7 +280,7 @@ function ProviderCards({
     base_path: editingProvider.config.basePath ?? undefined,
     api_key: '',
     models: editingProvider.config.models ?? [],
-    supports_streaming: editingProvider.config.supportsStreaming,
+    supports_streaming: editingProvider.config.supportsStreaming ?? true,
     requires_auth: editingProvider.config.requiresAuth,
     headers: editingProvider.config.headers ?? undefined,
     catalog_provider_id: editingProvider.config.catalogProviderId ?? undefined,

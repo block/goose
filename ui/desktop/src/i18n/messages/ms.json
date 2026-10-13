@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Anda mempunyai perubahan yang belum disimpan"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ralat ProviderCard: Tiada metadata disediakan"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Penyedia Tidak Diketahui"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Batal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Pilih Penyedia"

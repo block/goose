@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "У вас есть несохраненные изменения"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ошибка ProviderCard: метаданные не предоставлены"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Неизвестный провайдер"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Формат API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Отмена"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Выберите провайдера"

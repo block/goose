@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Kaydedilmemiş değişiklikleriniz var"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard hatası: Meta veri sağlanmadı"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Bilinmeyen Sağlayıcı"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API Biçimi"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "İptal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Sağlayıcıyı Seçin"

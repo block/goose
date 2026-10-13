@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Bạn có các thay đổi chưa lưu"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Lỗi ProviderCard: Không có metadata được cung cấp"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Nhà cung cấp không xác định"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Định dạng API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Hủy"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Chọn nhà cung cấp"
