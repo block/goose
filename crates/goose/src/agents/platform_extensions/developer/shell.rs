@@ -9,8 +9,6 @@ use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
-#[cfg(not(windows))]
-use tokio::sync::OnceCell;
 use tokio_stream::{wrappers::SplitStream, StreamExt};
 use tokio_util::sync::CancellationToken;
 
@@ -35,49 +33,58 @@ pub(crate) fn is_flatpak() -> bool {
 #[cfg(not(windows))]
 const FLATPAK_HOST_ARGS: [&str; 2] = ["--host", "--watch-bus"];
 
+/// `flatpak-spawn --host` runs commands with the session helper's environment, not
+/// ours, and nothing outside the sandbox can resolve the host's login-shell PATH
+/// for us, so pass it along explicitly.
 #[cfg(not(windows))]
-pub(crate) fn flatpak_spawn_command() -> tokio::process::Command {
+pub(crate) async fn flatpak_spawn_command() -> tokio::process::Command {
+    static HOST_LOGIN_PATH: tokio::sync::OnceCell<Option<String>> =
+        tokio::sync::OnceCell::const_new();
+    let host_path = HOST_LOGIN_PATH.get_or_init(resolve_host_login_path).await;
+
     let mut command = tokio::process::Command::new("flatpak-spawn");
     command.args(FLATPAK_HOST_ARGS);
-    command
-}
-
-#[cfg(not(windows))]
-fn flatpak_spawn_process() -> std::process::Command {
-    let mut command = std::process::Command::new("flatpak-spawn");
-    command.args(FLATPAK_HOST_ARGS);
-    command
-}
-
-#[cfg(not(windows))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum UnixShellFlavor {
-    Posix,
-    Nushell,
-}
-
-#[cfg(not(windows))]
-fn unix_shell_flavor(shell: &str) -> UnixShellFlavor {
-    let name = std::path::Path::new(shell)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or(shell)
-        .to_ascii_lowercase();
-
-    match name.as_str() {
-        "nu" | "nushell" => UnixShellFlavor::Nushell,
-        _ => UnixShellFlavor::Posix,
+    if let Some(path) = host_path {
+        command.arg(format!("--env=PATH={path}"));
     }
+    command
+}
+
+/// Flatpak sets `SHELL=/bin/sh` inside the sandbox, so the login shell has to come
+/// from the host's account database.
+#[cfg(not(windows))]
+async fn resolve_host_login_path() -> Option<String> {
+    let passwd = run_on_host(&["sh", "-c", r#"getent passwd "$(id -un)""#]).await;
+    let shell = passwd
+        .as_deref()
+        .and_then(|entry| entry.split(':').nth(6))
+        .filter(|shell| !shell.is_empty())
+        .unwrap_or("bash");
+    run_on_host(&[shell, "-l", "-i", "-c", "printenv PATH"]).await
 }
 
 #[cfg(not(windows))]
-fn unix_login_shell_command_args(shell: &str) -> [&'static str; 4] {
-    let probe = match unix_shell_flavor(shell) {
-        UnixShellFlavor::Nushell => "print ($env.PATH | str join (char esep))",
-        UnixShellFlavor::Posix => "echo $PATH",
-    };
-
-    ["-l", "-i", "-c", probe]
+async fn run_on_host(args: &[&str]) -> Option<String> {
+    let mut command = tokio::process::Command::new("flatpak-spawn");
+    command
+        .args(FLATPAK_HOST_ARGS)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(Duration::from_secs(5), command.output())
+        .await
+        .ok()?
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())
+        .map(str::to_string)
 }
 
 #[cfg(not(windows))]
@@ -200,108 +207,6 @@ pub struct ShellOutput {
     pub output_collection_error: Option<String>,
 }
 
-/// Resolve the user's full PATH by running a login shell.
-///
-/// When goosed is launched from a desktop app (e.g. Electron), it may inherit
-/// a minimal PATH like `/usr/bin:/bin`. This function spawns a login shell to
-/// source the user's profile and recover the full PATH.
-#[cfg(not(windows))]
-fn resolve_login_shell_path(shell: &str) -> Option<String> {
-    use process_wrap::std::{CommandWrap, ProcessSession};
-
-    let login_args = unix_login_shell_command_args(shell);
-
-    // Build the command, varying only the flatpak vs direct invocation.
-    let mut cmd = if is_flatpak() {
-        let mut c = flatpak_spawn_process();
-        c.arg(shell).args(login_args);
-        CommandWrap::from(c)
-    } else {
-        let mut c = std::process::Command::new(shell);
-        c.args(login_args);
-        CommandWrap::from(c)
-    };
-
-    cmd.command_mut()
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-
-    // Spawn in a new session so that bash's interactive job-control setup
-    // (TIOCSPGRP) cannot steal the terminal foreground from goose, which
-    // would cause goose to receive SIGTTIN and be suspended on startup.
-    cmd.wrap(ProcessSession);
-
-    let mut child = cmd.spawn().ok()?;
-
-    let mut stdout = child.stdout().take()?;
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        use std::io::Read;
-        if stdout.read_to_end(&mut buf).is_ok() {
-            let _ = tx.send(buf);
-        }
-    });
-
-    match rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(buf)
-            if child
-                .wait()
-                .is_ok_and(|s: std::process::ExitStatus| s.success()) =>
-        {
-            // Take the last non-empty line — interactive shells may emit
-            // extra output from profile scripts before our echo.
-            String::from_utf8_lossy(&buf)
-                .lines()
-                .rev()
-                .find(|line| !line.trim().is_empty())
-                .map(|line| line.trim().to_string())
-                .filter(|path| !path.is_empty())
-        }
-        _ => {
-            let _ = child.kill();
-            None
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn merged_login_path(shell: &str, current: &str) -> Option<String> {
-    let login = resolve_login_shell_path(shell)?;
-    let mut seen = std::collections::HashSet::new();
-    let entries: Vec<&str> = login
-        .split(':')
-        .chain(current.split(':'))
-        .filter(|entry| !entry.is_empty() && seen.insert(*entry))
-        .collect();
-    Some(entries.join(":"))
-}
-
-/// A goose started from the Dock inherits launchd's minimal PATH; in a terminal the merge
-/// changes nothing.
-pub(crate) async fn login_path() -> Option<&'static str> {
-    #[cfg(not(windows))]
-    {
-        static LOGIN_PATH: OnceCell<Option<String>> = OnceCell::const_new();
-        LOGIN_PATH
-            .get_or_init(|| async {
-                tokio::task::spawn_blocking(|| {
-                    merged_login_path(&unix_shell(), &std::env::var("PATH").unwrap_or_default())
-                })
-                .await
-                .ok()
-                .flatten()
-            })
-            .await
-            .as_deref()
-    }
-    #[cfg(windows)]
-    {
-        None
-    }
-}
-
 pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
@@ -363,7 +268,6 @@ impl ShellTool {
             &params.command,
             params.timeout_secs,
             working_dir,
-            login_path().await,
             session_id,
             notification_emitter,
             cancellation_token,
@@ -511,14 +415,26 @@ async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
-    login_path: Option<&str>,
     session_id: Option<&str>,
     notification_emitter: Option<ToolCallNotificationEmitter>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
-    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+    let deadline = Some(resolve_shell_timeout(timeout_secs))
+        .filter(|secs| *secs > 0)
+        .map(|secs| tokio::time::Instant::now() + Duration::from_secs(secs));
+    let not_started = |timed_out| ExecutionOutput {
+        lines: Vec::new(),
+        exit_code: None,
+        timed_out,
+        output_truncated: false,
+        output_collection_error: None,
+    };
 
-    let mut command = build_shell_command(command_line, working_dir, login_path, session_id);
+    let mut command = tokio::select! {
+        command = build_shell_command(command_line, working_dir, session_id) => command,
+        _ = sleep_until_deadline(deadline) => return Ok(not_started(true)),
+        _ = cancellation_token.cancelled() => return Ok(not_started(false)),
+    };
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -547,35 +463,20 @@ async fn run_command(
     let abort_handle = output_task.abort_handle();
 
     let mut timed_out = false;
-    let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
-        tokio::select! {
-            result = tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()) => match result {
-                Ok(wait_result) => wait_result
-                    .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                    .code(),
-                Err(_) => {
-                    timed_out = true;
-                    let _ = child.start_kill();
-                    let _ = child.wait().await;
-                    None
-                }
-            },
-            _ = cancellation_token.cancelled() => {
-                let _ = child.start_kill();
-                let _ = child.wait().await;
-                None
-            }
+    let exit_code = tokio::select! {
+        result = child.wait() => result
+            .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+            .code(),
+        _ = sleep_until_deadline(deadline) => {
+            timed_out = true;
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            None
         }
-    } else {
-        tokio::select! {
-            result = child.wait() => result
-                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                .code(),
-            _ = cancellation_token.cancelled() => {
-                let _ = child.start_kill();
-                let _ = child.wait().await;
-                None
-            }
+        _ = cancellation_token.cancelled() => {
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            None
         }
     };
 
@@ -620,6 +521,13 @@ async fn run_command(
     })
 }
 
+async fn sleep_until_deadline(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending().await,
+    }
+}
+
 /// Build the `Command` that executes a single command line via the configured shell.
 ///
 /// The invocation flags are selected automatically from the shell executable
@@ -632,10 +540,9 @@ async fn run_command(
 ///
 /// On Unix the default shell (`bash`, falling back to `sh`) is likewise invoked
 /// as `<shell> -c <line>`.
-fn build_shell_command(
+async fn build_shell_command(
     command_line: &str,
     working_dir: Option<&std::path::Path>,
-    login_path: Option<&str>,
     session_id: Option<&str>,
 ) -> tokio::process::Command {
     #[cfg(windows)]
@@ -658,9 +565,6 @@ fn build_shell_command(
         if let Some(path) = working_dir {
             command.current_dir(path);
         }
-        if let Some(path) = login_path {
-            command.env("PATH", path);
-        }
         command
     };
 
@@ -669,26 +573,12 @@ fn build_shell_command(
         let shell = unix_shell();
 
         if is_flatpak() {
-            let mut command = flatpak_spawn_command();
-            if let Some(dir) = working_dir {
-                command.arg(format!("--directory={}", dir.display()));
-            }
-            if let Some(path) = login_path {
-                command.arg(format!("--env=PATH={}", path));
-            }
-            apply_flatpak_session_environment(&mut command, session_id);
-            command
-                .arg(&shell)
-                .args(unix_shell_command_args(command_line));
-            command
+            flatpak_shell_command(&shell, command_line, working_dir, session_id).await
         } else {
             let mut command = tokio::process::Command::new(shell);
             command.args(unix_shell_command_args(command_line));
             if let Some(path) = working_dir {
                 command.current_dir(path);
-            }
-            if let Some(path) = login_path {
-                command.env("PATH", path);
             }
             apply_session_environment(&mut command, session_id);
             command
@@ -698,6 +588,24 @@ fn build_shell_command(
     #[cfg(windows)]
     apply_session_environment(&mut command, session_id);
     command.set_no_window();
+    command
+}
+
+#[cfg(not(windows))]
+async fn flatpak_shell_command(
+    shell: &str,
+    command_line: &str,
+    working_dir: Option<&std::path::Path>,
+    session_id: Option<&str>,
+) -> tokio::process::Command {
+    let mut command = flatpak_spawn_command().await;
+    if let Some(dir) = working_dir {
+        command.arg(format!("--directory={}", dir.display()));
+    }
+    apply_flatpak_session_environment(&mut command, session_id);
+    command
+        .arg(shell)
+        .args(unix_shell_command_args(command_line));
     command
 }
 
@@ -1079,50 +987,50 @@ mod tests {
     }
 
     #[cfg(not(windows))]
-    #[test]
-    fn unix_shell_flavor_detects_nushell_names() {
-        assert_eq!(unix_shell_flavor("nu"), UnixShellFlavor::Nushell);
-        assert_eq!(unix_shell_flavor("nushell"), UnixShellFlavor::Nushell);
-        assert_eq!(
-            unix_shell_flavor("/etc/profiles/per-user/can/bin/nu"),
-            UnixShellFlavor::Nushell
-        );
-        assert_eq!(unix_shell_flavor("/bin/bash"), UnixShellFlavor::Posix);
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn unix_login_shell_command_args_use_nushell_probe() {
-        assert_eq!(
-            unix_login_shell_command_args("nu"),
-            ["-l", "-i", "-c", "print ($env.PATH | str join (char esep))"]
-        );
-        assert_eq!(
-            unix_login_shell_command_args("/bin/bash"),
-            ["-l", "-i", "-c", "echo $PATH"]
-        );
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn login_path_puts_login_shell_entries_ahead_of_the_process_path() {
+    #[tokio::test]
+    async fn flatpak_commands_carry_the_host_accounts_login_path() {
         use std::os::unix::fs::PermissionsExt;
 
-        let tmp = tempfile::tempdir().unwrap();
-        let fake_shell = tmp.path().join("fake-login-shell");
+        let dir = tempfile::tempdir().unwrap();
+        let login_shell = dir.path().join("login-shell");
+        let fake_spawn = dir.path().join("flatpak-spawn");
         std::fs::write(
-            &fake_shell,
-            "#!/bin/sh\necho 'profile noise'\necho /opt/homebrew/bin:/usr/bin\n",
+            &login_shell,
+            "#!/bin/sh\n[ \"$*\" = '-l -i -c printenv PATH' ] || exit 1\necho 'Welcome back!'\necho\necho /home/me/.cargo/bin:/usr/bin\n",
         )
         .unwrap();
-        let mut perms = std::fs::metadata(&fake_shell).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&fake_shell, perms).unwrap();
-
-        assert_eq!(
-            merged_login_path(&fake_shell.to_string_lossy(), "/usr/bin:/bin:/app/bin").as_deref(),
-            Some("/opt/homebrew/bin:/usr/bin:/bin:/app/bin")
+        std::fs::write(
+            &fake_spawn,
+            format!(
+                "#!/bin/sh\n[ \"$1 $2\" = '--host --watch-bus' ] || exit 1\nshift 2\nif [ \"$1\" = sh ]; then echo 'me:x:1000:1000::/home/me:{}'; exit; fi\nexec \"$@\"\n",
+                login_shell.display()
+            ),
+        )
+        .unwrap();
+        for script in [&login_shell, &fake_spawn] {
+            std::fs::set_permissions(script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let path = format!(
+            "{}:{}",
+            dir.path().display(),
+            std::env::var("PATH").unwrap()
         );
+        let _guard = env_lock::lock_env([("PATH", Some(path.as_str()))]);
+
+        let shell_command =
+            flatpak_shell_command("bash", "echo hi", Some(dir.path()), Some("session-1")).await;
+        let hook_command = crate::hooks::flatpak_hook_command("echo hi", dir.path()).await;
+
+        for command in [&shell_command, &hook_command] {
+            let command = command.as_std();
+            let args: Vec<_> = command.get_args().collect();
+            assert_eq!(command.get_program(), "flatpak-spawn");
+            assert!(
+                args.iter()
+                    .any(|arg| *arg == "--env=PATH=/home/me/.cargo/bin:/usr/bin"),
+                "{args:?}"
+            );
+        }
     }
 
     #[cfg(not(windows))]

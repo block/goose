@@ -2747,9 +2747,6 @@
   "providerCard.deprecatedReplacement": {
     "defaultMessage": "Deprecated — use {replacement} instead."
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard error: No metadata provided"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Unknown Provider"
   },
@@ -2758,9 +2755,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API Format"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Cancel"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Choose Provider"
