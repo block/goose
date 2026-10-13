@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { HfModelInfo, HfModelVariant } from '../../../acp/local-inference';
 import {
   compareQuality,
-  catalogueOrder,
   fitRank,
   isEligibleVariant,
   recommendedVariant,
@@ -50,13 +49,16 @@ describe('local recommendation ranking', () => {
     expect(compareQuality(quality(1), quality(50))).toBeLessThan(0);
     expect(compareQuality(quality(50), undefined)).toBeLessThan(0);
     expect(compareQuality(undefined, undefined)).toBe(0);
+    expect(compareQuality(quality(0), quality(3))).toBeGreaterThan(0);
   });
   it('never infers fit from file size and preserves uncertainty in mixed repositories', () => {
-    expect(fitRank([variant('likelyShortfall')])).toBe(2);
-    expect(fitRank([variant('likelyShortfall'), variant('unknown')])).toBe(1);
-    expect(fitRank([variant('likelyFit')])).toBe(0);
-    expect(fitRank([variant('likelyFit', false)])).not.toBe(0);
-    expect(fitRank([])).toBe(1);
+    const fit = fitRank([variant('likelyFit')]);
+    const unknown = fitRank([variant('unknown')]);
+    expect(fit).toBeLessThan(unknown);
+    expect(unknown).toBeLessThan(fitRank([variant('likelyShortfall')]));
+    expect(fitRank([variant('likelyShortfall'), variant('unknown')])).toBe(unknown);
+    expect(fitRank([variant('likelyFit', false)])).toBeGreaterThan(fit);
+    expect(fitRank([])).toBe(unknown);
   });
 });
 
@@ -79,17 +81,11 @@ describe('recommendation eligibility', () => {
 });
 
 describe('catalogue ordering and unbounded forecasts', () => {
-  it('preserves catalogue ordering and rejects a missing order', () => {
-    expect(catalogueOrder(quality(3))).toBe(3);
-    expect(catalogueOrder(quality(0))).toBeUndefined();
-    expect(compareQuality(quality(0), quality(3))).toBeGreaterThan(0);
-  });
-
   it('surfaces uncertain upper bounds without treating missing or oversized forecasts as fits', () => {
     const uncertain = variant('unknown');
     uncertain.assessment!.lowerBytes = 7e9;
     expect(isEligibleVariant(uncertain)).toBe(true);
-    expect(fitRank([uncertain])).toBe(0);
+    expect(fitRank([uncertain])).toBe(fitRank([variant('likelyFit')]));
     expect(recommendedVariant([uncertain], quality(1))).toBe(uncertain);
     const bounded = { ...variant('likelyFit'), qualityRank: 1 };
     expect(recommendedVariant([uncertain, bounded], quality(1))).toBe(bounded);

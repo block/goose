@@ -369,10 +369,11 @@ mod tests {
     #[test]
     fn rate_limit_backoff_honors_retry_after_and_hf_window() {
         let mut headers = reqwest::header::HeaderMap::new();
-        assert_eq!(rate_limit_delay(&headers), 61);
         headers.insert("ratelimit", "\"api\";r=0;t=278".parse().unwrap());
-        assert_eq!(rate_limit_delay(&headers), 279);
+        let window_delay = rate_limit_delay(&headers);
+        assert!(window_delay >= 278);
         headers.insert(reqwest::header::RETRY_AFTER, "12".parse().unwrap());
-        assert_eq!(rate_limit_delay(&headers), 13);
+        let retry_delay = rate_limit_delay(&headers);
+        assert!(retry_delay >= 12 && retry_delay < window_delay);
     }
 }

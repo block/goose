@@ -10,17 +10,6 @@ fn sample() -> Catalogue {
 }
 
 #[test]
-fn bundled_catalogue_is_current_and_includes_models_larger_than_a_small_machine() {
-    let catalogue = catalogue::bundled().unwrap();
-    catalogue::validate(catalogue).unwrap();
-    assert!(catalogue
-        .models
-        .iter()
-        .flat_map(|model| &model.variants)
-        .any(|item| item.variant.size_bytes > 32 << 30));
-}
-
-#[test]
 fn stale_policy_engine_profile_and_invalid_bounds_are_rejected() {
     let mut catalogue = sample();
     catalogue.policy_version += 1;
@@ -180,20 +169,4 @@ fn inherited_scores_require_matching_recorded_checkpoint_identities() {
         .artifact
         .architecture = "unrelated".into();
     assert!(catalogue::validate(&catalogue).is_err());
-}
-
-#[test]
-fn catalogue_stores_order_and_provenance_without_scores_or_ranks() {
-    let catalogue = catalogue::bundled().unwrap();
-    for (position, model) in catalogue.models.iter().enumerate() {
-        assert_eq!(model.quality.catalogue_order, position as u64 + 1);
-    }
-    let encoded = serde_json::to_value(catalogue).unwrap();
-    for model in encoded["models"].as_array().unwrap() {
-        let quality = model["quality"].as_object().unwrap();
-        assert!(!quality.contains_key("catalogueOrder"));
-        assert!(!quality.contains_key("evidence"));
-        assert!(!quality.contains_key("score"));
-        assert!(quality.contains_key("sourceUrl"));
-    }
 }

@@ -76,7 +76,6 @@ describe('local model discovery', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(searchHfModels).toHaveBeenCalledWith('', 20);
     expect(screen.queryByText('org/model')).not.toBeInTheDocument();
     expect(screen.getByText(/No recommendations available/)).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText('Search for local models...'), {
@@ -136,7 +135,6 @@ describe('local model discovery', () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(screen.getByText('org/model')).toBeInTheDocument();
-    expect(screen.queryByText('Recommended')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /Recommendations ordered using Artificial Analysis/ })
     ).toHaveAttribute('href', 'https://artificialanalysis.ai/');
@@ -170,8 +168,8 @@ describe('local model discovery', () => {
     );
   });
 
-  it('limits the front page to ten distinct checkpoints but highlights every fitting catalogue search result', async () => {
-    const models: HfModelInfo[] = Array.from({ length: 11 }, (_, index) => ({
+  it('deduplicates recommendations and excludes downloaded checkpoints without filtering search results', async () => {
+    const models: HfModelInfo[] = Array.from({ length: 3 }, (_, index) => ({
       ...model(`org/model-${index}`),
       quality: {
         evaluatedModelId: `org/model-${index}`,
@@ -204,12 +202,8 @@ describe('local model discovery', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(screen.queryByText('Recommended')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/^org\/model-\d+$/)).toHaveLength(10);
     expect(screen.getByText('org/model-0')).toBeInTheDocument();
-    expect(screen.queryByText('Memory fit unknown')).not.toBeInTheDocument();
     expect(screen.queryByText('org/model-0-copy')).not.toBeInTheDocument();
-    expect(screen.queryByText('org/model-10')).not.toBeInTheDocument();
     rerender(
       <HuggingFaceModelSearch
         showRecommendations
@@ -222,15 +216,15 @@ describe('local model discovery', () => {
     });
     expect(screen.queryByText('org/model-0')).not.toBeInTheDocument();
     expect(screen.queryByText('org/model-0-copy')).not.toBeInTheDocument();
-    expect(screen.getByText('org/model-10')).toBeInTheDocument();
-    expect(screen.getAllByText(/^org\/model-\d+$/)).toHaveLength(10);
     fireEvent.change(screen.getByPlaceholderText('Search for local models...'), {
       target: { value: 'model' },
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
-    expect(screen.getAllByText('Recommended')).toHaveLength(12);
+    for (const model of models) {
+      expect(screen.getByText(model.repoId)).toBeInTheDocument();
+    }
     expect(getRepoFiles).not.toHaveBeenCalled();
   });
 

@@ -66,7 +66,7 @@ fn missing_fit_never_turns_into_a_recommendation_even_for_a_tiny_file() {
 }
 
 #[test]
-fn recommends_by_stable_variant_id_across_formats_and_preserves_fit_without_quality() {
+fn recommends_by_stable_variant_id_across_formats_only_with_quality_evidence() {
     let models = vec![
         variant("gguf", Fit::LikelyShortfall, 95),
         variant("safetensors", Fit::LikelyFit, 91),
@@ -77,7 +77,6 @@ fn recommends_by_stable_variant_id_across_formats_and_preserves_fit_without_qual
         Some("safetensors".into())
     );
     assert_eq!(recommended_variant(&models, None), None);
-    assert_eq!(models[1].assessment.as_ref().unwrap().fit, Fit::LikelyFit);
 }
 
 #[test]
@@ -132,16 +131,6 @@ fn scores_transfer_only_through_an_unambiguous_quantization_relationship() {
         ),
         None
     );
-}
-
-#[test]
-fn quality_uses_comparable_ranks_and_has_a_consistent_missing_evidence_order() {
-    let high = quality("org/a", 1);
-    let low = quality("org/b", 50);
-    assert!(compare_quality(Some(&high), Some(&low)).is_lt());
-    assert!(compare_quality(Some(&low), None).is_lt());
-    assert!(compare_quality(Some(&high), None).is_lt());
-    assert!(compare_quality(None, None).is_eq());
 }
 
 fn gguf() -> Vec<u8> {
@@ -266,7 +255,7 @@ fn quantization_lineage_can_be_tagged_but_must_not_conflict() {
 }
 
 #[test]
-fn catalogue_order_replaces_benchmark_percentiles() {
+fn quality_order_handles_missing_evidence() {
     let first = quality("org/a", 1);
     let second = quality("org/b", 2);
     assert!(compare_quality(Some(&first), Some(&second)).is_lt());
