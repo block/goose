@@ -2035,9 +2035,10 @@ export const zLocalInferenceModelsListResponse_unstable = z.object({
  */
 export const zLocalInferenceModelDownloadRequest_unstable = z.object({
     spec: z.string(),
+    format: z.string().nullish(),
     backendId: z.string().nullish(),
     variantId: z.string().nullish(),
-    format: z.string().nullish()
+    revision: z.string().nullish()
 });
 
 export const zLocalInferenceModelDownloadResponse_unstable = z.object({
@@ -2131,12 +2132,25 @@ export const zLocalInferenceHfGgufFileDto = z.object({
 export const zLocalInferenceMemoryFit = z.enum([
     'likelyFit',
     'likelyShortfall',
-    'unknown',
-    'incompatible'
+    'unknown'
+]);
+
+export const zLocalInferenceCompatibility = z.enum([
+    'compatible',
+    'incompatible',
+    'unknown'
+]);
+
+export const zLocalInferenceSuitability = z.enum([
+    'suitable',
+    'unsuitable',
+    'unknown'
 ]);
 
 export const zLocalInferenceModelAssessmentDto = z.object({
     fit: zLocalInferenceMemoryFit,
+    compatibility: zLocalInferenceCompatibility.optional().default('unknown'),
+    suitability: zLocalInferenceSuitability.optional().default('unknown'),
     recommended: z.boolean(),
     inputTokens: z.int().gte(0),
     outputTokens: z.int().gte(0),
@@ -2166,20 +2180,13 @@ export const zLocalInferenceHfModelVariantDto = z.object({
     assessment: zLocalInferenceModelAssessmentDto.nullish()
 });
 
-export const zLocalInferenceBenchmarkEvidenceDto = z.object({
-    benchmark: z.string(),
-    score: z.number(),
-    rank: z.int().gte(0),
-    participants: z.int().gte(0),
-    verified: z.boolean(),
-    sourceUrl: z.string(),
-    notes: z.string()
-});
-
 export const zLocalInferenceModelQualityDto = z.object({
     evaluatedModelId: z.string(),
     inherited: z.boolean(),
-    evidence: z.array(zLocalInferenceBenchmarkEvidenceDto)
+    aaModelId: z.string(),
+    sourceUrl: z.string(),
+    evaluationName: z.string(),
+    catalogueOrder: z.int().gte(0).optional().default(0)
 });
 
 export const zLocalInferenceHfModelInfoDto = z.object({

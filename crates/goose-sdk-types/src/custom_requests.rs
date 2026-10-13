@@ -2015,6 +2015,10 @@ pub struct LocalInferenceHfModelVariantDto {
 #[serde(rename_all = "camelCase")]
 pub struct LocalInferenceModelAssessmentDto {
     pub fit: LocalInferenceMemoryFit,
+    #[serde(default)]
+    pub compatibility: LocalInferenceCompatibility,
+    #[serde(default)]
+    pub suitability: LocalInferenceSuitability,
     pub recommended: bool,
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -2036,7 +2040,24 @@ pub enum LocalInferenceMemoryFit {
     LikelyShortfall,
     #[default]
     Unknown,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalInferenceCompatibility {
+    Compatible,
     Incompatible,
+    #[default]
+    Unknown,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalInferenceSuitability {
+    Suitable,
+    Unsuitable,
+    #[default]
+    Unknown,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2044,19 +2065,11 @@ pub enum LocalInferenceMemoryFit {
 pub struct LocalInferenceModelQualityDto {
     pub evaluated_model_id: String,
     pub inherited: bool,
-    pub evidence: Vec<LocalInferenceBenchmarkEvidenceDto>,
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalInferenceBenchmarkEvidenceDto {
-    pub benchmark: String,
-    pub score: f64,
-    pub rank: u64,
-    pub participants: u64,
-    pub verified: bool,
+    pub aa_model_id: String,
     pub source_url: String,
-    pub notes: String,
+    pub evaluation_name: String,
+    #[serde(default)]
+    pub catalogue_order: u64,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2113,6 +2126,8 @@ pub struct LocalInferenceModelDownloadRequest {
     pub backend_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variant_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]

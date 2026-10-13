@@ -6206,6 +6206,12 @@
         "spec": {
           "type": "string"
         },
+        "format": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "backendId": {
           "type": [
             "string",
@@ -6218,7 +6224,7 @@
             "null"
           ]
         },
-        "format": {
+        "revision": {
           "type": [
             "string",
             "null"
@@ -6638,6 +6644,14 @@
         "fit": {
           "$ref": "#/$defs/LocalInferenceMemoryFit"
         },
+        "compatibility": {
+          "$ref": "#/$defs/LocalInferenceCompatibility",
+          "default": "unknown"
+        },
+        "suitability": {
+          "$ref": "#/$defs/LocalInferenceSuitability",
+          "default": "unknown"
+        },
         "recommended": {
           "type": "boolean"
         },
@@ -6699,8 +6713,23 @@
       "enum": [
         "likelyFit",
         "likelyShortfall",
-        "unknown",
-        "incompatible"
+        "unknown"
+      ]
+    },
+    "LocalInferenceCompatibility": {
+      "type": "string",
+      "enum": [
+        "compatible",
+        "incompatible",
+        "unknown"
+      ]
+    },
+    "LocalInferenceSuitability": {
+      "type": "string",
+      "enum": [
+        "suitable",
+        "unsuitable",
+        "unknown"
       ]
     },
     "LocalInferenceModelQualityDto": {
@@ -6712,54 +6741,27 @@
         "inherited": {
           "type": "boolean"
         },
-        "evidence": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LocalInferenceBenchmarkEvidenceDto"
-          }
+        "aaModelId": {
+          "type": "string"
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "evaluationName": {
+          "type": "string"
+        },
+        "catalogueOrder": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0
         }
       },
       "required": [
         "evaluatedModelId",
         "inherited",
-        "evidence"
-      ]
-    },
-    "LocalInferenceBenchmarkEvidenceDto": {
-      "type": "object",
-      "properties": {
-        "benchmark": {
-          "type": "string"
-        },
-        "score": {
-          "type": "number"
-        },
-        "rank": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "participants": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "verified": {
-          "type": "boolean"
-        },
-        "sourceUrl": {
-          "type": "string"
-        },
-        "notes": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "benchmark",
-        "score",
-        "rank",
-        "participants",
-        "verified",
+        "aaModelId",
         "sourceUrl",
-        "notes"
+        "evaluationName"
       ]
     },
     "LocalInferenceHuggingFaceRepoVariantsRequest_unstable": {

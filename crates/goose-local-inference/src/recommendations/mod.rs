@@ -1,17 +1,21 @@
 //! Automatic quality discovery and metadata-only, revision-pinned memory forecasts.
+pub mod catalogue;
 #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
 mod forecast;
 pub mod gguf;
+pub mod lineage;
 pub mod quality;
+pub mod suitability;
 mod transport;
 
 use anyhow::Result;
 use futures::{stream, StreamExt};
 use goose_sdk_types::custom_requests::{
-    LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto, LocalInferenceMemoryFit as Fit,
+    LocalInferenceCompatibility as Compatibility, LocalInferenceHfModelInfoDto,
+    LocalInferenceHfModelVariantDto, LocalInferenceMemoryFit as Fit,
     LocalInferenceModelAssessmentDto as Assessment, LocalInferenceModelQualityDto as Quality,
+    LocalInferenceSuitability as Suitability,
 };
-use serde_json::Value;
 use std::collections::HashSet;
 use transport::Hub;
 
@@ -38,87 +42,46 @@ pub fn supported() -> bool {
 }
 
 pub async fn discover(query: &str, limit: usize) -> Result<Vec<LocalInferenceHfModelInfoDto>> {
-    let hub = Hub::new().await?;
     let query = query.trim();
-    let mut candidates = Vec::new();
-    if !query.is_empty() {
-        let value = hub
-            .json(
-                "api/models",
-                &[
-                    ("search", query),
-                    ("sort", "downloads"),
-                    ("direction", "-1"),
-                    ("limit", &limit.to_string()),
-                ],
-            )
-            .await?;
-        candidates.extend(value.as_array().cloned().unwrap_or_default());
-        if query.split('/').count() == 2 {
-            if let Ok(model) = hub.model(query).await {
-                candidates.insert(0, model);
-            }
-        }
-    } else {
+    if query.is_empty() {
         if !supported() {
             return Ok(Vec::new());
         }
-        let index = quality::QualityIndex::fetch(&hub).await;
-        let popular = stream::iter(["gguf", "mlx"].into_iter().map(|format| {
-            let hub = &hub;
-            async move {
-                hub.json(
-                    "api/models",
-                    &[
-                        ("filter", format),
-                        ("sort", "trendingScore"),
-                        ("direction", "-1"),
-                        ("limit", "12"),
-                    ],
-                )
-                .await
-            }
-        }))
-        .buffered(2)
-        .collect::<Vec<_>>()
-        .await;
-        for result in popular {
-            if let Ok(Value::Array(models)) = result {
-                candidates.extend(models);
-            }
-        }
-        let derived = stream::iter(index.candidates.iter().map(|parent| {
-            let hub = &hub;
-            async move {
-                let mut models = quality::derived_models(hub, parent)
-                    .await
-                    .unwrap_or_default();
-                models.push(serde_json::json!({"id": parent}));
-                models
-            }
-        }))
-        .buffered(3)
-        .collect::<Vec<_>>()
-        .await;
-        let popular = candidates;
-        let mut benchmark_models = Vec::new();
-        for position in 0..derived.iter().map(Vec::len).max().unwrap_or(0) {
-            for family in &derived {
-                if let Some(model) = family.get(position) {
-                    benchmark_models.push(model.clone());
+        return Ok(catalogue::bundled()?
+            .models
+            .iter()
+            .map(|model| {
+                let (author, name) = model.repo_id.split_once('/').unwrap();
+                LocalInferenceHfModelInfoDto {
+                    repo_id: model.repo_id.clone(),
+                    author: author.into(),
+                    model_name: name.into(),
+                    downloads: model.downloads,
+                    quality: Some(model.quality.clone()),
+                    ..Default::default()
                 }
-            }
-        }
-        candidates = Vec::new();
-        for index in 0..popular.len().max(benchmark_models.len()) {
-            if let Some(model) = benchmark_models.get(index) {
-                candidates.push(model.clone());
-            }
-            if let Some(model) = popular.get(index) {
-                candidates.push(model.clone());
-            }
+            })
+            .collect());
+    }
+    let hub = Hub::new().await?;
+    let value = hub
+        .json(
+            "api/models",
+            &[
+                ("search", query),
+                ("sort", "downloads"),
+                ("direction", "-1"),
+                ("limit", &limit.to_string()),
+            ],
+        )
+        .await?;
+    let mut candidates = value.as_array().cloned().unwrap_or_default();
+    if query.split('/').count() == 2 {
+        if let Ok(model) = hub.model(query).await {
+            candidates.insert(0, model);
         }
     }
+
     let mut seen = HashSet::new();
     candidates.retain(|model| {
         model["id"]
@@ -140,11 +103,7 @@ pub async fn discover(query: &str, limit: usize) -> Result<Vec<LocalInferenceHfM
         })
         .collect();
     // Discovery is cheap. Tensor metadata is fetched later, progressively, for displayed repos.
-    if !query.is_empty() {
-        models.truncate(limit);
-    } else {
-        models.truncate(80);
-    }
+    models.truncate(limit);
     Ok(models)
 }
 
@@ -158,10 +117,26 @@ pub async fn repo_variants(
     Option<Quality>,
     Vec<Assessment>,
 )> {
+    if let Ok(Some(model)) = catalogue::find(repo) {
+        let variants = model
+            .variants
+            .iter()
+            .map(catalogue::available_variant)
+            .collect();
+        let assessments = model
+            .variants
+            .iter()
+            .map(|item| catalogue::assess(model, item, available))
+            .collect::<Result<Vec<_>>>()?;
+        return Ok((variants, Some(model.quality.clone()), assessments));
+    }
     let hub = Hub::new().await?;
     let manifest = hub.model(repo).await?;
     let variants = crate::hf_models::variants_from_manifest(repo, &manifest)?;
     let mut unknown = unknown_assessment(available);
+    let (purpose, reason) = suitability::assess(&hub, &manifest, None).await;
+    unknown.suitability = purpose;
+    unknown.reasons.push(reason);
     if !assess || variants.is_empty() {
         let assessments = vec![unknown; variants.len()];
         return Ok((variants, None, assessments));
@@ -173,31 +148,54 @@ pub async fn repo_variants(
         let assessments = vec![unknown; variants.len()];
         return Ok((variants, None, assessments));
     }
-    let index = quality::QualityIndex::fetch(&hub).await;
-    let quality = index.for_model(repo, &manifest);
-    let assessments = stream::iter(variants.iter().map(|variant| {
-        let (hub, manifest) = (&hub, &manifest);
-        async move {
-            if variant_id.is_some_and(|id| id != variant.variant_id) {
-                return unknown_assessment(available);
+    let quality = None;
+    let (purpose, reason) = suitability::assess(&hub, &manifest, quality.as_ref()).await;
+    unknown.suitability = purpose;
+    unknown.reasons = vec![reason];
+    let requests = variants
+        .iter()
+        .map(|variant| {
+            let (hub, manifest, unknown) = (&hub, &manifest, &unknown);
+            async move {
+                if variant_id.is_some_and(|id| id != variant.variant_id)
+                    || purpose == Suitability::Unsuitable
+                {
+                    return unknown.clone();
+                }
+                #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+                let result = forecast::assess(hub, repo, variant, manifest, available).await;
+                #[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
+                let result: Result<Assessment> = {
+                    let _ = (hub, repo, variant, manifest);
+                    Err(anyhow::anyhow!("Eredu forecasting unavailable"))
+                };
+                let mut assessment = result.unwrap_or_else(|error| Assessment {
+                    reasons: vec![format!("Assessment unavailable: {error}")],
+                    ..unknown_assessment(available)
+                });
+                if purpose != Suitability::Unknown {
+                    assessment.suitability = purpose;
+                }
+                assessment.reasons.extend(unknown.reasons.iter().cloned());
+                assessment
             }
-            #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
-            let result = forecast::assess(hub, repo, variant, manifest, available).await;
-            #[cfg(not(all(feature = "mlx", target_os = "macos", target_arch = "aarch64")))]
-            let result: Result<Assessment> = {
-                let _ = (hub, repo, variant, manifest);
-                Err(anyhow::anyhow!("Eredu forecasting unavailable"))
-            };
-            result.unwrap_or_else(|error| Assessment {
-                reasons: vec![format!("Memory estimate unavailable: {error}")],
-                ..unknown_assessment(available)
-            })
-        }
-    }))
-    .buffered(2)
-    .collect()
-    .await;
+        })
+        .collect::<Vec<_>>();
+    let assessments = stream::iter(requests).buffered(2).collect().await;
     Ok((variants, quality, assessments))
+}
+
+pub fn recommendation_memory_eligible(assessment: &Assessment) -> bool {
+    assessment.fit == Fit::LikelyFit
+        || (assessment.fit == Fit::Unknown
+            && assessment.upper_bytes.is_none()
+            && assessment.available_memory_bytes > 0
+            && assessment.lower_bytes.is_some_and(|lower| {
+                assessment
+                    .available_memory_bytes
+                    .checked_sub(assessment.reserve_bytes)
+                    .is_some_and(|budget| lower <= budget)
+            }))
 }
 
 pub fn recommended_variant(
@@ -211,11 +209,20 @@ pub fn recommended_variant(
         .iter()
         .filter(|variant| {
             variant.supported
-                && variant
+                && variant.assessment.as_ref().is_some_and(|a| {
+                    recommendation_memory_eligible(a)
+                        && a.compatibility == Compatibility::Compatible
+                        && a.suitability == Suitability::Suitable
+                })
+        })
+        .max_by_key(|variant| {
+            (
+                variant
                     .assessment
                     .as_ref()
-                    .is_some_and(|a| a.fit == Fit::LikelyFit)
+                    .is_some_and(|a| a.fit == Fit::LikelyFit),
+                variant.quality_rank,
+            )
         })
-        .max_by_key(|variant| variant.quality_rank)
         .map(|variant| variant.variant_id.clone())
 }

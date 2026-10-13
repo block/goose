@@ -911,6 +911,53 @@ pub(crate) fn forecast_gguf_members(
     Ok((members, projector))
 }
 
+#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+pub(crate) fn catalogue_files(
+    repo: &str,
+    variant: &HfModelVariant,
+    manifest: &serde_json::Value,
+) -> Result<(Vec<crate::recommendations::catalogue::File>, Option<String>)> {
+    let siblings: Vec<RepoSibling> = serde_json::from_value(manifest["siblings"].clone())?;
+    let (mut names, projector) = if variant.format == "gguf" {
+        forecast_gguf_members(repo, variant, manifest)?
+    } else {
+        (mlx_download_filenames(&siblings), None)
+    };
+    if variant.format == "gguf" {
+        names.extend(
+            siblings
+                .iter()
+                .filter(|s| {
+                    should_download_for_mlx(&s.rfilename) && !s.rfilename.ends_with(".safetensors")
+                })
+                .map(|s| s.rfilename.clone()),
+        );
+    }
+    names.extend(projector.iter().cloned());
+    names.sort();
+    names.dedup();
+    let files = names
+        .into_iter()
+        .map(|name| {
+            let size_bytes = manifest["siblings"]
+                .as_array()
+                .and_then(|files| {
+                    files
+                        .iter()
+                        .find(|file| file["rfilename"].as_str() == Some(&name))
+                })
+                .and_then(|file| {
+                    file["size"]
+                        .as_u64()
+                        .or_else(|| file["lfs"]["size"].as_u64())
+                })
+                .ok_or_else(|| anyhow::anyhow!("Missing file size for {name}"))?;
+            Ok(crate::recommendations::catalogue::File { name, size_bytes })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok((files, projector))
+}
+
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let files = get_repo_siblings(repo_id)
@@ -1121,6 +1168,40 @@ pub fn recommend_variant(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_download_revision_is_tracked_per_variant_and_can_be_replaced() {
+        let root = std::env::temp_dir().join(format!("goose-catalogue-{}", uuid::Uuid::new_v4()));
+        let first = root.join("snapshots").join("a".repeat(40));
+        let second = root.join("snapshots").join("b".repeat(40));
+        assert_eq!(
+            cached_snapshot_revision(&first),
+            Some("a".repeat(40).as_str())
+        );
+        assert_eq!(
+            cached_snapshot_revision(&first.join("Q4/model.gguf")),
+            Some("a".repeat(40).as_str())
+        );
+        assert_eq!(
+            cached_snapshot_revision(std::path::Path::new("/models/model.gguf")),
+            None
+        );
+        select_snapshot(&first, "gguf", "Q4_K_M").unwrap();
+        select_snapshot(&second, "gguf", "Q8_0").unwrap();
+        let selected = |variant| {
+            std::fs::read_to_string(
+                root.join("refs")
+                    .join(selected_revision_ref("gguf", variant)),
+            )
+            .unwrap()
+        };
+        assert_eq!(selected("Q4_K_M"), "a".repeat(40));
+        assert_eq!(selected("Q8_0"), "b".repeat(40));
+        select_snapshot(&second, "gguf", "Q4_K_M").unwrap();
+        assert_eq!(selected("Q4_K_M"), "b".repeat(40));
+        assert!(select_snapshot(&root.join("snapshots/main"), "gguf", "Q4_K_M").is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn test_parse_quantization() {
@@ -2468,6 +2549,152 @@ fn snapshot_root_for_file(
     Some(root)
 }
 
+pub(crate) fn cached_snapshot_revision(path: &std::path::Path) -> Option<&str> {
+    path.ancestors()
+        .find(|ancestor| {
+            ancestor
+                .parent()
+                .and_then(std::path::Path::file_name)
+                .is_some_and(|name| name == "snapshots")
+        })
+        .and_then(std::path::Path::file_name)
+        .and_then(|name| name.to_str())
+        .filter(|revision| crate::recommendations::catalogue::valid_revision(revision))
+}
+
+fn selected_revision_ref(format: &str, variant: &str) -> String {
+    if format == "safetensors" {
+        "goose-selected-safetensors".into()
+    } else {
+        format!("goose-selected-gguf-{}", canonicalize_quantization(variant))
+    }
+}
+
+fn select_snapshot(snapshot: &std::path::Path, format: &str, variant: &str) -> Result<()> {
+    let revision = snapshot
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow::anyhow!("Invalid HF snapshot path"))?;
+    anyhow::ensure!(
+        crate::recommendations::catalogue::valid_revision(revision),
+        "Invalid HF snapshot revision"
+    );
+    let refs = snapshot
+        .parent()
+        .and_then(|path| path.parent())
+        .ok_or_else(|| anyhow::anyhow!("Invalid HF cache path"))?
+        .join("refs");
+    std::fs::create_dir_all(&refs)?;
+    let name = selected_revision_ref(format, variant);
+    anyhow::ensure!(
+        !name.contains('/') && !name.contains('\\'),
+        "Invalid variant reference"
+    );
+    let destination = refs.join(name);
+    let temporary = destination.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+    std::fs::write(&temporary, revision)?;
+    std::fs::rename(temporary, destination)?;
+    Ok(())
+}
+
+pub(crate) async fn download_catalogue_variant(
+    model: &crate::recommendations::catalogue::Model,
+    item: &crate::recommendations::catalogue::Variant,
+) -> Result<ResolvedLocalModel> {
+    let variant = crate::recommendations::catalogue::available_variant(item);
+    anyhow::ensure!(
+        variant.supported,
+        "{}",
+        variant
+            .unsupported_reason
+            .as_deref()
+            .unwrap_or("Backend unavailable")
+    );
+    let (owner, name) = split_repo_id(&model.repo_id)?;
+    let client = hf_client().await?;
+    let repo = client.model(owner.to_owned(), name.to_owned());
+    let total_size = item.files.iter().map(|file| file.size_bytes).sum();
+    let progress = HfDownloadProgress::new(variant.model_id.clone(), total_size);
+    progress.init();
+    let result = async {
+        let mut paths = std::collections::BTreeMap::new();
+        for file in &item.files {
+            let path = repo
+                .download_file()
+                .filename(file.name.clone())
+                .revision(model.revision.clone())
+                .progress(progress.clone())
+                .send()
+                .await?;
+            progress.finish_file(file.size_bytes);
+            paths.insert(file.name.clone(), path);
+        }
+        let first = item
+            .files
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("Catalogue has no files"))?;
+        let snapshot = snapshot_root_for_file(&paths[&first.name], &first.name)
+            .ok_or_else(|| anyhow::anyhow!("Missing snapshot directory"))?;
+        anyhow::ensure!(
+            snapshot.file_name().and_then(|name| name.to_str()) == Some(model.revision.as_str()),
+            "Downloaded revision differs from assessed revision"
+        );
+        select_snapshot(&snapshot, &variant.format, &variant.variant_id)?;
+        if variant.format == "safetensors" {
+            return Ok(ResolvedLocalModel::Mlx {
+                repo_id: model.repo_id.clone(),
+                variant_id: variant.variant_id.clone(),
+                snapshot_path: snapshot,
+                total_size,
+            });
+        }
+        let gguf_file = |file: &crate::recommendations::catalogue::File| HfGgufFile {
+            filename: file.name.clone(),
+            size_bytes: file.size_bytes,
+            quantization: variant.variant_id.clone(),
+            download_url: format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                model.repo_id, model.revision, file.name
+            ),
+        };
+        let files: Vec<_> = item
+            .files
+            .iter()
+            .filter(|file| {
+                file.name.ends_with(".gguf") && Some(&file.name) != item.projector.as_ref()
+            })
+            .map(gguf_file)
+            .collect();
+        let mmproj = item
+            .files
+            .iter()
+            .find(|file| Some(&file.name) == item.projector.as_ref())
+            .map(gguf_file);
+        let local_paths = files
+            .iter()
+            .map(|file| paths[&file.filename].clone())
+            .collect();
+        let mmproj_path = mmproj.as_ref().map(|file| paths[&file.filename].clone());
+        Ok(ResolvedLocalModel::Gguf {
+            repo_id: model.repo_id.clone(),
+            quantization: variant.variant_id,
+            resolved: ResolvedModel {
+                files,
+                total_size,
+                mmproj,
+            },
+            local_paths,
+            mmproj_path,
+        })
+    }
+    .await;
+    match &result {
+        Ok(_) => progress.complete(),
+        Err(error) => progress.fail(error),
+    }
+    result
+}
+
 async fn resolve_gguf_model(repo_id: &str, quantization: &str) -> Result<ResolvedLocalModel> {
     let quantization = canonicalize_quantization(quantization);
     let spec = format!("{}:{}", repo_id, quantization);
@@ -2541,6 +2768,11 @@ async fn download_gguf_to_hf_cache(
         None
     };
 
+    if let (Some(path), Some(file)) = (paths.first(), resolved.files.first()) {
+        if let Some(snapshot) = snapshot_root_for_file(path, &file.filename) {
+            select_snapshot(&snapshot, "gguf", quantization)?;
+        }
+    }
     progress.complete();
     Ok((paths, mmproj_path))
 }
@@ -2651,6 +2883,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
     } else {
         dir_size(&snapshot_path)
     };
+    select_snapshot(&snapshot_path, "safetensors", variant_id)?;
     Ok(ResolvedLocalModel::Mlx {
         repo_id: repo_id.to_string(),
         variant_id: variant_id.to_string(),
@@ -2932,7 +3165,14 @@ pub async fn cached_local_models() -> Result<Vec<CachedLocalModel>> {
                     mmproj_path: mmproj.map(|file| file.file_path.clone()),
                     mmproj_size_bytes: mmproj.map(|file| file.size_on_disk).unwrap_or(0),
                 };
-                models.entry(model.id.clone()).or_insert(model);
+                if revision
+                    .refs
+                    .contains(&selected_revision_ref("gguf", &model.quantization))
+                {
+                    models.insert(model.id.clone(), model);
+                } else {
+                    models.entry(model.id.clone()).or_insert(model);
+                }
             }
 
             let config = revision
@@ -2986,7 +3226,14 @@ pub async fn cached_local_models() -> Result<Vec<CachedLocalModel>> {
                         mmproj_path: None,
                         mmproj_size_bytes: 0,
                     };
-                    models.entry(model.id.clone()).or_insert(model);
+                    if revision
+                        .refs
+                        .contains(&selected_revision_ref("safetensors", &model.quantization))
+                    {
+                        models.insert(model.id.clone(), model);
+                    } else {
+                        models.entry(model.id.clone()).or_insert(model);
+                    }
                 }
             }
         }

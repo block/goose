@@ -71,7 +71,47 @@ pub async fn search_huggingface_models(
     limit: Option<usize>,
 ) -> Result<LocalInferenceHuggingFaceSearchResponse> {
     let limit = limit.unwrap_or(20).min(50);
-    let models = crate::recommendations::discover(&query, limit).await?;
+    let mut models = crate::recommendations::discover(&query, limit).await?;
+    let runtime = management_runtime()?;
+    let available = available_inference_memory_bytes(&runtime);
+    for model in &mut models {
+        if let Ok(Some(entry)) = crate::recommendations::catalogue::find(&model.repo_id) {
+            model.quality = Some(entry.quality.clone());
+            model.variants = entry
+                .variants
+                .iter()
+                .map(|item| {
+                    let mut variant = hf_model_variant_to_dto(
+                        crate::recommendations::catalogue::available_variant(item),
+                    );
+                    variant.assessment = Some(crate::recommendations::catalogue::assess(
+                        entry, item, available,
+                    )?);
+                    Ok(variant)
+                })
+                .collect::<Result<_>>()?;
+            let recommended = crate::recommendations::recommended_variant(
+                &model.variants,
+                model.quality.as_ref(),
+            );
+            for variant in &mut model.variants {
+                if let Some(assessment) = &mut variant.assessment {
+                    assessment.recommended = recommended.as_ref() == Some(&variant.variant_id);
+                }
+            }
+        }
+    }
+    if query.trim().is_empty() {
+        models.retain(|model| {
+            crate::recommendations::recommended_variant(&model.variants, model.quality.as_ref())
+                .is_some()
+        });
+        models.sort_by(|a, b| {
+            crate::recommendations::quality::compare_quality(a.quality.as_ref(), b.quality.as_ref())
+                .then_with(|| b.downloads.cmp(&a.downloads))
+                .then_with(|| a.repo_id.cmp(&b.repo_id))
+        });
+    }
     Ok(LocalInferenceHuggingFaceSearchResponse { models })
 }
 
@@ -116,9 +156,18 @@ pub async fn huggingface_repo_variants_with_assessment(
         .position(|variant| recommended_variant_id.as_ref() == Some(&variant.variant_id));
 
     let cached_models = hf_models::cached_local_models().await?;
+    let expected_revision = crate::recommendations::catalogue::find(&repo_id)
+        .ok()
+        .flatten()
+        .map(|model| model.revision.as_str());
     let downloaded: Vec<_> = cached_models
         .iter()
-        .filter(|model| model.repo_id == repo_id)
+        .filter(|model| {
+            model.repo_id == repo_id
+                && expected_revision.is_none_or(|revision| {
+                    hf_models::cached_snapshot_revision(&model.model_path) == Some(revision)
+                })
+        })
         .collect();
     let downloaded_quants = downloaded
         .iter()
@@ -142,6 +191,30 @@ pub async fn download_model(
     req: LocalInferenceModelDownloadRequest,
 ) -> Result<LocalInferenceModelDownloadResponse> {
     let selection = explicit_model_selection(&req)?;
+    let pinned = req
+        .revision
+        .as_deref()
+        .map(|revision| -> Result<_> {
+            let selection = selection
+                .as_ref()
+                .ok_or_else(|| anyhow!("A pinned download requires an explicit variant"))?;
+            let model = crate::recommendations::catalogue::find(&selection.repo_id)?
+                .ok_or_else(|| anyhow!("Model is not in the recommendation catalogue"))?;
+            anyhow::ensure!(
+                model.revision == revision,
+                "Requested revision differs from the assessed catalogue revision"
+            );
+            let variant = model
+                .variants
+                .iter()
+                .find(|item| {
+                    Some(item.variant.variant_id.as_str()) == selection.variant_id.as_deref()
+                        && item.variant.backend_id == selection.backend_id
+                })
+                .ok_or_else(|| anyhow!("Variant is not in the recommendation catalogue"))?;
+            Ok((model.clone(), variant.clone()))
+        })
+        .transpose()?;
     let model_id = local_model_id_from_request(&req, selection.as_ref()).await?;
     if req.backend_id.as_deref() == Some("eredu")
         && selection
@@ -175,7 +248,9 @@ pub async fn download_model(
     let mut cancellation_rx = cancellation.subscribe();
     tokio::spawn(async move {
         let resolve = async {
-            if let Some(selection) = selection_for_task {
+            if let Some((model, variant)) = pinned {
+                hf_models::download_catalogue_variant(&model, &variant).await
+            } else if let Some(selection) = selection_for_task {
                 resolve_local_model_selection(
                     &selection.repo_id,
                     &selection.backend_id,
@@ -192,8 +267,13 @@ pub async fn download_model(
             biased;
             _ = cancellation_rx.changed() => {}
             resolved = &mut resolve => {
-                if let Err(error) = resolved {
-                    mark_download_failed(&model_id_for_task, error);
+                match resolved {
+                    Ok(_) => {
+                        if let Err(error) = evict_model(&model_id_for_task).await {
+                            mark_download_failed(&model_id_for_task, error);
+                        }
+                    }
+                    Err(error) => mark_download_failed(&model_id_for_task, error),
                 }
             }
         }
@@ -734,6 +814,7 @@ mod tests {
     #[test]
     fn eredu_gguf_download_keeps_the_gguf_artifact_identity() {
         let req = LocalInferenceModelDownloadRequest {
+            revision: None,
             spec: "owner/model".into(),
             format: Some("gguf".into()),
             backend_id: Some("eredu".into()),
@@ -762,6 +843,7 @@ mod tests {
     #[tokio::test]
     async fn explicit_llamacpp_selection_derives_quantized_model_id() {
         let req = LocalInferenceModelDownloadRequest {
+            revision: None,
             format: None,
             spec: "test/repo".to_string(),
             backend_id: Some("llamacpp".to_string()),

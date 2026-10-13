@@ -2494,9 +2494,10 @@ export type LocalInferenceChatTemplate = {
  */
 export type LocalInferenceModelDownloadRequest_unstable = {
     spec: string;
+    format?: string | null;
     backendId?: string | null;
     variantId?: string | null;
-    format?: string | null;
+    revision?: string | null;
 };
 
 export type LocalInferenceModelDownloadResponse_unstable = {
@@ -2621,6 +2622,8 @@ export type LocalInferenceHfModelVariantDto = {
 
 export type LocalInferenceModelAssessmentDto = {
     fit: LocalInferenceMemoryFit;
+    compatibility?: LocalInferenceCompatibility;
+    suitability?: LocalInferenceSuitability;
     recommended: boolean;
     inputTokens: number;
     outputTokens: number;
@@ -2632,22 +2635,19 @@ export type LocalInferenceModelAssessmentDto = {
     reasons: Array<string>;
 };
 
-export type LocalInferenceMemoryFit = 'likelyFit' | 'likelyShortfall' | 'unknown' | 'incompatible';
+export type LocalInferenceMemoryFit = 'likelyFit' | 'likelyShortfall' | 'unknown';
+
+export type LocalInferenceCompatibility = 'compatible' | 'incompatible' | 'unknown';
+
+export type LocalInferenceSuitability = 'suitable' | 'unsuitable' | 'unknown';
 
 export type LocalInferenceModelQualityDto = {
     evaluatedModelId: string;
     inherited: boolean;
-    evidence: Array<LocalInferenceBenchmarkEvidenceDto>;
-};
-
-export type LocalInferenceBenchmarkEvidenceDto = {
-    benchmark: string;
-    score: number;
-    rank: number;
-    participants: number;
-    verified: boolean;
+    aaModelId: string;
     sourceUrl: string;
-    notes: string;
+    evaluationName: string;
+    catalogueOrder?: number;
 };
 
 /**

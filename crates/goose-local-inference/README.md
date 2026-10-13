@@ -30,3 +30,15 @@ see [Cargo.toml](Cargo.toml) for available features and dependencies.
 Start with the provider integration in [`goose-providers`](../goose-providers).
 Model size alone does not determine memory use: context length, image input, and
 inference settings also matter.
+
+## Model recommendations
+
+On builds with Eredu support, a bundled catalogue helps users choose models
+before downloading weights. Recommendations combine benchmark evidence,
+conversational suitability, backend compatibility, and estimated memory needs.
+Catalogue recommendations work offline; users can also search Hugging Face for
+models outside the catalogue.
+
+Memory estimates are guidance rather than guarantees. Benchmark results may
+reflect a different configuration from the one used locally, and missing catalogue
+coverage does not mean a model is unsuitable.
