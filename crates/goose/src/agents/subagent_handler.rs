@@ -29,7 +29,7 @@ pub struct SubagentPromptContext {
 }
 
 pub(crate) async fn prepare_subagent(
-    agent: &StateMachineServices,
+    services: &StateMachineServices,
     session: &Session,
 ) -> Result<SessionConfig> {
     let session_id = &session.id;
@@ -61,12 +61,12 @@ pub(crate) async fn prepare_subagent(
         )
         .ok_or_else(|| anyhow!("Subagent {session_id} has no saved extension selection"))?;
 
-    agent
+    services
         .switch_provider(session_id, provider_name, model_config.clone())
         .await?;
 
-    let subagent_prompt = build_subagent_prompt(agent, max_turns, session_id).await?;
-    agent
+    let subagent_prompt = build_subagent_prompt(services, max_turns, session_id).await?;
+    services
         .config
         .session_manager
         .update(session_id)
@@ -96,16 +96,16 @@ pub(crate) enum SubagentStart {
 
 #[derive(Clone)]
 pub(crate) struct SubagentRunner {
-    agent: Arc<StateMachineServices>,
+    services: Arc<StateMachineServices>,
 }
 
 impl SubagentRunner {
-    pub(crate) fn new(agent: Arc<StateMachineServices>) -> Self {
-        Self { agent }
+    pub(crate) fn new(services: Arc<StateMachineServices>) -> Self {
+        Self { services }
     }
 
     fn session_manager(&self) -> &SessionManager {
-        &self.agent.config.session_manager
+        &self.services.config.session_manager
     }
 
     pub(crate) async fn start(
@@ -154,9 +154,9 @@ impl SubagentRunner {
             .parent_session_id
             .as_deref()
             .ok_or_else(|| anyhow!("Subagent {} has no parent", subagent.id))?;
-        let session_config = prepare_subagent(&self.agent, subagent).await?;
+        let session_config = prepare_subagent(&self.services, subagent).await?;
         let mut events = self
-            .agent
+            .services
             .stream_subagent_turn(session_config, cancel)
             .await?;
         while let Some(event) = events.next().await {
@@ -181,7 +181,7 @@ impl SubagentRunner {
         forward: mpsc::UnboundedSender<Message>,
     ) -> SubagentOutcome {
         let ending = SubagentEnding {
-            agent: Arc::clone(&self.agent),
+            services: Arc::clone(&self.services),
             subagent_id: subagent.id.clone(),
             ended: false,
         };
@@ -216,14 +216,14 @@ impl SubagentRunner {
 /// Aborting the parent's turn drops a running subagent's task, so the session is also ended
 /// from `Drop`.
 struct SubagentEnding {
-    agent: Arc<StateMachineServices>,
+    services: Arc<StateMachineServices>,
     subagent_id: String,
     ended: bool,
 }
 
 impl SubagentEnding {
     async fn end(mut self) {
-        end_subagent(&self.agent, &self.subagent_id).await;
+        end_subagent(&self.services, &self.subagent_id).await;
         self.ended = true;
     }
 }
@@ -236,17 +236,17 @@ impl Drop for SubagentEnding {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
         };
-        let agent = Arc::clone(&self.agent);
+        let services = Arc::clone(&self.services);
         let subagent_id = std::mem::take(&mut self.subagent_id);
-        runtime.spawn(async move { end_subagent(&agent, &subagent_id).await });
+        runtime.spawn(async move { end_subagent(&services, &subagent_id).await });
     }
 }
 
-async fn end_subagent(agent: &StateMachineServices, subagent_id: &str) {
-    agent
+async fn end_subagent(services: &StateMachineServices, subagent_id: &str) {
+    services
         .emit_hook(crate::hooks::HookEvent::SessionEnd, subagent_id)
         .await;
-    agent.release_session(subagent_id).await;
+    services.release_session(subagent_id).await;
 }
 
 fn forwarded(
@@ -310,11 +310,11 @@ fn failure_reason(messages: &[Message]) -> String {
 pub const SUBAGENT_TOOL_REQUEST_TYPE: &str = "subagent_tool_request";
 
 async fn build_subagent_prompt(
-    agent: &StateMachineServices,
+    services: &StateMachineServices,
     max_turns: usize,
     session_id: &str,
 ) -> Result<String> {
-    let mut tool_names: Vec<_> = agent
+    let mut tool_names: Vec<_> = services
         .list_tools(session_id, None)
         .await?
         .into_iter()

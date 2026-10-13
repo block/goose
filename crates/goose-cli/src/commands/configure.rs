@@ -1785,9 +1785,9 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = goose::model_config::model_config_from_user_config(&provider_name, &model)?;
 
-    let agent = StateMachineServices::new();
+    let services = StateMachineServices::new();
 
-    let session = agent
+    let session = services
         .config
         .session_manager
         .create_session(
@@ -1800,7 +1800,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
 
     let extension_config = get_extension_by_name(&selected_extension_name);
     if let Some(config) = extension_config.as_ref() {
-        agent
+        services
             .extension_manager
             .enable(&session.id, config.clone())
             .await
@@ -1820,12 +1820,12 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    agent
+    services
         .switch_provider(&session.id, &provider_name, model_config)
         .await?;
 
     let permission_manager = PermissionManager::instance();
-    let selected_tools = agent
+    let selected_tools = services
         .list_tools(&session.id, Some(selected_extension_name.clone()))
         .await?
         .into_iter()

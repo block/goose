@@ -242,7 +242,9 @@ impl StateMachineServices {
         self: &mut Arc<Self>,
         hook_manager: crate::hooks::HookManager,
     ) {
-        Arc::get_mut(self).expect("agent is shared").hook_manager = hook_manager;
+        Arc::get_mut(self)
+            .expect("services are shared")
+            .hook_manager = hook_manager;
     }
 
     #[cfg(test)]
@@ -255,7 +257,7 @@ impl StateMachineServices {
     #[cfg(test)]
     pub(crate) fn set_stop_hook_block_cap_for_test(self: &mut Arc<Self>, cap: u32) {
         Arc::get_mut(self)
-            .expect("agent is shared")
+            .expect("services are shared")
             .stop_hook_block_cap_override = Some(cap);
     }
 
@@ -821,11 +823,11 @@ impl StateMachineServices {
             turn_guard.state().register_request(request.id);
         }
 
-        let agent = Arc::clone(self);
+        let services = Arc::clone(self);
         let stream = Box::pin(async_stream::try_stream! {
             let initial_stream = if resume_from_persisted_response {
                 Some(
-                    agent
+                    services
                         .stream_state_machine_session(
                             session_config.clone(),
                             cancel.clone(),
@@ -835,7 +837,7 @@ impl StateMachineServices {
             } else {
                 None
             };
-            let mut stream = agent.stream_state_machine_turn(
+            let mut stream = services.stream_state_machine_turn(
                 session_config,
                 cancel,
                 turn_guard,
@@ -1605,7 +1607,7 @@ mod tests {
     ) {
         let temp_dir = TempDir::new().unwrap();
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-        let agent = StateMachineServices::with_config(StateMachineServicesConfig::new(
+        let services = StateMachineServices::with_config(StateMachineServicesConfig::new(
             Arc::clone(&session_manager),
             Arc::new(PermissionManager::new(temp_dir.path().join("permissions"))),
             None,
@@ -1622,7 +1624,7 @@ mod tests {
             .await
             .unwrap();
         let provider = Arc::new(SessionContextProvider::default());
-        agent
+        services
             .update_provider(
                 provider.clone(),
                 goose_providers::model::ModelConfig::new("mock-model"),
@@ -1655,7 +1657,7 @@ mod tests {
             max_turns: Some(1),
         };
 
-        (agent, provider, session_config, temp_dir)
+        (services, provider, session_config, temp_dir)
     }
 
     fn assert_session_context_calls(
@@ -1677,9 +1679,9 @@ mod tests {
 
     #[tokio::test]
     async fn reply_scopes_resume_model_info_and_stream_to_session() {
-        let (agent, provider, session_config, _temp_dir) = session_context_agent().await;
+        let (services, provider, session_config, _temp_dir) = session_context_agent().await;
         let session_id = session_config.id.clone();
-        let mut events = agent
+        let mut events = services
             .reply(Message::user().with_text("continue"), session_config, None)
             .await
             .unwrap();
@@ -1696,10 +1698,10 @@ mod tests {
 
     #[tokio::test]
     async fn live_delegation_scopes_state_machine_setup_and_stream_to_session() {
-        let (agent, provider, mut session_config, _temp_dir) = session_context_agent().await;
+        let (services, provider, mut session_config, _temp_dir) = session_context_agent().await;
         session_config.max_turns = Some(2);
         let session_id = session_config.id.clone();
-        let mut events = agent
+        let mut events = services
             .reply_live_delegation(
                 Message::user().with_text("continue"),
                 session_config,
@@ -1722,7 +1724,7 @@ mod tests {
         let data_dir = TempDir::new().unwrap();
         let data_path = data_dir.path().to_path_buf();
         let session_manager = Arc::new(SessionManager::new(data_path.clone()));
-        let agent = StateMachineServices::with_config(StateMachineServicesConfig::new(
+        let services = StateMachineServices::with_config(StateMachineServicesConfig::new(
             Arc::clone(&session_manager),
             Arc::new(PermissionManager::new(data_path)),
             None,
@@ -1738,7 +1740,7 @@ mod tests {
             )
             .await
             .unwrap();
-        (agent, session, data_dir)
+        (services, session, data_dir)
     }
 
     #[test]
@@ -1807,9 +1809,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_tool_confirmation_routes_to_provider() {
-        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let (services, session, _data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(ActionRequiredProvider::new());
-        agent
+        services
             .update_provider(
                 provider.clone(),
                 goose_providers::model::ModelConfig::new("test-model"),
@@ -1818,7 +1820,7 @@ mod tests {
             .await
             .unwrap();
 
-        agent
+        services
             .submit_tool_confirmation(
                 &session.id,
                 "known",
@@ -1828,7 +1830,7 @@ mod tests {
             .unwrap();
         assert_eq!(provider.handled.lock().await.len(), 1);
 
-        let error = agent
+        let error = services
             .submit_tool_confirmation(
                 &session.id,
                 "unknown",
@@ -1934,9 +1936,9 @@ mod tests {
         Arc<EffortProvider>,
         TempDir,
     ) {
-        let (agent, session, data_dir) = tracing_test_agent_and_session().await;
+        let (services, session, data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(EffortProvider::new(outcome));
-        agent
+        services
             .update_provider(
                 provider.clone(),
                 goose_providers::model::ModelConfig::new("mock-model"),
@@ -1944,14 +1946,14 @@ mod tests {
             )
             .await
             .unwrap();
-        (agent, session.id, provider, data_dir)
+        (services, session.id, provider, data_dir)
     }
 
     async fn persisted_thinking_effort(
-        agent: &Arc<StateMachineServices>,
+        services: &Arc<StateMachineServices>,
         session_id: &str,
     ) -> Option<String> {
-        agent
+        services
             .model_config_for_session(session_id)
             .await
             .unwrap()
@@ -1968,7 +1970,7 @@ mod tests {
 
     #[tokio::test]
     async fn provider_toolshim_is_effective_without_being_persisted() {
-        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let (services, session, _data_dir) = tracing_test_agent_and_session().await;
         let provider_root = TempDir::new().unwrap();
         let provider_root_path = provider_root.path().display().to_string();
         let _guard = env_lock::lock_env([
@@ -1999,7 +2001,7 @@ mod tests {
         let provider = crate::providers::create(&config.name, Vec::new())
             .await
             .unwrap();
-        agent
+        services
             .update_provider(
                 provider,
                 goose_providers::model::ModelConfig::new("test-model"),
@@ -2009,14 +2011,14 @@ mod tests {
             .unwrap();
 
         assert!(
-            !agent
+            !services
                 .model_config_for_session(&session.id)
                 .await
                 .unwrap()
                 .toolshim
         );
         assert!(
-            agent
+            services
                 .effective_model_config_for_session(&session.id)
                 .await
                 .unwrap()
@@ -2045,7 +2047,7 @@ mod tests {
         crate::providers::refresh_custom_providers().await.unwrap();
 
         assert!(
-            !agent
+            !services
                 .effective_model_config_for_session(&session.id)
                 .await
                 .unwrap()
@@ -2059,20 +2061,20 @@ mod tests {
     #[tokio::test]
     async fn update_provider_replaces_harness_only_effort_for_legacy_provider() {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let (services, session, _data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(EffortProvider::new(EffortOutcome::Unhandled));
         let model_config =
             goose_providers::model::ModelConfig::new("mock-model").with_merged_request_params(
                 HashMap::from([("thinking_effort".to_string(), serde_json::json!("default"))]),
             );
 
-        agent
+        services
             .update_provider(provider, model_config, &session.id)
             .await
             .unwrap();
 
         assert_eq!(
-            persisted_thinking_effort(&agent, &session.id)
+            persisted_thinking_effort(&services, &session.id)
                 .await
                 .as_deref(),
             Some("high")
@@ -2082,20 +2084,20 @@ mod tests {
     #[tokio::test]
     async fn update_provider_preserves_harness_only_effort_for_managed_provider() {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let (services, session, _data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(EffortProvider::new(EffortOutcome::Applied));
         let model_config =
             goose_providers::model::ModelConfig::new("mock-model").with_merged_request_params(
                 HashMap::from([("thinking_effort".to_string(), serde_json::json!("default"))]),
             );
 
-        agent
+        services
             .update_provider(provider, model_config, &session.id)
             .await
             .unwrap();
 
         assert_eq!(
-            persisted_thinking_effort(&agent, &session.id)
+            persisted_thinking_effort(&services, &session.id)
                 .await
                 .as_deref(),
             Some("default")
@@ -2104,35 +2106,35 @@ mod tests {
 
     #[tokio::test]
     async fn update_thinking_effort_persists_the_raw_value_when_the_provider_applies_it() {
-        let (agent, session_id, provider, _data_dir) =
+        let (services, session_id, provider, _data_dir) =
             effort_test_agent(EffortOutcome::Applied).await;
 
         // "xhigh" is a harness value, not a ThinkingEffort member spelling.
-        agent
+        services
             .update_thinking_effort(&session_id, "xhigh")
             .await
             .unwrap();
 
         assert_eq!(provider.effort_calls(), ["xhigh"]);
         assert_eq!(
-            persisted_thinking_effort(&agent, &session_id)
+            persisted_thinking_effort(&services, &session_id)
                 .await
                 .as_deref(),
             Some("xhigh")
         );
         // The unregistered test provider was not respawned.
         assert_eq!(
-            agent.provider(&session_id).await.unwrap().get_name(),
+            services.provider(&session_id).await.unwrap().get_name(),
             "test-effort"
         );
     }
 
     #[tokio::test]
     async fn update_thinking_effort_rejects_an_unparseable_value_on_the_legacy_path() {
-        let (agent, session_id, provider, _data_dir) =
+        let (services, session_id, provider, _data_dir) =
             effort_test_agent(EffortOutcome::Unhandled).await;
 
-        let err = agent
+        let err = services
             .update_thinking_effort(&session_id, "bogus")
             .await
             .unwrap_err();
@@ -2143,17 +2145,17 @@ mod tests {
         ));
         assert!(err.to_string().contains("Invalid thinking effort"));
         assert_eq!(provider.effort_calls(), ["bogus"]);
-        assert!(persisted_thinking_effort(&agent, &session_id)
+        assert!(persisted_thinking_effort(&services, &session_id)
             .await
             .is_none());
     }
 
     #[tokio::test]
     async fn update_thinking_effort_surfaces_a_provider_rejection() {
-        let (agent, session_id, _provider, _data_dir) =
+        let (services, session_id, _provider, _data_dir) =
             effort_test_agent(EffortOutcome::Rejected).await;
 
-        let err = agent
+        let err = services
             .update_thinking_effort(&session_id, "high")
             .await
             .unwrap_err();
@@ -2165,7 +2167,7 @@ mod tests {
             err.downcast_ref::<ProviderError>(),
             Some(ProviderError::RequestFailed(_))
         ));
-        assert!(persisted_thinking_effort(&agent, &session_id)
+        assert!(persisted_thinking_effort(&services, &session_id)
             .await
             .is_none());
     }
@@ -2460,7 +2462,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             call_count: AtomicUsize::new(0),
         });
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
-        let (agent, session_id) =
+        let (services, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
 
         let session_config = SessionConfig {
@@ -2469,7 +2471,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             max_turns: Some(10),
         };
 
-        let reply_stream = agent
+        let reply_stream = services
             .reply(Message::user().with_text("hi"), session_config, None)
             .await?;
         tokio::pin!(reply_stream);
@@ -2513,8 +2515,8 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             true,
             GoosePlatform::GooseCli,
         );
-        let mut agent = StateMachineServices::with_config(config);
-        agent.set_hook_manager_for_test(hook_manager);
+        let mut services = StateMachineServices::with_config(config);
+        services.set_hook_manager_for_test(hook_manager);
         let session = session_manager
             .create_session(
                 PathBuf::default(),
@@ -2523,14 +2525,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 GooseMode::Auto,
             )
             .await?;
-        agent
+        services
             .update_provider(
                 provider,
                 goose_providers::model::ModelConfig::new("mock-model"),
                 &session.id,
             )
             .await?;
-        Ok((agent, session.id))
+        Ok((services, session.id))
     }
 
     async fn create_stop_hook_test_agent(
@@ -2538,14 +2540,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         stop_hook_block_cap: u32,
     ) -> Result<(Arc<StateMachineServices>, String, Arc<CountingTextProvider>)> {
         let provider = Arc::new(CountingTextProvider::new());
-        let (mut agent, session_id) =
+        let (mut services, session_id) =
             create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
-        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
-        Ok((agent, session_id, provider))
+        services.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        Ok((services, session_id, provider))
     }
 
     async fn run_stop_hook_test_turn(
-        agent: &Arc<StateMachineServices>,
+        services: &Arc<StateMachineServices>,
         session_id: &str,
         text: &str,
     ) -> Result<Vec<Message>> {
@@ -2554,7 +2556,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
         };
-        let reply_stream = agent
+        let reply_stream = services
             .reply(Message::user().with_text(text), session_config, None)
             .await?;
         tokio::pin!(reply_stream);
@@ -2585,10 +2587,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let temp_dir = tempfile::tempdir()?;
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let provider = Arc::new(OutputLimitMarkerProvider::new(true));
-        let (agent, session_id) =
+        let (services, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
 
-        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let messages = run_stop_hook_test_turn(&services, &session_id, "hello").await?;
         let marker = messages
             .iter()
             .find(|message| message.metadata.output_token_limit_reached)
@@ -2596,7 +2598,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(marker.content.is_empty());
         assert_eq!(marker.id.as_deref(), Some("provider-output-limit"));
 
-        let session = agent
+        let session = services
             .config
             .session_manager
             .get_session(&session_id, true)
@@ -2621,13 +2623,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let temp_dir = tempfile::tempdir()?;
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let provider = Arc::new(OutputLimitMarkerProvider::new(false));
-        let (agent, session_id) =
+        let (services, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
 
-        run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        run_stop_hook_test_turn(&services, &session_id, "hello").await?;
 
         assert_eq!(provider.call_count(), 1);
-        let session = agent
+        let session = services
             .config
             .session_manager
             .get_session(&session_id, true)
@@ -2656,11 +2658,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn session_start_hook_emits_once_for_first_reply_turn() -> Result<()> {
         let env = SessionStartHookTestEnv::new()?;
         let provider = Arc::new(CountingTextProvider::new());
-        let (agent, session_id) =
+        let (services, session_id) =
             create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
 
-        run_stop_hook_test_turn(&agent, &session_id, "first").await?;
-        run_stop_hook_test_turn(&agent, &session_id, "second").await?;
+        run_stop_hook_test_turn(&services, &session_id, "first").await?;
+        run_stop_hook_test_turn(&services, &session_id, "second").await?;
 
         assert_eq!(env.hook_invocations(), 1);
         assert_eq!(provider.call_count(), 2);
@@ -2671,9 +2673,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn stop_hook_block_cap_allows_configured_consecutive_blocks_then_overrides() -> Result<()>
     {
         let env = StopHookTestEnv::new(ALWAYS_BLOCK_SCRIPT)?;
-        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+        let (services, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
 
-        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let messages = run_stop_hook_test_turn(&services, &session_id, "hello").await?;
         let texts = visible_texts(&messages);
 
         assert_eq!(
@@ -2700,7 +2702,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             })
         }));
 
-        let stored_session = agent
+        let stored_session = services
             .config
             .session_manager
             .get_session(&session_id, true)
@@ -2734,10 +2736,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn stop_hook_block_cap_counts_only_consecutive_blocks() -> Result<()> {
         let env = StopHookTestEnv::new(ALTERNATE_BLOCK_ALLOW_SCRIPT)?;
-        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 1).await?;
+        let (services, session_id, provider) = create_stop_hook_test_agent(&env, 1).await?;
 
-        let first_turn = run_stop_hook_test_turn(&agent, &session_id, "first").await?;
-        let second_turn = run_stop_hook_test_turn(&agent, &session_id, "second").await?;
+        let first_turn = run_stop_hook_test_turn(&services, &session_id, "first").await?;
+        let second_turn = run_stop_hook_test_turn(&services, &session_id, "second").await?;
         let mut texts = visible_texts(&first_turn);
         texts.extend(visible_texts(&second_turn));
 
@@ -2765,10 +2767,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn stop_hook_payload_includes_streamed_assistant_reply_text() -> Result<()> {
         let env = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
         let provider = Arc::new(ChunkedTextProvider);
-        let (agent, session_id) =
+        let (services, session_id) =
             create_test_agent(env.data_dir(), env.hook_manager(), provider).await?;
 
-        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let messages = run_stop_hook_test_turn(&services, &session_id, "hello").await?;
         let texts = visible_texts(&messages);
         assert_eq!(texts.join(""), "streamed assistant reply");
 
@@ -2791,10 +2793,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
-        let agent = StateMachineServices::new();
+        let services = StateMachineServices::new();
 
         // Verify that the tool inspection manager has all expected inspectors
-        let inspector_names = agent.tool_inspection_manager.inspector_names();
+        let inspector_names = services.tool_inspection_manager.inspector_names();
 
         assert!(
             inspector_names.contains(&"repetition"),

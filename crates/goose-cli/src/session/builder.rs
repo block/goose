@@ -235,10 +235,10 @@ pub struct ExtensionFailure {
 }
 
 async fn load_extensions(
-    agent: Arc<StateMachineServices>,
+    services: Arc<StateMachineServices>,
     session_id: &str,
 ) -> anyhow::Result<Vec<ExtensionFailure>> {
-    Ok(agent
+    Ok(services
         .extension_manager
         .current_lease(session_id)
         .await?
@@ -497,11 +497,11 @@ async fn resolve_session_id(
 }
 
 async fn handle_resumed_session_workdir(
-    agent: &StateMachineServices,
+    services: &StateMachineServices,
     session_id: &str,
     interactive: bool,
 ) {
-    let session = agent
+    let session = services
         .config
         .session_manager
         .get_session(session_id, false)
@@ -563,7 +563,7 @@ async fn handle_resumed_session_workdir(
 }
 
 async fn collect_extension_configs(
-    agent: &StateMachineServices,
+    services: &StateMachineServices,
     session_config: &SessionBuilderConfig,
     recipe: Option<&Recipe>,
     session_id: &str,
@@ -571,7 +571,7 @@ async fn collect_extension_configs(
     let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         EnabledExtensionsState::for_session(
-            &agent.config.session_manager,
+            &services.config.session_manager,
             session_id,
             Config::global(),
         )
@@ -654,9 +654,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let agent = StateMachineServices::new();
+    let services = StateMachineServices::new();
 
-    let session_manager = agent.config.session_manager.clone();
+    let session_manager = services.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
@@ -709,18 +709,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     if session_config.resume {
-        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+        handle_resumed_session_workdir(&services, &session_id, session_config.interactive).await;
     }
 
     let extensions_for_provider =
-        match collect_extension_configs(&agent, &session_config, recipe, &session_id).await {
+        match collect_extension_configs(&services, &session_config, recipe, &session_id).await {
             Ok(exts) => exts,
             Err(e) => {
                 output::render_error(&format!("Failed to collect extensions: {}", e));
                 process::exit(1);
             }
         };
-    if let Err(e) = agent
+    if let Err(e) = services
         .config
         .session_manager
         .update_enabled_extensions(&session_id, |selected| {
@@ -733,7 +733,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     let (new_provider, effective_provider_name, effective_model_name, effective_model_config) =
-        match session_provider(&agent, &session_id, &resolved.provider_name).await {
+        match session_provider(&services, &session_id, &resolved.provider_name).await {
             Ok(provider) => (
                 provider,
                 resolved.provider_name.clone(),
@@ -774,7 +774,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 if !session_config.interactive {
                     fallback_model_config = fallback_model_config.with_cache_ttl_clamped();
                 }
-                match session_provider(&agent, &session_id, &fallback_provider).await {
+                match session_provider(&services, &session_id, &fallback_provider).await {
                     Ok(provider) => (
                         provider,
                         fallback_provider,
@@ -819,7 +819,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         process::exit(1);
     });
 
-    agent
+    services
         .switch_provider(
             &session_id,
             &effective_provider_name,
@@ -831,7 +831,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    agent
+    services
         .update_goose_mode(config.get_goose_mode().unwrap_or_default(), &session_id)
         .await
         .unwrap_or_else(|e| {
@@ -856,11 +856,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Extensions are loaded after session creation because we may change
     // directory when resuming.
-    let agent_ptr = agent;
+    let agent_ptr = services;
     let loading_handle = AbortOnDropHandle::new(tokio::spawn({
-        let agent = agent_ptr.clone();
+        let services = agent_ptr.clone();
         let sid = session_id.clone();
-        async move { load_extensions(agent, &sid).await }
+        async move { load_extensions(services, &sid).await }
     }));
 
     let edit_mode = config

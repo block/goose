@@ -16,9 +16,9 @@ async fn main() -> anyhow::Result<()> {
     let model_config =
         goose::model_config::model_config_from_user_config("databricks", DATABRICKS_DEFAULT_MODEL)?;
 
-    let agent = StateMachineServices::new();
+    let services = StateMachineServices::new();
 
-    let session = agent
+    let session = services
         .config
         .session_manager
         .create_session(
@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    agent
+    services
         .update_provider(provider, model_config, &session.id)
         .await?;
 
@@ -40,10 +40,17 @@ async fn main() -> anyhow::Result<()> {
         DEFAULT_EXTENSION_TIMEOUT,
     )
     .with_args(vec!["mcp", "developer"]);
-    agent.extension_manager.enable(&session.id, config).await?;
+    services
+        .extension_manager
+        .enable(&session.id, config)
+        .await?;
 
     println!("Extensions:");
-    for extension in agent.extension_manager.list_extensions(&session.id).await? {
+    for extension in services
+        .extension_manager
+        .list_extensions(&session.id)
+        .await?
+    {
         println!("  {}", extension);
     }
 
@@ -56,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let user_message = Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?");
 
-    let mut stream = agent.reply(user_message, session_config, None).await?;
+    let mut stream = services.reply(user_message, session_config, None).await?;
 
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message)?);

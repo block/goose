@@ -39,7 +39,7 @@ fn resolve_gateway_max_turns(gateway_override: Option<u32>, global_max_turns: Op
 }
 
 struct PendingConfirmation {
-    agent: Arc<StateMachineServices>,
+    services: Arc<StateMachineServices>,
     session_id: String,
     request_ids: VecDeque<String>,
     cancel_token: CancellationToken,
@@ -87,13 +87,13 @@ impl GatewayHandler {
         let pending: Vec<_> = self.pending_confirmations.lock().await.drain().collect();
         for (_, pending) in pending {
             let PendingConfirmation {
-                agent,
+                services,
                 session_id,
                 request_ids,
                 cancel_token,
             } = pending;
             for request_id in request_ids {
-                if let Err(error) = agent
+                if let Err(error) = services
                     .submit_tool_confirmation(&session_id, &request_id, Permission::DenyOnce)
                     .await
                 {
@@ -256,11 +256,11 @@ impl GatewayHandler {
         let Some(request_id) = pending.request_ids.front().cloned() else {
             return Ok(());
         };
-        let agent = pending.agent.clone();
+        let services = pending.services.clone();
         let session_id = pending.session_id.clone();
         let cancel_token = pending.cancel_token.clone();
         drop(pending_confirmations);
-        if let Err(error) = agent
+        if let Err(error) = services
             .submit_tool_confirmation(&session_id, &request_id, permission)
             .await
         {
@@ -467,7 +467,7 @@ impl GatewayHandler {
         self.sync_session_config(&session).await?;
 
         self.services.touch_session(session_id).await;
-        let agent = Arc::clone(&self.services);
+        let services = Arc::clone(&self.services);
 
         // Re-read the session after sync so restore picks up the new values.
         let session = self
@@ -478,7 +478,7 @@ impl GatewayHandler {
             .await?;
 
         // Ensure provider is configured (handles first use and LRU eviction).
-        if let Err(e) = agent.restore_provider_from_session(&session).await {
+        if let Err(e) = services.restore_provider_from_session(&session).await {
             self.gateway
                 .send_message(
                     &message.user,
@@ -514,7 +514,7 @@ impl GatewayHandler {
             max_turns: Some(max_turns),
         };
 
-        let mut stream = match agent
+        let mut stream = match services
             .reply(user_message, session_config, Some(cancel_for_reply))
             .await
         {
@@ -667,7 +667,7 @@ impl GatewayHandler {
                                                 pending.request_ids.push_back(id.clone());
                                             })
                                             .or_insert_with(|| PendingConfirmation {
-                                                agent: agent.clone(),
+                                                services: services.clone(),
                                                 session_id: session_id.to_string(),
                                                 request_ids: VecDeque::from([id.clone()]),
                                                 cancel_token: cancel.clone(),
@@ -703,7 +703,7 @@ impl GatewayHandler {
                                                 pending.remove(&message.user);
                                             }
                                             drop(pending);
-                                            if let Err(error) = agent
+                                            if let Err(error) = services
                                                 .submit_tool_confirmation(
                                                     session_id,
                                                     id,

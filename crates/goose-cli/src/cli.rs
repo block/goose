@@ -1548,8 +1548,8 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
                 McpProbeElicitation::Cancel => ElicitResult::new(ElicitationAction::Cancel),
             }));
     }
-    let agent = StateMachineServices::with_config(agent_config);
-    let session = agent
+    let services = StateMachineServices::with_config(agent_config);
+    let session = services
         .config
         .session_manager
         .create_session(
@@ -1560,14 +1560,14 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
         )
         .await?;
     let session_id = session.id.as_str();
-    agent
+    services
         .extension_manager
         .enable(session_id, extension)
         .await?;
 
     let mut results = Vec::new();
     for step in script.steps {
-        let lease = agent.extension_manager.current_lease(session_id).await?;
+        let lease = services.extension_manager.current_lease(session_id).await?;
         let result = match step {
             McpProbeStep::ListTools => serde_json::json!({
                 "action": "listTools",
