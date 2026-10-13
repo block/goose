@@ -29,7 +29,8 @@
   "model_doc_link": "https://docs.amazee.ai/getting-started/models/",
   "setup_steps": [
     "Learn more and get access at https://amazee.ai",
-    "Log in at https://my.amazee.io, open your workspace and go to AI keys",
+    "Sign in at https://my.amazee.io",
+    "Open your workspace and go to AI keys",
     "Create a key and copy both the API key and its regional endpoint",
     "Paste the key as AMAZEEAI_API_KEY and the endpoint as AMAZEEAI_ENDPOINT"
   ]
