@@ -30,8 +30,7 @@
           }
         ],
         "model": "llama-3.3-70b"
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "non_streaming",

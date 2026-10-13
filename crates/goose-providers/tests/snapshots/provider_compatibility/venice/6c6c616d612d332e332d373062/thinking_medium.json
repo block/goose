@@ -37,8 +37,7 @@
         "stream_options": {
           "include_usage": true
         }
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "thinking_medium",

@@ -61,8 +61,7 @@
         "usage": {
           "include": true
         }
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "multi_turn",

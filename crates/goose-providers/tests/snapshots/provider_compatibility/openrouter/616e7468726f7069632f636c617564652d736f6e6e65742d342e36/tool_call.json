@@ -84,9 +84,6 @@
         "usage": {
           "include": true
         }
-      },
-      "wire_controls": {
-        "tool_choice": "required"
       }
     }
   ],

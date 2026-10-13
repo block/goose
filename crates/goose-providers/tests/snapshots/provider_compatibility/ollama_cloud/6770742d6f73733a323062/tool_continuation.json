@@ -59,8 +59,7 @@
             "type": "function"
           }
         ]
-      },
-      "wire_controls": {}
+      }
     },
     {
       "endpoint": "https://ollama.com/v1/chat/completions",
@@ -137,8 +136,7 @@
             "type": "function"
           }
         ]
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "tool_continuation",

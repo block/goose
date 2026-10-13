@@ -70,9 +70,6 @@
             "type": "function"
           }
         ]
-      },
-      "wire_controls": {
-        "tool_choice": "required"
       }
     }
   ],

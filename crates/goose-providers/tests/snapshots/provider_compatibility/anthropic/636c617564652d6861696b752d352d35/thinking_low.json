@@ -56,17 +56,6 @@
           },
           "type": "adaptive"
         }
-      },
-      "wire_controls": {
-        "output_config": {
-          "effort": "low"
-        },
-        "thinking": {
-          "block_binding": {
-            "prefix_mismatch_behavior": "drop_block"
-          },
-          "type": "adaptive"
-        }
       }
     }
   ],

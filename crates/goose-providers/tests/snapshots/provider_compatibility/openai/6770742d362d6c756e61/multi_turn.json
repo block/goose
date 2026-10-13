@@ -65,8 +65,7 @@
         "model": "gpt-6-luna",
         "store": false,
         "stream": true
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "multi_turn",

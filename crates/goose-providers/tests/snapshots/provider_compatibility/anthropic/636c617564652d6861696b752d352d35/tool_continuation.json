@@ -77,17 +77,6 @@
             "name": "matrix_echo"
           }
         ]
-      },
-      "wire_controls": {
-        "output_config": {
-          "effort": "high"
-        },
-        "thinking": {
-          "block_binding": {
-            "prefix_mismatch_behavior": "drop_block"
-          },
-          "type": "adaptive"
-        }
       }
     },
     {
@@ -189,17 +178,6 @@
             "name": "matrix_echo"
           }
         ]
-      },
-      "wire_controls": {
-        "output_config": {
-          "effort": "high"
-        },
-        "thinking": {
-          "block_binding": {
-            "prefix_mismatch_behavior": "drop_block"
-          },
-          "type": "adaptive"
-        }
       }
     }
   ],

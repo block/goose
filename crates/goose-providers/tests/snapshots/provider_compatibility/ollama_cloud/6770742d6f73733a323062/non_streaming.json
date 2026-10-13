@@ -30,8 +30,7 @@
           }
         ],
         "model": "gpt-oss:20b"
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "non_streaming",

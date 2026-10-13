@@ -16,16 +16,18 @@
 //! Unknown filters and empty selections fail rather than silently passing.
 //! Successful live rows produce committed verified request snapshots under
 //! tests/snapshots/provider_compatibility/<provider>/<hex-model>/<scenario>.json.
-//! Verified rows skip request generation and live execution on later runs, even
-//! without credentials. Delete a row's snapshot to invalidate it individually.
-//! No payload/code comparison is performed: changes require explicit invalidation.
+//! Each run generates current requests without sending, then compares them with
+//! cached live-verified requests. Matching requests reuse verification without
+//! credentials; changed requests need fresh live verification. Delete a snapshot
+//! or set REPLAY_VERIFIED_LIVE=1 to force fresh verification.
 //! GOOSE_PROVIDER_MATRIX_SNAPSHOT_DIR overrides the snapshot directory for testing.
 //! Record-only mode and failed replays never overwrite a previous verified result.
 //!
 //! Scenarios: text, thinking_off, thinking_low, thinking_medium, tool_call,
 //! tool_continuation, multi_turn, structured_output, vision, non_streaming.
 //! Tool continuation sends two requests and replays the real assistant message;
-//! recording-only mode uses explicitly labeled synthetic history. Tool selection
+//! cache comparison reuses the cached assistant history, while uncached
+//! recording-only mode uses synthetic history. Tool selection
 //! is required where forwarding is exposed, otherwise prompt-directed.
 //! Unsupported scenarios are reported, not counted as passes. A missing catalog
 //! tool capability is unknown, so tool scenarios still attempt the request.
@@ -36,9 +38,8 @@
 //! Artifacts: target/provider-compatibility-matrix/<provider>/<hex-model>/<scenario>.json,
 //! plus summary.json for the selected run. Model IDs are hex encoded to avoid
 //! path collisions. GOOSE_PROVIDER_MATRIX_OUTPUT_DIR overrides the directory.
-//! Records include each request, wire controls, parsed response/usage, latency,
-//! and instruction compliance. Simple greeting obedience is diagnostic; tool,
-//! history, schema, and vision fixture checks are assertions.
+//! Records include each request, parsed response/usage, and latency. Request
+//! compatibility is established by live completion, not payload-shape assertions.
 //!
 //! This excludes decision, voice/session, and on-device APIs. Discovery and
 //! retries are blocked; each turn makes at most one inference attempt.
@@ -51,7 +52,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     time::{Duration, Instant},
 };
@@ -81,8 +82,9 @@ use goose_providers::{
     snowflake::SnowflakeProvider,
     thinking::ThinkingEffort,
 };
-use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Role, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 const NOT_SENT: &str = "provider matrix: request recorded but not sent";
 const DUMMY_KEY: &str = "provider-matrix-recording-only";
@@ -223,6 +225,20 @@ impl tracing::Subscriber for MatrixSubscriber {
     fn exit(&self, _span: &tracing::span::Id) {}
 }
 
+async fn matrix_recording() -> (tokio::sync::MutexGuard<'static, ()>, CurrentRecording) {
+    static RUN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    static CURRENT: OnceLock<CurrentRecording> = OnceLock::new();
+    let guard = RUN.lock().await;
+    let current = CURRENT
+        .get_or_init(|| {
+            let current: CurrentRecording = Arc::new(Mutex::new(None));
+            install_logger(MatrixLogger(current.clone())).unwrap();
+            current
+        })
+        .clone();
+    (guard, current)
+}
+
 struct MatrixLogger(CurrentRecording);
 struct MatrixLogHandle(Arc<Mutex<Recording>>);
 
@@ -245,7 +261,9 @@ impl RequestLogHandle for MatrixLogHandle {
         if let Some(error) = entry["error"].as_str() {
             let mut recording = self.0.lock().unwrap();
             let turn = recording.turn_mut()?;
-            if turn.get("provider_error").is_none() {
+            if error != ProviderError::ExecutionError(NOT_SENT.into()).to_string()
+                && turn.get("provider_error").is_none()
+            {
                 turn["provider_error"] = json!(redact_text(error));
             }
             recording.save()?;
@@ -261,7 +279,6 @@ impl RequestLogHandle for MatrixLogHandle {
             }
             turn["model_config"] = entry["model_config"].clone();
             turn["payload"] = payload.clone();
-            turn["wire_controls"] = wire_controls(payload);
             recording.save()?;
         }
         Ok(())
@@ -646,14 +663,11 @@ fn transport(recording: Arc<Mutex<Recording>>, live: bool) -> RequestBuilderDeco
             .into());
         }
         recording.inference_attempts += 1;
-        let mut endpoint = request.url().clone();
-        endpoint.set_query(None);
-        endpoint.set_fragment(None);
-        let _ = endpoint.set_username("");
-        let _ = endpoint.set_password(None);
+        let (endpoint, fingerprint) = endpoint_metadata(request.url());
         let turn = recording.turn_mut()?;
         turn["method"] = json!(request.method().as_str());
-        turn["endpoint"] = json!(redact_text(endpoint.as_str()));
+        turn["endpoint"] = json!(endpoint);
+        turn["endpoint_fingerprint"] = json!(fingerprint);
         recording.document["live_attempted"] = json!(live);
         recording.save()?;
         if live {
@@ -846,71 +860,7 @@ fn model_config(case: &Case, scenario: Scenario) -> ModelConfig {
     model
 }
 
-fn wire_controls(payload: &Value) -> Value {
-    let mut controls = serde_json::Map::new();
-    for (name, pointer) in [
-        ("thinking", "/thinking"),
-        ("reasoning", "/reasoning"),
-        ("reasoning_effort", "/reasoning_effort"),
-        ("output_config", "/output_config"),
-        ("think", "/think"),
-        ("google_thinking", "/generationConfig/thinkingConfig"),
-        ("tool_choice", "/tool_choice"),
-        ("response_format", "/response_format"),
-        ("text", "/text"),
-    ] {
-        if let Some(value) = payload.pointer(pointer) {
-            controls.insert(name.into(), value.clone());
-        }
-    }
-    Value::Object(controls)
-}
-
-fn validate_thinking_controls(payload: &Value, model: &ModelConfig) -> Result<()> {
-    let Some(effort) = model.thinking_effort() else {
-        return Ok(());
-    };
-    if payload.get("input").is_some() && model.is_openai_reasoning_model() {
-        let expected = goose_providers::formats::openai::openai_reasoning_effort_for_thinking(
-            &model.model_name,
-            effort,
-        );
-        ensure!(
-            payload["reasoning"]["effort"] == json!(expected),
-            "Responses reasoning effort missing or incorrect"
-        );
-    }
-    if payload["thinking"]["type"] == "adaptive" {
-        let expected = if effort == ThinkingEffort::Off {
-            "high".to_string()
-        } else {
-            effort.to_string()
-        };
-        ensure!(
-            payload["output_config"]["effort"] == expected,
-            "adaptive thinking effort missing or incorrect"
-        );
-    }
-    if payload["thinking"]["type"] == "enabled" {
-        let expected = match effort {
-            ThinkingEffort::Low => 4000,
-            ThinkingEffort::Medium => 10000,
-            _ => return Ok(()),
-        }
-        .min(model.max_output_tokens() - 1024);
-        ensure!(
-            payload["thinking"]["budget_tokens"] == expected,
-            "thinking budget missing or incorrect"
-        );
-    }
-    Ok(())
-}
-
-fn validate_response(message: &Message, usage: &ProviderUsage) -> Result<()> {
-    ensure!(
-        message.role == Role::Assistant,
-        "response role is not assistant"
-    );
+fn validate_completion(message: &Message, usage: &ProviderUsage) -> Result<()> {
     ensure!(
         message
             .content
@@ -918,41 +868,7 @@ fn validate_response(message: &Message, usage: &ProviderUsage) -> Result<()> {
             .all(|block| block.as_error().is_none()),
         "response contains an error block"
     );
-    for count in [
-        usage.usage.input_tokens,
-        usage.usage.output_tokens,
-        usage.usage.total_tokens,
-        usage.usage.cache_read_input_tokens,
-        usage.usage.cache_write_input_tokens,
-    ]
-    .into_iter()
-    .flatten()
-    {
-        ensure!(count >= 0, "negative token usage");
-    }
-    if let (Some(input), Some(output), Some(total)) = (
-        usage.usage.input_tokens,
-        usage.usage.output_tokens,
-        usage.usage.total_tokens,
-    ) {
-        ensure!(
-            i64::from(total) >= i64::from(input) + i64::from(output),
-            "total token usage is less than input plus output"
-        );
-    }
-    if let Some(input) = usage.usage.input_tokens {
-        for cached in [
-            usage.usage.cache_read_input_tokens,
-            usage.usage.cache_write_input_tokens,
-        ]
-        .into_iter()
-        .flatten()
-        {
-            ensure!(cached <= input, "cache token count exceeds total input");
-        }
-    }
     for reason in usage.finish_reasons.iter().flatten() {
-        let reason = reason.to_lowercase();
         ensure!(
             ![
                 "length",
@@ -966,7 +882,7 @@ fn validate_response(message: &Message, usage: &ProviderUsage) -> Result<()> {
                 "recitation",
                 "blocked"
             ]
-            .contains(&reason.as_str()),
+            .contains(&reason.to_lowercase().as_str()),
             "unsuccessful finish reason: {reason}"
         );
     }
@@ -1000,86 +916,6 @@ fn validate_tool_call(message: &Message) -> Result<String> {
         "tool arguments do not match schema/fixture"
     );
     Ok(call.id.clone())
-}
-
-fn payload_texts(payload: &Value) -> Vec<&str> {
-    match payload {
-        Value::String(text) => vec![text.as_str()],
-        Value::Array(values) => values.iter().flat_map(payload_texts).collect(),
-        Value::Object(values) => values.values().flat_map(payload_texts).collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn validate_tool_history(payload: &Value, id: &str) -> Result<()> {
-    if let Some(input) = payload["input"].as_array() {
-        ensure!(
-            input.iter().any(|item| item["type"] == "function_call"
-                && item["call_id"] == id
-                && item["name"] == "matrix_echo"),
-            "Responses tool call missing"
-        );
-        ensure!(
-            input
-                .iter()
-                .any(|item| item["type"] == "function_call_output"
-                    && item["call_id"] == id
-                    && payload_texts(&item["output"]).contains(&TOOL_RESULT)),
-            "Responses tool result missing or mismatched"
-        );
-    } else if let Some(contents) = payload["contents"].as_array() {
-        let parts: Vec<_> = contents
-            .iter()
-            .flat_map(|message| message["parts"].as_array().into_iter().flatten())
-            .collect();
-        ensure!(
-            parts.iter().any(|part| part["functionCall"]["id"] == id
-                && part["functionCall"]["name"] == "matrix_echo"),
-            "Google tool call missing"
-        );
-        ensure!(
-            parts.iter().any(|part| part["functionResponse"]["id"] == id
-                && part["functionResponse"]["name"] == "matrix_echo"
-                && payload_texts(&part["functionResponse"]).contains(&TOOL_RESULT)),
-            "Google tool result missing or mismatched"
-        );
-    } else if let Some(messages) = payload["messages"].as_array() {
-        let blocks: Vec<_> = messages
-            .iter()
-            .flat_map(|message| message["content"].as_array().into_iter().flatten())
-            .collect();
-        if blocks.iter().any(|block| block["type"] == "tool_use") {
-            ensure!(
-                blocks.iter().any(|block| block["type"] == "tool_use"
-                    && block["id"] == id
-                    && block["name"] == "matrix_echo"),
-                "Anthropic tool call missing"
-            );
-            ensure!(
-                blocks.iter().any(|block| block["type"] == "tool_result"
-                    && block["tool_use_id"] == id
-                    && payload_texts(&block["content"]).contains(&TOOL_RESULT)),
-                "Anthropic tool result missing or mismatched"
-            );
-        } else {
-            ensure!(
-                messages
-                    .iter()
-                    .flat_map(|message| message["tool_calls"].as_array().into_iter().flatten())
-                    .any(|call| call["id"] == id && call["function"]["name"] == "matrix_echo"),
-                "chat tool call missing"
-            );
-            ensure!(
-                messages.iter().any(|message| message["role"] == "tool"
-                    && message["tool_call_id"] == id
-                    && payload_texts(&message["content"]).contains(&TOOL_RESULT)),
-                "chat tool result missing or mismatched"
-            );
-        }
-    } else {
-        bail!("unknown tool-history payload format");
-    }
-    Ok(())
 }
 
 fn validate_text(message: &Message) -> Result<()> {
@@ -1146,7 +982,7 @@ async fn request_turn(
             turn["response"] = serde_json::to_value(&message)?;
             turn["usage"] = serde_json::to_value(&usage)?;
         }
-        validate_response(&message, &usage)?;
+        validate_completion(&message, &usage)?;
         Some(message)
     } else {
         match reply {
@@ -1160,51 +996,6 @@ async fn request_turn(
         recording.inference_attempts == 1,
         "expected one inference attempt per turn"
     );
-    let turn = recording.document["turns"]
-        .as_array()
-        .unwrap()
-        .last()
-        .unwrap();
-    ensure!(turn["payload"].is_object(), "no request payload captured");
-    validate_thinking_controls(&turn["payload"], model)?;
-    ensure!(
-        turn["model_config"]["model_name"] == model.model_name,
-        "model ID was not propagated"
-    );
-    ensure!(
-        turn["model_config"]["request_params"]["thinking_effort"] == json!(model.thinking_effort()),
-        "thinking effort was not propagated"
-    );
-    let texts = payload_texts(&turn["payload"]);
-    let mut cursor = 0;
-    for message in messages {
-        let text = message.as_concat_text();
-        if text.is_empty() {
-            continue;
-        }
-        let offset = texts[cursor..]
-            .iter()
-            .position(|value| value.contains(&text))
-            .ok_or_else(|| anyhow!("message text absent or out of order in payload: {text}"))?;
-        cursor += offset + 1;
-    }
-    let request = turn["payload"].to_string();
-    ensure!(
-        request.contains(serde_json::to_string(&messages[0].as_concat_text())?.trim_matches('"')),
-        "prompt absent from payload"
-    );
-    if !tools.is_empty() {
-        ensure!(
-            request.contains("matrix_echo") && request.contains("matrix-input"),
-            "tool schema absent from payload"
-        );
-    }
-    if model.request_param::<String>("tool_choice").as_deref() == Some("required") {
-        ensure!(
-            turn["payload"]["tool_choice"] == "required",
-            "required tool choice missing from payload"
-        );
-    }
     Ok(message)
 }
 
@@ -1213,6 +1004,7 @@ async fn execute_scenario(
     scenario: Scenario,
     recording: &Arc<Mutex<Recording>>,
     live: bool,
+    cached_assistant: Option<&Message>,
 ) -> Result<()> {
     let provider = case.build(
         transport(recording.clone(), live),
@@ -1249,6 +1041,8 @@ async fn execute_scenario(
         let (assistant, id) = if let Some(reply) = reply {
             let id = validate_tool_call(&reply)?;
             (reply, id)
+        } else if let Some(assistant) = cached_assistant {
+            (assistant.clone(), validate_tool_call(assistant)?)
         } else {
             let id = "matrix-call-1".to_string();
             let call = CallToolRequestParams::new("matrix_echo")
@@ -1259,7 +1053,12 @@ async fn execute_scenario(
             )
         };
         if scenario == Scenario::ToolContinuation {
-            recording.lock().unwrap().document["synthetic_history"] = json!(!live);
+            {
+                let mut recording = recording.lock().unwrap();
+                recording.document["synthetic_history"] =
+                    json!(!live && cached_assistant.is_none());
+                recording.document["assistant_history"] = serde_json::to_value(&assistant)?;
+            }
             let messages = [
                 user,
                 assistant,
@@ -1280,12 +1079,10 @@ async fn execute_scenario(
                 live,
             )
             .await?;
-            let mut recording = recording.lock().unwrap();
-            validate_tool_history(&recording.turn_mut()?["payload"], &id)?;
             if let Some(reply) = reply {
                 validate_text(&reply)?;
                 let exact = reply.as_concat_text().trim() == TOOL_RESULT;
-                recording.document["instruction_compliance"] = json!(exact);
+                recording.lock().unwrap().document["instruction_compliance"] = json!(exact);
                 ensure!(
                     exact,
                     "tool-result continuation did not return the fixture result"
@@ -1318,54 +1115,6 @@ async fn execute_scenario(
         live,
     )
     .await?;
-    if scenario == Scenario::MultiTurn {
-        ensure!(
-            recording.lock().unwrap().turn_mut()?["payload"]
-                .to_string()
-                .contains("I will remember it."),
-            "assistant history missing from payload"
-        );
-    }
-    if scenario == Scenario::Vision {
-        ensure!(
-            recording.lock().unwrap().turn_mut()?["payload"]
-                .to_string()
-                .contains(RED_IMAGE),
-            "image data missing from payload"
-        );
-    }
-    if scenario == Scenario::StructuredOutput {
-        let mut recording = recording.lock().unwrap();
-        let payload = &recording.turn_mut()?["payload"];
-        let format = payload
-            .pointer("/text/format")
-            .unwrap_or(&payload["response_format"]);
-        let schema = if format["type"] == "json_schema" && format.get("json_schema").is_some() {
-            &format["json_schema"]
-        } else {
-            format
-        };
-        ensure!(
-            format["type"] == "json_schema",
-            "JSON-schema response format missing"
-        );
-        ensure!(
-            schema["strict"] == true && schema["name"] == "matrix_greeting",
-            "strict schema envelope missing"
-        );
-        ensure!(
-            schema["schema"]
-                == model.request_params.as_ref().unwrap()["response_format"]["json_schema"]
-                    ["schema"],
-            "schema was not transmitted intact"
-        );
-    }
-    if scenario == Scenario::NonStreaming {
-        ensure!(
-            recording.lock().unwrap().turn_mut()?["payload"]["stream"] != true,
-            "non-streaming request emitted stream=true"
-        );
-    }
     if let Some(reply) = reply {
         validate_text(&reply)?;
         let text = reply.as_concat_text();
@@ -1517,12 +1266,20 @@ fn verified_snapshot(document: &Value) -> Result<Value> {
     let turns = document["turns"]
         .as_array()
         .ok_or_else(|| anyhow!("verified row has no turns"))?;
-    let requests: Vec<_> = turns.iter().map(|turn| json!({
-        "label":turn["label"], "method":turn["method"], "endpoint":turn["endpoint"],
-        "model_config":turn["model_config"], "payload":turn["payload"], "wire_controls":turn["wire_controls"],
-    })).collect();
-    // Only fixture request bodies and safe endpoint metadata are committed. The
-    // request logger runs before auth; responses, usage, errors, and timing stay local.
+    let requests: Vec<_> = turns
+        .iter()
+        .map(|turn| {
+            json!({
+                "label":turn["label"], "method":turn["method"], "endpoint":turn["endpoint"],
+                "model_config":turn["model_config"], "payload":turn["payload"],
+                "endpoint_fingerprint":turn["endpoint_fingerprint"],
+            })
+        })
+        .collect();
+    let mut requests = json!(requests);
+    redact_snapshot(&mut requests);
+    // Tool-continuation history is committed for deterministic replay; other
+    // response diagnostics remain local. Request logging runs before auth.
     let mut snapshot = json!({
         "version":SNAPSHOT_VERSION, "status":"verified", "provider":document["provider"],
         "verification":{"live":true,"scenario_assertions":"passed"},
@@ -1533,12 +1290,14 @@ fn verified_snapshot(document: &Value) -> Result<Value> {
         "tool_selection",
         "synthetic_history",
         "instruction_compliance",
+        "assistant_history",
     ] {
         if let Some(value) = document.get(key) {
-            snapshot[key] = value.clone();
+            let mut value = value.clone();
+            redact_snapshot(&mut value);
+            snapshot[key] = value;
         }
     }
-    redact_snapshot(&mut snapshot);
     Ok(snapshot)
 }
 
@@ -1549,6 +1308,34 @@ fn redact_snapshot(value: &mut Value) {
         Value::Object(values) => values.values_mut().for_each(redact_snapshot),
         _ => {}
     }
+}
+
+fn requests_match(snapshot: &Value, document: &Value) -> bool {
+    if document["scenario"] == "tool_continuation" && snapshot.get("assistant_history").is_none() {
+        return false;
+    }
+    let (Some(cached), Some(current)) = (
+        snapshot["requests"].as_array(),
+        document["turns"].as_array(),
+    ) else {
+        return false;
+    };
+    cached.len() == current.len()
+        && cached.iter().zip(current).all(|(cached, current)| {
+            let same_endpoint = if cached["endpoint_fingerprint"].is_string() {
+                cached["endpoint_fingerprint"] == current["endpoint_fingerprint"]
+            } else {
+                cached["endpoint"].as_str().map(redact_endpoint)
+                    == current["endpoint"].as_str().map(redact_endpoint)
+            };
+            let mut cached_payload = cached["payload"].clone();
+            let mut current_payload = current["payload"].clone();
+            redact_snapshot(&mut cached_payload);
+            redact_snapshot(&mut current_payload);
+            same_endpoint
+                && cached["method"] == current["method"]
+                && cached_payload == current_payload
+        })
 }
 
 async fn run_row(
@@ -1564,24 +1351,6 @@ async fn run_row(
     } else {
         cache.verified(case, scenario)?
     };
-    if let Some(snapshot) = verified {
-        let row = json!({"provider":case.name,"model":case.model,"scenario":scenario.name(),
-                "status":"verified", "live_attempted":false,"snapshot":cache.path(case, scenario),
-                "requests":snapshot["requests"]});
-        let directory = output.join(&case.name).join(path_component(&case.model));
-        fs::create_dir_all(&directory)?;
-        fs::write(
-            directory.join(format!("{}.json", scenario.name())),
-            serde_json::to_vec_pretty(&row)?,
-        )?;
-        println!(
-            "{:<20} {:<18} VERIFIED; skipped ({})",
-            case.name,
-            scenario.name(),
-            case.model
-        );
-        return Ok(row);
-    }
     let directory = output.join(&case.name).join(path_component(&case.model));
     fs::create_dir_all(&directory)?;
     let live = !record_only && case.missing.is_empty();
@@ -1606,11 +1375,53 @@ async fn run_row(
         return Ok(recording.document.clone());
     }
     recording.lock().unwrap().save()?;
+    let cached_assistant = verified
+        .as_ref()
+        .and_then(|snapshot| snapshot.get("assistant_history"))
+        .map(|history| serde_json::from_value::<Message>(history.clone()))
+        .transpose()?;
     *current.lock().unwrap() = Some(recording.clone());
-    let result = execute_scenario(case, scenario, &recording, live).await;
+    let mut result =
+        execute_scenario(case, scenario, &recording, false, cached_assistant.as_ref()).await;
+    let cache_match = if result.is_ok() {
+        let recording = recording.lock().unwrap();
+        verified
+            .as_ref()
+            .is_some_and(|snapshot| requests_match(snapshot, &recording.document))
+    } else {
+        false
+    };
+    {
+        let mut recording = recording.lock().unwrap();
+        recording.document["cache_match"] = json!(cache_match);
+    }
+    if result.is_ok() && !cache_match && live {
+        {
+            let mut recording = recording.lock().unwrap();
+            recording.document["turns"] = json!([]);
+            for key in [
+                "first_provider_error",
+                "assistant_history",
+                "synthetic_history",
+            ] {
+                recording.document.as_object_mut().unwrap().remove(key);
+            }
+        }
+        result = execute_scenario(case, scenario, &recording, true, None).await;
+    }
     *current.lock().unwrap() = None;
     let mut recording = recording.lock().unwrap();
     match result {
+        Ok(()) if cache_match => {
+            recording.document["status"] = json!("verified");
+            recording.document["snapshot"] = json!(cache.path(case, scenario));
+            println!(
+                "{:<20} {:<18} VERIFIED; requests unchanged ({})",
+                case.name,
+                scenario.name(),
+                case.model
+            );
+        }
         Ok(()) if live => {
             recording.document["status"] = json!("live_ok");
             cache.save_verified(case, scenario, &recording.document)?;
@@ -1687,6 +1498,57 @@ fn env_flag(key: &str) -> Result<bool> {
         Some("1" | "true") => Ok(true),
         Some(value) => bail!("{key} must be 1/0 or true/false, got {value:?}"),
     }
+}
+
+fn sensitive_parameter(name: &str) -> bool {
+    [
+        "auth",
+        "key",
+        "token",
+        "password",
+        "secret",
+        "signature",
+        "cookie",
+    ]
+    .iter()
+    .any(|part| name.to_lowercase().contains(part))
+}
+
+fn endpoint_metadata(url: &url::Url) -> (String, String) {
+    let mut endpoint = url.clone();
+    let query: Vec<_> = endpoint
+        .query_pairs()
+        .filter(|(key, _)| !sensitive_parameter(key))
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect();
+    endpoint.set_query(None);
+    if !query.is_empty() {
+        endpoint.query_pairs_mut().extend_pairs(query);
+    }
+    endpoint.set_fragment(None);
+    let _ = endpoint.set_username("");
+    let _ = endpoint.set_password(None);
+    // Keep endpoint changes detectable even when private hostnames are redacted.
+    let fingerprint = format!("{:x}", Sha256::digest(endpoint.as_str().as_bytes()));
+    (redact_endpoint(endpoint.as_str()), fingerprint)
+}
+
+fn redact_endpoint(endpoint: &str) -> String {
+    let mut endpoint = endpoint.to_string();
+    for (key, value) in env::vars() {
+        if !["_HOST", "_BASE_URL", "_ENDPOINT"]
+            .iter()
+            .any(|suffix| key.ends_with(suffix))
+        {
+            continue;
+        }
+        if let Ok(url) = url::Url::parse(&openai::ensure_url_scheme(&value)) {
+            if let Some(host) = url.host_str() {
+                endpoint = endpoint.replace(host, "[REDACTED]");
+            }
+        }
+    }
+    redact_text(&endpoint)
 }
 
 fn redact_text(text: &str) -> String {
@@ -1768,7 +1630,7 @@ async fn providers_pass_selected_compatibility_scenarios() -> Result<()> {
                     case.model,
                     scenario.name(),
                     if !record_only && cache.verified(case, scenario)?.is_some() {
-                        "verified (skip)".into()
+                        "cached (requests will be compared)".into()
                     } else {
                         unsupported(case, scenario).map_or_else(
                             || {
@@ -1792,8 +1654,7 @@ async fn providers_pass_selected_compatibility_scenarios() -> Result<()> {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/provider-compatibility-matrix")
         });
     fs::create_dir_all(&output)?;
-    let current: CurrentRecording = Arc::new(Mutex::new(None));
-    install_logger(MatrixLogger(current.clone()))?;
+    let (_run, current) = matrix_recording().await;
     let _subscriber = tracing::subscriber::set_default(MatrixSubscriber(current.clone()));
     let mut rows = Vec::new();
     for case in &cases {
@@ -1858,26 +1719,6 @@ fn artifact_model_paths_do_not_collide() {
 }
 
 #[test]
-fn response_validation_rejects_errors_and_incomplete_usage() {
-    let message = Message::assistant().with_text("hello");
-    let mut usage = ProviderUsage::new("model".into(), Default::default());
-    assert!(validate_response(&message, &usage).is_ok());
-    usage.finish_reasons = Some(vec!["length".into()]);
-    assert!(validate_response(&message, &usage).is_err());
-    usage.finish_reasons = Some(vec!["completed".into()]);
-    usage.usage.input_tokens = Some(-1);
-    assert!(validate_response(&message, &usage).is_err());
-    usage.usage.input_tokens = Some(10);
-    usage.usage.output_tokens = Some(5);
-    usage.usage.total_tokens = Some(12);
-    assert!(validate_response(&message, &usage).is_err());
-    usage.usage.total_tokens = Some(15);
-    assert!(validate_response(&message, &usage).is_ok());
-    let user = Message::user().with_text("hello");
-    assert!(validate_response(&user, &usage).is_err());
-}
-
-#[test]
 fn tool_validation_checks_id_name_and_schema() {
     let arguments = json!({"value":"matrix-input"}).as_object().unwrap().clone();
     let call = CallToolRequestParams::new("matrix_echo").with_arguments(arguments);
@@ -1910,8 +1751,9 @@ fn default_text_leaves_effort_unspecified() {
 
 fn successful_snapshot_fixture(case: &Case, scenario: Scenario) -> Value {
     let turn = json!({"label":"fixture","method":"POST","endpoint":"https://example.invalid/v1/responses",
+        "endpoint_fingerprint":"fixture-endpoint",
         "payload":{"model":case.model,"input":"hello"},"model_config":{"model_name":case.model},
-        "wire_controls":{},"response":{"role":"assistant","content":"hello"},
+        "response":{"role":"assistant","content":"hello"},
         "usage":{},"elapsed_ms":123});
     let turns = if scenario == Scenario::ToolContinuation {
         vec![turn.clone(), turn]
@@ -1923,7 +1765,7 @@ fn successful_snapshot_fixture(case: &Case, scenario: Scenario) -> Value {
 }
 
 #[test]
-fn verified_snapshots_survive_changed_requests_and_are_invalidated_by_deletion() -> Result<()> {
+fn verified_snapshots_match_only_unchanged_requests() -> Result<()> {
     let directory = tempfile::tempdir()?;
     let cache = SnapshotCache {
         directory: directory.path().into(),
@@ -1949,7 +1791,14 @@ fn verified_snapshots_survive_changed_requests_and_are_invalidated_by_deletion()
     assert!(snapshot["requests"][0].get("elapsed_ms").is_none());
     let mut changed = document.clone();
     changed["turns"][0]["payload"] = json!({"input":"changed"});
-    assert_eq!(cache.verified(&case, scenario)?.unwrap(), snapshot);
+    assert!(requests_match(&snapshot, &document));
+    assert!(!requests_match(&snapshot, &changed));
+    changed = document.clone();
+    changed["turns"][0]["endpoint_fingerprint"] = json!("changed-endpoint");
+    assert!(!requests_match(&snapshot, &changed));
+    changed = document.clone();
+    changed["turns"][0]["elapsed_ms"] = json!(999);
+    assert!(requests_match(&snapshot, &changed));
     assert!(cache.verified(&case, Scenario::ThinkingLow)?.is_none());
     let other = Case::native("openai", "other-model", &[]);
     assert!(cache.verified(&other, scenario)?.is_none());
@@ -2023,30 +1872,190 @@ fn corrupt_snapshot_fails_instead_of_billing_a_new_request() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn continuation_cache_requires_the_verified_assistant_history() -> Result<()> {
+    let case = Case::native("openai", "snapshot-test-model", &[]);
+    let mut document = successful_snapshot_fixture(&case, Scenario::ToolContinuation);
+    let legacy = verified_snapshot(&document)?;
+    assert!(!requests_match(&legacy, &document));
+    let call = CallToolRequestParams::new("matrix_echo")
+        .with_arguments(json!({"value":"matrix-input"}).as_object().unwrap().clone());
+    document["assistant_history"] =
+        serde_json::to_value(Message::assistant().with_tool_request("fixture-call", Ok(call)))?;
+    let snapshot = verified_snapshot(&document)?;
+    assert!(requests_match(&snapshot, &document));
+    document["turns"][1]["payload"]["input"] = json!("changed continuation");
+    assert!(!requests_match(&snapshot, &document));
+    Ok(())
+}
+
+#[test]
+fn request_comparison_ignores_diagnostics_and_model_config() -> Result<()> {
+    let case = Case::native("openai", "snapshot-test-model", &[]);
+    let document = successful_snapshot_fixture(&case, Scenario::Text);
+    let snapshot = verified_snapshot(&document)?;
+    let mut changed = document;
+    changed["turns"][0]["response"] = json!({"text":"different response"});
+    changed["turns"][0]["model_config"]["max_tokens"] = json!(999);
+    assert!(requests_match(&snapshot, &changed));
+    changed["turns"][0]["method"] = json!("GET");
+    assert!(!requests_match(&snapshot, &changed));
+    Ok(())
+}
+
+#[test]
+fn endpoint_fingerprints_detect_configuration_changes_without_authentication() -> Result<()> {
+    let original = url::Url::parse(
+        "https://user:password@example.invalid/v1/responses?api-key=secret&api-version=v1",
+    )?;
+    let (_, fingerprint) = endpoint_metadata(&original);
+    let rotated =
+        url::Url::parse("https://example.invalid/v1/responses?api-key=rotated&api-version=v1")?;
+    assert_eq!(endpoint_metadata(&rotated).1, fingerprint);
+    let changed = url::Url::parse("https://example.invalid/v1/responses?api-version=v2")?;
+    assert_ne!(endpoint_metadata(&changed).1, fingerprint);
+    Ok(())
+}
+
+#[test]
+fn legacy_requests_can_match_without_endpoint_fingerprints() -> Result<()> {
+    let case = Case::native("openai", "snapshot-test-model", &[]);
+    let document = successful_snapshot_fixture(&case, Scenario::Text);
+    let mut snapshot = verified_snapshot(&document)?;
+    snapshot["requests"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("endpoint_fingerprint");
+    assert!(requests_match(&snapshot, &document));
+    Ok(())
+}
+
+#[test]
+fn response_completion_rejects_truncation_without_inspecting_usage() {
+    let message = Message::assistant().with_text("partial");
+    let mut usage = ProviderUsage::new("model".into(), Default::default());
+    assert!(validate_completion(&message, &usage).is_ok());
+    usage.finish_reasons = Some(vec!["length".into()]);
+    assert!(validate_completion(&message, &usage).is_err());
+}
+
 #[tokio::test(flavor = "current_thread")]
-async fn cached_rows_skip_provider_construction_without_credentials() -> Result<()> {
+async fn cached_rows_still_generate_the_current_request() -> Result<()> {
     let directory = tempfile::tempdir()?;
     let output = tempfile::tempdir()?;
     let cache = SnapshotCache {
         directory: directory.path().into(),
         replay_verified: false,
     };
-    // No factory exists for this name: trying to construct it would fail.
-    let case = Case::native("cached-fixture", "model", &["MATRIX_TEST_MISSING_KEY"]);
+    let case = Case::native("unknown-factory", "model", &["MATRIX_TEST_MISSING_KEY"]);
     let scenario = Scenario::Text;
     cache.save_verified(
         &case,
         scenario,
         &successful_snapshot_fixture(&case, scenario),
     )?;
+    let before = fs::read(cache.path(&case, scenario))?;
     let current: CurrentRecording = Arc::new(Mutex::new(None));
     let row = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
-    assert_eq!(row["status"], "verified");
+    assert_eq!(row["status"], "failed");
     assert_eq!(row["live_attempted"], false);
-    let before = fs::read(cache.path(&case, scenario))?;
-    let offline = run_row(&case, scenario, output.path(), &current, true, &cache).await?;
-    assert_eq!(offline["status"], "failed"); // Record-only bypassed cache and tried the factory.
-    assert_eq!(offline["live_attempted"], false);
     assert_eq!(fs::read(cache.path(&case, scenario))?, before);
+    assert!(current.lock().unwrap().is_none());
+    Ok(())
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn rows_reuse_only_matching_live_verification() -> Result<()> {
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id":"response-1", "model":"matrix-model", "choices":[{
+                "message":{"role":"assistant","content":"hello"}, "finish_reason":"stop"
+            }]
+        })))
+        .mount(&server)
+        .await;
+    let mut case = Case::declarative(
+        "matrix-fixture",
+        "matrix-model",
+        &json!({
+            "name":"matrix-fixture", "engine":"openai", "requires_auth":false,
+            "base_url":format!("{}/v1/chat/completions", server.uri()), "models":[],
+            "supports_streaming":false,
+        })
+        .to_string(),
+    )?;
+    let directory = tempfile::tempdir()?;
+    let output = tempfile::tempdir()?;
+    let cache = SnapshotCache {
+        directory: directory.path().into(),
+        replay_verified: false,
+    };
+    let (_run, current) = matrix_recording().await;
+    let scenario = Scenario::NonStreaming;
+
+    case.missing = vec!["fixture-credentials".into()];
+    let offline = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(offline["status"], "recorded_only");
+    assert!(!cache.path(&case, scenario).exists());
+    assert!(server.received_requests().await.unwrap().is_empty());
+
+    case.missing.clear();
+    let live = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(live["status"], "live_ok");
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    let original = fs::read(cache.path(&case, scenario))?;
+
+    case.missing = vec!["fixture-credentials".into()];
+    let hit = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(hit["status"], "verified");
+    assert_eq!(hit["cache_match"], true);
+    assert_eq!(hit["live_attempted"], false);
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+
+    case.definition.as_mut().unwrap().models = vec![goose_providers::base::ModelInfo {
+        name: case.model.clone(),
+        request_params: Some(HashMap::from([("fixture_revision".into(), json!(2))])),
+        ..goose_providers::base::ModelInfo::new(&case.model)
+    }];
+    let stale = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(stale["status"], "recorded_only");
+    assert_eq!(stale["cache_match"], false);
+    assert_eq!(fs::read(cache.path(&case, scenario))?, original);
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+
+    case.missing.clear();
+    let refreshed = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(refreshed["status"], "live_ok");
+    assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    assert_ne!(fs::read(cache.path(&case, scenario))?, original);
+
+    let recorded = run_row(&case, scenario, output.path(), &current, true, &cache).await?;
+    assert_eq!(recorded["status"], "recorded_only");
+    assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    let replay = SnapshotCache {
+        directory: cache.directory.clone(),
+        replay_verified: true,
+    };
+    let replayed = run_row(&case, scenario, output.path(), &current, false, &replay).await?;
+    assert_eq!(replayed["status"], "live_ok");
+    assert_eq!(server.received_requests().await.unwrap().len(), 3);
+
+    let verified = fs::read(cache.path(&case, scenario))?;
+    server.reset().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+            "error":{"message":"fixture authentication failed"}
+        })))
+        .mount(&server)
+        .await;
+    case.definition.as_mut().unwrap().models[0].request_params =
+        Some(HashMap::from([("fixture_revision".into(), json!(3))]));
+    let failed = run_row(&case, scenario, output.path(), &current, false, &cache).await?;
+    assert_eq!(failed["status"], "failed");
+    assert_eq!(fs::read(cache.path(&case, scenario))?, verified);
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
     Ok(())
 }

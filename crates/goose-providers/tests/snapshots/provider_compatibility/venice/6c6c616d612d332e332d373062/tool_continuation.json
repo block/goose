@@ -63,9 +63,6 @@
             "type": "function"
           }
         ]
-      },
-      "wire_controls": {
-        "tool_choice": "required"
       }
     },
     {
@@ -142,8 +139,7 @@
             "type": "function"
           }
         ]
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "tool_continuation",

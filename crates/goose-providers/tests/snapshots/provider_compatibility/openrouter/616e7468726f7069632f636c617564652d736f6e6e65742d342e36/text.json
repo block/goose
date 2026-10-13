@@ -53,8 +53,7 @@
         "usage": {
           "include": true
         }
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "text",

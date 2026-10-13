@@ -59,11 +59,6 @@
         "usage": {
           "include": true
         }
-      },
-      "wire_controls": {
-        "reasoning": {
-          "effort": "medium"
-        }
       }
     }
   ],

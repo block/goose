@@ -38,9 +38,6 @@
         "stream_options": {
           "include_usage": true
         }
-      },
-      "wire_controls": {
-        "reasoning_effort": "low"
       }
     }
   ],

@@ -90,30 +90,6 @@
             "type": "json_schema"
           }
         }
-      },
-      "wire_controls": {
-        "text": {
-          "format": {
-            "name": "matrix_greeting",
-            "schema": {
-              "additionalProperties": false,
-              "properties": {
-                "greeting": {
-                  "enum": [
-                    "hello"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "greeting"
-              ],
-              "type": "object"
-            },
-            "strict": true,
-            "type": "json_schema"
-          }
-        }
       }
     }
   ],

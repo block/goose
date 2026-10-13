@@ -44,8 +44,7 @@
         "model": "gpt-6-luna",
         "store": false,
         "stream": false
-      },
-      "wire_controls": {}
+      }
     }
   ],
   "scenario": "non_streaming",

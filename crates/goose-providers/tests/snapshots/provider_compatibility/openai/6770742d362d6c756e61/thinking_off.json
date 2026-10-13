@@ -51,12 +51,6 @@
         },
         "store": false,
         "stream": true
-      },
-      "wire_controls": {
-        "reasoning": {
-          "effort": "none",
-          "summary": "auto"
-        }
       }
     }
   ],
