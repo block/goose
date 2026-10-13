@@ -128,7 +128,7 @@ mod tests {
             }
         }
 
-        async fn add_scheduler_extension(agent: &StateMachineServices) -> String {
+        async fn add_scheduler_extension(agent: &Arc<StateMachineServices>) -> String {
             let session = agent
                 .config
                 .session_manager
@@ -890,7 +890,7 @@ mod tests {
         use goose::session::SessionManager;
 
         async fn setup_agent_with_extension_manager(
-        ) -> (StateMachineServices, String, tempfile::TempDir) {
+        ) -> (Arc<StateMachineServices>, String, tempfile::TempDir) {
             use goose::session::session_manager::SessionType;
 
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
@@ -1703,7 +1703,7 @@ mod tests {
 
         fn create_agent_with_session_naming_disabled(
             session_manager: Arc<SessionManager>,
-        ) -> StateMachineServices {
+        ) -> Arc<StateMachineServices> {
             let config = StateMachineServicesConfig::new(
                 session_manager,
                 PermissionManager::instance(),
@@ -2061,7 +2061,7 @@ mod tests {
         }
 
         async fn run_turn(
-            agent: &StateMachineServices,
+            agent: &Arc<StateMachineServices>,
             session_id: &str,
             text: &str,
         ) -> Result<()> {

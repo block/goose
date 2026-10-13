@@ -654,7 +654,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let agent: StateMachineServices = StateMachineServices::new();
+    let agent = StateMachineServices::new();
 
     let session_manager = agent.config.session_manager.clone();
 
@@ -856,7 +856,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Extensions are loaded after session creation because we may change
     // directory when resuming.
-    let agent_ptr = Arc::new(agent);
+    let agent_ptr = agent;
     let loading_handle = AbortOnDropHandle::new(tokio::spawn({
         let agent = agent_ptr.clone();
         let sid = session_id.clone();

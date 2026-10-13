@@ -106,7 +106,7 @@ struct ProviderFixture {
     context_length_exceeded: usize,
     provider: Arc<dyn Provider>,
     model_config: goose_providers::model::ModelConfig,
-    agent: StateMachineServices,
+    agent: Arc<StateMachineServices>,
     session_id: String,
     _mcp: McpFixture,
     _guard: env_lock::EnvGuard<'static>,

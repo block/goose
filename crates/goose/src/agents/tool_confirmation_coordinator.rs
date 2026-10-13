@@ -199,6 +199,14 @@ impl ToolConfirmationCoordinator {
             .is_some_and(|state| state.turn_lock.try_lock().is_err())
     }
 
+    #[cfg(test)]
+    pub(super) fn tracks(&self, session_id: &str) -> bool {
+        self.sessions
+            .lock()
+            .expect("tool confirmation coordinator unavailable")
+            .contains_key(session_id)
+    }
+
     pub(super) fn release(&self, session_id: &str) {
         self.sessions
             .lock()

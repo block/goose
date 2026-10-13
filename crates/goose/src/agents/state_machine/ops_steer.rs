@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 
 use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
-    Operation, OperationResult,
+    applied, awaits_tool_responses, ends_turn, last_effective_role, messages_since_kickoff,
+    not_applicable, Emitter, Operation, OperationResult,
 };
 use crate::conversation::message::Message;
 use crate::conversation::{Conversation, EffectiveRole};
@@ -48,7 +48,7 @@ impl Operation<Session, GooseEffect> for SteerOperation {
         "steer"
     }
 
-    async fn cancel(
+    async fn finalize_cancellation(
         &self,
         _session: &Session,
         _conversation: &Conversation,
@@ -66,7 +66,7 @@ impl Operation<Session, GooseEffect> for SteerOperation {
         let messages = messages_since_kickoff(conversation)?;
         let between_turns =
             ends_turn(messages) || last_effective_role(messages)? == EffectiveRole::Tool;
-        if !between_turns {
+        if !between_turns || awaits_tool_responses(messages) {
             return not_applicable();
         }
 
@@ -83,7 +83,7 @@ impl Operation<Session, GooseEffect> for SteerOperation {
 
         let mut drained = Vec::with_capacity(pending.len());
         for message in pending {
-            drained.push(emit.message(message).await);
+            drained.push(emit.message(message));
         }
         *self.drained.lock().unwrap() = drained.clone();
         for message in drained {

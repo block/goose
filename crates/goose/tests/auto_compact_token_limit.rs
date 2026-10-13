@@ -120,7 +120,7 @@ async fn effective_trigger_and_agent_execution_follow_the_current_model() -> Res
 }
 
 async fn verify_reply(
-    agent: &StateMachineServices,
+    agent: &Arc<StateMachineServices>,
     session_id: &str,
     context: usize,
     tokens: i32,

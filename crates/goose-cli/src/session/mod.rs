@@ -3295,7 +3295,7 @@ mod tests {
             .unwrap();
 
         CliSession::new(
-            Arc::new(agent),
+            agent,
             session.id,
             false,
             None,

@@ -18,14 +18,14 @@ use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
     persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
-    DoctorOperation, Emitter, EmptyResponseOperation, ExitOnErrorOperation,
-    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
+    DoctorOperation, Emitter, EmptyResponseOperation, ExitOnErrorOperation, GooseEffect,
+    GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
+    SlashCommandOperation, StateMachine, StatusOperation, SteerOperation, SteerQueue, Step,
+    StopHookOperation, SubagentOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation,
 };
-use crate::agents::subagent_handler::ForegroundSubagentRunner;
+use crate::agents::subagent_handler::SubagentRunner;
 use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
@@ -104,7 +104,6 @@ pub struct StateMachineServicesConfig {
     pub goose_platform: GoosePlatform,
     pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
     pub mcp_protocol_version: Option<rmcp::model::ProtocolVersion>,
-    pub is_subagent: bool,
     pub providers: Arc<ProviderManager>,
     /// Sessions kept loaded before the least recently used idle one is released.
     pub max_sessions: usize,
@@ -126,7 +125,6 @@ impl StateMachineServicesConfig {
             goose_platform,
             elicitation_handler: None,
             mcp_protocol_version: None,
-            is_subagent: false,
             providers: Arc::default(),
             max_sessions: DEFAULT_MAX_SESSIONS,
         }
@@ -171,14 +169,8 @@ fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
 }
 
-impl Default for StateMachineServices {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl StateMachineServices {
-    pub fn new() -> Self {
+    pub fn new() -> Arc<Self> {
         let config = Config::global();
         Self::with_config(StateMachineServicesConfig::new(
             Arc::new(SessionManager::instance()),
@@ -204,13 +196,13 @@ impl StateMachineServices {
                 services_config.max_sessions = config
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSIONS);
-                Arc::new(Self::with_config(services_config))
+                Self::with_config(services_config)
             })
             .await
             .clone()
     }
 
-    pub fn with_config(config: StateMachineServicesConfig) -> Self {
+    pub fn with_config(config: StateMachineServicesConfig) -> Arc<Self> {
         let providers = config.providers.clone();
 
         let mut default_client = ClientContext::new(&config.goose_platform, None);
@@ -220,8 +212,7 @@ impl StateMachineServices {
         let scheduler = config.scheduler_service.clone();
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let is_subagent = config.is_subagent;
-        Self {
+        Arc::new(Self {
             config,
             loaded_sessions: Mutex::new(lru::LruCache::unbounded()),
             extension_manager: Arc::new(ExtensionManager::new(
@@ -236,23 +227,22 @@ impl StateMachineServices {
                 providers,
                 inspection_session_manager,
             ),
-            hook_manager: if is_subagent {
-                crate::hooks::HookManager::default()
-            } else {
-                crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref())
-            },
+            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             steer_queues: Mutex::new(HashMap::new()),
             session_name_updates: StdMutex::new(HashMap::new()),
-        }
+        })
     }
 
     /// Emit a lifecycle hook event with no extra context. Useful for events
     /// that have no matcher (e.g. `SessionStart`, `SessionEnd`).
     #[cfg(test)]
-    pub(crate) fn set_hook_manager_for_test(&mut self, hook_manager: crate::hooks::HookManager) {
-        self.hook_manager = hook_manager;
+    pub(crate) fn set_hook_manager_for_test(
+        self: &mut Arc<Self>,
+        hook_manager: crate::hooks::HookManager,
+    ) {
+        Arc::get_mut(self).expect("agent is shared").hook_manager = hook_manager;
     }
 
     #[cfg(test)]
@@ -263,8 +253,10 @@ impl StateMachineServices {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_stop_hook_block_cap_for_test(&mut self, cap: u32) {
-        self.stop_hook_block_cap_override = Some(cap);
+    pub(crate) fn set_stop_hook_block_cap_for_test(self: &mut Arc<Self>, cap: u32) {
+        Arc::get_mut(self)
+            .expect("agent is shared")
+            .stop_hook_block_cap_override = Some(cap);
     }
 
     pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
@@ -358,12 +350,21 @@ impl StateMachineServices {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn tracks_confirmations_for(&self, session_id: &str) -> bool {
+        self.tool_confirmation_coordinator.tracks(session_id)
+    }
+
     /// Stops the session's extensions and drops its provider and pending state. A turn
     /// still running keeps what it already leased.
     pub async fn release_session(&self, session_id: &str) {
         self.loaded_sessions.lock().await.pop(session_id);
         self.discard_pending_steers(session_id).await;
         self.tool_confirmation_coordinator.release(session_id);
+        self.config
+            .session_manager
+            .action_required()
+            .forget_forwarded_from(session_id);
         self.session_name_updates
             .lock()
             .expect("session name subscribers unavailable")
@@ -485,6 +486,12 @@ impl StateMachineServices {
             .get_session(session_id, false)
             .await?;
 
+        let (session_id, request_id) = self
+            .config
+            .session_manager
+            .action_required()
+            .answered_request(session_id, request_id)?;
+        let (session_id, request_id) = (session_id.as_str(), request_id.as_str());
         let state = self.tool_confirmation_coordinator.session(session_id);
         let _confirmation_submission_guard = state.confirmation_submission_lock.lock().await;
         let state_machine_permission = if permission == Permission::Cancel {
@@ -562,7 +569,7 @@ impl StateMachineServices {
     }
 
     pub(super) async fn create_state_machine(
-        &self,
+        self: &Arc<Self>,
         provider: Arc<dyn Provider>,
         model_config: goose_providers::model::ModelConfig,
         context_limit: usize,
@@ -634,8 +641,8 @@ impl StateMachineServices {
             // Before RecipeOperation: a `delegate` response only means the subagent
             // started, so a final output from the same batch must not be shown until
             // the subagents have run.
-            Arc::new(ForegroundSubagentOperation::new(
-                ForegroundSubagentRunner::new(self.config.session_manager.clone()),
+            Arc::new(SubagentOperation::new(
+                SubagentRunner::new(Arc::clone(self)),
                 cancel.clone(),
             )),
             Arc::new(RecipeOperation::new(
@@ -688,7 +695,7 @@ impl StateMachineServices {
     }
 
     pub(crate) async fn reply_with_state_machine(
-        &self,
+        self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
@@ -706,7 +713,7 @@ impl StateMachineServices {
     }
 
     async fn reply_with_state_machine_inner(
-        &self,
+        self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
@@ -841,7 +848,7 @@ impl StateMachineServices {
         Ok(Some(stream))
     }
 
-    fn tool_confirmation_request_ids(event: &AgentEvent) -> Vec<String> {
+    fn tool_confirmation_request_ids(&self, event: &AgentEvent) -> Vec<String> {
         let AgentEvent::Message(message) = event else {
             return Vec::new();
         };
@@ -856,13 +863,18 @@ impl StateMachineServices {
                 let ActionRequiredData::ToolConfirmation { id, .. } = &action.data else {
                     return None;
                 };
-                Some(id.clone())
+                let forwarded = self
+                    .config
+                    .session_manager
+                    .action_required()
+                    .is_forwarded(id);
+                (!forwarded).then(|| id.clone())
             })
             .collect()
     }
 
     fn stream_state_machine_turn<'a>(
-        &'a self,
+        self: &'a Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
         turn_guard: ActiveTurnGuard,
@@ -875,7 +887,7 @@ impl StateMachineServices {
                     let mut has_confirmations = false;
                     while let Some(event) = active_stream.next().await {
                         let event = event?;
-                        for request_id in Self::tool_confirmation_request_ids(&event) {
+                        for request_id in self.tool_confirmation_request_ids(&event) {
                             turn_guard.state().register_request(request_id);
                             has_confirmations = true;
                         }
@@ -907,8 +919,31 @@ impl StateMachineServices {
         })
     }
 
+    pub(super) async fn stream_subagent_turn(
+        self: &Arc<Self>,
+        session_config: SessionConfig,
+        cancel: CancellationToken,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let turn_guard = self
+            .tool_confirmation_coordinator
+            .session(&session_config.id)
+            .try_start_turn()?;
+        turn_guard.state().start_new_turn();
+        let initial_stream = self
+            .stream_state_machine_session(session_config.clone(), cancel.clone())
+            .await?;
+        Ok(
+            self.stream_state_machine_turn(
+                session_config,
+                cancel,
+                turn_guard,
+                Some(initial_stream),
+            ),
+        )
+    }
+
     pub(super) async fn stream_state_machine_session(
-        &self,
+        self: &Arc<Self>,
         session_config: SessionConfig,
         cancel: CancellationToken,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
@@ -969,7 +1004,7 @@ impl StateMachineServices {
     }
 
     pub(crate) async fn reply_live_delegation(
-        &self,
+        self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: CancellationToken,
@@ -999,7 +1034,7 @@ impl StateMachineServices {
         )
     )]
     pub async fn reply(
-        &self,
+        self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
@@ -1023,7 +1058,7 @@ impl StateMachineServices {
     }
 
     async fn reply_impl(
-        &self,
+        self: &Arc<Self>,
         user_message: Message,
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
@@ -1326,7 +1361,7 @@ mod tests {
         use crate::config::GooseMode;
         use crate::session::{EnabledExtensionsState, ExtensionState, SessionManager, SessionType};
 
-        fn test_services(temp_dir: &TempDir, max_sessions: usize) -> StateMachineServices {
+        fn test_services(temp_dir: &TempDir, max_sessions: usize) -> Arc<StateMachineServices> {
             let mut config = StateMachineServicesConfig::new(
                 Arc::new(SessionManager::new(temp_dir.path().to_path_buf())),
                 PermissionManager::instance(),
@@ -1411,7 +1446,7 @@ mod tests {
         #[tokio::test]
         async fn concurrent_first_requests_start_extensions_once() {
             let temp_dir = TempDir::new().unwrap();
-            let services = Arc::new(test_services(&temp_dir, 100));
+            let services = test_services(&temp_dir, 100);
             let session_id = session_with_fixture(
                 &services,
                 &temp_dir,
@@ -1563,7 +1598,7 @@ mod tests {
     }
 
     async fn session_context_agent() -> (
-        StateMachineServices,
+        Arc<StateMachineServices>,
         Arc<SessionContextProvider>,
         SessionConfig,
         TempDir,
@@ -1683,7 +1718,7 @@ mod tests {
         );
     }
 
-    async fn tracing_test_agent_and_session() -> (StateMachineServices, Session, TempDir) {
+    async fn tracing_test_agent_and_session() -> (Arc<StateMachineServices>, Session, TempDir) {
         let data_dir = TempDir::new().unwrap();
         let data_path = data_dir.path().to_path_buf();
         let session_manager = Arc::new(SessionManager::new(data_path.clone()));
@@ -1893,7 +1928,12 @@ mod tests {
 
     async fn effort_test_agent(
         outcome: EffortOutcome,
-    ) -> (StateMachineServices, String, Arc<EffortProvider>, TempDir) {
+    ) -> (
+        Arc<StateMachineServices>,
+        String,
+        Arc<EffortProvider>,
+        TempDir,
+    ) {
         let (agent, session, data_dir) = tracing_test_agent_and_session().await;
         let provider = Arc::new(EffortProvider::new(outcome));
         agent
@@ -1908,7 +1948,7 @@ mod tests {
     }
 
     async fn persisted_thinking_effort(
-        agent: &StateMachineServices,
+        agent: &Arc<StateMachineServices>,
         session_id: &str,
     ) -> Option<String> {
         agent
@@ -2463,7 +2503,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         data_dir: PathBuf,
         hook_manager: crate::hooks::HookManager,
         provider: Arc<dyn crate::providers::base::Provider>,
-    ) -> Result<(StateMachineServices, String)> {
+    ) -> Result<(Arc<StateMachineServices>, String)> {
         let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
         let permission_manager = Arc::new(PermissionManager::new(data_dir));
         let config = StateMachineServicesConfig::new(
@@ -2496,7 +2536,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn create_stop_hook_test_agent(
         env: &StopHookTestEnv,
         stop_hook_block_cap: u32,
-    ) -> Result<(StateMachineServices, String, Arc<CountingTextProvider>)> {
+    ) -> Result<(Arc<StateMachineServices>, String, Arc<CountingTextProvider>)> {
         let provider = Arc::new(CountingTextProvider::new());
         let (mut agent, session_id) =
             create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
@@ -2505,7 +2545,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     async fn run_stop_hook_test_turn(
-        agent: &StateMachineServices,
+        agent: &Arc<StateMachineServices>,
         session_id: &str,
         text: &str,
     ) -> Result<Vec<Message>> {
