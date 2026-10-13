@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "问 goose 任何问题…"
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "与 Goose 进行实时语音对话"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "实时语音"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose 正在压缩对话…"
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "URL 无效"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "移动画中画窗口（使用方向键）"
+    "defaultMessage": "移动画中画窗口"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "画中画"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "正在以画中画播放"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "调整画中画窗口大小"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{找到 # 项} other{找到 # 项}}"
@@ -2350,6 +2383,9 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
+  },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "正在加载聊天…"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "创建时间"
@@ -3159,7 +3195,7 @@
     "defaultMessage": "暂无已保存的配方"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "从聊天中保存的配方会显示在这里。"
+    "defaultMessage": "已保存的配方会显示在这里。"
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "在新窗口中打开"
@@ -3684,82 +3720,82 @@
     "defaultMessage": "连接到 WARP 时，命令注入检测效果最佳（访问分类服务需要 WARP）。"
   },
   "sessionActionsHeader.actionsLabel": {
-    "defaultMessage": "Session actions"
+    "defaultMessage": "会话操作"
   },
   "sessionActionsHeader.cancel": {
-    "defaultMessage": "Cancel"
+    "defaultMessage": "取消"
   },
   "sessionActionsHeader.close": {
-    "defaultMessage": "Close"
+    "defaultMessage": "关闭"
   },
   "sessionActionsHeader.copiedJson": {
-    "defaultMessage": "Session JSON copied"
+    "defaultMessage": "已复制会话 JSON"
   },
   "sessionActionsHeader.copiedModelInteractions": {
-    "defaultMessage": "Recent model interactions copied"
+    "defaultMessage": "已复制最近的模型交互"
   },
   "sessionActionsHeader.copiedText": {
-    "defaultMessage": "Text copied"
+    "defaultMessage": "已复制文本"
   },
   "sessionActionsHeader.copyJson": {
-    "defaultMessage": "Copy JSON"
+    "defaultMessage": "复制 JSON"
   },
   "sessionActionsHeader.copyText": {
-    "defaultMessage": "Copy text"
+    "defaultMessage": "复制文本"
   },
   "sessionActionsHeader.duplicateFailed": {
-    "defaultMessage": "Failed to duplicate session: {error}"
+    "defaultMessage": "复制会话失败：{error}"
   },
   "sessionActionsHeader.duplicateSession": {
-    "defaultMessage": "Duplicate session"
+    "defaultMessage": "复制会话"
   },
   "sessionActionsHeader.duplicated": {
-    "defaultMessage": "Session duplicated"
+    "defaultMessage": "会话已复制"
   },
   "sessionActionsHeader.fullTextTitle": {
-    "defaultMessage": "Text value"
+    "defaultMessage": "文本值"
   },
   "sessionActionsHeader.jsonFailed": {
-    "defaultMessage": "Failed to load session JSON: {error}"
+    "defaultMessage": "加载会话 JSON 失败：{error}"
   },
   "sessionActionsHeader.jsonTitle": {
-    "defaultMessage": "Session JSON"
+    "defaultMessage": "会话 JSON"
   },
   "sessionActionsHeader.loadingJson": {
-    "defaultMessage": "Loading JSON..."
+    "defaultMessage": "正在加载 JSON..."
   },
   "sessionActionsHeader.modelInteractionsFailed": {
-    "defaultMessage": "Failed to load model interactions: {error}"
+    "defaultMessage": "加载模型交互失败：{error}"
   },
   "sessionActionsHeader.modelInteractionsTitle": {
-    "defaultMessage": "Recent model interactions"
+    "defaultMessage": "最近的模型交互"
   },
   "sessionActionsHeader.renameFailed": {
-    "defaultMessage": "Failed to rename session: {error}"
+    "defaultMessage": "重命名会话失败：{error}"
   },
   "sessionActionsHeader.renamePlaceholder": {
-    "defaultMessage": "Enter session name"
+    "defaultMessage": "输入会话名称"
   },
   "sessionActionsHeader.renameSession": {
-    "defaultMessage": "Rename session"
+    "defaultMessage": "重命名会话"
   },
   "sessionActionsHeader.renameTitle": {
-    "defaultMessage": "Rename Session"
+    "defaultMessage": "重命名会话"
   },
   "sessionActionsHeader.renamed": {
-    "defaultMessage": "Session renamed"
+    "defaultMessage": "会话已重命名"
   },
   "sessionActionsHeader.save": {
-    "defaultMessage": "Save"
+    "defaultMessage": "保存"
   },
   "sessionActionsHeader.saving": {
-    "defaultMessage": "Saving..."
+    "defaultMessage": "正在保存..."
   },
   "sessionActionsHeader.viewJson": {
-    "defaultMessage": "View session JSON"
+    "defaultMessage": "查看会话 JSON"
   },
   "sessionActionsHeader.viewModelInteractions": {
-    "defaultMessage": "View recent model interactions"
+    "defaultMessage": "查看最近的模型交互"
   },
   "sessionIndicators.error": {
     "defaultMessage": "会话发生错误"
@@ -3793,9 +3829,6 @@
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
-  },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "分享加密的 Nostr 链接"
   },
   "sessions.cancel": {
     "defaultMessage": "取消"
@@ -3836,21 +3869,6 @@
   "sessions.import": {
     "defaultMessage": "导入会话"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "导入链接"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "粘贴 Goose Nostr 分享链接以获取、解密并导入会话。"
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "导入 Nostr 会话"
-  },
-  "sessions.importing": {
-    "defaultMessage": "正在导入..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "包含 ACP 会话"
   },
@@ -3878,12 +3896,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "搜索历史…"
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "任何拥有此链接的人都可以获取并解密该会话。请像对待密钥一样保护它。"
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "加密的 Nostr 分享链接"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "已复制到剪贴板"
   },
@@ -3910,12 +3922,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "会话导入成功"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "已创建加密的 Nostr 分享链接"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "创建 Nostr 分享链接失败：{error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "更新会话描述失败：{error}"
@@ -4669,5 +4675,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "访问"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "自动"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "阻止上限"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "在上下文窗口填满前汇总对话历史。"
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "上下文压缩"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "截断值"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "启用{operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "失败超时"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "可配置操作"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "停止自主工作，并在继续前询问用户。"
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "最大轮次"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "当配置的成功检查失败时，重新运行配方检查。"
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "重试配方"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "重试超时"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "识别 /compact、/skills 和配方快捷方式等命令。"
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "斜杠命令"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "允许钩子阻止完成，同时防止无限停止循环。"
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "停止钩子"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "阈值 %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "词元上限"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "汇总较早的工具请求和响应以节省上下文。留空时自动设置截断值。"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "工具对压缩"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "轮次"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "代理循环"
   }
 }

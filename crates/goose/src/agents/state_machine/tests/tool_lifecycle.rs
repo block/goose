@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use rmcp::model::ElicitationAction;
 use serde_json::json;
@@ -5,7 +7,9 @@ use serde_json::json;
 use super::calculator_extension::{
     delayed_value, value, ADD, ADD_WITH_AUDIENCE, APP_ONLY, DIVIDE, REQUEST_VALUE,
 };
+use super::dummy_api::DummyApi;
 use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
+use super::pipeline::TestPipeline;
 use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -15,19 +19,90 @@ use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::permission::Permission;
 
+async fn pipeline_with_gated_divide() -> Result<(TestPipeline, Arc<DummyApi>)> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    pipeline.set_permission(ADD, PermissionLevel::AlwaysAllow);
+    api.on("add four and halve it")
+        .calls([("free", ADD, value(4)), ("gated", DIVIDE, value(2))]);
+    Ok((pipeline, api))
+}
+
+#[tokio::test]
+async fn no_inference_while_a_tool_confirmation_is_open() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    assert_eq!(api.call_count(), 1);
+    assert_eq!(pipeline.calculator_total(), 4);
+    awaiting_confirmation.assert_message(-1, ToolResponse, "result: 4");
+
+    api.on("result: 2").reply("halved");
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "halved");
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert_eq!(api.call_count(), 2);
+    assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
+
+#[tokio::test]
+async fn steer_waits_for_an_open_tool_confirmation() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+    pipeline
+        .steer(Message::user().with_text("then say done"))
+        .await;
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    assert_eq!(api.call_count(), 1);
+    assert!(pipeline.has_pending_steers().await);
+    assert!(!awaiting_confirmation
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "then say done"));
+
+    api.on("then say done").reply("done");
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "done");
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert!(!pipeline.has_pending_steers().await);
+    let messages = result.conversation().messages();
+    let steer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == "then say done")
+        .expect("steer was persisted");
+    let gated_answer = messages
+        .iter()
+        .position(|message| message.get_tool_response_ids().contains("gated"))
+        .expect("gated call was answered");
+    assert!(gated_answer < steer);
+    assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
+
 #[tokio::test]
 async fn basic_tool_calling() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("add one").call(ADD, value(1));
     api.on("result: 1").reply("The total is 1");
+    api.on("add a numeric string")
+        .call(ADD, json!({ "value": "4" }));
+    api.on("result: 5").reply("The total is 5");
     api.on("hello").reply("hi there!");
 
-    let result = pipeline.run(["add one", "hello"]).await?;
+    let result = pipeline
+        .run(["add one", "add a numeric string", "hello"])
+        .await?;
 
     result.assert_message(2, ToolResponse, "");
     result.assert_message(3, Agent, "The total is 1");
+    result.assert_message(6, ToolResponse, "result: 5");
+    result.assert_message(7, Agent, "The total is 5");
     result.assert_message(-1, Agent, "hi there!");
-    assert_eq!(api.call_count(), 3);
+    assert_eq!(api.call_count(), 5);
     Ok(())
 }
 
@@ -377,7 +452,7 @@ async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> R
         .await?;
     let pipeline = pipeline.reconstruct().await?;
     let result = pipeline.resume_cancelled().await?;
-    result.assert_message(-1, ToolResponse, "cancelled before execution");
+    result.assert_message(-1, ToolResponse, "interrupted before completing");
     assert_eq!(pipeline.calculator_total(), 0);
     let request_ids = result
         .conversation()
@@ -503,5 +578,33 @@ async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
     }));
     assert!(!conversation.messages().iter().any(|m| m.is_tool_response()));
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_pinned_provider_running_its_own_tool_loop_keeps_mcp_servers_out_of_goose() -> Result<()>
+{
+    let (pipeline, _api) =
+        super::pipeline::test_pipeline_with(super::dummy_api::ProviderFeatures {
+            manages_own_context: true,
+            ..Default::default()
+        })
+        .await?;
+    pipeline
+        .session_manager
+        .update_enabled_extensions(&pipeline.session_id, |selected| {
+            selected.push(crate::agents::extension::ExtensionConfig::stdio(
+                "remote",
+                "missing-binary",
+                "",
+                5_u64,
+            ))
+        })
+        .await?;
+
+    let leased = pipeline.leased_extensions().await?;
+
+    assert!(leased.contains(&"calculator".to_string()));
+    assert!(!leased.contains(&"remote".to_string()));
     Ok(())
 }

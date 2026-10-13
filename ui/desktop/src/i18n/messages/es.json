@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "Pregúntale lo que sea a goose..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Mantén una conversación de voz en tiempo real con Goose"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Voz en directo"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose está compactando la conversación..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "URL no válida"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Mover la ventana de imagen en imagen (usa las teclas de flecha)"
+    "defaultMessage": "Mover la ventana de imagen en imagen"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Imagen en imagen"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Reproduciendo en imagen en imagen"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Cambiar el tamaño de la ventana de imagen en imagen"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# elemento encontrado} other{# elementos encontrados}}"
@@ -2350,6 +2383,9 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
+  },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Cargando chats…"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Creado"
@@ -3159,7 +3195,7 @@
     "defaultMessage": "No hay recetas guardadas"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Las recetas guardadas desde los chats aparecerán aquí."
+    "defaultMessage": "Las recetas guardadas aparecerán aquí."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Abrir en una ventana nueva"
@@ -3696,7 +3732,7 @@
     "defaultMessage": "JSON de la sesión copiado"
   },
   "sessionActionsHeader.copiedModelInteractions": {
-    "defaultMessage": "Recent model interactions copied"
+    "defaultMessage": "Interacciones recientes del modelo copiadas"
   },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texto copiado"
@@ -3729,10 +3765,10 @@
     "defaultMessage": "Cargando JSON..."
   },
   "sessionActionsHeader.modelInteractionsFailed": {
-    "defaultMessage": "Failed to load model interactions: {error}"
+    "defaultMessage": "No se pudieron cargar las interacciones del modelo: {error}"
   },
   "sessionActionsHeader.modelInteractionsTitle": {
-    "defaultMessage": "Recent model interactions"
+    "defaultMessage": "Interacciones recientes del modelo"
   },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "No se pudo renombrar la sesión: {error}"
@@ -3759,7 +3795,7 @@
     "defaultMessage": "Ver el JSON de la sesión"
   },
   "sessionActionsHeader.viewModelInteractions": {
-    "defaultMessage": "View recent model interactions"
+    "defaultMessage": "Ver interacciones recientes del modelo"
   },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
@@ -3793,9 +3829,6 @@
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Abrir en una ventana nueva"
-  },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Compartir enlace cifrado de Nostr"
   },
   "sessions.cancel": {
     "defaultMessage": "Cancelar"
@@ -3836,21 +3869,6 @@
   "sessions.import": {
     "defaultMessage": "Importar sesión"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Importar enlace"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Pega un enlace de Goose para compartir por Nostr para obtener, descifrar e importar la sesión."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Importar sesión de Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Importando..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Incluir sesiones ACP"
   },
@@ -3878,12 +3896,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Buscar en el historial..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Cualquiera que tenga este enlace puede obtener y descifrar la sesión. Trátalo como un secreto."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Enlace cifrado de Nostr para compartir"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Copiado al portapapeles"
   },
@@ -3910,12 +3922,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Sesión importada correctamente"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Enlace cifrado de Nostr creado para compartir"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "No se pudo crear el enlace de Nostr para compartir: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "No se pudo actualizar la descripción de la sesión: {error}"
@@ -4669,5 +4675,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Visita"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Automático"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Límite de bloqueos"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Resume el historial de la conversación antes de que se llene la ventana de contexto."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Compactación del contexto"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Límite"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "Activar {operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Tiempo de espera por fallo"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Operaciones configurables"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Detiene el trabajo autónomo y pregunta al usuario antes de continuar."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Máximo de turnos"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Vuelve a ejecutar las comprobaciones de la receta cuando falla una comprobación de éxito configurada."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Reintento de receta"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Tiempo de espera de reintento"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "Reconoce comandos como /compact, /skills y accesos directos de recetas."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Comandos de barra"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Permite que los hooks bloqueen la finalización y evita ciclos de detención infinitos."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Hooks de detención"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Umbral %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Límite de tokens"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Resume solicitudes y respuestas de herramientas antiguas para ahorrar contexto. El límite es automático si se deja vacío."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Compactación de pares de herramientas"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Turnos"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Bucle del agente"
   }
 }

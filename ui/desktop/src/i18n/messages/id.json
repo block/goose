@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "Tanyakan apa saja kepada goose..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Lakukan percakapan suara real-time dengan Goose"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Suara langsung"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose sedang meringkas percakapan..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "URL tidak valid"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Pindahkan jendela Picture-in-Picture (gunakan tombol panah)"
+    "defaultMessage": "Pindahkan jendela Picture-in-Picture"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Memutar dalam Picture-in-Picture"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Ubah ukuran jendela Picture-in-Picture"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item ditemukan} other{# item ditemukan}}"
@@ -2350,6 +2383,9 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "Obrolan"
+  },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Memuat obrolan…"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Dibuat"
@@ -3159,7 +3195,7 @@
     "defaultMessage": "Tidak ada resep tersimpan"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Resep yang disimpan dari obrolan akan muncul di sini."
+    "defaultMessage": "Resep yang disimpan akan muncul di sini."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Buka di jendela baru"
@@ -3696,7 +3732,7 @@
     "defaultMessage": "JSON sesi disalin"
   },
   "sessionActionsHeader.copiedModelInteractions": {
-    "defaultMessage": "Recent model interactions copied"
+    "defaultMessage": "Interaksi model terbaru disalin"
   },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Teks disalin"
@@ -3729,10 +3765,10 @@
     "defaultMessage": "Memuat JSON..."
   },
   "sessionActionsHeader.modelInteractionsFailed": {
-    "defaultMessage": "Failed to load model interactions: {error}"
+    "defaultMessage": "Gagal memuat interaksi model: {error}"
   },
   "sessionActionsHeader.modelInteractionsTitle": {
-    "defaultMessage": "Recent model interactions"
+    "defaultMessage": "Interaksi model terbaru"
   },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Gagal mengganti nama sesi: {error}"
@@ -3759,7 +3795,7 @@
     "defaultMessage": "Lihat JSON sesi"
   },
   "sessionActionsHeader.viewModelInteractions": {
-    "defaultMessage": "View recent model interactions"
+    "defaultMessage": "Lihat interaksi model terbaru"
   },
   "sessionIndicators.error": {
     "defaultMessage": "Sesi mengalami kesalahan"
@@ -3793,9 +3829,6 @@
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Buka di jendela baru"
-  },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Bagikan tautan Nostr terenkripsi"
   },
   "sessions.cancel": {
     "defaultMessage": "Batal"
@@ -3836,21 +3869,6 @@
   "sessions.import": {
     "defaultMessage": "Impor Sesi"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Impor Tautan"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Tempel tautan berbagi Nostr Goose untuk mengambil, mendekripsi, dan mengimpor sesi."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Impor Sesi Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Mengimpor..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Sertakan sesi ACP"
   },
@@ -3878,12 +3896,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Cari riwayat..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Siapa pun yang memiliki tautan ini dapat mengambil dan mendekripsi sesi. Perlakukan seperti rahasia."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Tautan Berbagi Nostr Terenkripsi"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Disalin ke papan klip"
   },
@@ -3910,12 +3922,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Sesi berhasil diimpor"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Tautan berbagi Nostr terenkripsi dibuat"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Gagal membuat tautan berbagi Nostr: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Gagal memperbarui deskripsi sesi: {error}"
@@ -4669,5 +4675,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Kunjungi"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Otomatis"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Batas pemblokiran"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Meringkas riwayat percakapan sebelum jendela konteks penuh."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Pemadatan konteks"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Batas"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "Aktifkan {operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Batas waktu kegagalan"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Operasi yang dapat dikonfigurasi"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Menghentikan kerja otonom dan meminta pengguna sebelum melanjutkan."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Putaran maksimum"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Menjalankan ulang pemeriksaan resep saat pemeriksaan keberhasilan yang dikonfigurasi gagal."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Coba ulang resep"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Batas waktu coba ulang"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "Mengenali perintah seperti /compact, /skills, dan pintasan resep."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Perintah garis miring"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Memungkinkan hook memblokir penyelesaian sekaligus mencegah siklus berhenti tanpa akhir."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Hook penghentian"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Ambang %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Batas token"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Meringkas permintaan dan respons alat lama untuk menghemat konteks. Batas ditentukan otomatis jika dikosongkan."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Pemadatan pasangan alat"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Putaran"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Loop agen"
   }
 }

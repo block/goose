@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "gooseに何でも聞いて..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Goose とリアルタイムで音声会話します"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "ライブ音声"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "gooseが会話を圧縮しています..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "無効なURL"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "ピクチャ・イン・ピクチャウィンドウを移動（矢印キーを使用）"
+    "defaultMessage": "ピクチャ・イン・ピクチャウィンドウを移動"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "ピクチャ・イン・ピクチャ"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "ピクチャ・イン・ピクチャで再生中"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "ピクチャ・イン・ピクチャウィンドウのサイズを変更"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# 件見つかりました} other{# 件見つかりました}}"
@@ -2350,6 +2383,9 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
+  },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "チャットを読み込み中…"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "作成"
@@ -3159,7 +3195,7 @@
     "defaultMessage": "保存済みのレシピはありません"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "チャットから保存したレシピがここに表示されます。"
+    "defaultMessage": "保存したレシピがここに表示されます。"
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"
@@ -3696,7 +3732,7 @@
     "defaultMessage": "セッションJSONをコピーしました"
   },
   "sessionActionsHeader.copiedModelInteractions": {
-    "defaultMessage": "Recent model interactions copied"
+    "defaultMessage": "最近のモデルのやり取りをコピーしました"
   },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "テキストをコピーしました"
@@ -3729,10 +3765,10 @@
     "defaultMessage": "JSONを読み込み中..."
   },
   "sessionActionsHeader.modelInteractionsFailed": {
-    "defaultMessage": "Failed to load model interactions: {error}"
+    "defaultMessage": "モデルのやり取りを読み込めませんでした: {error}"
   },
   "sessionActionsHeader.modelInteractionsTitle": {
-    "defaultMessage": "Recent model interactions"
+    "defaultMessage": "最近のモデルのやり取り"
   },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "セッションの名前を変更できませんでした: {error}"
@@ -3759,7 +3795,7 @@
     "defaultMessage": "セッションJSONを表示"
   },
   "sessionActionsHeader.viewModelInteractions": {
-    "defaultMessage": "View recent model interactions"
+    "defaultMessage": "最近のモデルのやり取りを表示"
   },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"
@@ -3793,9 +3829,6 @@
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"
-  },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "暗号化Nostrリンクを共有"
   },
   "sessions.cancel": {
     "defaultMessage": "キャンセル"
@@ -3836,21 +3869,6 @@
   "sessions.import": {
     "defaultMessage": "セッションをインポート"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "リンクをインポート"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Goose Nostr共有リンクを貼り付けて、セッションを取得・復号・インポートします。"
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Nostrセッションをインポート"
-  },
-  "sessions.importing": {
-    "defaultMessage": "インポート中..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "ACP セッションを含める"
   },
@@ -3878,12 +3896,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "履歴を検索..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "このリンクを持つ人は誰でもセッションを取得して復号できます。秘密情報として扱ってください。"
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "暗号化Nostr共有リンク"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "クリップボードにコピーしました"
   },
@@ -3910,12 +3922,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "セッションをインポートしました"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "暗号化Nostr共有リンクを作成しました"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Nostr共有リンクを作成できませんでした: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "セッションの説明を更新できませんでした: {error}"
@@ -4669,5 +4675,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "次のURLにアクセスし、"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "自動"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "ブロック上限"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "コンテキストウィンドウがいっぱいになる前に会話履歴を要約します。"
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "コンテキスト圧縮"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "カットオフ"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "{operation}を有効にする"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "失敗タイムアウト"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "設定可能なオペレーション"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "自律作業を停止し、続行する前にユーザーへ確認します。"
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "最大ターン数"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "設定された成功チェックが失敗した場合にレシピのチェックを再実行します。"
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "レシピの再試行"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "再試行タイムアウト"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "/compact、/skills、レシピのショートカットなどのコマンドを認識します。"
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "スラッシュコマンド"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "無限の停止サイクルを防ぎながら、フックによる完了のブロックを許可します。"
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "停止フック"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "しきい値 %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "トークン上限"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "古いツールのリクエストとレスポンスを要約してコンテキストを節約します。空欄の場合、カットオフは自動です。"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "ツールペア圧縮"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "ターン"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "エージェントループ"
   }
 }

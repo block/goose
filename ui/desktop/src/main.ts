@@ -26,13 +26,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
-import { checkBackendStatus } from './backendStatus';
+import { connectRemoteBackend } from './remoteBackends';
 import { installBackendCertificateVerifiers } from './backendCertificateVerifier';
 import { configureProxy } from './proxy';
 import { startGooseServe } from './gooseServe';
 import { getLoginShellPath } from './loginShellPath';
 import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
-import { acpWebSocketUrlFromHttpBase, normalizeAcpHttpBaseUrl } from './acp/url';
+import { normalizeAcpHttpBaseUrl } from './acp/url';
 import { expandTilde, sanitizeGoosePathRoot } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -59,7 +59,7 @@ import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { WEB_PROTOCOLS } from './utils/urlSecurity';
 import { openExternalUrl } from './utils/openExternalUrl';
-import { buildCSP } from './utils/csp';
+import { buildCSP, leaseBackendOrigin, shouldApplyRendererCsp } from './utils/csp';
 import { resolveWorkingDir } from './utils/workingDir';
 import {
   DesktopFileAccess,
@@ -546,54 +546,13 @@ function queuePendingDeepLink(windowId: number, url: string): void {
 
 const reactReadyWindows = new Set<number>();
 
-const DEEPLINK_BURST_DEDUP_MS = 2000;
-const recentSessionDeepLinkSends = new Map<string, number>();
-
-function pruneExpiredSessionDeepLinkSends(now: number): void {
-  for (const [url, sentAt] of recentSessionDeepLinkSends) {
-    if (now - sentAt >= DEEPLINK_BURST_DEDUP_MS) {
-      recentSessionDeepLinkSends.delete(url);
-    }
-  }
-}
-
-function isBurstDuplicateSessionDeepLink(url: string): boolean {
-  const now = Date.now();
-  pruneExpiredSessionDeepLinkSends(now);
-  const sentAt = recentSessionDeepLinkSends.get(url);
-  return sentAt !== undefined && now - sentAt < DEEPLINK_BURST_DEDUP_MS;
-}
-
-function recordSessionDeepLinkSend(url: string): void {
-  const now = Date.now();
-  recentSessionDeepLinkSends.set(url, now);
-  pruneExpiredSessionDeepLinkSends(now);
-}
-
-function sendOpenSharedSession(window: BrowserWindow, url: string): void {
-  if (isBurstDuplicateSessionDeepLink(url)) {
-    log.info('[Main] Ignoring burst duplicate session deep link');
-    return;
-  }
-  recordSessionDeepLinkSend(url);
-  window.webContents.send('open-shared-session', url);
-}
-
-function deliverExtensionOrSessionDeepLink(
-  url: string,
-  parsedUrl: URL,
-  targetWindow: BrowserWindow
-): void {
+function deliverExtensionDeepLink(url: string, targetWindow: BrowserWindow): void {
   if (!reactReadyWindows.has(targetWindow.id) || targetWindow.webContents.isLoadingMainFrame()) {
     queuePendingDeepLink(targetWindow.id, url);
     return;
   }
 
-  if (parsedUrl.hostname === 'extension') {
-    targetWindow.webContents.send('add-extension', url);
-  } else if (parsedUrl.hostname === 'sessions') {
-    sendOpenSharedSession(targetWindow, url);
-  }
+  targetWindow.webContents.send('add-extension', url);
 }
 
 function getResumeSessionId(parsedUrl: URL): string | null {
@@ -670,8 +629,6 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
-  } else if (parsedUrl.hostname === 'sessions') {
-    sendOpenSharedSession(window, url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -740,14 +697,14 @@ app.on('open-url', async (_event, url) => {
       return;
     }
 
-    // For extension/session URLs, send to an existing regular window or open one
+    // For extension URLs, send to an existing regular window or open one
     const regularWindows = getRegularWindows();
     if (regularWindows.length > 0) {
       const targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
-      if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
-        deliverExtensionOrSessionDeepLink(url, parsedUrl, targetWindow);
+      if (parsedUrl.hostname === 'extension') {
+        deliverExtensionDeepLink(url, targetWindow);
       }
     } else {
       openUrlHandledLaunch = true;
@@ -982,7 +939,6 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -1116,20 +1072,20 @@ const createChat = async (
         );
       }
 
-      const externalBackendReady = await checkBackendStatus({
+      const externalBackendCheck = await connectRemoteBackend({
         baseUrl: externalBaseUrl,
         serverSecret,
-        fetch: net.fetch as unknown as typeof globalThis.fetch,
+        pinnedHostname: externalBackend.certFingerprint ? externalBase.hostname : null,
       });
-      if (!externalBackendReady) {
+      if (!externalBackendCheck.ok) {
         externalCertificateTrust?.release();
+        log.error(`External backend check failed: ${externalBackendCheck.failure}`);
         const canDisableExternalBackend = externalBackend.source === 'settings';
         const response = dialog.showMessageBoxSync({
           type: 'error',
           title: 'External Backend Unreachable',
           message: `Could not connect to external backend at ${externalBaseUrl}`,
-          detail:
-            'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+          detail: externalBackendCheck.failure ?? undefined,
           buttons: canDisableExternalBackend
             ? ['Disable External Backend & Retry', 'Quit']
             : ['Quit'],
@@ -1150,13 +1106,18 @@ const createChat = async (
         return;
       }
 
+      const resolvedAcpUrl = externalBackendCheck.acpUrl;
+      if (!resolvedAcpUrl) {
+        throw new Error('External backend check did not resolve an ACP endpoint');
+      }
+
+      const originLease = leaseBackendOrigin(resolvedAcpUrl);
       const leaseCertificateTrust = externalCertificateTrust;
       externalCertificateTrust = null;
-      gooseServeLease = gooseServeLeases.createExternal(
-        acpWebSocketUrlFromHttpBase(externalBaseUrl, serverSecret),
-        serverSecret,
-        leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
-      );
+      gooseServeLease = gooseServeLeases.createExternal(resolvedAcpUrl, serverSecret, async () => {
+        originLease.release();
+        leaseCertificateTrust?.release();
+      });
     } catch (error) {
       externalCertificateTrust?.release();
       log.error('External ACP backend is misconfigured', error);
@@ -1913,8 +1874,6 @@ ipcMain.on('react-ready', (event) => {
       const parsedUrl = new URL(deepLinkUrl);
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
-      } else if (parsedUrl.hostname === 'sessions') {
-        sendOpenSharedSession(window, deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);
@@ -2476,9 +2435,13 @@ async function appMain() {
     }
   });
 
-  // Add CSP headers to all sessions, recomputed on every response so external
-  // backend settings take effect without restarting the app.
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+  // Add CSP headers to the renderer's own documents, recomputed on every
+  // response so external backend settings take effect without restarting the app.
+  rendererSession.webRequest.onHeadersReceived((details, callback) => {
+    if (!shouldApplyRendererCsp(details.resourceType)) {
+      callback({});
+      return;
+    }
     const currentSettings = getSettings();
     callback({
       responseHeaders: {

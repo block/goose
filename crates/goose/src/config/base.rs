@@ -14,6 +14,7 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
@@ -124,6 +125,7 @@ pub struct Config {
     secrets: SecretStorage,
     guard: Mutex<()>,
     secrets_cache: Arc<Mutex<Option<HashMap<String, Value>>>>,
+    generation: AtomicU64,
 }
 
 enum SecretStorage {
@@ -134,6 +136,16 @@ enum SecretStorage {
     File {
         path: PathBuf,
     },
+}
+
+enum SecretMutation<T> {
+    Write(T),
+    Unchanged(T),
+}
+
+pub(crate) enum SecretUpdate<V, R> {
+    Write(V, R),
+    Unchanged(R),
 }
 
 // Global instance
@@ -201,6 +213,7 @@ impl Default for Config {
             },
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
+            generation: AtomicU64::new(0),
         };
 
         let keyring_disabled = env::var("GOOSE_DISABLE_KEYRING").is_ok()
@@ -213,6 +226,7 @@ impl Default for Config {
             secrets,
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
+            generation: AtomicU64::new(0),
         }
     }
 }
@@ -431,6 +445,7 @@ impl Config {
             secrets,
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
+            generation: AtomicU64::new(0),
         })
     }
 
@@ -449,6 +464,7 @@ impl Config {
             },
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
+            generation: AtomicU64::new(0),
         })
     }
 
@@ -463,6 +479,7 @@ impl Config {
             },
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
+            generation: AtomicU64::new(0),
         })
     }
 
@@ -653,6 +670,7 @@ impl Config {
 
         // Atomically replace the original file
         std::fs::rename(&temp_path, &target_path)?;
+        self.generation.fetch_add(1, Ordering::Relaxed);
 
         Ok(())
     }
@@ -774,6 +792,38 @@ impl Config {
                 serde_json::from_value(parsed).map_err(|_| yaml_err.into())
             }
         }
+    }
+
+    pub(crate) fn get_param_source_values<T: for<'de> Deserialize<'de>>(
+        &self,
+        key: &str,
+    ) -> Result<Vec<T>, ConfigError> {
+        let mut source_values = Vec::new();
+        let env_key = key.to_uppercase();
+        if let Some(value) = env::var_os(&env_key) {
+            let value = value.into_string().map_err(|_| {
+                ConfigError::DeserializeError(format!(
+                    "environment variable {env_key} is not valid UTF-8"
+                ))
+            })?;
+            source_values.push(serde_json::from_value(Self::parse_env_value(&value)?)?);
+        }
+
+        for path in &self.config_paths {
+            let content = match std::fs::read_to_string(path) {
+                Ok(content) => content,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let mut values = parse_yaml_content(&content)?;
+            crate::config::migrations::run_read_migrations(&mut values);
+            let Some(value) = values.get(key) else {
+                continue;
+            };
+            source_values.push(serde_yaml::from_value(value.clone())?);
+        }
+
+        Ok(source_values)
     }
 
     /// Read-modify-write a configuration value atomically through the write path.
@@ -987,15 +1037,20 @@ impl Config {
         Ok(())
     }
 
-    fn mutate_secrets(
+    fn mutate_secrets<T>(
         &self,
-        mutate: impl FnOnce(&mut HashMap<String, Value>),
-    ) -> Result<(), ConfigError> {
+        mutate: impl FnOnce(&mut HashMap<String, Value>) -> Result<SecretMutation<T>, ConfigError>,
+    ) -> Result<T, ConfigError> {
         let _guard = self.guard.lock().unwrap();
         let _storage_lock = self.lock_secrets_for_mutation()?;
         let mut values = self.load_secrets_from_storage()?;
-        mutate(&mut values);
-        self.write_all_secrets(&values)
+        match mutate(&mut values)? {
+            SecretMutation::Write(result) => {
+                self.write_all_secrets(&values)?;
+                Ok(result)
+            }
+            SecretMutation::Unchanged(result) => Ok(result),
+        }
     }
 
     /// Set a secret value in the system keyring.
@@ -1019,6 +1074,33 @@ impl Config {
         let value = serde_json::to_value(value)?;
         self.mutate_secrets(|values| {
             values.insert(key.to_string(), value);
+            Ok(SecretMutation::Write(()))
+        })
+    }
+
+    pub(crate) fn update_secret<T, V, R>(
+        &self,
+        key: &str,
+        update: impl FnOnce(T) -> SecretUpdate<V, R>,
+    ) -> Result<R, ConfigError>
+    where
+        T: for<'de> Deserialize<'de> + Default,
+        V: Serialize,
+    {
+        self.mutate_secrets(|values| {
+            let current = values
+                .get(key)
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()?
+                .unwrap_or_default();
+            match update(current) {
+                SecretUpdate::Write(updated, result) => {
+                    values.insert(key.to_string(), serde_json::to_value(updated)?);
+                    Ok(SecretMutation::Write(result))
+                }
+                SecretUpdate::Unchanged(result) => Ok(SecretMutation::Unchanged(result)),
+            }
         })
     }
 
@@ -1036,6 +1118,7 @@ impl Config {
             for (key, value) in updates {
                 values.insert(key.clone(), value.clone());
             }
+            Ok(SecretMutation::Write(()))
         })
     }
 
@@ -1052,6 +1135,7 @@ impl Config {
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
         self.mutate_secrets(|values| {
             values.remove(key);
+            Ok(SecretMutation::Write(()))
         })
     }
 
@@ -1065,6 +1149,7 @@ impl Config {
             for key in keys {
                 values.remove(key);
             }
+            Ok(SecretMutation::Write(()))
         })
     }
 
@@ -1109,6 +1194,12 @@ impl Config {
     pub fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
+        self.generation.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Changes whenever this process writes config or secrets.
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
@@ -1185,6 +1276,14 @@ config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
 impl Config {
+    pub(crate) fn resolve_goose_mode(&self) -> Result<GooseMode, ConfigError> {
+        match self.get_goose_mode_strict() {
+            Ok(mode) => Ok(mode),
+            Err(ConfigError::NotFound(_)) => Ok(GooseMode::Auto),
+            Err(error) => Err(error),
+        }
+    }
+
     pub(crate) fn get_goose_mode_strict(&self) -> Result<GooseMode, ConfigError> {
         match env::var("GOOSE_MODE") {
             Ok(value) => {
@@ -1365,6 +1464,43 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::{NamedTempFile, TempDir};
+
+    #[test]
+    fn resolve_goose_mode_defaults_only_when_missing() {
+        let _guard = env_lock::lock_env([("GOOSE_MODE", None::<&str>)]);
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+
+        assert_eq!(config.resolve_goose_mode().unwrap(), GooseMode::Auto);
+        for mode in [
+            GooseMode::Auto,
+            GooseMode::SmartApprove,
+            GooseMode::Approve,
+            GooseMode::Chat,
+        ] {
+            config.set_goose_mode(mode).unwrap();
+            assert_eq!(config.resolve_goose_mode().unwrap(), mode);
+        }
+
+        std::fs::write(config_file.path(), "GOOSE_MODE: invalid\n").unwrap();
+        assert!(matches!(
+            config.resolve_goose_mode(),
+            Err(ConfigError::DeserializeError(_))
+        ));
+    }
+
+    #[test]
+    fn resolve_goose_mode_rejects_invalid_environment_value() {
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("invalid"))]);
+        let config = new_test_config();
+        assert!(matches!(
+            config.resolve_goose_mode(),
+            Err(ConfigError::DeserializeError(_))
+        ));
+    }
+
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
         let config = new_test_config();
