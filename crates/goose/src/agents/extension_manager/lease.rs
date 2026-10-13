@@ -174,19 +174,21 @@ impl ToolCatalog {
 }
 
 /// MCP allows tool names that providers reject (OpenAI requires
-/// `^[a-zA-Z0-9_-]{1,64}$`), so the catalog advertises a safe spelling and
-/// dispatches to the server under the original name.
+/// `^[a-zA-Z0-9_-]{1,64}$`). A rewritten name carries a hash of the original
+/// so that `db.query` and `db_query`, or two names sharing their first 64
+/// characters, stay distinct tools.
 fn provider_safe_tool_name(name: &str) -> String {
-    name.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .take(64)
-        .collect()
+    let is_safe = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    if name.len() <= 64 && name.chars().all(is_safe) {
+        return name.to_string();
+    }
+    let sanitized: String = name
+        .chars()
+        .map(|c| if is_safe(c) { c } else { '_' })
+        .take(55)
+        .collect();
+    let hash = blake3::hash(name.as_bytes()).to_hex();
+    format!("{sanitized}_{:.8}", hash.as_str())
 }
 
 #[derive(Clone)]

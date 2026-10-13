@@ -265,6 +265,8 @@ async fn inspect_context(lease: &ExtensionLease, name: &str) -> ContextReport {
     serde_json::from_str(&call_text(lease, name).await).unwrap()
 }
 
+const DOTTED_DB_QUERY: &str = "fixture_http__db_query_9cffee1f";
+
 /// One manager, three transports, one lease: the catalog, mangled-name
 /// recovery, filtering, app scoping, the restart-on-config-change rule, and
 /// what a held lease does and does not see when the registry changes.
@@ -312,6 +314,7 @@ async fn extension_lifecycle_across_real_transports(stdio_version: ProtocolVersi
     for expected in [
         "fixture_http__get_code",
         "fixture_http__db_query",
+        DOTTED_DB_QUERY,
         "fixture_stdio__get_code",
         "fixture_stdio__inspect_context",
         "todo__todo_write",
@@ -400,8 +403,15 @@ async fn extension_lifecycle_across_real_transports(stdio_version: ProtocolVersi
         call_text(&lease, "functions.fixture_stdio__get_code").await,
         FAKE_CODE
     );
-    assert_eq!(call_text(&lease, "fixture_http__db_query").await, "rows");
-    assert_eq!(call_text(&lease, "fixture_http.db_query").await, "rows");
+    assert_eq!(call_text(&lease, DOTTED_DB_QUERY).await, "rows");
+    assert_eq!(
+        call_text(&lease, "fixture_http__db_query").await,
+        "underscore rows"
+    );
+    assert_eq!(
+        call_text(&lease, "fixture_http.db_query").await,
+        "underscore rows"
+    );
     let unknown = call(&lease, "no_such_tool", None).await.unwrap_err();
     assert_eq!(unknown.code, ErrorCode::RESOURCE_NOT_FOUND);
     assert!(
