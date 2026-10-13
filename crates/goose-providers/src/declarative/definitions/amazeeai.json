@@ -16,8 +16,8 @@
   "dynamic_models": true,
   "skip_canonical_filtering": true,
   "models": [
-    { "name": "chat", "context_limit": 200000 },
-    { "name": "chat_with_image_vision", "context_limit": 200000 },
+    { "name": "chat", "context_limit": 200000, "supports_vision": true },
+    { "name": "chat_with_image_vision", "context_limit": 200000, "supports_vision": true },
     { "name": "claude-sonnet-5-5", "context_limit": 1000000 },
     { "name": "claude-opus-5-5", "context_limit": 1000000 },
     { "name": "claude-haiku-5-5", "context_limit": 200000 },

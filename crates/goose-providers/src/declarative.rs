@@ -447,6 +447,11 @@ mod tests {
         assert_eq!(config.api_key_env, "AMAZEEAI_API_KEY");
         assert_eq!(config.dynamic_models, Some(true));
         assert!(config.skip_canonical_filtering);
+        assert!(config
+            .models
+            .iter()
+            .filter(|m| m.name.starts_with("chat"))
+            .all(|m| m.supports_vision == Some(true)));
     }
 
     #[test]
