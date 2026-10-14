@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::Result;
@@ -10,30 +9,19 @@ use super::calculator_extension::CalculatorExtension;
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::ExtensionConfig;
-use crate::agents::extension_manager::{ClientContext, ExtensionLease, ExtensionManager};
-use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClientTrait};
-use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner,
-    MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation, RetryOperation, RunStatus,
-    SkillOperation, SlashCommandOperation, StateMachine, StatusOperation, SteerOperation,
-    SteerQueue, Step, StopHookOperation, SubagentOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
-};
-use crate::agents::subagent_handler::SubagentRunner;
-use crate::agents::AgentEvent;
+use crate::agents::extension_manager::ExtensionLease;
+use crate::agents::mcp_client::McpClientTrait;
+use crate::agents::state_machine::{Emitter, GooseEffect, RunStatus, StateMachine};
+use crate::agents::{AgentEvent, StateMachineServices, StateMachineServicesConfig, TurnSettings};
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::hooks::HookManager;
-use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::Permission;
 use crate::providers::base::Provider;
-use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::{GoalState, Session, SessionManager, SessionType};
-use crate::tool_inspection::ToolInspectionManager;
 use goose_providers::model::ModelConfig;
 
 struct FeatureProvider {
@@ -88,114 +76,83 @@ pub(super) struct TestPipeline {
     provider_features: ProviderFeatures,
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
-    extension_manager: Arc<ExtensionManager>,
-    extension_lease: Arc<StdMutex<Option<Arc<ExtensionLease>>>>,
-    tool_inspection_manager: ToolInspectionManager,
     permission_manager: Arc<PermissionManager>,
-    pub(super) hook_manager: HookManager,
-    stop_hook_block_cap: u32,
+    hook_manager: HookManager,
+    turn_settings: TurnSettings,
+    max_turns: u32,
     calculator: Arc<CalculatorExtension>,
     pub(super) session_id: String,
+    session: Session,
     working_dir: std::path::PathBuf,
-    steer_queue: SteerQueue,
-    max_turns: u32,
     scheduler: Option<Arc<crate::scheduler::Scheduler>>,
-    subagent_host: Arc<crate::agents::StateMachineServices>,
+    /// Built on first use, so the `with_*` settings above are what it runs with.
+    services: tokio::sync::OnceCell<Arc<StateMachineServices>>,
     _temp_dir: Arc<tempfile::TempDir>,
 }
 
 impl TestPipeline {
-    pub(super) fn machine(
+    pub(super) async fn services(&self) -> &Arc<StateMachineServices> {
+        self.services
+            .get_or_init(|| async {
+                let mut config = StateMachineServicesConfig::new(
+                    self.session_manager.clone(),
+                    self.permission_manager.clone(),
+                    self.scheduler.clone().map(|scheduler| {
+                        scheduler as Arc<dyn crate::scheduler_trait::SchedulerTrait>
+                    }),
+                    true,
+                    crate::agents::GoosePlatform::GooseCli,
+                );
+                config.turn_settings = Some(self.turn_settings.clone());
+                config.hooks = Some(self.hook_manager.clone());
+                let services = StateMachineServices::with_config(config);
+                services
+                    .providers
+                    .set_provider(&self.session_id, self.provider.clone())
+                    .await;
+                enable_session_extensions(&services, &self.session, &self.calculator)
+                    .await
+                    .expect("test session extensions start");
+                services
+            })
+            .await
+    }
+
+    fn extension_lease(
+        &self,
+        services: &StateMachineServices,
+    ) -> Arc<StdMutex<Option<Arc<ExtensionLease>>>> {
+        services
+            .runtime
+            .confirmations
+            .session(&self.session_id)
+            .extension_lease()
+    }
+
+    async fn start_new_turn(&self) {
+        let services = self.services().await;
+        *self.extension_lease(services).lock().unwrap() = None;
+    }
+
+    pub(super) async fn machine(
         &self,
         cancel: CancellationToken,
     ) -> StateMachine<'_, Session, GooseEffect> {
-        let provider = self.provider.clone();
-        let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
-            self.model_config.context_limit(),
-            COMPACTION_THRESHOLD,
-        );
-        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(SteerOperation::new(
-                self.steer_queue.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(BangShellOperation::new()),
-        ];
-        if !self.provider_features.manages_own_context {
-            operations.push(Arc::new(CompactionOperation::new(
-                provider.clone(),
+        let services = self.services().await;
+        services
+            .create_state_machine(
+                self.provider.clone(),
                 self.model_config.clone(),
                 self.model_config.context_limit(),
-                COMPACTION_THRESHOLD,
-            )));
-        }
-        let extension_lease = Arc::clone(&self.extension_lease);
-        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(ToolPairCompactionOperation::new(
-                provider.clone(),
-                self.model_config.clone(),
-                tool_call_cutoff,
-                !self.provider_features.manages_own_context,
-            )),
-            Arc::new(ToolApprovalOperation::new(&self.tool_inspection_manager)),
-            Arc::new(DoctorOperation::new(self.session_manager.clone())),
-            Arc::new(ProjectOperation),
-            Arc::new(SkillOperation::new(
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(SubagentOperation::new(
-                SubagentRunner::new(Arc::clone(&self.subagent_host)),
-                cancel.clone(),
-            )),
-            Arc::new(RecipeOperation::new(
-                provider.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(ToolExecutionOperation::new(
-                self.extension_manager.clone(),
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
-            Arc::new(RetryOperation::new(
-                std::time::Duration::from_secs(1),
-                std::time::Duration::from_secs(1),
-            )),
-            Arc::new(StopHookOperation::new(
-                self.hook_manager.clone(),
-                self.stop_hook_block_cap,
-            )),
-            Arc::new(ExitOnErrorOperation),
-            Arc::new(MaxTurnsOperation::new(self.max_turns)),
-        ];
-        operations.extend(remaining_operations);
-        let request_preparer = GooseInferenceRequestPreparer {
-            extension_manager: Arc::clone(&self.extension_manager),
-            extension_lease,
-            tool_inspection_manager: &self.tool_inspection_manager,
-            context_limit: self.model_config.context_limit(),
-        };
-        let status_operation = Arc::new(StatusOperation::new(
-            provider.clone(),
-            self.model_config.clone(),
-        ));
-        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
-        let inference = Arc::new(
-            InferenceRunner::new(inference_provider, self.model_config.clone())
-                .with_request_preparer(Arc::new(request_preparer)),
-        );
-        let mut command_handlers = operations.clone();
-        command_handlers.push(status_operation);
-        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
-            Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
-
-        StateMachine::new(steps, cancel)
+                crate::agents::SessionConfig {
+                    id: self.session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(self.max_turns),
+                },
+                cancel,
+                services.runtime.steer_queue(&self.session_id),
+            )
+            .await
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {
@@ -253,12 +210,20 @@ impl TestPipeline {
     }
 
     pub(super) fn with_hook_manager(mut self, hook_manager: HookManager) -> Self {
+        assert!(
+            !self.services.initialized(),
+            "configure the pipeline before using it"
+        );
         self.hook_manager = hook_manager;
         self
     }
 
     pub(super) fn with_stop_hook_block_cap(mut self, cap: u32) -> Self {
-        self.stop_hook_block_cap = cap;
+        assert!(
+            !self.services.initialized(),
+            "configure the pipeline before using it"
+        );
+        self.turn_settings.stop_hook_block_cap = cap;
         self
     }
 
@@ -279,7 +244,9 @@ impl TestPipeline {
             .apply()
             .await?;
         for extension in recipe.extensions.clone().unwrap_or_default() {
-            self.extension_manager
+            self.services()
+                .await
+                .extension_manager
                 .enable(&self.session_id, extension)
                 .await?;
         }
@@ -323,11 +290,17 @@ impl TestPipeline {
     }
 
     pub(super) async fn steer(&self, message: Message) {
-        self.steer_queue.lock().await.push_back(message);
+        self.services().await.steer(&self.session_id, message).await;
     }
 
     pub(super) async fn has_pending_steers(&self) -> bool {
-        !self.steer_queue.lock().await.is_empty()
+        let services = self.services().await;
+        !services
+            .runtime
+            .steer_queue(&self.session_id)
+            .lock()
+            .await
+            .is_empty()
     }
 
     pub(super) fn calculator_total(&self) -> i64 {
@@ -352,11 +325,19 @@ impl TestPipeline {
             session,
             self._temp_dir.clone(),
         )
-        .await?
-        .with_hook_manager(self.hook_manager.clone())
-        .with_max_turns(self.max_turns)
-        .with_stop_hook_block_cap(self.stop_hook_block_cap);
-        pipeline.extension_lease = Arc::clone(&self.extension_lease);
+        .await?;
+        pipeline.hook_manager = self.hook_manager.clone();
+        pipeline.turn_settings = self.turn_settings.clone();
+        pipeline.max_turns = self.max_turns;
+        let lease = self
+            .extension_lease(self.services().await)
+            .lock()
+            .unwrap()
+            .clone();
+        *pipeline
+            .extension_lease(pipeline.services().await)
+            .lock()
+            .unwrap() = lease;
         Ok(pipeline)
     }
 
@@ -400,7 +381,7 @@ impl TestPipeline {
         let mut events = Vec::new();
 
         for text in user_messages {
-            *self.extension_lease.lock().unwrap() = None;
+            self.start_new_turn().await;
             self.session_manager
                 .add_message(&self.session_id, &Message::user().with_text(text))
                 .await?;
@@ -412,7 +393,7 @@ impl TestPipeline {
     }
 
     pub(super) async fn run_message(&self, message: Message) -> Result<TestRun> {
-        *self.extension_lease.lock().unwrap() = None;
+        self.start_new_turn().await;
         self.session_manager
             .add_message(&self.session_id, &message)
             .await?;
@@ -424,7 +405,7 @@ impl TestPipeline {
         mut self,
         message: &str,
     ) -> Result<(Self, TestRun, usize)> {
-        *self.extension_lease.lock().unwrap() = None;
+        self.start_new_turn().await;
         self.session_manager
             .add_message(&self.session_id, &Message::user().with_text(message))
             .await?;
@@ -438,7 +419,7 @@ impl TestPipeline {
 
         loop {
             let session = self.session().await?;
-            let machine = self.machine(cancel.clone());
+            let machine = self.machine(cancel.clone()).await;
             let mut result = machine.step(&session, &emit).await?;
             machine
                 .apply(
@@ -481,7 +462,7 @@ impl TestPipeline {
 
     pub(super) async fn start_turn(&self) -> Result<()> {
         crate::agents::state_machine::session::run_turn_start_hooks(
-            &self.hook_manager,
+            &self.services().await.hook_manager,
             &self.session().await?,
         )
         .await
@@ -511,6 +492,8 @@ impl TestPipeline {
 
     pub(super) async fn leased_extensions(&self) -> Result<Vec<String>> {
         Ok(self
+            .services()
+            .await
             .extension_manager
             .current_lease(&self.session_id)
             .await?
@@ -521,14 +504,18 @@ impl TestPipeline {
     }
 
     pub(super) async fn remove_extension(&self, name: &str) -> Result<()> {
-        self.extension_manager
+        self.services()
+            .await
+            .extension_manager
             .disable(&self.session_id, name)
             .await?;
         Ok(())
     }
 
     pub(super) async fn add_extension(&self, name: &str) -> Result<()> {
-        self.extension_manager
+        self.services()
+            .await
+            .extension_manager
             .enable(
                 &self.session_id,
                 ExtensionConfig::Platform {
@@ -554,7 +541,7 @@ impl TestPipeline {
         message: &str,
         cancel: CancellationToken,
     ) -> Result<TestRun> {
-        *self.extension_lease.lock().unwrap() = None;
+        self.start_new_turn().await;
         self.session_manager
             .add_message(&self.session_id, &Message::user().with_text(message))
             .await?;
@@ -562,13 +549,13 @@ impl TestPipeline {
     }
 
     async fn run_turn(&self, cancel: CancellationToken) -> Result<TestRun> {
-        let machine = self.machine(cancel.clone());
+        let machine = self.machine(cancel.clone()).await;
         let (tx, mut rx) = mpsc::unbounded_channel();
         let emit = Emitter::new(tx, cancel);
         let session = crate::agents::state_machine::session::run(
             &machine,
             self.session_manager.as_ref(),
-            &self.hook_manager,
+            &self.services().await.hook_manager,
             &self.session_id,
             &emit,
         )
@@ -587,12 +574,12 @@ impl TestPipeline {
         action: ElicitationAction,
         user_data: serde_json::Value,
     ) -> Result<TestRun> {
-        *self.extension_lease.lock().unwrap() = None;
+        self.start_new_turn().await;
         self.session_manager
             .add_message(&self.session_id, &Message::user().with_text(message))
             .await?;
         let cancel = CancellationToken::new();
-        let machine = self.machine(cancel.clone());
+        let machine = self.machine(cancel.clone()).await;
         let (tx, mut rx) = mpsc::unbounded_channel();
         let emit = Emitter::new(tx, cancel);
         let mut events = Vec::new();
@@ -794,71 +781,44 @@ async fn build_test_pipeline(
         } else {
             provider
         };
-    let providers: Arc<crate::agents::provider_manager::ProviderManager> = Default::default();
-    providers.set_provider(&session.id, provider.clone()).await;
-    let extension_manager = Arc::new(ExtensionManager::new(
-        providers.clone(),
-        session_manager.clone(),
-        scheduler
-            .clone()
-            .map(|scheduler| scheduler as Arc<dyn crate::scheduler_trait::SchedulerTrait>),
-        ClientContext {
-            name: "pipeline-test".to_string(),
-            capabilities: GooseMcpClientCapabilities {
-                mcpui: false,
-                host_info: None,
-                elicitation_handler: None,
-                protocol_version: None,
-            },
-            connection: None,
-        },
-    ));
-    let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().join("permissions")));
-    let mut tool_inspection_manager = ToolInspectionManager::new();
-    tool_inspection_manager.add_inspector(Box::new(SecurityInspector::enabled()));
-    tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-        permission_manager.clone(),
-        providers,
-        session_manager.clone(),
-    )));
     let model_config = session
         .model_config
         .clone()
         .expect("test session has a model config");
-    let calculator = Arc::new(CalculatorExtension::new(session_manager.action_required()));
-    let mut subagent_host = crate::agents::StateMachineServices::with_config(
-        crate::agents::StateMachineServicesConfig::new(
-            session_manager.clone(),
-            permission_manager.clone(),
-            None,
-            true,
-            crate::agents::GoosePlatform::GooseCli,
-        ),
-    );
-    subagent_host.set_hook_manager_for_test(HookManager::default());
-    let pipeline = TestPipeline {
+    Ok(TestPipeline {
+        permission_manager: Arc::new(PermissionManager::new(temp_dir.path().join("permissions"))),
+        calculator: Arc::new(CalculatorExtension::new(session_manager.action_required())),
         session_manager,
         api,
         provider_features,
-        provider: provider.clone(),
+        provider,
         model_config,
-        extension_manager,
-        extension_lease: Arc::new(StdMutex::new(None)),
-        tool_inspection_manager,
-        permission_manager,
         hook_manager: HookManager::default(),
-        stop_hook_block_cap: 3,
-        calculator: calculator.clone(),
+        turn_settings: TurnSettings {
+            max_turns: MAX_TURNS,
+            retry_timeout: std::time::Duration::from_secs(1),
+            on_failure_timeout: std::time::Duration::from_secs(1),
+            stop_hook_block_cap: 3,
+            tool_pair_summarization: true,
+            compaction_threshold: COMPACTION_THRESHOLD,
+            compaction_token_limit: usize::MAX,
+            tool_call_cutoff: None,
+        },
+        max_turns: MAX_TURNS,
         session_id: session.id.clone(),
         working_dir: session.working_dir.clone(),
-        steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
-        max_turns: MAX_TURNS,
+        session,
         scheduler,
-        subagent_host,
+        services: tokio::sync::OnceCell::new(),
         _temp_dir: temp_dir,
-    };
-    let extension_manager = pipeline.extension_manager.clone();
-    let session_id = pipeline.session_id.clone();
+    })
+}
+
+async fn enable_session_extensions(
+    services: &StateMachineServices,
+    session: &Session,
+    calculator: &Arc<CalculatorExtension>,
+) -> Result<()> {
     let mut extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
         .map(|state| state.extensions)
         .unwrap_or_else(default_extensions);
@@ -884,20 +844,24 @@ async fn build_test_pipeline(
     }
     for extension in extensions {
         if extension.name() == "calculator" {
-            extension_manager
+            services
+                .extension_manager
                 .add_client(
-                    &session_id,
+                    &session.id,
                     extension,
                     calculator.clone(),
                     calculator.get_info().cloned(),
                 )
                 .await;
         } else {
-            extension_manager.enable(&session_id, extension).await?;
+            services
+                .extension_manager
+                .enable(&session.id, extension)
+                .await?;
         }
     }
 
-    Ok(pipeline)
+    Ok(())
 }
 
 fn default_extensions() -> Vec<ExtensionConfig> {
@@ -1139,7 +1103,7 @@ impl TestRun {
 
 pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEvent>> {
     let cancel = CancellationToken::new();
-    let machine = pipeline.machine(cancel.clone());
+    let machine = pipeline.machine(cancel.clone()).await;
     let (tx, mut rx) = mpsc::unbounded_channel();
     let emit = Emitter::new(tx, cancel);
     let mut events = Vec::new();

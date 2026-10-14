@@ -53,7 +53,7 @@ async fn capture_state_machine_trace_fields(
         .await?;
 
     let cancel = CancellationToken::new();
-    let machine = pipeline.machine(cancel.clone());
+    let machine = pipeline.machine(cancel.clone()).await;
     let (tx, _rx) = mpsc::unbounded_channel();
     let emit = Emitter::new(tx, cancel);
     let span = tracing::info_span!(
@@ -66,7 +66,7 @@ async fn capture_state_machine_trace_fields(
     super::session::run(
         &machine,
         pipeline.session_manager.as_ref(),
-        &pipeline.hook_manager,
+        &pipeline.services().await.hook_manager,
         &pipeline.session_id,
         &emit,
     )

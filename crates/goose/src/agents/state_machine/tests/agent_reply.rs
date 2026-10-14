@@ -38,6 +38,17 @@ async fn agent_with_dummy_api() -> Result<(
     String,
     tempfile::TempDir,
 )> {
+    agent_with_hooks(crate::hooks::HookManager::default()).await
+}
+
+async fn agent_with_hooks(
+    hooks: crate::hooks::HookManager,
+) -> Result<(
+    Arc<StateMachineServices>,
+    Arc<DummyApi>,
+    String,
+    tempfile::TempDir,
+)> {
     let api = Arc::new(DummyApi::start(ProviderFeatures::default()).await);
     let api_client = goose_providers::api_client::ApiClient::new_with_tls(
         api.uri(),
@@ -62,13 +73,15 @@ async fn agent_with_dummy_api() -> Result<(
             GooseMode::Auto,
         )
         .await?;
-    let services = StateMachineServices::with_config(StateMachineServicesConfig::new(
+    let mut config = StateMachineServicesConfig::new(
         session_manager,
         Arc::new(PermissionManager::new(temp_dir.path().join("permissions"))),
         None,
         true,
         GoosePlatform::GooseCli,
-    ));
+    );
+    config.hooks = Some(hooks);
+    let services = StateMachineServices::with_config(config);
     services
         .update_provider(
             provider,
@@ -81,14 +94,16 @@ async fn agent_with_dummy_api() -> Result<(
     Ok((services, api, session.id, temp_dir))
 }
 
-async fn agent_with_calculator() -> Result<(
+async fn agent_with_calculator(
+    hooks: crate::hooks::HookManager,
+) -> Result<(
     Arc<StateMachineServices>,
     Arc<DummyApi>,
     String,
     Arc<CalculatorExtension>,
     tempfile::TempDir,
 )> {
-    let (services, api, session_id, temp_dir) = agent_with_dummy_api().await?;
+    let (services, api, session_id, temp_dir) = agent_with_hooks(hooks).await?;
     services
         .update_goose_mode(GooseMode::Approve, &session_id)
         .await?;
@@ -162,21 +177,8 @@ async fn stream_messages(
 
 #[tokio::test]
 async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<()> {
-    let (mut services, api, session_id, calculator, temp_dir) = agent_with_calculator().await?;
-    let hook_dir = tempfile::tempdir()?;
-    let plugin_dir = hook_dir.path().join("test-plugin");
-    std::fs::create_dir_all(plugin_dir.join("hooks"))?;
-    std::fs::write(
-        plugin_dir.join("hooks/hooks.json"),
-        r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"payload=$(cat); printf '%s\\n' \"$payload\" >> \"$PLUGIN_ROOT/hook.log\""}]}]}}"#,
-    )?;
-    services.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
-        crate::plugins::discovery::DiscoveredPlugin {
-            name: "test-plugin".into(),
-            root: plugin_dir.clone(),
-            scope: crate::plugins::discovery::PluginScope::Project,
-        },
-    ]));
+    let (hooks, _hook_dir, hook_log_path) = hook_log(&["PreToolUse"])?;
+    let (services, api, session_id, calculator, temp_dir) = agent_with_calculator(hooks).await?;
 
     api.on("add one").call(ADD, delayed_value(1, 80));
     api.on("result: 1").reply("the result is one");
@@ -304,7 +306,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
         .expect("persisted confirmation response should resume the state-machine turn");
     messages.extend(stream_messages(stream).await?);
 
-    let hook_log = std::fs::read_to_string(plugin_dir.join("hook.log"))?;
+    let hook_log = std::fs::read_to_string(&hook_log_path)?;
     let hook_payloads = hook_log
         .lines()
         .map(serde_json::from_str::<serde_json::Value>)
@@ -393,7 +395,8 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
 
 #[tokio::test]
 async fn stop_at_a_confirmation_interrupts_the_waiting_call() -> Result<()> {
-    let (services, api, session_id, calculator, _temp_dir) = agent_with_calculator().await?;
+    let (services, api, session_id, calculator, _temp_dir) =
+        agent_with_calculator(crate::hooks::HookManager::default()).await?;
     api.on("add one").calls([("call_add", ADD, value(1))]);
 
     let cancel = CancellationToken::new();
@@ -546,7 +549,11 @@ async fn state_machine_rejects_resumed_skill_approval_without_its_lease() -> Res
         }
     };
 
-    services.clear_extension_lease_for_test(&session_config.id);
+    services
+        .runtime
+        .confirmations
+        .session(&session_config.id)
+        .clear_extension_lease();
     services
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;
@@ -567,7 +574,8 @@ async fn state_machine_rejects_resumed_skill_approval_without_its_lease() -> Res
 
 #[tokio::test]
 async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()> {
-    let (services, api, session_id, calculator, _temp_dir) = agent_with_calculator().await?;
+    let (services, api, session_id, calculator, _temp_dir) =
+        agent_with_calculator(crate::hooks::HookManager::default()).await?;
 
     api.on("add one").call(ADD, value(1));
     api.on(EXPIRED_APPROVAL_RESPONSE).reply("request it again");
@@ -597,7 +605,11 @@ async fn state_machine_rejects_resumed_approval_without_its_lease() -> Result<()
         }
     };
 
-    services.clear_extension_lease_for_test(&session_config.id);
+    services
+        .runtime
+        .confirmations
+        .session(&session_config.id)
+        .clear_extension_lease();
     services
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;
@@ -657,7 +669,11 @@ async fn state_machine_rejects_resumed_bang_shell_without_its_lease() -> Result<
         }
     };
 
-    services.clear_extension_lease_for_test(&session_config.id);
+    services
+        .runtime
+        .confirmations
+        .session(&session_config.id)
+        .clear_extension_lease();
     services
         .submit_tool_confirmation(&session_config.id, &confirmation_id, Permission::AllowOnce)
         .await?;
@@ -924,7 +940,8 @@ async fn bang_shell_visibility_is_enforced_when_state_machine_is_enabled() -> Re
 
 #[tokio::test]
 async fn a_subagent_runs_the_parents_hooks_and_is_released_when_it_finishes() -> Result<()> {
-    let (mut services, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    let (hooks, _hook_dir, hook_log_path) = hook_log(&["PreToolUse", "SessionEnd"])?;
+    let (services, api, session_id, _temp_dir) = agent_with_hooks(hooks).await?;
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
@@ -932,20 +949,6 @@ async fn a_subagent_runs_the_parents_hooks_and_is_released_when_it_finishes() ->
         ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
-    let hook_dir = tempfile::tempdir()?;
-    let plugin_dir = hook_dir.path().join("test-plugin");
-    std::fs::create_dir_all(plugin_dir.join("hooks"))?;
-    std::fs::write(
-        plugin_dir.join("hooks/hooks.json"),
-        r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"payload=$(cat); printf '%s\\n' \"$payload\" >> \"$PLUGIN_ROOT/hook.log\""}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"payload=$(cat); printf '%s\\n' \"$payload\" >> \"$PLUGIN_ROOT/hook.log\""}]}]}}"#,
-    )?;
-    services.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
-        crate::plugins::discovery::DiscoveredPlugin {
-            name: "test-plugin".into(),
-            root: plugin_dir.clone(),
-            scope: crate::plugins::discovery::PluginScope::Project,
-        },
-    ]));
     enable_developer(&services, &session_id).await?;
     services
         .extension_manager
@@ -980,7 +983,7 @@ async fn a_subagent_runs_the_parents_hooks_and_is_released_when_it_finishes() ->
     )
     .await?;
 
-    let hook_log = std::fs::read_to_string(plugin_dir.join("hook.log"))?;
+    let hook_log = std::fs::read_to_string(&hook_log_path)?;
     let payloads = hook_log
         .lines()
         .map(serde_json::from_str::<serde_json::Value>)
@@ -1322,10 +1325,13 @@ async fn concurrent_subagents_get_their_own_answers_for_the_same_tool_call_id() 
     Ok(())
 }
 
-fn install_hook_log(
-    services: &mut Arc<StateMachineServices>,
+fn hook_log(
     events: &[&str],
-) -> Result<(tempfile::TempDir, std::path::PathBuf)> {
+) -> Result<(
+    crate::hooks::HookManager,
+    tempfile::TempDir,
+    std::path::PathBuf,
+)> {
     let hook_dir = tempfile::tempdir()?;
     let plugin_dir = hook_dir.path().join("test-plugin");
     std::fs::create_dir_all(plugin_dir.join("hooks"))?;
@@ -1341,14 +1347,14 @@ fn install_hook_log(
         plugin_dir.join("hooks/hooks.json"),
         json!({ "hooks": hooks }).to_string(),
     )?;
-    services.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
+    let hooks = crate::hooks::HookManager::from_plugins_for_test(vec![
         crate::plugins::discovery::DiscoveredPlugin {
             name: "test-plugin".into(),
             root: plugin_dir.clone(),
             scope: crate::plugins::discovery::PluginScope::Project,
         },
-    ]));
-    Ok((hook_dir, plugin_dir.join("hook.log")))
+    ]);
+    Ok((hooks, hook_dir, plugin_dir.join("hook.log")))
 }
 
 fn hook_sessions(log: &std::path::Path, event: &str) -> Vec<String> {
@@ -1363,7 +1369,8 @@ fn hook_sessions(log: &std::path::Path, event: &str) -> Vec<String> {
 
 #[tokio::test]
 async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
-    let (mut services, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    let (hooks, _hook_dir, hook_log) = hook_log(&["SessionEnd"])?;
+    let (services, api, session_id, _temp_dir) = agent_with_hooks(hooks).await?;
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
@@ -1371,7 +1378,6 @@ async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
         ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("OPENAI_CUSTOM_HEADERS", Some("")),
     ]);
-    let (_hook_dir, hook_log) = install_hook_log(&mut services, &["SessionEnd"])?;
     services
         .session_manager
         .update(&session_id)

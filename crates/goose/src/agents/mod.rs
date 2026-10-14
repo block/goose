@@ -41,7 +41,7 @@ pub(crate) use large_response_handler::max_tool_response_size;
 pub use prompt_manager::PromptManager;
 #[cfg(feature = "scheduler")]
 pub use schedule_tool::ScheduleTool;
-pub use services::{GoosePlatform, StateMachineServices, StateMachineServicesConfig};
+pub use services::{GoosePlatform, StateMachineServices, StateMachineServicesConfig, TurnSettings};
 pub use session_runtime::{Attachment, SessionRuntime};
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 pub use subagent_task_config::TaskConfig;

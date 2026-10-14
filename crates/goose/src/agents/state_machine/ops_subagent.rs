@@ -331,17 +331,15 @@ mod tests {
 
     impl Fixture {
         fn runner(&self) -> SubagentRunner {
-            let mut services = crate::agents::StateMachineServices::with_config(
-                crate::agents::StateMachineServicesConfig::new(
-                    self.manager.clone(),
-                    crate::config::permission::PermissionManager::instance(),
-                    None,
-                    true,
-                    crate::agents::GoosePlatform::GooseCli,
-                ),
+            let mut config = crate::agents::StateMachineServicesConfig::new(
+                self.manager.clone(),
+                crate::config::permission::PermissionManager::instance(),
+                None,
+                true,
+                crate::agents::GoosePlatform::GooseCli,
             );
-            services.set_hook_manager_for_test(crate::hooks::HookManager::default());
-            SubagentRunner::new(services)
+            config.hooks = Some(crate::hooks::HookManager::default());
+            SubagentRunner::new(crate::agents::StateMachineServices::with_config(config))
         }
 
         fn operation(&self, cancel: CancellationToken) -> SubagentOperation {

@@ -53,6 +53,52 @@ use tracing::{error, instrument, warn};
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 
+/// The knobs a turn runs with.
+#[derive(Clone, Debug)]
+pub struct TurnSettings {
+    pub max_turns: u32,
+    pub retry_timeout: std::time::Duration,
+    pub on_failure_timeout: std::time::Duration,
+    pub stop_hook_block_cap: u32,
+    pub tool_pair_summarization: bool,
+    pub compaction_threshold: f64,
+    pub compaction_token_limit: usize,
+    /// `None` derives it from the context limit.
+    pub tool_call_cutoff: Option<usize>,
+}
+
+impl TurnSettings {
+    pub fn from_config() -> Self {
+        let config = Config::global();
+        Self {
+            max_turns: config
+                .get_param::<u32>("GOOSE_MAX_TURNS")
+                .unwrap_or(DEFAULT_MAX_TURNS),
+            retry_timeout: std::time::Duration::from_secs(
+                config
+                    .get_param::<u64>("GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS")
+                    .unwrap_or(DEFAULT_RETRY_TIMEOUT_SECONDS),
+            ),
+            on_failure_timeout: std::time::Duration::from_secs(
+                config
+                    .get_param::<u64>("GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS")
+                    .unwrap_or(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS),
+            ),
+            stop_hook_block_cap: config
+                .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+                .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP),
+            tool_pair_summarization: crate::context_mgmt::tool_pair_summarization_enabled(),
+            compaction_threshold: config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD),
+            compaction_token_limit: config
+                .get_param::<usize>("GOOSE_AUTO_COMPACT_TOKEN_LIMIT")
+                .unwrap_or(crate::context_mgmt::DEFAULT_AUTO_COMPACT_TOKEN_LIMIT),
+            tool_call_cutoff: config.get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF").ok(),
+        }
+    }
+}
+
 fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
     let message = format!("{context}: {error}");
     error.context(message)
@@ -106,6 +152,10 @@ pub struct StateMachineServicesConfig {
     pub providers: Arc<ProviderManager>,
     /// Sessions kept loaded before the least recently used idle one is released.
     pub max_sessions: usize,
+    /// `None` reads them from config at the start of every turn.
+    pub turn_settings: Option<TurnSettings>,
+    /// `None` loads the enabled plugins' hooks.
+    pub hooks: Option<crate::hooks::HookManager>,
 }
 
 impl StateMachineServicesConfig {
@@ -141,6 +191,8 @@ impl StateMachineServicesConfig {
             max_sessions: Config::global()
                 .get_goose_max_active_agents()
                 .unwrap_or(DEFAULT_MAX_SESSIONS),
+            turn_settings: None,
+            hooks: None,
         }
     }
 }
@@ -160,8 +212,7 @@ pub struct StateMachineServices {
 
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
-    #[cfg(test)]
-    pub(super) stop_hook_block_cap_override: Option<u32>,
+    turn_settings: Option<TurnSettings>,
 }
 
 fn user_event(event: AgentEvent) -> Option<AgentEvent> {
@@ -206,39 +257,15 @@ impl StateMachineServices {
             goose_platform: config.goose_platform,
             disable_session_naming: config.disable_session_naming,
             runtime: SessionRuntime::new(config.max_sessions),
-            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
-            #[cfg(test)]
-            stop_hook_block_cap_override: None,
+            hook_manager: config.hooks.unwrap_or_else(|| {
+                crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref())
+            }),
+            turn_settings: config.turn_settings,
         })
     }
 
     /// Emit a lifecycle hook event with no extra context. Useful for events
     /// that have no matcher (e.g. `SessionStart`, `SessionEnd`).
-    #[cfg(test)]
-    pub(crate) fn set_hook_manager_for_test(
-        self: &mut Arc<Self>,
-        hook_manager: crate::hooks::HookManager,
-    ) {
-        Arc::get_mut(self)
-            .expect("services are shared")
-            .hook_manager = hook_manager;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn clear_extension_lease_for_test(&self, session_id: &str) {
-        self.runtime
-            .confirmations
-            .session(session_id)
-            .clear_extension_lease();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_stop_hook_block_cap_for_test(self: &mut Arc<Self>, cap: u32) {
-        Arc::get_mut(self)
-            .expect("services are shared")
-            .stop_hook_block_cap_override = Some(cap);
-    }
-
     pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
         if !self.hook_manager.has_hooks(event) {
             return;
@@ -530,41 +557,26 @@ impl StateMachineServices {
         cancel: CancellationToken,
         steer_queue: SteerQueue,
     ) -> StateMachine<'_, Session, GooseEffect> {
-        let max_turns = session_config.max_turns.unwrap_or_else(|| {
-            Config::global()
-                .get_param::<u32>("GOOSE_MAX_TURNS")
-                .unwrap_or(DEFAULT_MAX_TURNS)
-        });
+        let settings = self
+            .turn_settings
+            .clone()
+            .unwrap_or_else(TurnSettings::from_config);
+        let max_turns = session_config.max_turns.unwrap_or(settings.max_turns);
         let extension_lease = self
             .runtime
             .confirmations
             .session(&session_config.id)
             .extension_lease();
-        let retry_timeout = Config::global()
-            .get_param::<u64>("GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS")
-            .unwrap_or(DEFAULT_RETRY_TIMEOUT_SECONDS);
-        let on_failure_timeout = Config::global()
-            .get_param::<u64>("GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS")
-            .unwrap_or(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS);
-        #[cfg(test)]
-        let stop_hook_block_cap = self.stop_hook_block_cap_override.unwrap_or_else(|| {
-            Config::global()
-                .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
-                .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP)
+        let compaction_threshold = crate::context_mgmt::capped_compaction_threshold(
+            settings.compaction_threshold,
+            settings.compaction_token_limit,
+            context_limit,
+        );
+        let tool_call_cutoff = settings.tool_call_cutoff.unwrap_or_else(|| {
+            crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
         });
-        #[cfg(not(test))]
-        let stop_hook_block_cap = Config::global()
-            .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
-            .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP);
-        let compaction_threshold = crate::context_mgmt::auto_compact_threshold(context_limit);
-        let tool_call_cutoff = Config::global()
-            .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-            .unwrap_or_else(|_| {
-                crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
-            });
         let manages_own_context = provider.manages_own_context();
-        let tool_pair_compaction_enabled =
-            crate::context_mgmt::tool_pair_summarization_enabled() && !manages_own_context;
+        let tool_pair_compaction_enabled = settings.tool_pair_summarization && !manages_own_context;
 
         let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
@@ -610,13 +622,13 @@ impl StateMachineServices {
             )),
             Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
             Arc::new(RetryOperation::new(
-                std::time::Duration::from_secs(retry_timeout),
-                std::time::Duration::from_secs(on_failure_timeout),
+                settings.retry_timeout,
+                settings.on_failure_timeout,
             )),
             Arc::new(EmptyResponseOperation),
             Arc::new(StopHookOperation::new(
                 self.hook_manager.clone(),
-                stop_hook_block_cap,
+                settings.stop_hook_block_cap,
             )),
             Arc::new(ExitOnErrorOperation),
             Arc::new(MaxTurnsOperation::new(max_turns)),
@@ -2360,8 +2372,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             call_count: AtomicUsize::new(0),
         });
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
-        let (services, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        let (services, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            hook_manager,
+            provider.clone(),
+            None,
+        )
+        .await?;
 
         let session_config = SessionConfig {
             id: session_id,
@@ -2403,18 +2420,20 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         data_dir: PathBuf,
         hook_manager: crate::hooks::HookManager,
         provider: Arc<dyn crate::providers::base::Provider>,
+        turn_settings: Option<TurnSettings>,
     ) -> Result<(Arc<StateMachineServices>, String)> {
         let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
         let permission_manager = Arc::new(PermissionManager::new(data_dir));
-        let config = StateMachineServicesConfig::new(
+        let mut config = StateMachineServicesConfig::new(
             session_manager.clone(),
             permission_manager,
             None,
             true,
             GoosePlatform::GooseCli,
         );
-        let mut services = StateMachineServices::with_config(config);
-        services.set_hook_manager_for_test(hook_manager);
+        config.hooks = Some(hook_manager);
+        config.turn_settings = turn_settings;
+        let services = StateMachineServices::with_config(config);
         let session = session_manager
             .create_session(
                 PathBuf::default(),
@@ -2438,9 +2457,16 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         stop_hook_block_cap: u32,
     ) -> Result<(Arc<StateMachineServices>, String, Arc<CountingTextProvider>)> {
         let provider = Arc::new(CountingTextProvider::new());
-        let (mut services, session_id) =
-            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
-        services.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        let (services, session_id) = create_test_agent(
+            env.data_dir(),
+            env.hook_manager(),
+            provider.clone(),
+            Some(TurnSettings {
+                stop_hook_block_cap,
+                ..TurnSettings::from_config()
+            }),
+        )
+        .await?;
         Ok((services, session_id, provider))
     }
 
@@ -2486,7 +2512,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let provider = Arc::new(OutputLimitMarkerProvider::new(true));
         let (services, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider, None).await?;
 
         let messages = run_stop_hook_test_turn(&services, &session_id, "hello").await?;
         let marker = messages
@@ -2520,8 +2546,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let temp_dir = tempfile::tempdir()?;
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let provider = Arc::new(OutputLimitMarkerProvider::new(false));
-        let (services, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        let (services, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            hook_manager,
+            provider.clone(),
+            None,
+        )
+        .await?;
 
         run_stop_hook_test_turn(&services, &session_id, "hello").await?;
 
@@ -2555,7 +2586,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let env = SessionStartHookTestEnv::new()?;
         let provider = Arc::new(CountingTextProvider::new());
         let (services, session_id) =
-            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone(), None).await?;
 
         run_stop_hook_test_turn(&services, &session_id, "first").await?;
         run_stop_hook_test_turn(&services, &session_id, "second").await?;
@@ -2663,7 +2694,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let env = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
         let provider = Arc::new(ChunkedTextProvider);
         let (services, session_id) =
-            create_test_agent(env.data_dir(), env.hook_manager(), provider).await?;
+            create_test_agent(env.data_dir(), env.hook_manager(), provider, None).await?;
 
         let messages = run_stop_hook_test_turn(&services, &session_id, "hello").await?;
         let texts = visible_texts(&messages);
