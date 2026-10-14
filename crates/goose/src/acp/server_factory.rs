@@ -1,11 +1,10 @@
 use crate::acp::server::{
-    new_acp_services, AcpBuiltinSelection, AcpConnection, AcpConnectionOptions, AcpProviderFactory,
-    LiveVoiceService,
+    acp_services_config, AcpBuiltinSelection, AcpConnection, AcpConnectionOptions,
+    AcpProviderFactory, LiveVoiceService,
 };
 use crate::agents::GoosePlatform;
 use crate::agents::StateMachineServices;
 use crate::config::paths::Paths;
-use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
 use anyhow::Result;
@@ -53,35 +52,27 @@ impl AcpServer {
         self.services
             .get_or_try_init(|| async {
                 let session_manager = Arc::new(SessionManager::new(self.data_dir.clone()));
-                #[cfg(feature = "scheduler")]
-                let scheduler = if self.config.enable_scheduler {
-                    Some(
-                        crate::scheduler::Scheduler::new(
-                            self.data_dir.join("schedule.json"),
-                            session_manager.clone(),
-                        )
-                        .await?,
-                    )
-                } else {
-                    None
-                };
-                #[cfg(not(feature = "scheduler"))]
-                let scheduler: Option<Arc<dyn SchedulerTrait>> = None;
-                let services = new_acp_services(
-                    session_manager,
+                let config = acp_services_config(
+                    session_manager.clone(),
                     self.config.config_dir.clone(),
-                    scheduler
-                        .clone()
-                        .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>),
                     crate::config::Config::global()
                         .get_goose_disable_session_naming()
                         .unwrap_or(false),
                     self.config.goose_platform.clone(),
                 );
                 #[cfg(feature = "scheduler")]
-                if let Some(scheduler) = scheduler {
-                    scheduler.attach_services(&services);
-                }
+                let services = if self.config.enable_scheduler {
+                    let scheduler = crate::scheduler::Scheduler::new(
+                        self.data_dir.join("schedule.json"),
+                        session_manager,
+                    )
+                    .await?;
+                    StateMachineServices::with_scheduler(config, scheduler)
+                } else {
+                    StateMachineServices::with_config(config)
+                };
+                #[cfg(not(feature = "scheduler"))]
+                let services = StateMachineServices::with_config(config);
                 anyhow::Ok(services)
             })
             .await

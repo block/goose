@@ -37,7 +37,6 @@ use crate::providers::inventory::{
     ProviderInventoryEntry, ProviderInventoryService, RefreshJobPlan, RefreshPlan,
     RefreshSkipReason,
 };
-use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionUsageTotals;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
@@ -290,26 +289,25 @@ pub struct AcpConnectionOptions {
     pub live_voice: Arc<LiveVoiceService>,
 }
 
-/// The services a `goose serve` process shares across its ACP connections.
-pub fn new_acp_services(
+/// What a `goose serve` process's services run with; one is shared by every connection.
+pub fn acp_services_config(
     session_manager: Arc<SessionManager>,
     config_dir: std::path::PathBuf,
-    scheduler: Option<Arc<dyn SchedulerTrait>>,
     disable_session_naming: bool,
     goose_platform: GoosePlatform,
-) -> Arc<StateMachineServices> {
+) -> StateMachineServicesConfig {
     // Eagerly initialize the SQLite pool so it's ready when providers/sessions need it.
     let storage = session_manager.storage().clone();
     tokio::spawn(async move {
         let _ = storage.pool().await;
     });
-    StateMachineServices::with_config(StateMachineServicesConfig::new(
+    StateMachineServicesConfig::new(
         session_manager,
         Arc::new(PermissionManager::new(config_dir)),
-        scheduler,
+        None,
         disable_session_naming,
         goose_platform,
-    ))
+    )
 }
 
 static NEXT_CONNECTION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -3576,13 +3574,12 @@ print(\"hello, world\")
     #[tokio::test]
     async fn initialize_stamps_the_protocol_version_goose_implements() {
         let root = tempfile::tempdir().unwrap();
-        let services = new_acp_services(
+        let services = StateMachineServices::with_config(acp_services_config(
             Arc::new(SessionManager::new(root.path().to_path_buf())),
             root.path().to_path_buf(),
-            None,
             true,
             GoosePlatform::GooseCli,
-        );
+        ));
         let live_voice = Arc::new(LiveVoiceService::from_config(services.runtime.runs.clone()));
         let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
             Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
@@ -3709,13 +3706,12 @@ print(\"hello, world\")
     #[tokio::test]
     async fn asynchronous_provider_effort_update_is_forwarded_to_client() {
         let root = tempfile::tempdir().unwrap();
-        let services = new_acp_services(
+        let services = StateMachineServices::with_config(acp_services_config(
             Arc::new(SessionManager::new(root.path().to_path_buf())),
             root.path().to_path_buf(),
-            None,
             true,
             GoosePlatform::GooseCli,
-        );
+        ));
         let live_voice = Arc::new(LiveVoiceService::from_config(services.runtime.runs.clone()));
         let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
             Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })

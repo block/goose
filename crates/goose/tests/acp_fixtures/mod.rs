@@ -403,13 +403,14 @@ pub async fn spawn_acp_server_in_process(
         })
     });
 
-    let services = goose::acp::server::new_acp_services(
+    let mut services_config = goose::acp::server::acp_services_config(
         Arc::new(goose::session::SessionManager::new(data_root.to_path_buf())),
         data_root.to_path_buf(),
-        Some(Arc::new(FixtureScheduler::new())),
         disable_session_naming,
         GoosePlatform::GooseCli,
     );
+    services_config.scheduler_service = Some(Arc::new(FixtureScheduler::new()));
+    let services = goose::agents::StateMachineServices::with_config(services_config);
     let live_voice = Arc::new(goose::acp::server::LiveVoiceService::from_config(
         services.runtime.runs.clone(),
     ));
