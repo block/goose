@@ -1442,13 +1442,21 @@ async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
     })
     .await?;
     assert_ne!(subagent_id, session_id);
-    assert!(!agent.tracks_confirmations_for(&subagent_id));
-    assert!(agent
-        .extension_manager
-        .scope_lease(&subagent_id)
-        .await
-        .configs()
-        .is_empty());
+    // `end_subagent` emits SessionEnd before it releases the session, so the
+    // release can still be running when the hook shows up in the log.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while agent.tracks_confirmations_for(&subagent_id)
+            || !agent
+                .extension_manager
+                .scope_lease(&subagent_id)
+                .await
+                .configs()
+                .is_empty()
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await?;
     Ok(())
 }
 
