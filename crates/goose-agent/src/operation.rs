@@ -257,6 +257,7 @@ impl From<Conversation> for ConversationEffect {
     }
 }
 
+#[derive(Clone)]
 pub struct Emitter {
     tx: mpsc::UnboundedSender<AgentEvent>,
     cancel: CancellationToken,

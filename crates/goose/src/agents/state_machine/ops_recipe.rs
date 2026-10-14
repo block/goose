@@ -4,25 +4,25 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, ContentBlock, Tool};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorCode, ErrorData, Tool};
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
     structured_output_unsupported_message, FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE,
-    FINAL_OUTPUT_TOOL_NAME,
+    FINAL_OUTPUT_NOT_ALONE_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::ops_toolcalling::{
     emit_post_tool_use, pending_advertised_tool_requests, run_pre_tool_hooks, tool_span,
     ToolDisposition,
 };
 use crate::agents::state_machine::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
-    ConversationEffect, Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
+    applied, ends_turn, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect,
+    Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
 use crate::config::GooseMode;
-use crate::conversation::message::Message;
-use crate::conversation::{Conversation, EffectiveRole};
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::hooks::HookManager;
 use crate::providers::base::Provider;
 use crate::session::Session;
@@ -35,6 +35,37 @@ pub(crate) fn final_output_tool(session: &Session) -> Result<Option<FinalOutputT
         .map(FinalOutputTool::try_new)
         .transpose()
         .map_err(|error| anyhow!(error))
+}
+
+fn assistant_block_bounds(messages: &[Message], message_index: usize) -> (usize, usize) {
+    let start = (0..message_index)
+        .rev()
+        .take_while(|index| messages[*index].role == rmcp::model::Role::Assistant)
+        .last()
+        .unwrap_or(message_index);
+    let end = (message_index + 1..messages.len())
+        .take_while(|index| messages[*index].role == rmcp::model::Role::Assistant)
+        .last()
+        .map_or(message_index + 1, |index| index + 1);
+    (start, end)
+}
+
+fn has_sibling_tool_calls(messages: &[Message], request_id: &str) -> bool {
+    let Some(message_index) = messages.iter().position(|message| {
+        message
+            .content
+            .iter()
+            .filter_map(MessageContent::as_tool_request)
+            .any(|request| request.id == request_id)
+    }) else {
+        return false;
+    };
+    let (start, end) = assistant_block_bounds(messages, message_index);
+    messages[start..end]
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_request)
+        .any(|request| request.id != request_id && !request.was_executed_externally())
 }
 
 pub(crate) fn recipe_prompt_parts(session: &Session) -> Result<Vec<(String, String)>> {
@@ -225,8 +256,19 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                 let response = emit.message(response);
                 return applied([response.into()]);
             }
-            if FinalOutputTool::has_unanswered_siblings(messages, &request.id) {
-                return not_applicable();
+            if has_sibling_tool_calls(messages, &request.id) {
+                let mut response = Message::user();
+                response.add_tool_response_with_metadata(
+                    request.id,
+                    Err(ErrorData::new(
+                        ErrorCode::INVALID_REQUEST,
+                        FINAL_OUTPUT_NOT_ALONE_MESSAGE,
+                        None,
+                    )),
+                    request.metadata.as_ref(),
+                );
+                let response = emit.message(response);
+                return applied([response.into()]);
             }
 
             let tool_call = request
@@ -298,15 +340,14 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
             }
             let response = self.take_response().expect("recipe response held");
             let response = emit.message(response);
-            return applied([response.into()]);
+            let Some(accepted) = final_output.final_output.take() else {
+                return applied([response.into()]);
+            };
+            let accepted = emit.message(Message::assistant().with_text(accepted));
+            return applied([response.into(), accepted.into()]);
         }
 
-        if let Some(output) = FinalOutputTool::successful_output(messages) {
-            if last_effective_role(messages)? == EffectiveRole::Tool {
-                let message = Message::assistant().with_text(output);
-                let message = emit.message(message);
-                return applied([message.into()]);
-            }
+        if FinalOutputTool::successful_output(messages).is_some() {
             return not_applicable();
         }
 

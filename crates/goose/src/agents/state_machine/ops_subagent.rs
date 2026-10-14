@@ -3,13 +3,16 @@ use futures::future::{self, BoxFuture};
 use goose_agent::subagent::{SubagentOutcome, SubagentRunner};
 
 use crate::agents::final_output_tool::FinalOutputTool;
-use crate::agents::state_machine::{awaits_tool_responses, messages_since_kickoff, Emitter};
+use crate::agents::state_machine::Emitter;
 use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionType};
 use crate::utils::safe_truncate;
 
+// Predates background subagents' removal and lives on in session histories, where older
+// histories still hold background delegations marked `false`.
+pub(crate) const DELEGATED_META_KEY: &str = "foreground_subagent";
 const TASK_SNIPPET_CHARS: usize = 160;
 
 fn inline_notice(text: String) -> Message {
@@ -60,7 +63,7 @@ fn delegated_subagent_ids(content: &[MessageContent]) -> impl Iterator<Item = &s
         let result = response.tool_result.as_ref().ok()?;
         let meta = result.meta.as_ref()?;
         if result.is_error == Some(true)
-            || meta.0.get("foreground_subagent") != Some(&serde_json::Value::Bool(true))
+            || meta.0.get(DELEGATED_META_KEY) != Some(&serde_json::Value::Bool(true))
         {
             return None;
         }
@@ -85,9 +88,7 @@ impl SubagentRunner<Session> for ForegroundSubagentRunner {
         parent_session: &Session,
         conversation: &Conversation,
     ) -> Vec<String> {
-        let all_tool_calls_answered = messages_since_kickoff(conversation)
-            .is_ok_and(|messages| !awaits_tool_responses(messages));
-        if parent_session.session_type == SessionType::SubAgent || !all_tool_calls_answered {
+        if parent_session.session_type == SessionType::SubAgent {
             return Vec::new();
         }
         conversation
@@ -127,7 +128,7 @@ impl SubagentRunner<Session> for ForegroundSubagentRunner {
             .as_ref()
             .and_then(|recipe| recipe.prompt.as_deref());
         emit.message(inline_notice(start_notice(subagent_session_id, task)));
-        self.spawn(subagent, emit.cancel_token().clone())
+        self.spawn(subagent, emit.clone())
     }
 
     async fn on_subagent_finished(
@@ -177,7 +178,15 @@ mod tests {
 
     impl Fixture {
         fn runner(&self) -> ForegroundSubagentRunner {
-            ForegroundSubagentRunner::new(self.manager.clone(), false)
+            let mut agent = crate::agents::Agent::with_config(crate::agents::AgentConfig::new(
+                self.manager.clone(),
+                crate::config::permission::PermissionManager::instance(),
+                None,
+                true,
+                crate::agents::GoosePlatform::GooseCli,
+            ));
+            agent.set_hook_manager_for_test(crate::hooks::HookManager::default());
+            ForegroundSubagentRunner::new(agent)
         }
 
         fn operation(&self) -> ForegroundSubagentOperation<Session> {
@@ -235,7 +244,7 @@ mod tests {
     fn delegate_result(subagent_id: &str, foreground: bool) -> CallToolResult {
         let mut meta = MetaObject::new();
         meta.0.insert(
-            "foreground_subagent".to_string(),
+            DELEGATED_META_KEY.to_string(),
             serde_json::Value::Bool(foreground),
         );
         meta.0.insert(
@@ -243,7 +252,7 @@ mod tests {
             serde_json::Value::String(subagent_id.to_string()),
         );
         CallToolResult::success(vec![ContentBlock::text(format!(
-            "Delegated to foreground subagent {subagent_id}"
+            "Delegated to subagent {subagent_id}"
         ))])
         .with_meta(Some(meta))
     }
@@ -288,7 +297,7 @@ mod tests {
 
     fn delivered(effect: &GooseEffect) -> &str {
         let GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) = effect else {
-            panic!("expected a foreground subagent delivery");
+            panic!("expected a subagent delivery");
         };
         message
             .metadata
@@ -328,37 +337,6 @@ mod tests {
         assert!(runner
             .started_subagent_session_ids(&parent, &conversation)
             .is_empty());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn waits_for_all_tool_responses_before_running_subagents() -> Result<()> {
-        let fixture = fixture().await?;
-        let parent = fixture
-            .manager
-            .get_session(&fixture.parent_id, false)
-            .await?;
-        let runner = fixture.runner();
-        let requests = Message::assistant()
-            .with_tool_request("delegate-s1", Ok(CallToolRequestParams::new("delegate")))
-            .with_tool_request("other-call", Ok(CallToolRequestParams::new("other")));
-        let mut messages = vec![
-            Message::user().with_text("delegate"),
-            requests,
-            delegate_message("s1"),
-        ];
-        assert!(runner
-            .started_subagent_session_ids(&parent, &Conversation::new_unvalidated(messages.clone()))
-            .is_empty());
-
-        messages.push(Message::user().with_tool_response(
-            "other-call",
-            Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
-        ));
-        assert_eq!(
-            runner.started_subagent_session_ids(&parent, &Conversation::new_unvalidated(messages)),
-            ["s1"]
-        );
         Ok(())
     }
 

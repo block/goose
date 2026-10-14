@@ -1,5 +1,6 @@
 //! Provider inference operation for the unrolled agent loop.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use anyhow::Result;
@@ -130,6 +131,7 @@ pub fn chat_span(
         "gen_ai.response.model" = tracing::field::Empty,
         "gen_ai.response.finish_reasons" = tracing::field::Empty,
         "gen_ai.response.id" = tracing::field::Empty,
+        "gen_ai.request.id" = tracing::field::Empty,
         "gen_ai.usage.input_tokens" = tracing::field::Empty,
         "gen_ai.usage.output_tokens" = tracing::field::Empty,
         "goose.chat.purpose" = purpose,
@@ -198,6 +200,9 @@ pub fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
     if let Some(id) = &usage.response_id {
         span.record("gen_ai.response.id", id.as_str());
     }
+    if let Some(id) = &usage.request_id {
+        span.record("gen_ai.request.id", id.as_str());
+    }
 }
 
 #[derive(Default)]
@@ -222,7 +227,7 @@ fn messages_for_provider(
     turn: &[Message],
     keep_empty_messages: bool,
 ) -> Vec<Message> {
-    let answered: std::collections::HashSet<&str> = conversation
+    let answered: HashSet<&str> = conversation
         .messages()
         .iter()
         .flat_map(|message| message.get_tool_response_ids())
@@ -292,6 +297,7 @@ fn inference_span(provider: &dyn Provider, model_config: &ModelConfig) -> tracin
         "gen_ai.response.model" = tracing::field::Empty,
         "gen_ai.response.finish_reasons" = tracing::field::Empty,
         "gen_ai.response.id" = tracing::field::Empty,
+        "gen_ai.request.id" = tracing::field::Empty,
         "gen_ai.usage.input_tokens" = tracing::field::Empty,
         "gen_ai.usage.output_tokens" = tracing::field::Empty,
         "error.type" = tracing::field::Empty,
@@ -466,7 +472,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
                 provider_session_id,
             });
 
-            let mut tool_request_ids = std::collections::HashSet::new();
+            let mut tool_request_ids = HashSet::new();
             while let Some(result) = stream.next().await {
                 let (msg_opt, usage_opt) = match result {
                     Ok(chunk) => chunk,

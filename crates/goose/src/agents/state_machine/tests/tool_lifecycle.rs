@@ -1,19 +1,147 @@
+use std::sync::Arc;
+
 use anyhow::Result;
-use rmcp::model::ElicitationAction;
+use rmcp::model::{CallToolRequestParams, ElicitationAction, ErrorData};
 use serde_json::json;
 
 use super::calculator_extension::{
     delayed_value, value, ADD, ADD_WITH_AUDIENCE, APP_ONLY, DIVIDE, REQUEST_VALUE,
 };
+use super::dummy_api::DummyApi;
 use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
+use super::pipeline::TestPipeline;
 use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
+use crate::agents::state_machine::MAX_TURNS_MESSAGE;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::permission::Permission;
+
+async fn pipeline_with_gated_divide() -> Result<(TestPipeline, Arc<DummyApi>)> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    pipeline.set_permission(ADD, PermissionLevel::AlwaysAllow);
+    api.on("add four and halve it")
+        .calls([("free", ADD, value(4)), ("gated", DIVIDE, value(2))]);
+    Ok((pipeline, api))
+}
+
+#[tokio::test]
+async fn no_inference_while_a_tool_confirmation_is_open() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    assert_eq!(api.call_count(), 1);
+    assert_eq!(pipeline.calculator_total(), 4);
+    awaiting_confirmation.assert_message(-1, ToolResponse, "result: 4");
+
+    api.on("result: 2").reply("halved");
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "halved");
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert_eq!(api.call_count(), 2);
+    assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
+
+#[tokio::test]
+async fn steer_waits_for_an_open_tool_confirmation() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+    pipeline
+        .steer(Message::user().with_text("then say done"))
+        .await;
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    assert_eq!(api.call_count(), 1);
+    assert!(pipeline.has_pending_steers().await);
+    assert!(!awaiting_confirmation
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "then say done"));
+
+    api.on("then say done").reply("done");
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "done");
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert!(!pipeline.has_pending_steers().await);
+    let messages = result.conversation().messages();
+    let steer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == "then say done")
+        .expect("steer was persisted");
+    let gated_answer = messages
+        .iter()
+        .position(|message| message.get_tool_response_ids().contains("gated"))
+        .expect("gated call was answered");
+    assert!(gated_answer < steer);
+    assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
+
+#[tokio::test]
+async fn max_turns_waits_for_an_open_tool_confirmation() -> Result<()> {
+    let (pipeline, api) = pipeline_with_gated_divide().await?;
+    let pipeline = pipeline.with_max_turns(1);
+
+    let awaiting_confirmation = pipeline.run(["add four and halve it"]).await?;
+    awaiting_confirmation.assert_message(-1, ToolResponse, "result: 4");
+
+    pipeline.confirm("gated", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, MAX_TURNS_MESSAGE);
+    assert_eq!(pipeline.calculator_total(), 2);
+    assert_eq!(api.call_count(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn steer_waits_for_calls_answered_by_different_operations() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let arguments = value(1).as_object().unwrap().clone();
+    pipeline
+        .seed([
+            Message::user().with_text("do two things"),
+            Message::assistant()
+                .with_tool_request(
+                    "valid",
+                    Ok(CallToolRequestParams::new(ADD).with_arguments(arguments)),
+                )
+                .with_tool_request(
+                    "malformed",
+                    Err(ErrorData::invalid_params("bad json", None)),
+                ),
+        ])
+        .await?;
+    pipeline
+        .steer(Message::user().with_text("then say done"))
+        .await;
+    api.on("then say done").reply("done");
+
+    let result = pipeline.resume().await?;
+
+    result.assert_message(-1, Agent, "done");
+    let messages = result.conversation().messages();
+    let answer = |id: &str| {
+        messages
+            .iter()
+            .position(|message| message.get_tool_response_ids().contains(id))
+            .unwrap_or_else(|| panic!("{id} was answered"))
+    };
+    let steer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == "then say done")
+        .expect("steer was persisted");
+    assert!(answer("valid") < steer);
+    assert!(answer("malformed") < steer);
+    assert!(api.calls().last().unwrap().answers_every_tool_call_next());
+    Ok(())
+}
 
 #[tokio::test]
 async fn basic_tool_calling() -> Result<()> {
