@@ -29,6 +29,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
@@ -222,6 +223,14 @@ impl OpenAiFixture {
         exchanges: Vec<(String, &'static str)>,
         expected_session_id: Arc<dyn ExpectedSessionId>,
     ) -> Self {
+        Self::with_response_delay(exchanges, expected_session_id, Duration::ZERO).await
+    }
+
+    pub async fn with_response_delay(
+        exchanges: Vec<(String, &'static str)>,
+        expected_session_id: Arc<dyn ExpectedSessionId>,
+        delay: Duration,
+    ) -> Self {
         let mock_server = MockServer::start().await;
         let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
 
@@ -262,7 +271,8 @@ impl OpenAiFixture {
                         q.pop_front();
                         return ResponseTemplate::new(200)
                             .insert_header("content-type", "text/event-stream")
-                            .set_body_string(response);
+                            .set_body_string(response)
+                            .set_delay(delay);
                     }
                     drop(q);
 
@@ -372,21 +382,19 @@ pub async fn spawn_acp_server_in_process(
     write_global_test_config(&config_path, openai_base_url);
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();
-        Arc::new(
-            move |_provider_name, _extensions, _working_dir, _use_default_model| {
-                let base_url = base_url.clone();
-                Box::pin(async move {
-                    let api_client = ApiClient::new_with_tls(
-                        base_url,
-                        ApiAuthMethod::BearerToken("test-key".to_string()),
-                        None,
-                    )
-                    .unwrap();
-                    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
-                    Ok(provider)
-                })
-            },
-        )
+        Arc::new(move |_provider_name| {
+            let base_url = base_url.clone();
+            Box::pin(async move {
+                let api_client = ApiClient::new_with_tls(
+                    base_url,
+                    ApiAuthMethod::BearerToken("test-key".to_string()),
+                    None,
+                )
+                .unwrap();
+                let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
+                Ok(provider)
+            })
+        })
     });
 
     let active_runs = Arc::new(goose::acp::server::ActiveRunRegistry::default());

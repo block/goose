@@ -23,12 +23,12 @@ impl GooseAcpAgent {
         };
 
         let agent = self.get_session_agent(&session_id).await?;
-        let mut apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
+        let lease = agent
+            .extension_manager
+            .current_lease(&session_id)
             .await
-            .map_err(|error| {
-                agent_client_protocol::Error::internal_error()
-                    .data(format!("Failed to list apps: {}", error.message))
-            })?;
+            .internal_err()?;
+        let mut apps = fetch_mcp_apps(&lease).await;
 
         McpAppCache::restore_bundled_default_apps(&mut apps);
 

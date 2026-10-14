@@ -12,7 +12,7 @@ use crate::agents::state_machine::{
     yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
     SlashCommand,
 };
-use crate::context_mgmt::compact_messages;
+use crate::context_mgmt::{compact_messages, count_context_tokens};
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::providers::base::Provider;
@@ -42,6 +42,20 @@ fn compaction_part(
         "<compaction>~{}k tokens remaining</compaction>",
         compaction_at.saturating_sub(total_tokens) / 1000
     ))
+}
+
+/// Reported usage stops at the inference that requested the tools, so the
+/// results that answered it are not counted until the next request.
+async fn unreported_tool_tokens(conversation: &Conversation) -> Result<i32> {
+    let messages = conversation.messages();
+    if last_effective_role(messages)? != EffectiveRole::Tool {
+        return Ok(0);
+    }
+    let after_request = messages
+        .iter()
+        .rposition(Message::is_tool_call)
+        .map_or(0, |index| index + 1);
+    count_context_tokens(&messages[after_request..]).await
 }
 
 pub struct CompactionOperation {
@@ -78,12 +92,12 @@ impl CompactionOperation {
 
     async fn context_tokens(&self, session: &Session, conversation: &Conversation) -> Result<i32> {
         match session.usage.total_tokens {
-            Some(tokens) => Ok(tokens),
-            None => crate::context_mgmt::count_context_tokens(conversation).await,
+            Some(tokens) => Ok(tokens + unreported_tool_tokens(conversation).await?),
+            None => count_context_tokens(conversation.messages()).await,
         }
     }
 
-    async fn command_error(
+    fn command_error(
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
@@ -100,8 +114,8 @@ impl CompactionOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.message(command).await;
-        let response = emit.message(response).await;
+        emit.message(command);
+        let response = emit.message(response);
         yielded_with([
             ConversationEffect::SetMessageVisibility {
                 message_id,
@@ -113,10 +127,7 @@ impl CompactionOperation {
         ])
     }
 
-    async fn clear(
-        conversation: &Conversation,
-        emit: &Emitter,
-    ) -> Result<OperationResult<GooseEffect>> {
+    fn clear(conversation: &Conversation, emit: &Emitter) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -125,8 +136,8 @@ impl CompactionOperation {
         let response = Message::assistant()
             .with_text("Conversation cleared")
             .with_visibility(true, false);
-        let command = emit.message(command).await;
-        let response = emit.message(response).await;
+        let command = emit.message(command);
+        let response = emit.message(response);
         yielded_with([
             Conversation::default().into(),
             command.into(),
@@ -149,7 +160,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
         match command.command {
-            "clear" => return Self::clear(conversation, emit).await,
+            "clear" => return Self::clear(conversation, emit),
             "compact" => {}
             _ => return not_applicable(),
         }
@@ -173,7 +184,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             Ok(result) => result,
             Err(error) => {
                 span.record("error.type", "compaction_error");
-                return Self::command_error(conversation, error.to_string(), emit).await;
+                return Self::command_error(conversation, error.to_string(), emit);
             }
         };
         let compacted = result.conversation;
@@ -188,8 +199,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
         let response = Message::assistant()
             .with_text("Compaction complete")
             .with_visibility(true, false);
-        emit.message(command).await;
-        let response = emit.message(response).await;
+        emit.message(command);
+        let response = emit.message(response);
         yielded_with([
             GooseEffect::CompactConversation {
                 conversation: compacted,
@@ -244,7 +255,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            if last_effective_role(messages)? != EffectiveRole::User {
+            // Compact only ahead of an inference; an assistant tail ends the turn.
+            if last_effective_role(messages)? == EffectiveRole::Assistant {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;
@@ -266,20 +278,18 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             conversation
         };
 
-        let threshold_percentage = (self.threshold * 100.0) as u32;
+        let threshold_k_tokens = (self.context_limit as f64 * self.threshold / 1000.0) as usize;
         emit.message(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,
             format!(
-                "Exceeded auto-compact threshold of {threshold_percentage}%. \
+                "Exceeded auto-compact threshold of {threshold_k_tokens}k tokens. \
                      Performing auto-compaction..."
             ),
-        ))
-        .await;
+        ));
         emit.message(Message::assistant().with_system_notification(
             SystemNotificationType::ThinkingMessage,
             COMPACTION_THINKING_TEXT,
-        ))
-        .await;
+        ));
 
         let span = chat_span(
             self.provider.as_ref(),
@@ -304,8 +314,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 emit.message(Message::assistant().with_system_notification(
                     SystemNotificationType::InlineMessage,
                     "Compaction complete",
-                ))
-                .await;
+                ));
                 applied([GooseEffect::CompactConversation {
                     conversation: compacted,
                     usage: Some(usage),
@@ -316,8 +325,7 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 emit.message(Message::assistant().with_text(format!(
                     "Ran into this error trying to compact: {e}.\n\n\
                      Please try again or create a new session"
-                )))
-                .await;
+                )));
                 yielded()
             }
         }

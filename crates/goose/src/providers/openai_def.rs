@@ -150,6 +150,7 @@ pub async fn from_env(
         .custom_headers(custom_headers)
         .preserve_thinking_context(!is_openai)
         .session_id_provider(session_id_provider())
+        .native_openai(is_openai)
         .build();
 
     // TODO(jack): replace this

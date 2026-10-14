@@ -929,10 +929,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Не удалось обновить рабочий каталог"
   },
@@ -1966,13 +1962,16 @@
     "defaultMessage": "Неверный URL"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Переместить окно «картинка в картинке» (используйте стрелки)"
+    "defaultMessage": "Переместить окно «картинка в картинке»"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Картинка в картинке"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Воспроизведение в режиме «картинка в картинке»"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Изменить размер окна «картинка в картинке»"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count, plural, one {Найден # элемент} few {Найдено # элемента} many {Найдено # элементов} other {Найдено # элемента}}"
@@ -2385,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Загрузка чатов…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Создано"
   },
@@ -2718,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "У вас есть несохраненные изменения"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ошибка ProviderCard: метаданные не предоставлены"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Неизвестный провайдер"
   },
@@ -2729,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Формат API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Отмена"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Выберите провайдера"
@@ -3828,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Открыть в новом окне"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Поделиться зашифрованной ссылкой Nostr"
-  },
   "sessions.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -3870,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Импортировать сеанс"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Импортировать ссылку"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Вставьте ссылку общего доступа Goose Nostr, чтобы получить, расшифровать и импортировать сеанс."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Импортировать сеанс Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Импорт..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Включить сессии ACP"
   },
@@ -3912,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Поиск по истории..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Любой, у кого есть эта ссылка, сможет получить и расшифровать ваш сеанс. Обращайтесь с ней как с секретом."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Зашифрованная ссылка общего доступа Nostr"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Скопировано в буфер обмена"
   },
@@ -3944,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Сеанс успешно импортирован"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Зашифрованная ссылка Nostr создана"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Не удалось создать ссылку Nostr: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Не удалось обновить описание сеанса: {error}"
@@ -4704,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Перейдите на"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Использовать цикл агента на основе операций. Отключите, чтобы использовать прежний цикл."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Автоматически"
   },
@@ -4760,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Порог %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Лимит токенов"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Сводит старые запросы и ответы инструментов для экономии контекста. Если поле пусто, порог выбирается автоматически."

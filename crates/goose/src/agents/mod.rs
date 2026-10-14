@@ -10,30 +10,34 @@ mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
 pub mod platform_extensions;
+#[cfg(feature = "scheduler")]
 pub mod platform_tools;
 pub mod prompt_manager;
+pub mod provider_manager;
 pub mod reply_parts;
 pub mod retry;
+#[cfg(feature = "scheduler")]
 mod schedule_tool;
 pub mod state_machine;
+mod state_machine_builder;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
 mod tool_confirmation_coordinator;
-mod tool_confirmation_router;
 pub mod tool_execution;
 mod tool_schema_normalize;
 pub mod types;
 pub mod validate_extensions;
 
-pub use agent::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
+pub use agent::{Agent, AgentConfig, GoosePlatform};
 pub use container::Container;
 pub use execute_commands::{context_management_unsupported_message, COMPACT_TRIGGERS};
 pub use extension::{ExtensionConfig, ExtensionError};
-pub use extension_manager::ExtensionManager;
+pub use extension_manager::{ExtensionLoadResult, ExtensionManager};
 pub use goose_agent::events::AgentEvent;
 pub(crate) use large_response_handler::max_tool_response_size;
 pub use prompt_manager::PromptManager;
+#[cfg(feature = "scheduler")]
 pub use schedule_tool::ScheduleTool;
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 pub use subagent_task_config::TaskConfig;
