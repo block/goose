@@ -35,6 +35,25 @@ function resolveChineseAlias(tag: string): string {
   return tag;
 }
 
+export function normalizeLocaleTag(rawTag: string): string {
+  const tag = rawTag.replace(/_/g, '-');
+  const atIndex = tag.indexOf('@');
+  if (atIndex === -1) return tag;
+
+  const base = tag.slice(0, atIndex);
+  const keywords = tag.slice(atIndex + 1);
+  const region = /(?:^|;)rg=([a-z]{2}|\d{3})zzzz(?:;|$)/i.exec(keywords)?.[1];
+  if (!region) return base;
+
+  try {
+    // Fold the ICU region override into the region subtag: Chromium's date
+    // formatting does not use the Unicode rg extension to select the hour cycle.
+    return new Intl.Locale(base, { region: region.toUpperCase() }).toString();
+  } catch {
+    return base;
+  }
+}
+
 /**
  * Detect the user's preferred locale.
  *
@@ -63,8 +82,7 @@ export function getLocale(): { locale: string; messageLocale: string } {
   }
 
   for (const rawTag of candidates) {
-    // Normalize underscores to hyphens so POSIX-style tags like "zh_CN" work.
-    const normalized = rawTag.replace(/_/g, '-');
+    const normalized = normalizeLocaleTag(rawTag);
     const tag = resolveChineseAlias(normalized);
 
     // Exact match first
