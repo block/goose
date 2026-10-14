@@ -147,8 +147,15 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
 }
 
 async fn make_request(provider: &dyn Provider, session_id: &str) {
+    make_request_with_model(provider, session_id, ModelConfig::new("gpt-5-nano")).await;
+}
+
+async fn make_request_with_model(
+    provider: &dyn Provider,
+    session_id: &str,
+    model_config: ModelConfig,
+) {
     let message = Message::user().with_text("test message");
-    let model_config = ModelConfig::new("gpt-5-nano");
     let _ = goose::session_context::with_session_id(
         Some(session_id.to_string()),
         provider.complete(
@@ -226,6 +233,21 @@ async fn test_session_id_is_sent_as_responses_prompt_cache_key() {
         body["prompt_cache_key"],
         json!("integration-test-session-123")
     );
+}
+
+#[tokio::test]
+async fn test_explicit_prompt_cache_key_overrides_session_id() {
+    let (server, _, provider) = setup_mock_server().await;
+    let model_config =
+        ModelConfig::new("gpt-5-nano").with_merged_request_params(std::collections::HashMap::from(
+            [("prompt_cache_key".to_string(), json!("shared-workflow"))],
+        ));
+
+    make_request_with_model(provider.as_ref(), "session-123", model_config).await;
+
+    let requests = server.received_requests().await.unwrap();
+    let body: serde_json::Value = requests[0].body_json().unwrap();
+    assert_eq!(body["prompt_cache_key"], json!("shared-workflow"));
 }
 
 #[tokio::test]

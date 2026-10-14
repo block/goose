@@ -334,12 +334,11 @@ impl OpenAiProvider {
         else {
             return;
         };
-        if let Some(obj) = payload.as_object_mut() {
-            obj.insert(
-                "prompt_cache_key".to_string(),
-                serde_json::Value::String(session_id),
-            );
-        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .entry("prompt_cache_key")
+            .or_insert_with(|| serde_json::Value::String(session_id));
     }
 
     async fn stream_responses_payload(
