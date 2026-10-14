@@ -1,6 +1,6 @@
 use lopdf::{content::Content as PdfContent, Document, Object};
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
-use std::{fs, path::Path};
+use std::{fs, io::Write, path::Path};
 
 fn create_private_dir(path: &Path) -> anyhow::Result<()> {
     let mut builder = fs::DirBuilder::new();
@@ -17,6 +17,24 @@ fn create_private_dir(path: &Path) -> anyhow::Result<()> {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
     }
+    Ok(())
+}
+
+// An entry left from an older goose may be a link or a file another process still has open,
+// so replace it instead of writing through it.
+fn write_new_file(path: &Path, data: &[u8]) -> anyhow::Result<()> {
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        _ => {}
+    }
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)?.write_all(data)?;
     Ok(())
 }
 
@@ -331,7 +349,7 @@ pub async fn pdf_tool(
                                             extension
                                         ));
 
-                                        fs::write(&image_path, &data).map_err(|e| {
+                                        write_new_file(&image_path, &data).map_err(|e| {
                                             ErrorData::new(
                                                 ErrorCode::INTERNAL_ERROR,
                                                 format!("Failed to write image: {}", e),
@@ -476,6 +494,30 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o700, "{}", cache_dir.display());
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_new_file_replaces_links_instead_of_writing_through_them() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("outside");
+        fs::write(&outside, b"old").unwrap();
+        let symlink = dir.path().join("symlink.png");
+        std::os::unix::fs::symlink(&outside, &symlink).unwrap();
+        let hard_link = dir.path().join("hard_link.png");
+        fs::hard_link(&outside, &hard_link).unwrap();
+
+        for path in [&symlink, &hard_link] {
+            write_new_file(path, b"new").unwrap();
+
+            let metadata = fs::symlink_metadata(path).unwrap();
+            assert!(metadata.is_file(), "{}", path.display());
+            assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+            assert_eq!(fs::read(path).unwrap(), b"new");
+        }
+        assert_eq!(fs::read(&outside).unwrap(), b"old");
     }
 
     #[tokio::test]
