@@ -8,7 +8,7 @@ use futures::FutureExt;
 use goose_agent::operation::{
     ConversationEffect, Emitter, Operation, OperationFuture, OperationResult,
 };
-use goose_agent::subagent::{ForegroundSubagentOperation, SubagentOutcome, SubagentRunner};
+use goose_agent::subagent::{SubagentOperation, SubagentOutcome, SubagentRunner};
 use goose_provider_types::conversation::{message::Message, Conversation};
 use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
@@ -143,14 +143,11 @@ fn texts(messages: &[Message]) -> Vec<String> {
     messages.iter().map(Message::as_concat_text).collect()
 }
 
-fn operation(runner: &Arc<FakeRunner>) -> ForegroundSubagentOperation<Parent> {
-    ForegroundSubagentOperation::new(runner.clone())
+fn operation(runner: &Arc<FakeRunner>) -> SubagentOperation<Parent> {
+    SubagentOperation::new(runner.clone())
 }
 
-async fn run_once(
-    operation: &ForegroundSubagentOperation<Parent>,
-    messages: &[Message],
-) -> Vec<Message> {
+async fn run_once(operation: &SubagentOperation<Parent>, messages: &[Message]) -> Vec<Message> {
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     let result =
         Operation::<Parent, ConversationEffect>::run(operation, &Parent, &conversation, &emitter())
@@ -162,7 +159,7 @@ async fn run_once(
     }
 }
 
-fn interrupt(operation: &ForegroundSubagentOperation<Parent>, messages: &[Message]) {
+fn interrupt(operation: &SubagentOperation<Parent>, messages: &[Message]) {
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     let run =
         Operation::<Parent, ConversationEffect>::run(operation, &Parent, &conversation, &emitter())
@@ -170,10 +167,7 @@ fn interrupt(operation: &ForegroundSubagentOperation<Parent>, messages: &[Messag
     assert!(run.is_none());
 }
 
-async fn stop(
-    operation: &ForegroundSubagentOperation<Parent>,
-    messages: &[Message],
-) -> Vec<Message> {
+async fn stop(operation: &SubagentOperation<Parent>, messages: &[Message]) -> Vec<Message> {
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     appended(
         Operation::<Parent, ConversationEffect>::finalize_cancellation(

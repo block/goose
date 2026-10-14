@@ -151,7 +151,7 @@ mod tests {
 
     use anyhow::Result;
     use goose_agent::events::AgentEvent;
-    use goose_agent::subagent::ForegroundSubagentOperation;
+    use goose_agent::subagent::SubagentOperation;
     use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, MetaObject};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
@@ -189,8 +189,8 @@ mod tests {
             ForegroundSubagentRunner::new(agent)
         }
 
-        fn operation(&self) -> ForegroundSubagentOperation<Session> {
-            ForegroundSubagentOperation::new(Arc::new(self.runner()))
+        fn operation(&self) -> SubagentOperation<Session> {
+            SubagentOperation::new(Arc::new(self.runner()))
         }
     }
 
@@ -275,7 +275,7 @@ mod tests {
     }
 
     async fn run_step(
-        operation: &ForegroundSubagentOperation<Session>,
+        operation: &SubagentOperation<Session>,
         manager: &SessionManager,
         session_id: &str,
         emit: &Emitter,
