@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "Demandez n'importe quoi à goose..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Discutez avec Goose en temps réel par la voix"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Voix en direct"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose compacte la conversation..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "URL non valide"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Déplacer la fenêtre Picture-in-Picture (utilisez les touches fléchées)"
+    "defaultMessage": "Déplacer la fenêtre Picture-in-Picture"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Lecture en Picture-in-Picture"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Redimensionner la fenêtre Picture-in-Picture"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# élément trouvé} other{# éléments trouvés}}"
@@ -2351,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Discussions"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Chargement des discussions…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Créé"
   },
@@ -2684,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Vous avez des modifications non enregistrées"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Erreur ProviderCard : aucune métadonnée fournie"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Fournisseur inconnu"
   },
@@ -2695,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format d'API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Annuler"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Choisir un fournisseur"
@@ -3794,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Ouvrir dans une nouvelle fenêtre"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Partager un lien Nostr chiffré"
-  },
   "sessions.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -3836,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Importer une session"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Importer un lien"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Collez un lien de partage Goose Nostr pour récupérer, déchiffrer et importer la session."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Importer une session Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Importation..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Inclure les sessions ACP"
   },
@@ -3878,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Rechercher dans l'historique..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Toute personne disposant de ce lien peut récupérer et déchiffrer la session. Traitez-le comme un secret."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Lien de partage Nostr chiffré"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Copié dans le presse-papiers"
   },
@@ -3910,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Session importée avec succès"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Lien de partage Nostr chiffré créé"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Échec de la création du lien de partage Nostr : {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Échec de la mise à jour de la description de la session : {error}"
@@ -4669,5 +4669,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Visitez"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Automatique"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Limite de blocage"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Résume l’historique de la conversation avant que la fenêtre de contexte soit pleine."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Compactage du contexte"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Seuil de coupure"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "Activer {operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Délai d’échec"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Opérations configurables"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Arrête le travail autonome et demande confirmation à l’utilisateur avant de continuer."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Nombre maximal de tours"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Relance les vérifications de recette lorsqu’une vérification de réussite configurée échoue."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Nouvelle tentative de recette"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Délai de nouvelle tentative"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "Reconnaît les commandes comme /compact, /skills et les raccourcis de recettes."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Commandes slash"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Permet aux hooks de bloquer la fin tout en évitant les cycles d’arrêt infinis."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Hooks d’arrêt"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Seuil %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Limite de tokens"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Résume les anciennes requêtes et réponses d’outils pour économiser le contexte. Le seuil est automatique si le champ est vide."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Compactage des paires d’outils"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Tours"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Boucle d’agent"
   }
 }

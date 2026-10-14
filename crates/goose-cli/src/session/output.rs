@@ -2,6 +2,7 @@ use crate::session::builder::ExtensionFailure;
 use anstream::{adapter::strip_str, eprintln, println};
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
+use goose::agents::platform_extensions::todo::TODO_WRITE_TOOL_NAME_COMPLETE;
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
@@ -238,36 +239,22 @@ pub fn show_extensions_ready() {
 
 pub fn show_extension_failures(failures: &[ExtensionFailure]) {
     for failure in failures {
-        match failure.label.as_deref() {
-            None => {
-                eprintln!(
-                    "{}",
-                    style(format!(
-                        "  ⚠ Failed to start extensions ({})",
-                        failure.error
-                    ))
-                    .yellow()
-                );
-            }
-            Some(label) => {
-                eprintln!(
-                    "{}",
-                    style(format!(
-                        "  ⚠ Failed to start extension '{}' ({}), continuing without it",
-                        label, failure.error
-                    ))
-                    .yellow()
-                );
-                eprintln!(
-                    "{}",
-                    style(format!(
-                        "    Hint: ask goose to help debug the '{}' extension",
-                        label
-                    ))
-                    .dim()
-                );
-            }
-        }
+        eprintln!(
+            "{}",
+            style(format!(
+                "  ⚠ Failed to start extension '{}' ({}), continuing without it",
+                failure.label, failure.error
+            ))
+            .yellow()
+        );
+        eprintln!(
+            "{}",
+            style(format!(
+                "    Hint: ask goose to help debug the '{}' extension",
+                failure.label
+            ))
+            .dim()
+        );
     }
 }
 
@@ -550,35 +537,21 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     print!("{}", styled_text);
 }
 
-pub fn render_enter_plan_mode() {
-    println!(
-        "\n{} {}\n",
-        accent("Entering plan mode.").bold(),
-        style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
-            .dim()
-    );
-}
-
-pub fn render_act_on_plan() {
-    println!(
-        "\n{}\n",
-        accent("Exiting plan mode and acting on the above plan").bold(),
-    );
-}
-
-pub fn render_exit_plan_mode() {
-    println!("\n{}\n", accent("Exiting plan mode.").bold());
-}
-
 pub fn goose_mode_message(text: &str) {
     println!("\n{} {}", accent("mode:"), text);
 }
 
+/// Any value of the environment variable turns thinking output on, which is what the
+/// documentation promises; the configured boolean is read only when it is not set.
+fn thinking_enabled(config: &Config) -> bool {
+    std::env::var_os("GOOSE_CLI_SHOW_THINKING").is_some()
+        || config
+            .get_param::<bool>("GOOSE_CLI_SHOW_THINKING")
+            .unwrap_or(false)
+}
+
 fn should_show_thinking() -> bool {
-    Config::global()
-        .get_param::<bool>("GOOSE_CLI_SHOW_THINKING")
-        .unwrap_or(false)
-        && std::io::stdout().is_terminal()
+    thinking_enabled(Config::global()) && std::io::stdout().is_terminal()
 }
 
 fn render_thinking(text: &str, theme: Theme) {
@@ -613,7 +586,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "execute_typescript" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
-            "todo__write" => render_todo_request(call, debug),
+            TODO_WRITE_TOOL_NAME_COMPLETE => render_todo_request(call, debug),
             "load" => {}
             _ => render_default_request(call, debug),
         },
@@ -647,9 +620,10 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     .unwrap_or(DEFAULT_MIN_PRIORITY);
 
                 let priority = annotations.and_then(|a| a.priority);
-                if priority.is_some_and(|priority| priority < min_priority)
-                    || (priority.is_none() && !debug)
-                {
+                // Tools without a priority annotation default to 0.0 (the same
+                // as DEFAULT_MIN_PRIORITY), so they are shown at the default
+                // threshold and only hidden when the user raises it.
+                if priority.unwrap_or(0.0) < min_priority {
                     continue;
                 }
 
@@ -1755,6 +1729,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::env;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn recent_lines_accumulate_across_updates() {
@@ -2064,5 +2039,51 @@ mod tests {
             json!({"top_up_url": "https://router.tetrate.ai/billing"}),
         );
         assert_eq!(get_credits_top_up_url(&message), None);
+    }
+
+    fn config_with(contents: &str) -> (Config, NamedTempFile, NamedTempFile) {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(config_file.path(), contents).unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        (config, config_file, secrets_file)
+    }
+
+    #[test]
+    fn any_environment_value_shows_thinking() {
+        let _guard = env_lock::lock_env([("GOOSE_CLI_SHOW_THINKING", Some("1"))]);
+        let (config, _config_file, _secrets_file) = config_with("");
+
+        assert!(thinking_enabled(&config));
+    }
+
+    #[test]
+    fn empty_environment_value_shows_thinking() {
+        let _guard = env_lock::lock_env([("GOOSE_CLI_SHOW_THINKING", Some(""))]);
+        let (config, _config_file, _secrets_file) = config_with("");
+
+        assert!(thinking_enabled(&config));
+    }
+
+    #[test]
+    fn configured_value_is_used_when_the_variable_is_unset() {
+        let _guard = env_lock::lock_env([("GOOSE_CLI_SHOW_THINKING", None::<&str>)]);
+
+        let (enabled, _c1, _s1) = config_with("GOOSE_CLI_SHOW_THINKING: true\n");
+        assert!(thinking_enabled(&enabled));
+
+        let (disabled, _c2, _s2) = config_with("GOOSE_CLI_SHOW_THINKING: false\n");
+        assert!(!thinking_enabled(&disabled));
+
+        let (unset, _c3, _s3) = config_with("");
+        assert!(!thinking_enabled(&unset));
+    }
+
+    #[test]
+    fn thinking_output_needs_a_terminal() {
+        let _guard = env_lock::lock_env([("GOOSE_CLI_SHOW_THINKING", Some("1"))]);
+
+        assert_eq!(should_show_thinking(), std::io::stdout().is_terminal());
     }
 }

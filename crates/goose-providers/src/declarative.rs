@@ -13,6 +13,7 @@ pub(crate) mod declarative_providers {
     use super::*;
 
     expose_declarative_providers!(
+        aigateway,
         aimlapi,
         alibaba,
         atomic_chat,
@@ -20,6 +21,7 @@ pub(crate) mod declarative_providers {
         cerebras,
         deepseek,
         empiriolabs,
+        eurouter,
         fireworks,
         friendli,
         futurmix,
@@ -58,6 +60,7 @@ pub(crate) mod declarative_providers {
         venice,
         vercel_ai_gateway,
         zai,
+        zai_coding_plan,
         zhipu,
     );
 }

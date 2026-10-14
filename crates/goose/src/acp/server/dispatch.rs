@@ -244,7 +244,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                             let session_agent =
                                                 agent_bg.get_session_agent(&session_id_bg.0).await?;
                                             let provider = session_agent
-                                                .provider()
+                                                .provider(&session_id_bg.0)
                                                 .await
                                                 .map_err(|e| anyhow::anyhow!(e.to_string()))?;
                                             let provider_name = provider.get_name().to_string();
@@ -475,8 +475,16 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     |message: Dispatch| async move {
                         match message {
                             Dispatch::Request(req, responder) => {
+                                let request_cx = cx.clone();
                                 cx.spawn(async move {
-                                    match agent.dispatch_custom_request(&req.method, req.params).await {
+                                    match agent
+                                        .dispatch_custom_request(
+                                            &request_cx,
+                                            &req.method,
+                                            req.params,
+                                        )
+                                        .await
+                                    {
                                         Ok(json) => responder.respond(json)?,
                                         Err(e) => responder.respond_with_error(e)?,
                                     }

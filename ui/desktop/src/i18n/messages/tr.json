@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "goose'a herhangi bir şey sorun..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Goose ile gerçek zamanlı sesli sohbet edin"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Canlı ses"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose konuşmayı sıkıştırıyor..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "Geçersiz URL"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Resim İçinde Resim penceresini taşıyın (ok tuşlarını kullanın)"
+    "defaultMessage": "Resim İçinde Resim penceresini taşıyın"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Resim İçinde Resim"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Resim İçinde Resim'de Oynatma"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Resim İçinde Resim penceresini yeniden boyutlandırın"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# öğe bulundu} other{# öğe bulundu}}"
@@ -2351,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sohbetler"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Sohbetler yükleniyor…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Oluşturuldu"
   },
@@ -2684,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Kaydedilmemiş değişiklikleriniz var"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard hatası: Meta veri sağlanmadı"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Bilinmeyen Sağlayıcı"
   },
@@ -2695,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API Biçimi"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "İptal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Sağlayıcıyı Seçin"
@@ -3794,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Yeni pencerede aç"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Şifrelenmiş Nostr bağlantısını paylaşın"
-  },
   "sessions.cancel": {
     "defaultMessage": "İptal"
   },
@@ -3836,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Oturumu İçe Aktar"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Bağlantıyı İçe Aktar"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Oturumu almak, şifresini çözmek ve içe aktarmak için bir Goose Nostr paylaşım bağlantısını yapıştırın."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Nostr Oturumunu İçe Aktar"
-  },
-  "sessions.importing": {
-    "defaultMessage": "İçe aktarılıyor..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "ACP oturumlarını dahil et"
   },
@@ -3878,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Arama geçmişi..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Bu bağlantıya sahip olan herkes oturumu alıp şifresini çözebilir. Buna bir sırmış gibi davran."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Şifreli Nostr Paylaşım Bağlantısı"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Panoya kopyalandı"
   },
@@ -3910,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Oturum başarıyla içe aktarıldı"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Şifrelenmiş Nostr paylaşım bağlantısı oluşturuldu"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Nostr paylaşım bağlantısı oluşturulamadı: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Oturum açıklaması güncellenemedi: {error}"
@@ -4669,5 +4669,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Ziyaret edin"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Otomatik"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Engelleme sınırı"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Bağlam penceresi dolmadan önce konuşma geçmişini özetler."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Bağlam sıkıştırma"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Kesme noktası"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "{operation} etkinleştir"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Başarısızlık zaman aşımı"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Yapılandırılabilir işlemler"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Otonom çalışmayı durdurur ve devam etmeden önce kullanıcıya sorar."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Maksimum tur"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Yapılandırılmış bir başarı denetimi başarısız olduğunda tarif denetimlerini yeniden çalıştırır."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Tarifi yeniden dene"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Yeniden deneme zaman aşımı"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "/compact, /skills ve tarif kısayolları gibi komutları tanır."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Eğik çizgi komutları"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Kancaların tamamlanmayı engellemesine izin verirken sonsuz durdurma döngülerini önler."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Durdurma kancaları"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Eşik %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Jeton sınırı"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Bağlamdan tasarruf etmek için eski araç isteklerini ve yanıtlarını özetler. Boş bırakıldığında kesme noktası otomatik belirlenir."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Araç çifti sıkıştırma"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Turlar"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Ajan döngüsü"
   }
 }

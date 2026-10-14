@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "Tanya goose apa sahaja..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Adakan perbualan suara masa nyata dengan Goose"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Suara langsung"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose sedang memadatkan perbualan..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "URL tidak sah"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Alihkan tetingkap Gambar-dalam-Gambar (gunakan kekunci anak panah)"
+    "defaultMessage": "Alihkan tetingkap Gambar-dalam-Gambar"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Gambar-dalam-Gambar"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Bermain dalam Gambar-dalam-Gambar"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Ubah saiz tetingkap Gambar-dalam-Gambar"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item dijumpai} other{# item dijumpai}}"
@@ -2351,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sembang"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Memuatkan sembang…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Dicipta"
   },
@@ -2684,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Anda mempunyai perubahan yang belum disimpan"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ralat ProviderCard: Tiada metadata disediakan"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Penyedia Tidak Diketahui"
   },
@@ -2695,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Batal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Pilih Penyedia"
@@ -3794,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Buka dalam tetingkap baharu"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Kongsi pautan Nostr tersulit"
-  },
   "sessions.cancel": {
     "defaultMessage": "Batal"
   },
@@ -3836,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Import Sesi"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Import Pautan"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Tampal pautan kongsi Nostr Goose untuk mengambil, menyahsulit, dan mengimport sesi."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Import Sesi Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Mengimport..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Sertakan sesi ACP"
   },
@@ -3878,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Cari sejarah..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Sesiapa sahaja yang mempunyai pautan ini boleh mengambil dan menyahsulit sesi tersebut. Anggap ia sebagai rahsia."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Pautan Kongsi Nostr Tersulit"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Disalin ke papan keratan"
   },
@@ -3910,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Sesi berjaya diimport"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Pautan kongsi Nostr tersulit dicipta"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Gagal mencipta pautan kongsi Nostr: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Gagal mengemas kini penerangan sesi: {error}"
@@ -4669,5 +4669,74 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Lawati"
+  },
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Automatik"
+  },
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Had sekatan"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Merumuskan sejarah perbualan sebelum tetingkap konteks penuh."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Pemadatan konteks"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Had"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "Dayakan {operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Tamat masa kegagalan"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Operasi boleh dikonfigurasi"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Menghentikan kerja autonomi dan bertanya kepada pengguna sebelum meneruskan."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Giliran maksimum"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Menjalankan semula semakan resipi apabila semakan kejayaan yang dikonfigurasi gagal."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Cuba semula resipi"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Tamat masa cuba semula"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "Mengenali perintah seperti /compact, /skills dan pintasan resipi."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Perintah garis miring"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Membolehkan hook menyekat penyiapan sambil menghalang kitaran berhenti tanpa henti."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Hook berhenti"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Ambang %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Had token"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Merumuskan permintaan dan respons alat lama untuk menjimatkan konteks. Had ditetapkan secara automatik jika dibiarkan kosong."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Pemadatan pasangan alat"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Giliran"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Gelung ejen"
   }
 }
