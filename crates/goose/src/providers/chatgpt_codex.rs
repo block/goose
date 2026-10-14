@@ -145,15 +145,6 @@ fn has_supported_image_magic(bytes: &[u8]) -> bool {
     )
 }
 
-fn approx_decoded_base64_len(payload: &str) -> usize {
-    let padding = match payload.as_bytes() {
-        [.., b'=', b'='] => 2,
-        [.., b'='] => 1,
-        _ => 0,
-    };
-    payload.len() / 4 * 3 - padding
-}
-
 fn tool_result_image(data: &str, mime_type: &str) -> Value {
     let (declared_mime, payload) = match data.strip_prefix("data:") {
         Some(rest) => (
@@ -165,9 +156,8 @@ fn tool_result_image(data: &str, mime_type: &str) -> Value {
     if !SUPPORTED_IMAGE_TYPES.contains(&declared_mime.to_ascii_lowercase().as_str()) {
         return image_placeholder(declared_mime);
     }
-    let approx_len = approx_decoded_base64_len(payload);
-    if approx_len > MAX_IMAGE_BYTES {
-        return oversized_image_placeholder(approx_len);
+    if payload.len() > MAX_IMAGE_BYTES * 4 / 3 + 4 {
+        return oversized_image_placeholder(payload.len() / 4 * 3);
     }
     let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(payload) else {
         return image_placeholder(declared_mime);
@@ -1335,11 +1325,11 @@ mod tests {
 
     #[test]
     fn test_tool_response_oversized_image() {
-        let data = "A".repeat(MAX_IMAGE_BYTES / 3 * 4 + 4);
+        let data = "A".repeat(MAX_IMAGE_BYTES * 4 / 3 + 5);
         let messages = vec![Message::user().with_tool_response(
             "call-1",
             Ok(CallToolResult::success(vec![ContentBlock::image(
-                data,
+                data.clone(),
                 "image/png",
             )])),
         )];
@@ -1350,26 +1340,21 @@ mod tests {
                 "type": "input_text",
                 "text": format!(
                     "image is too large: {} bytes exceeds {MAX_IMAGE_BYTES} byte limit",
-                    MAX_IMAGE_BYTES / 3 * 3 + 3
+                    data.len() / 4 * 3
                 )
             }])
         );
     }
 
     #[test]
-    fn test_tool_response_image_padding_boundary_not_false_oversized() {
-        assert_eq!(approx_decoded_base64_len("AQ=="), 1);
-        assert_eq!(approx_decoded_base64_len("AQI="), 2);
-        assert_eq!(approx_decoded_base64_len("AQID"), 3);
-
+    fn test_tool_response_image_at_size_limit_not_false_oversized() {
         let mut bytes = vec![0u8; MAX_IMAGE_BYTES];
         bytes[..4].copy_from_slice(&[0x89, 0x50, 0x4E, 0x47]);
         let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
         assert!(
-            data.len() / 4 * 3 > MAX_IMAGE_BYTES,
-            "fixture must trip the naive len/4*3 overestimate"
+            data.len() <= MAX_IMAGE_BYTES * 4 / 3 + 4,
+            "exact-limit encoding must pass the encoded-length preflight"
         );
-        assert_eq!(approx_decoded_base64_len(&data), MAX_IMAGE_BYTES);
 
         let messages = vec![Message::user().with_tool_response(
             "call-1",
