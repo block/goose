@@ -1,6 +1,6 @@
 use lopdf::{content::Content as PdfContent, Document, Object};
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
-use std::{fs, io::Write, path::Path};
+use std::{fs, path::Path};
 
 fn create_private_dir(path: &Path) -> anyhow::Result<()> {
     let mut builder = fs::DirBuilder::new();
@@ -20,21 +20,23 @@ fn create_private_dir(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-// An entry left from an older goose may be a link or a file another process still has open,
-// so replace it instead of writing through it.
+// On Unix, an entry left from an older goose may be a link or a file another process still has
+// open, and another extraction of the same PDF may write the same name. Writing a new file and
+// renaming it into place replaces the entry instead of writing through it. Windows does not allow
+// renaming over a file that another rename is replacing, so it keeps writing in place.
 fn write_new_file(path: &Path, data: &[u8]) -> anyhow::Result<()> {
-    match fs::remove_file(path) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
-        _ => {}
-    }
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
+        use std::io::Write;
+        let dir = path
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("{} has no parent directory", path.display()))?;
+        let mut file = tempfile::NamedTempFile::new_in(dir)?;
+        file.write_all(data)?;
+        file.persist(path)?;
     }
-    options.open(path)?.write_all(data)?;
+    #[cfg(not(unix))]
+    fs::write(path, data)?;
     Ok(())
 }
 
@@ -518,6 +520,26 @@ mod tests {
             assert_eq!(fs::read(path).unwrap(), b"new");
         }
         assert_eq!(fs::read(&outside).unwrap(), b"old");
+    }
+
+    #[test]
+    fn concurrent_writes_of_the_same_image_all_succeed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("page1_obj1_Im0.png");
+        let barrier = std::sync::Barrier::new(8);
+
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    barrier.wait();
+                    for _ in 0..200 {
+                        write_new_file(&path, b"image").unwrap();
+                    }
+                });
+            }
+        });
+
+        assert_eq!(fs::read(&path).unwrap(), b"image");
     }
 
     #[tokio::test]

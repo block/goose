@@ -200,6 +200,16 @@ fn github_recipes_dir() -> Result<PathBuf> {
         builder.mode(0o700);
     }
     builder.create(&dir)?;
+    // The directory may already exist with a wider mode or belong to another user. Only the owner
+    // can set the mode, so this also refuses a directory that is not ours.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::symlink_metadata(&dir)?.file_type().is_symlink() {
+            return Err(anyhow!("{} is a symlink", dir.display()));
+        }
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+    }
     Ok(dir)
 }
 
@@ -440,6 +450,27 @@ mod tests {
         assert!(dir.starts_with(root.path().join("state")));
         let mode = fs::metadata(&dir).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o700);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn github_recipes_dir_narrows_an_existing_directory_and_refuses_a_symlink() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root.path().to_str().unwrap()))]);
+        let dir = Paths::in_state_dir("github_recipes");
+        fs::create_dir_all(&dir).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o777)).unwrap();
+
+        github_recipes_dir().unwrap();
+        let mode = fs::metadata(&dir).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::remove_dir(&dir).unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), &dir).unwrap();
+        assert!(github_recipes_dir().is_err());
     }
 
     #[test]
