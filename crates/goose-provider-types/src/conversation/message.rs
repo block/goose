@@ -987,20 +987,6 @@ impl Message {
             .content
             .iter()
             .filter_map(|c| c.filter_for_audience(Role::Assistant))
-            .map(|mut content| {
-                if self.is_turn_context() {
-                    if let MessageContentBlock::Text(text) = &mut content {
-                        while let Some(start) = text.text.find("<compaction>") {
-                            let Some(end) = text.text[start..].find("</compaction>") else {
-                                break;
-                            };
-                            text.text
-                                .replace_range(start..start + end + "</compaction>".len(), "");
-                        }
-                    }
-                }
-                content
-            })
             .collect();
 
         Message {
@@ -1925,28 +1911,6 @@ mod tests {
         assert_eq!(id, "request-123");
         assert_eq!(user_data, serde_json::json!({ "name": "goose" }));
         assert_eq!(action, ElicitationAction::Accept);
-    }
-
-    #[test]
-    fn legacy_compaction_countdown_is_hidden_only_in_turn_context() {
-        let text = "<turn-context>\n<working-directory>/work</working-directory>\n<compaction>~12k tokens remaining</compaction>\n<turn-budget>5/10 used</turn-budget>\n</turn-context>";
-        let user_message = Message::user().with_text(text);
-        assert_eq!(user_message.agent_visible_content().as_concat_text(), text);
-
-        let context = user_message.with_metadata(MessageMetadata::agent_only().with_turn_context());
-        let projected = context.agent_visible_content();
-        assert!(!projected.as_concat_text().contains("<compaction>"));
-        assert!(projected
-            .as_concat_text()
-            .contains("<working-directory>/work</working-directory>"));
-        assert!(projected
-            .as_concat_text()
-            .contains("<turn-budget>5/10 used</turn-budget>"));
-        assert_eq!(context.as_concat_text(), text);
-        assert_eq!(
-            projected.agent_visible_content().as_concat_text(),
-            projected.as_concat_text()
-        );
     }
 
     #[test]
