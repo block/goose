@@ -244,10 +244,10 @@ impl DatabricksV2Provider {
         let (clean_name, _) = extract_reasoning_effort(routing_name);
         let lower = clean_name.to_lowercase();
 
+        // Claude model services also serve `anthropic/v1/messages`; the MLflow
+        // chat route drops the prompt-cache breakpoints Anthropic needs.
         if is_openai_responses_model(&clean_name) || Self::looks_like_gpt5(&lower) {
             DatabricksV2Route::OpenAiResponses
-        } else if is_model_service {
-            DatabricksV2Route::MlflowChatCompletions
         } else if Self::is_claude_model(&lower) {
             DatabricksV2Route::AnthropicMessages
         } else {
@@ -261,26 +261,31 @@ impl DatabricksV2Provider {
     ) -> Result<(ModelConfig, DatabricksV2Route), ProviderError> {
         let metadata = self
             .model_service_metadata(&model_config.model_name)
-            .await?;
+            .await
+            .ok()
+            .flatten();
+        let model_info = metadata.as_ref().map_or_else(
+            || model_info_for_provider_model(DATABRICKS_V2_PROVIDER_NAME, &model_config.model_name),
+            |metadata| Self::model_service_info(&model_config.model_name, Some(metadata)),
+        );
         if model_config
             .thinking_effort()
             .is_some_and(|effort| effort != ThinkingEffort::Off)
-            && !Self::model_service_info(&model_config.model_name, metadata.as_ref()).reasoning
+            && !model_info.reasoning
         {
             return Err(ProviderError::InvalidValue(format!(
                 "Thinking effort is not supported for the backing models of Databricks model service '{}'",
                 model_config.model_name
             )));
         }
-        let route = metadata
-            .as_ref()
-            .map_or(DatabricksV2Route::MlflowChatCompletions, |metadata| {
-                metadata.route
-            });
+        let route = metadata.as_ref().map_or_else(
+            || Self::route_for_model(&model_config.model_name),
+            |metadata| metadata.route,
+        );
         let mut config = model_config.clone();
         config.model_name = metadata
             .and_then(|metadata| metadata.model)
-            .unwrap_or_else(|| "model-service".to_string());
+            .unwrap_or_else(|| model_config.model_name.clone());
         if route == DatabricksV2Route::OpenAiResponses {
             config.temperature = None;
         }
@@ -302,14 +307,12 @@ impl DatabricksV2Provider {
             .map(Self::backing_model_name)
             .collect::<Option<Vec<_>>>()?;
         let model = models.first()?;
-        let route = if models
+        let first_route = Self::route_for_model(model);
+        let route = models
             .iter()
-            .all(|model| Self::route_for_model(model) == DatabricksV2Route::OpenAiResponses)
-        {
-            DatabricksV2Route::OpenAiResponses
-        } else {
-            DatabricksV2Route::MlflowChatCompletions
-        };
+            .all(|model| Self::route_for_model(model) == first_route)
+            .then_some(first_route)
+            .unwrap_or(DatabricksV2Route::MlflowChatCompletions);
         let model = models
             .iter()
             .all(|candidate| candidate == model)
@@ -317,8 +320,6 @@ impl DatabricksV2Provider {
         Some(ModelServiceMetadata { model, route })
     }
 
-    /// Canonical id when the registry knows the backing model, otherwise its bare name so
-    /// routing and effort heuristics still see e.g. `gpt-5-custom` rather than `system.ai.gpt-5-custom`.
     fn backing_model_name(destination: &Value) -> Option<String> {
         let model = destination
             .pointer("/pay_per_token_config/model")
@@ -397,15 +398,7 @@ impl DatabricksV2Provider {
     }
 
     fn mlflow_translates_effort(model: &str) -> bool {
-        Self::resolves_to_claude(model)
-            || Self::always_on_reasoning_effort(&ModelConfig::new(model)).is_some()
-    }
-
-    /// The Anthropic formatter needs canonical metadata to emit thinking, so an
-    /// uncatalogued Claude-looking name must not be treated as effort-capable.
-    fn resolves_to_claude(model: &str) -> bool {
-        maybe_get_canonical_model(DATABRICKS_V2_PROVIDER_NAME, model)
-            .is_some_and(|canonical| canonical.id.starts_with("anthropic/"))
+        Self::always_on_reasoning_effort(&ModelConfig::new(model)).is_some()
     }
 
     pub fn is_model_service_fqn(model_name: &str) -> bool {
@@ -579,21 +572,6 @@ impl DatabricksV2Provider {
         if payload.get("max_tokens").is_none() {
             payload["max_tokens"] = Value::from(format_config.max_output_tokens());
         }
-        if is_model_service && Self::resolves_to_claude(&resolved_config.model_name) {
-            if !anthropic::model_supports_temperature(DATABRICKS_V2_PROVIDER_NAME, resolved_config)
-            {
-                payload.as_object_mut().unwrap().remove("temperature");
-            }
-            anthropic::apply_thinking_config(
-                &mut payload,
-                DATABRICKS_V2_PROVIDER_NAME,
-                resolved_config,
-                format_config
-                    .request_param::<i32>("max_tokens")
-                    .unwrap_or_else(|| resolved_config.max_output_tokens()),
-                AnthropicFormatOptions::default(),
-            );
-        }
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
@@ -618,13 +596,15 @@ impl DatabricksV2Provider {
     async fn stream_anthropic_messages(
         &self,
         model_config: &ModelConfig,
+        format_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = anthropic::create_request(
+        let mut payload = anthropic::create_request_for_model(
             ANTHROPIC_PROVIDER_NAME,
-            model_config,
+            format_config,
+            &model_config.model_name,
             system,
             messages,
             tools,
@@ -723,8 +703,14 @@ impl Provider for DatabricksV2Provider {
                     .await
             }
             DatabricksV2Route::AnthropicMessages => {
-                self.stream_anthropic_messages(model_config, system, messages, tools)
-                    .await
+                self.stream_anthropic_messages(
+                    model_config,
+                    &format_config,
+                    system,
+                    messages,
+                    tools,
+                )
+                .await
             }
             DatabricksV2Route::MlflowChatCompletions => {
                 self.stream_mlflow_chat_completions(
@@ -915,7 +901,12 @@ mod tests {
             );
         }
 
-        for model in ["databricks-claude-opus-4-7", "databricks-claude-sonnet-4-6"] {
+        for model in [
+            "databricks-claude-opus-4-7",
+            "databricks-claude-sonnet-4-6",
+            "catalog.schema.claude-alias",
+            "data_workflow_tools.goose.goose-claude-fable-5-1",
+        ] {
             assert_eq!(
                 DatabricksV2Provider::route_for_model(model),
                 DatabricksV2Route::AnthropicMessages,
@@ -925,10 +916,6 @@ mod tests {
 
         assert_eq!(
             DatabricksV2Provider::route_for_model("custom-model"),
-            DatabricksV2Route::MlflowChatCompletions
-        );
-        assert_eq!(
-            DatabricksV2Provider::route_for_model("catalog.schema.claude-alias"),
             DatabricksV2Route::MlflowChatCompletions
         );
     }
@@ -1171,6 +1158,52 @@ mod tests {
                 .complete(&ModelConfig::new(model), "system", &[], &[])
                 .await
                 .expect("GPT-6 model service should use the Responses API");
+        }
+
+        #[tokio::test]
+        async fn model_service_claude_uses_messages_route_with_cache_breakpoints() {
+            let model = "data_workflow_tools.goose.writer";
+            let body = concat!(
+                r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"usage":{"input_tokens":1,"output_tokens":0}}}"#,
+                "\n",
+                r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}"#,
+                "\n",
+                r#"data: {"type":"message_stop"}"#,
+                "\n",
+            );
+
+            let server = MockServer::start().await;
+            mount_model_service_metadata(&server, model, "system.ai.claude-fable-5-1").await;
+            Mock::given(method("POST"))
+                .and(path("/ai-gateway/anthropic/v1/messages"))
+                .and(body_partial_json(json!({
+                    "model": model,
+                    "system": [{"cache_control": {"type": "ephemeral"}}],
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "low"}
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_string(body)
+                        .append_header("content-type", "text/event-stream"),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            provider(server.uri())
+                .complete(
+                    &ModelConfig::new(model).with_thinking_effort(ThinkingEffort::Low),
+                    "system",
+                    &[
+                        Message::user().with_text("hi"),
+                        Message::assistant().with_text("hello"),
+                        Message::user().with_text("continue"),
+                    ],
+                    &[],
+                )
+                .await
+                .expect("Claude model service should use the Anthropic Messages API");
         }
 
         #[test_case::test_case("catalog.schema.goose-glm-5-3", "system.ai.glm-5-3" ; "glm 5.3")]

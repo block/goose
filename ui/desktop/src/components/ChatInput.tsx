@@ -202,7 +202,7 @@ interface ChatInputProps {
   recipeId?: string | null;
   initialPrompt?: string;
   append?: (message: Message) => void;
-  onWorkingDirChange?: (newDir: string) => Promise<void> | void;
+  onWorkingDirChange: (newDir: string) => Promise<void> | void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
@@ -212,6 +212,8 @@ interface ChatInputProps {
   nextChatExtensionDraft?: NextChatExtensionDraft;
   onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
   liveVoice?: ChatInputLiveVoice;
+  appendQuote?: string | null;
+  onAppendQuoteConsumed?: () => void;
 }
 
 export default function ChatInput({
@@ -250,6 +252,8 @@ export default function ChatInput({
   nextChatExtensionDraft,
   onNextChatExtensionDraftChange,
   liveVoice,
+  appendQuote,
+  onAppendQuoteConsumed,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -577,6 +581,17 @@ export default function ChatInput({
       }, 0);
     }
   }, [initialPrompt, messages.length, textAreaRef]);
+
+  useEffect(() => {
+    if (!appendQuote) return;
+    const blockquote = appendQuote
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n');
+    applyInputValue((_value ? _value + '\n\n' : '') + blockquote + '\n\n');
+    setTimeout(() => textAreaRef.current?.focus(), 0);
+    onAppendQuoteConsumed?.();
+  }, [appendQuote]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -1731,7 +1746,7 @@ export default function ChatInput({
             sessionId={sessionId ?? undefined}
             workingDir={currentWorkingDir}
             onWorkingDirChange={async (newDir) => {
-              await onWorkingDirChange?.(newDir);
+              await onWorkingDirChange(newDir);
               setWorkingDirOverride(newDir);
             }}
           />

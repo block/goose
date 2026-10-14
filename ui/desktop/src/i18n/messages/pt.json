@@ -929,10 +929,6 @@
   "dirSwitcher.enterPathInvalid": {
     "defaultMessage": "Working directory must be an absolute path"
   },
-
-
-
-
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Falha ao atualizar o diretório de trabalho"
   },
@@ -1966,13 +1962,16 @@
     "defaultMessage": "URL inválida"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Mover a janela Picture-in-Picture (use as teclas de seta)"
+    "defaultMessage": "Mover a janela Picture-in-Picture"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Reproduzindo em Picture-in-Picture"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Redimensionar a janela Picture-in-Picture"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item encontrado} other{# itens encontrados}}"
@@ -2385,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Conversas"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Carregando chats…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Criado"
   },
@@ -2718,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Tem alterações por guardar"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Erro de ProviderCard: nenhum metadado fornecido"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Fornecedor desconhecido"
   },
@@ -2729,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Formato da API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Cancelar"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Escolher fornecedor"
@@ -3828,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Abrir numa nova janela"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Partilhar ligação Nostr encriptada"
-  },
   "sessions.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -3870,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Importar sessão"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Importar ligação"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Cole uma ligação de partilha Nostr do Goose para obter, desencriptar e importar a sessão."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Importar sessão Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "A importar..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Incluir sessões ACP"
   },
@@ -3912,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Pesquisar no histórico..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Qualquer pessoa com este link pode obter e descriptografar a sessão. Trate-o como um segredo."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Link de Partilha Nostr Criptografado"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Copiado para a área de transferência"
   },
@@ -3944,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Sessão importada com êxito"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Link de partilha Nostr criptografado criado"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Falha ao criar o link de partilha Nostr: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Falha ao atualizar a descrição da sessão: {error}"
@@ -4704,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Acesse"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Use o loop do agente baseado em operações. Desative-o para usar o loop legado."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Automático"
   },
@@ -4760,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Limite %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Limite de tokens"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Resume solicitações e respostas antigas de ferramentas para economizar contexto. O limite é automático quando deixado em branco."

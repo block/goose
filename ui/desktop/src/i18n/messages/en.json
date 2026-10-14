@@ -1983,13 +1983,16 @@
     "defaultMessage": "Invalid URL"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Move Picture-in-Picture window (use arrow keys)"
+    "defaultMessage": "Move Picture-in-Picture window"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Playing in Picture-in-Picture"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Resize Picture-in-Picture window"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item found} other{# items found}}"
@@ -2405,6 +2408,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Loading chats…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Created"
   },
@@ -2741,9 +2747,6 @@
   "providerCard.deprecatedReplacement": {
     "defaultMessage": "Deprecated — use {replacement} instead."
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard error: No metadata provided"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Unknown Provider"
   },
@@ -2752,9 +2755,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API Format"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Cancel"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Choose Provider"
@@ -3872,9 +3872,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Open in new window"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Share encrypted Nostr link"
-  },
   "sessions.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -3914,21 +3911,6 @@
   "sessions.import": {
     "defaultMessage": "Import Session"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Import Link"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Paste a Goose Nostr share link to fetch, decrypt, and import the session."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Import Nostr Session"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Importing..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Include ACP sessions"
   },
@@ -3955,12 +3937,6 @@
   },
   "sessions.searchPlaceholder": {
     "defaultMessage": "Search history..."
-  },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Anyone with this link can fetch and decrypt the session. Treat it like a secret."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Encrypted Nostr Share Link"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Copied to clipboard"
@@ -3989,20 +3965,11 @@
   "sessions.toast.imported": {
     "defaultMessage": "Session imported successfully"
   },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Encrypted Nostr share link created"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Failed to create Nostr share link: {error}"
-  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Failed to update session description: {error}"
   },
   "sessions.toast.updated": {
     "defaultMessage": "Session description updated successfully"
-  },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Use the operation-based agent loop. Turn this off to use the legacy loop."
   },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Auto"
@@ -4057,6 +4024,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Threshold %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Token limit"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Summarizes older tool requests and responses to save context. The cutoff is automatic when blank."

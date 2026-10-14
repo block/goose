@@ -11,8 +11,10 @@ pub type OpenRouterSessionIdProvider = Box<dyn Fn() -> Option<String> + Send + S
 use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use crate::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use crate::conversation::message::Message;
+use crate::decision::{DecisionProvider, DecisionRequest, DecisionResponse};
 use crate::errors::ProviderError;
 use crate::formats::openai::create_request;
+use crate::http_status::read_json_response;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{handle_status, stream_openai_compat};
 use crate::openrouter_format;
@@ -23,6 +25,7 @@ use rmcp::model::Tool;
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 const OPENROUTER_PARAMETERS_CONFIG_KEY: &str = "OPENROUTER_PARAMETERS";
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
+pub const OPENROUTER_DECISION_DEFAULT_MODEL: &str = "typesafe/jev-1.13";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
@@ -395,6 +398,57 @@ impl crate::base::ProviderDescriptor for OpenRouterProvider {
     }
 }
 
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct OpenRouterDecisionOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+}
+
+impl OpenRouterProvider {
+    pub async fn create_decision_with_options(
+        &self,
+        request: &DecisionRequest,
+        options: &OpenRouterDecisionOptions,
+    ) -> Result<DecisionResponse, ProviderError> {
+        let mut payload = serde_json::to_value(request).map_err(|error| {
+            ProviderError::RequestFailed(format!("Failed to serialize Decisions request: {error}"))
+        })?;
+        let option_values = serde_json::to_value(options).map_err(|error| {
+            ProviderError::RequestFailed(format!(
+                "Failed to serialize OpenRouter Decisions options: {error}"
+            ))
+        })?;
+        if let (Some(payload), Some(options)) = (payload.as_object_mut(), option_values.as_object())
+        {
+            payload.extend(options.clone());
+        }
+        let response = self
+            .api_client
+            .request("api/alpha/decisions")
+            .response_post(&payload)
+            .await?;
+        let response = handle_status(response).await?;
+        read_json_response(response).await
+    }
+}
+
+#[async_trait]
+impl DecisionProvider for OpenRouterProvider {
+    async fn create_decision(
+        &self,
+        request: &DecisionRequest,
+    ) -> Result<DecisionResponse, ProviderError> {
+        self.create_decision_with_options(request, &OpenRouterDecisionOptions::default())
+            .await
+    }
+}
+
 #[async_trait]
 impl Provider for OpenRouterProvider {
     fn get_name(&self) -> &str {
@@ -514,8 +568,11 @@ impl Provider for OpenRouterProvider {
         let sent_reasoning_disable =
             openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
+        // `transforms` is intentionally not set: OpenRouter defaults to applying
+        // `middle-out` for endpoints with <=8k context, and large-context models
+        // don't benefit from it. Users who want to force a transform can opt in
+        // via `OPENROUTER_PARAMETERS`.
         if let Some(obj) = payload.as_object_mut() {
-            obj.insert("transforms".to_string(), json!(["middle-out"]));
             obj.insert("usage".to_string(), json!({ "include": true }));
         }
 
@@ -639,6 +696,51 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stream_does_not_set_transforms_field() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string("data: [DONE]\n\n"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = OpenRouterProvider::new(
+            ApiClient::new_with_tls(
+                server.uri(),
+                crate::api_client::AuthMethod::BearerToken("test-key".to_string()),
+                None,
+            )
+            .unwrap(),
+            None,
+            None,
+        );
+
+        let config = model_config("z-ai/glm-5.2");
+
+        let _stream = provider
+            .stream(&config, "system", &[Message::user().with_text("hi")], &[])
+            .await
+            .unwrap();
+
+        let received = server.received_requests().await.unwrap();
+        assert_eq!(received.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+        assert!(
+            body.get("transforms").is_none(),
+            "transforms must not be set unconditionally, got body: {}",
+            body
+        );
     }
 
     #[test]

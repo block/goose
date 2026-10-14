@@ -43,7 +43,9 @@ fn apply_canonical_limits(provider_name: &str, model: ModelConfig) -> ModelConfi
     if uses_model_metadata(provider_name, &model.model_name) {
         model
     } else {
-        model.with_canonical_limits(provider_name)
+        model
+            .with_canonical_limits(provider_name)
+            .with_canonical_vision_support(provider_name)
     }
 }
 
@@ -345,5 +347,24 @@ mod azure_foundry_tests {
 
         assert_eq!(config.model_name, "gpt-5-none");
         assert_eq!(config.thinking_effort(), None);
+    }
+}
+
+#[cfg(test)]
+mod canonical_vision_tests {
+    use super::*;
+
+    #[test]
+    fn apply_canonical_limits_resolves_vision_support() {
+        let model = apply_canonical_limits("alibaba-token-plan", ModelConfig::new("qwen3.8-flash"));
+
+        assert_eq!(model.supports_vision, Some(true));
+    }
+
+    #[test]
+    fn apply_canonical_limits_leaves_unknown_providers_untouched() {
+        let model = apply_canonical_limits("my-custom-provider", ModelConfig::new("some-model"));
+
+        assert_eq!(model.supports_vision, None);
     }
 }

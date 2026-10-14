@@ -275,7 +275,6 @@ impl GooseAcpAgent {
             id: session_id.to_string(),
             schedule_id: None,
             max_turns: None,
-            retry_config: None,
         };
         let stream = match agent
             .resume_state_machine_turn(session_config, cancel_token.clone())
@@ -403,6 +402,7 @@ impl GooseAcpAgent {
         session = self
             .prepare_session_for_activation(session, cwd, args.mcp_servers, true)
             .await?;
+        self.render_stored_recipe_template(&mut session).await?;
 
         let replayed_from = replay_conversation_to_client(
             cx,
@@ -412,11 +412,10 @@ impl GooseAcpAgent {
             replay_tail_from_meta(args.meta.as_ref()),
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
         let provider = agent
-            .provider()
+            .provider(&session.id)
             .await
             .internal_err_ctx("Failed to get provider while loading ACP session")?;
         resume_saved_provider_session(&provider, session.conversation.as_ref()).await;
@@ -426,15 +425,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to reload session")?;
 
-        agent
-            .extension_manager
-            .update_working_dir(&session.working_dir)
-            .await;
-
         let (mode_state, config_options) = build_session_setup_config(
             &self.provider_inventory,
             &session,
-            &agent_thinking_effort_support(&agent).await,
+            &agent_thinking_effort_support(&agent, &session.id).await,
         )
         .await?;
 
@@ -457,12 +451,11 @@ impl GooseAcpAgent {
             .as_ref()
             .map(pending_tool_confirmations)
             .unwrap_or_default();
-        let should_resume_state_machine = crate::agents::state_machine::enabled()
-            && (!pending_confirmations.is_empty()
-                || session
-                    .conversation
-                    .as_ref()
-                    .is_some_and(has_unapplied_tool_confirmation_response));
+        let should_resume_state_machine = !pending_confirmations.is_empty()
+            || session
+                .conversation
+                .as_ref()
+                .is_some_and(has_unapplied_tool_confirmation_response);
         if should_resume_state_machine {
             self.start_resumed_state_machine_turn(
                 cx,
