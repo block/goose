@@ -6,12 +6,11 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tracing_futures::Instrument;
 
-use crate::agents::final_output_tool::FinalOutputTool;
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
 use crate::agents::state_machine::{
-    applied, awaits_tool_responses, last_effective_role, messages_since_kickoff, not_applicable,
-    trailing_error, yielded, yielded_with, ConversationEffect, Emitter, GooseEffect, Operation,
-    OperationResult, SlashCommand,
+    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
+    yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
+    SlashCommand,
 };
 use crate::context_mgmt::{compact_messages, count_context_tokens};
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -256,15 +255,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            // Compact only ahead of an inference. An assistant tail ends the turn or
-            // awaits tool responses, hiding an unanswered request orphans its result,
-            // and RecipeOperation delivers a successful final output from a tool tail.
-            let tail = last_effective_role(messages)?;
-            if tail == EffectiveRole::Assistant
-                || awaits_tool_responses(messages)
-                || (tail == EffectiveRole::Tool
-                    && FinalOutputTool::successful_output(messages).is_some())
-            {
+            // Compact only ahead of an inference; an assistant tail ends the turn.
+            if last_effective_role(messages)? == EffectiveRole::Assistant {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;
