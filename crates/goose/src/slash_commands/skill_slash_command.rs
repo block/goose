@@ -159,6 +159,37 @@ mod tests {
         assert_eq!(command.input_hint.as_deref(), Some("[task]"));
     }
 
+    #[test]
+    fn skill_command_preserves_normalized_lookup_and_builtin_precedence() {
+        let tmp = TempDir::new().unwrap();
+        let builtin = super::super::slash_command::list_builtin_commands()
+            .into_iter()
+            .next()
+            .unwrap();
+        for name in ["slash-normalized-helper", builtin.name.as_str()] {
+            let skill_dir = tmp.path().join(".agents/skills").join(name);
+            std::fs::create_dir_all(&skill_dir).unwrap();
+            std::fs::write(
+                skill_dir.join("SKILL.md"),
+                format!("---\nname: {name}\ndescription: Helper\n---\nNormalized fixture."),
+            )
+            .unwrap();
+        }
+        let prompt = resolve_command("/SLASH-NORMALIZED-HELPER", "", Some(tmp.path()))
+            .unwrap()
+            .unwrap();
+        assert!(prompt.contains("Normalized fixture."));
+        assert_eq!(
+            resolve_command(
+                &format!("/{}", builtin.name.to_uppercase()),
+                "",
+                Some(tmp.path())
+            )
+            .unwrap(),
+            None
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn linked_skill_command_renders_physical_supporting_paths() {
