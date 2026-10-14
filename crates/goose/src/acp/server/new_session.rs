@@ -112,7 +112,6 @@ impl AcpConnection {
                 "Failed to delete session during new-session cleanup"
             );
         }
-        self.open_sessions.lock().await.remove(session_id);
         self.services.release_session(session_id).await;
     }
 

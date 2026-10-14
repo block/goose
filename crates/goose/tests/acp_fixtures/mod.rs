@@ -403,9 +403,15 @@ pub async fn spawn_acp_server_in_process(
         })
     });
 
-    let active_runs = Arc::new(goose::acp::server::ActiveRunRegistry::default());
+    let services = goose::acp::server::new_acp_services(
+        Arc::new(goose::session::SessionManager::new(data_root.to_path_buf())),
+        data_root.to_path_buf(),
+        Some(Arc::new(FixtureScheduler::new())),
+        disable_session_naming,
+        GoosePlatform::GooseCli,
+    );
     let live_voice = Arc::new(goose::acp::server::LiveVoiceService::from_config(
-        active_runs.clone(),
+        services.runtime.runs.clone(),
     ));
     let connection = AcpConnection::new(AcpConnectionOptions {
         provider_factory,
@@ -414,16 +420,9 @@ pub async fn spawn_acp_server_in_process(
             ..Default::default()
         },
         config_dir: data_root.to_path_buf(),
-        services: goose::acp::server::new_acp_services(
-            Arc::new(goose::session::SessionManager::new(data_root.to_path_buf())),
-            data_root.to_path_buf(),
-            Some(Arc::new(FixtureScheduler::new())),
-            disable_session_naming,
-            GoosePlatform::GooseCli,
-        ),
+        services,
         additional_source_roots: Vec::new(),
         session_cwd: None,
-        active_runs,
         live_voice,
     })
     .await

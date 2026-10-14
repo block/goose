@@ -738,7 +738,7 @@ impl ExtensionManager {
             .insert(session_id.to_string(), Arc::new(client));
     }
 
-    fn client(&self, session_id: &str) -> Arc<ClientContext> {
+    pub(crate) fn client(&self, session_id: &str) -> Arc<ClientContext> {
         self.clients
             .lock()
             .expect("clients mutex poisoned")

@@ -102,7 +102,6 @@ impl AcpConnection {
             .delete_session(&session_id)
             .await
             .internal_err()?;
-        self.open_sessions.lock().await.remove(&session_id);
         self.services.release_session(&session_id).await;
         Ok(DeleteSessionResponse::new())
     }
@@ -245,7 +244,6 @@ impl AcpConnection {
             .apply()
             .await
             .internal_err()?;
-        self.open_sessions.lock().await.remove(&req.session_id);
         self.services.release_session(&req.session_id).await;
         Ok(EmptyResponse {})
     }

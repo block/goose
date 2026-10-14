@@ -17,8 +17,8 @@ use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
 };
 use crate::agents::{
-    ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig, StateMachineServices,
-    StateMachineServicesConfig,
+    Attachment, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
+    StateMachineServices, StateMachineServicesConfig,
 };
 use crate::config::base::CONFIG_YAML_NAME;
 use crate::config::extensions::{configured_enabled_state, get_enabled_extensions_with_config};
@@ -249,14 +249,8 @@ impl Drop for ActiveRunDropGuard {
         self.cancel_token.cancel();
         let session_id = std::mem::take(&mut self.session_id);
         let run_id = std::mem::take(&mut self.run_id);
-        if !self.registry.remove_agent_run(&session_id, &run_id) {
-            return;
-        }
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            let services = Arc::clone(&self.services);
-            handle.spawn(async move {
-                services.discard_pending_steers(&session_id).await;
-            });
+        if self.registry.remove_agent_run(&session_id, &run_id) {
+            self.services.discard_pending_steers(&session_id);
         }
     }
 }
@@ -293,9 +287,6 @@ pub struct AcpConnectionOptions {
     /// When set, new sessions use this host-controlled working directory instead
     /// of the `cwd` the connecting client sends (see `AcpServerFactoryConfig`).
     pub session_cwd: Option<std::path::PathBuf>,
-    /// Shared across roaming connections to coordinate prompt, Live, and
-    /// delegated agent runs for each session.
-    pub active_runs: Arc<ActiveRunRegistry>,
     pub live_voice: Arc<LiveVoiceService>,
 }
 
@@ -324,7 +315,6 @@ pub fn new_acp_services(
 static NEXT_CONNECTION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 pub struct AcpConnection {
-    open_sessions: Mutex<HashSet<String>>,
     active_runs: Arc<ActiveRunRegistry>,
     live_voice: Arc<LiveVoiceService>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
@@ -349,6 +339,12 @@ pub struct AcpConnection {
     additional_source_roots: Vec<SourceRoot>,
     session_cwd: Option<PathBuf>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
+}
+
+impl Drop for AcpConnection {
+    fn drop(&mut self) {
+        self.services.detach_connection(self.connection_id);
+    }
 }
 
 fn meta_string(
@@ -964,8 +960,7 @@ impl AcpConnection {
         let (thinking_effort_update_tx, thinking_effort_update_rx) = mpsc::unbounded_channel();
 
         Ok(Self {
-            open_sessions: Mutex::new(HashSet::new()),
-            active_runs: options.active_runs,
+            active_runs: Arc::clone(&services.runtime.runs),
             live_voice: options.live_voice,
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             services,
@@ -1043,22 +1038,26 @@ impl AcpConnection {
 
     /// Points the session's name updates and extension starts at this connection.
     async fn attach_session(&self, cx: &ConnectionTo<Client>, session_id: &str) {
-        self.services.touch_session(session_id).await;
-        if !self.services.disable_session_naming {
-            let tx = self
-                .session_name_update_tx
-                .get_or_init(|| spawn_session_name_update_notifier(cx.clone()));
-            self.services
-                .subscribe_session_name_updates(session_id, tx.clone());
-        }
+        let session_names = (!self.services.disable_session_naming).then(|| {
+            self.session_name_update_tx
+                .get_or_init(|| spawn_session_name_update_notifier(cx.clone()))
+                .clone()
+        });
         let mut client = ClientContext::new(
             &self.services.goose_platform,
             self.client_mcp_host_info.get().cloned(),
         );
         client.connection = Some(self.connection_id);
         self.services
-            .extension_manager
-            .attach_client(session_id, client);
+            .attach_session(
+                session_id,
+                self.connection_id,
+                Attachment {
+                    client,
+                    session_names,
+                },
+            )
+            .await;
     }
 
     async fn apply_acp_extension_overrides(
@@ -1235,7 +1234,6 @@ impl AcpConnection {
     }
 
     async fn register_acp_session(&self, session_id: String) {
-        self.open_sessions.lock().await.insert(session_id.clone());
         self.subscribe_thinking_effort_updates(&session_id).await;
     }
 
@@ -1309,8 +1307,10 @@ impl AcpConnection {
         Ok(extension_results)
     }
 
-    pub async fn has_session(&self, session_id: &str) -> bool {
-        self.open_sessions.lock().await.contains(session_id)
+    pub fn has_session(&self, session_id: &str) -> bool {
+        self.services
+            .runtime
+            .is_attached(session_id, self.connection_id)
     }
 
     /// Convert ACP prompt content blocks into a user message.
@@ -1855,7 +1855,7 @@ impl AcpConnection {
             .data(format!("Session not found: {}", session_id)));
         }
 
-        if self.open_sessions.lock().await.contains(session_id) {
+        if self.has_session(session_id) {
             return Ok(());
         }
 
@@ -1907,11 +1907,12 @@ impl AcpConnection {
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
         if self.active_runs.remove_agent_run(session_id, run_id) {
-            self.services.discard_pending_steers(session_id).await;
+            self.services.discard_pending_steers(session_id);
         }
 
-        if self.closed_session_ids.lock().await.contains(session_id) {
-            self.open_sessions.lock().await.remove(session_id);
+        if self.closed_session_ids.lock().await.contains(session_id)
+            && !self.services.runtime.is_open(session_id)
+        {
             self.services.release_session(session_id).await;
         }
     }
@@ -2118,7 +2119,7 @@ impl AcpConnection {
                 Ok(crate::agents::AgentEvent::Message(mut message)) => {
                     update_output_token_limit_reached(&mut output_token_limit_reached, &message);
 
-                    if !self.open_sessions.lock().await.contains(session_id) {
+                    if !self.has_session(session_id) {
                         return Err(agent_client_protocol::Error::invalid_params()
                             .data(format!("Session not found: {session_id}")));
                     }
@@ -2370,7 +2371,7 @@ impl AcpConnection {
         if let Some(token) = token {
             info!(session_id = %session_id, "prompt cancelled");
             token.cancel();
-        } else if !self.open_sessions.lock().await.contains(&session_id) {
+        } else if !self.has_session(&session_id) {
             warn!(session_id = %session_id, "cancel request for unknown session");
         }
 
@@ -2585,12 +2586,13 @@ impl AcpConnection {
             .await
             .insert(session_id.to_string());
 
-        self.active_runs.cancel_agent_run(session_id);
-        self.live_voice.stop_session_interaction(session_id).await;
-
-        self.open_sessions.lock().await.remove(session_id);
-
-        self.services.release_session(session_id).await;
+        if self
+            .services
+            .detach_session(session_id, self.connection_id)
+            .await
+        {
+            self.live_voice.stop_session_interaction(session_id).await;
+        }
 
         info!(session_id = %session_id, "ACP session closed");
         Ok(CloseSessionResponse::new())
@@ -3574,8 +3576,14 @@ print(\"hello, world\")
     #[tokio::test]
     async fn initialize_stamps_the_protocol_version_goose_implements() {
         let root = tempfile::tempdir().unwrap();
-        let active_runs = Arc::new(ActiveRunRegistry::default());
-        let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
+        let services = new_acp_services(
+            Arc::new(SessionManager::new(root.path().to_path_buf())),
+            root.path().to_path_buf(),
+            None,
+            true,
+            GoosePlatform::GooseCli,
+        );
+        let live_voice = Arc::new(LiveVoiceService::from_config(services.runtime.runs.clone()));
         let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
             Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
         });
@@ -3583,16 +3591,9 @@ print(\"hello, world\")
             provider_factory,
             builtin_selection: AcpBuiltinSelection::default(),
             config_dir: root.path().to_path_buf(),
-            services: new_acp_services(
-                Arc::new(SessionManager::new(root.path().to_path_buf())),
-                root.path().to_path_buf(),
-                None,
-                true,
-                GoosePlatform::GooseCli,
-            ),
+            services,
             additional_source_roots: Vec::new(),
             session_cwd: None,
-            active_runs,
             live_voice,
         })
         .await
@@ -3708,8 +3709,14 @@ print(\"hello, world\")
     #[tokio::test]
     async fn asynchronous_provider_effort_update_is_forwarded_to_client() {
         let root = tempfile::tempdir().unwrap();
-        let active_runs = Arc::new(ActiveRunRegistry::default());
-        let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
+        let services = new_acp_services(
+            Arc::new(SessionManager::new(root.path().to_path_buf())),
+            root.path().to_path_buf(),
+            None,
+            true,
+            GoosePlatform::GooseCli,
+        );
+        let live_voice = Arc::new(LiveVoiceService::from_config(services.runtime.runs.clone()));
         let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
             Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
         });
@@ -3718,16 +3725,9 @@ print(\"hello, world\")
                 provider_factory,
                 builtin_selection: AcpBuiltinSelection::default(),
                 config_dir: root.path().to_path_buf(),
-                services: new_acp_services(
-                    Arc::new(SessionManager::new(root.path().to_path_buf())),
-                    root.path().to_path_buf(),
-                    None,
-                    true,
-                    GoosePlatform::GooseCli,
-                ),
+                services,
                 additional_source_roots: Vec::new(),
                 session_cwd: None,
-                active_runs,
                 live_voice,
             })
             .await
@@ -3756,6 +3756,17 @@ print(\"hello, world\")
             )
             .await
             .unwrap();
+        server
+            .services
+            .attach_session(
+                &session.id,
+                server.connection_id,
+                Attachment {
+                    client: ClientContext::new(&GoosePlatform::GooseCli, None),
+                    session_names: None,
+                },
+            )
+            .await;
         server.register_acp_session(session.id.clone()).await;
 
         let (client_read, server_write) = tokio::io::duplex(64 * 1024);

@@ -19,6 +19,7 @@ pub mod retry;
 #[cfg(feature = "scheduler")]
 mod schedule_tool;
 mod services;
+mod session_runtime;
 pub mod state_machine;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
@@ -41,6 +42,7 @@ pub use prompt_manager::PromptManager;
 #[cfg(feature = "scheduler")]
 pub use schedule_tool::ScheduleTool;
 pub use services::{GoosePlatform, StateMachineServices, StateMachineServicesConfig};
+pub use session_runtime::{Attachment, SessionRuntime};
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 pub use subagent_task_config::TaskConfig;
 pub use tool_execution::ToolCallContext;

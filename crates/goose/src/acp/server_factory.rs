@@ -1,6 +1,6 @@
 use crate::acp::server::{
     new_acp_services, AcpBuiltinSelection, AcpConnection, AcpConnectionOptions, AcpProviderFactory,
-    ActiveRunRegistry, LiveVoiceService,
+    LiveVoiceService,
 };
 use crate::agents::GoosePlatform;
 use crate::agents::StateMachineServices;
@@ -29,21 +29,17 @@ pub struct AcpServer {
     config: AcpServerFactoryConfig,
     data_dir: std::path::PathBuf,
     services: OnceCell<Arc<StateMachineServices>>,
-    active_runs: Arc<ActiveRunRegistry>,
-    live_voice: Arc<crate::acp::server::LiveVoiceService>,
+    live_voice: std::sync::OnceLock<Arc<LiveVoiceService>>,
 }
 
 impl AcpServer {
     pub fn new(config: AcpServerFactoryConfig) -> Self {
         let data_dir = Paths::data_dir();
-        let active_runs = Arc::new(ActiveRunRegistry::default());
-        let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
         Self {
             config,
             data_dir,
             services: OnceCell::new(),
-            active_runs,
-            live_voice,
+            live_voice: std::sync::OnceLock::new(),
         }
     }
 
@@ -102,8 +98,7 @@ impl AcpServer {
     /// serve --roam`: the serve-wide server keeps `session_cwd: None` for
     /// local ACP clients whose paths are real on this machine, while each
     /// roaming connection gets a host-controlled working directory (the
-    /// connector's absolute path is meaningless here). The agent still shares
-    /// this server's active-run registry.
+    /// connector's absolute path is meaningless here).
     pub async fn create_connection_with_session_cwd(
         &self,
         session_cwd: Option<std::path::PathBuf>,
@@ -120,11 +115,12 @@ impl AcpServer {
             provider_factory,
             builtin_selection: self.config.builtins.clone(),
             config_dir: self.config.config_dir.clone(),
-            services,
             additional_source_roots: self.config.additional_source_roots.clone(),
             session_cwd,
-            active_runs: self.active_runs.clone(),
-            live_voice: self.live_voice.clone(),
+            live_voice: Arc::clone(self.live_voice.get_or_init(|| {
+                Arc::new(LiveVoiceService::from_config(services.runtime.runs.clone()))
+            })),
+            services,
         })
         .await?;
         info!("Created new ACP agent");
@@ -137,14 +133,11 @@ impl AcpServer {
         config: AcpServerFactoryConfig,
         data_dir: std::path::PathBuf,
     ) -> Self {
-        let active_runs = Arc::new(ActiveRunRegistry::default());
-        let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
         Self {
             config,
             data_dir,
             services: OnceCell::new(),
-            active_runs,
-            live_voice,
+            live_voice: std::sync::OnceLock::new(),
         }
     }
 }

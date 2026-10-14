@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
@@ -8,12 +8,11 @@ use futures::{StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
 use super::gen_ai_telemetry;
-use super::tool_confirmation_coordinator::{
-    ActiveTurnGuard, ConfirmationAnswer, ToolConfirmationCoordinator,
-};
+use super::tool_confirmation_coordinator::{ActiveTurnGuard, ConfirmationAnswer};
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension_manager::{ClientContext, ExtensionManager};
 use crate::agents::provider_manager::ProviderManager;
+use crate::agents::session_runtime::{Attachment, SessionRuntime};
 use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
@@ -40,14 +39,14 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
 use crate::security::egress_inspector::EgressInspector;
 use crate::security::security_inspector::SecurityInspector;
-use crate::session::{Session, SessionManager, SessionNameUpdate};
+use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::{ThinkingEffort, ThinkingEffortSupport};
 use rmcp::model::{ElicitationAction, Tool};
 use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, instrument, warn};
 
@@ -155,18 +154,14 @@ pub struct StateMachineServices {
     pub scheduler: Option<Arc<dyn SchedulerTrait>>,
     pub goose_platform: GoosePlatform,
     pub disable_session_naming: bool,
-    max_sessions: usize,
-    loaded_sessions: Mutex<lru::LruCache<String, ()>>,
+    pub runtime: SessionRuntime,
 
     pub extension_manager: Arc<ExtensionManager>,
-    tool_confirmation_coordinator: ToolConfirmationCoordinator,
 
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
     #[cfg(test)]
     pub(super) stop_hook_block_cap_override: Option<u32>,
-    steer_queues: Mutex<HashMap<String, SteerQueue>>,
-    session_name_updates: StdMutex<HashMap<String, mpsc::UnboundedSender<SessionNameUpdate>>>,
 }
 
 fn user_event(event: AgentEvent) -> Option<AgentEvent> {
@@ -210,14 +205,10 @@ impl StateMachineServices {
             scheduler: config.scheduler_service,
             goose_platform: config.goose_platform,
             disable_session_naming: config.disable_session_naming,
-            max_sessions: config.max_sessions,
-            loaded_sessions: Mutex::new(lru::LruCache::unbounded()),
-            tool_confirmation_coordinator: ToolConfirmationCoordinator::new(),
+            runtime: SessionRuntime::new(config.max_sessions),
             hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
-            steer_queues: Mutex::new(HashMap::new()),
-            session_name_updates: StdMutex::new(HashMap::new()),
         })
     }
 
@@ -235,7 +226,8 @@ impl StateMachineServices {
 
     #[cfg(test)]
     pub(crate) fn clear_extension_lease_for_test(&self, session_id: &str) {
-        self.tool_confirmation_coordinator
+        self.runtime
+            .confirmations
             .session(session_id)
             .clear_extension_lease();
     }
@@ -277,95 +269,83 @@ impl StateMachineServices {
     }
 
     pub async fn steer(&self, session_id: &str, message: Message) {
-        self.steer_queue(session_id)
-            .await
-            .lock()
-            .await
-            .push_back(message);
+        self.runtime.steer(session_id, message).await;
     }
 
-    pub async fn discard_pending_steers(&self, session_id: &str) {
-        self.steer_queues.lock().await.remove(session_id);
-    }
-
-    /// Generated names for the session go to `tx`, replacing whoever subscribed before.
-    pub fn subscribe_session_name_updates(
-        &self,
-        session_id: &str,
-        tx: mpsc::UnboundedSender<SessionNameUpdate>,
-    ) {
-        self.session_name_updates
-            .lock()
-            .expect("session name subscribers unavailable")
-            .insert(session_id.to_string(), tx);
+    pub fn discard_pending_steers(&self, session_id: &str) {
+        self.runtime.discard_pending_steers(session_id);
     }
 
     #[cfg(test)]
     pub(crate) fn hold_turn_for_test(&self, session_id: &str) -> impl Drop {
-        self.tool_confirmation_coordinator
+        self.runtime
+            .confirmations
             .session(session_id)
             .try_start_turn()
             .unwrap()
     }
 
-    pub fn has_active_turn(&self, session_id: &str) -> bool {
-        self.tool_confirmation_coordinator
-            .has_active_turn(session_id)
+    /// Opens the session for a connection, which from now on is who extensions start for
+    /// and who gets its generated names.
+    pub async fn attach_session(&self, session_id: &str, connection: u64, attachment: Attachment) {
+        self.extension_manager
+            .attach_client(session_id, attachment.client.clone());
+        self.runtime.attach(session_id, connection, attachment);
+        self.touch_session(session_id).await;
     }
 
-    /// Marks the session as in use. Once more than `max_sessions` are, the least recently
-    /// used one without a turn in flight is released.
-    pub async fn touch_session(&self, session_id: &str) {
-        let evicted = {
-            let mut loaded = self.loaded_sessions.lock().await;
-            loaded.put(session_id.to_string(), ());
-            let excess = loaded.len().saturating_sub(self.max_sessions.max(1));
-            let evicted: Vec<String> = loaded
-                .iter()
-                .rev()
-                .map(|(id, ())| id.clone())
-                .filter(|id| !self.has_active_turn(id))
-                .take(excess)
-                .collect();
-            for id in &evicted {
-                loaded.pop(id);
+    /// Closes the session for one connection; the session is released when that was the
+    /// last one. Returns whether it was.
+    pub async fn detach_session(&self, session_id: &str, connection: u64) -> bool {
+        match self.runtime.detach(session_id, connection) {
+            Some(latest) => {
+                self.extension_manager
+                    .attach_client(session_id, latest.client);
+                false
             }
-            evicted
-        };
-        for id in evicted {
-            self.release_session(&id).await;
+            None => {
+                self.release_session(session_id).await;
+                true
+            }
+        }
+    }
+
+    /// For a connection that went away without closing: its sessions keep running.
+    pub fn detach_connection(&self, connection: u64) {
+        for (session_id, latest) in self.runtime.detach_connection(connection) {
+            self.extension_manager
+                .attach_client(&session_id, latest.client);
+        }
+    }
+
+    pub async fn touch_session(&self, session_id: &str) {
+        for evicted in self.runtime.touch(session_id) {
+            self.release_session(&evicted).await;
+        }
+    }
+
+    /// Releases what went over the limit while every session was busy.
+    async fn trim_sessions(&self) {
+        for evicted in self.runtime.trim() {
+            self.release_session(&evicted).await;
         }
     }
 
     #[cfg(test)]
     pub(crate) fn tracks_confirmations_for(&self, session_id: &str) -> bool {
-        self.tool_confirmation_coordinator.tracks(session_id)
+        self.runtime.confirmations.tracks(session_id)
     }
 
-    /// Stops the session's extensions and drops its provider and pending state. A turn
-    /// still running keeps what it already leased.
+    /// Stops the session's extensions, drops its provider and everything the runtime
+    /// keeps for it, and cancels its run. Connections that had it open attach again on
+    /// their next request.
     pub async fn release_session(&self, session_id: &str) {
-        self.loaded_sessions.lock().await.pop(session_id);
-        self.discard_pending_steers(session_id).await;
-        self.tool_confirmation_coordinator.release(session_id);
+        self.runtime.forget(session_id);
         self.session_manager
             .action_required()
             .forget_forwarded_from(session_id);
-        self.session_name_updates
-            .lock()
-            .expect("session name subscribers unavailable")
-            .remove(session_id);
         self.extension_manager.release(session_id).await;
         self.providers.release(session_id);
-    }
-
-    async fn steer_queue(&self, session_id: &str) -> SteerQueue {
-        self.steer_queues
-            .lock()
-            .await
-            .entry(session_id.to_string())
-            .or_default()
-            .clone()
     }
 
     /// Create a tool inspection manager with default inspectors
@@ -465,7 +445,7 @@ impl StateMachineServices {
             .action_required()
             .answered_request(session_id, request_id)?;
         let (session_id, request_id) = (session_id.as_str(), request_id.as_str());
-        let state = self.tool_confirmation_coordinator.session(session_id);
+        let state = self.runtime.confirmations.session(session_id);
         let _confirmation_submission_guard = state.confirmation_submission_lock.lock().await;
         let state_machine_permission = if permission == Permission::Cancel {
             Permission::DenyOnce
@@ -556,7 +536,8 @@ impl StateMachineServices {
                 .unwrap_or(DEFAULT_MAX_TURNS)
         });
         let extension_lease = self
-            .tool_confirmation_coordinator
+            .runtime
+            .confirmations
             .session(&session_config.id)
             .extension_lease();
         let retry_timeout = Config::global()
@@ -766,7 +747,8 @@ impl StateMachineServices {
         }
 
         let turn_guard = self
-            .tool_confirmation_coordinator
+            .runtime
+            .confirmations
             .session(&session_id)
             .try_start_turn()?;
         turn_guard.state().start_new_turn();
@@ -785,12 +767,7 @@ impl StateMachineServices {
         if !self.disable_session_naming {
             let provider = self.provider(&session_config.id).await?;
             let manager = session_manager.clone();
-            let tx = self
-                .session_name_updates
-                .lock()
-                .expect("session name subscribers unavailable")
-                .get(&session_id)
-                .cloned();
+            let tx = self.runtime.session_names(&session_id);
             let id = session_id.clone();
             let provider = provider.clone();
             tokio::spawn(async move {
@@ -818,7 +795,8 @@ impl StateMachineServices {
         cancel: CancellationToken,
     ) -> Result<BoxStream<'static, Result<AgentEvent>>> {
         let turn_guard = self
-            .tool_confirmation_coordinator
+            .runtime
+            .confirmations
             .session(&session_config.id)
             .try_start_turn()?;
         turn_guard.state().start_new_turn();
@@ -847,7 +825,8 @@ impl StateMachineServices {
         }
 
         let turn_guard = self
-            .tool_confirmation_coordinator
+            .runtime
+            .confirmations
             .session(&session_config.id)
             .try_start_turn()?;
         for request in pending_confirmations {
@@ -911,6 +890,7 @@ impl StateMachineServices {
                     }
                     if !has_confirmations {
                         turn_guard.state().clear_confirmations();
+                        services.trim_sessions().await;
                         return;
                     }
                 }
@@ -920,6 +900,7 @@ impl StateMachineServices {
                     .await
                 {
                     turn_guard.state().clear_confirmations();
+                    services.trim_sessions().await;
                     return;
                 }
                 run = true;
@@ -941,7 +922,7 @@ impl StateMachineServices {
         let context_limit =
             crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
                 .await?;
-        let steer_queue = self.steer_queue(&session_id).await;
+        let steer_queue = self.runtime.steer_queue(&session_id);
         let machine = self
             .create_state_machine(
                 provider,
@@ -1332,6 +1313,64 @@ mod tests {
             }
 
             assert_eq!(CONCURRENT_STARTS.load(Ordering::SeqCst), 1);
+        }
+
+        fn attachment(name: &str) -> crate::agents::Attachment {
+            let mut client = crate::agents::extension_manager::ClientContext::new(
+                &GoosePlatform::GooseDesktop,
+                None,
+            );
+            client.name = name.to_string();
+            crate::agents::Attachment {
+                client,
+                session_names: None,
+            }
+        }
+
+        #[tokio::test]
+        async fn closing_on_one_connection_leaves_the_others_attached() {
+            let temp_dir = TempDir::new().unwrap();
+            let services = test_services(&temp_dir, 100);
+            services.attach_session("s", 1, attachment("first")).await;
+            services.attach_session("s", 2, attachment("second")).await;
+            services.attach_session("s", 1, attachment("first")).await;
+
+            assert!(!services.detach_session("s", 1).await);
+            assert!(services.runtime.is_attached("s", 2));
+            assert_eq!(services.extension_manager.client("s").name, "second");
+
+            assert!(services.detach_session("s", 2).await);
+            assert!(!services.runtime.is_open("s"));
+        }
+
+        #[tokio::test]
+        async fn releasing_a_session_makes_every_connection_attach_again() {
+            let temp_dir = TempDir::new().unwrap();
+            let services = test_services(&temp_dir, 100);
+            services.attach_session("s", 1, attachment("first")).await;
+            services.attach_session("s", 2, attachment("second")).await;
+
+            services.release_session("s").await;
+
+            assert!(!services.runtime.is_attached("s", 1));
+            assert!(!services.runtime.is_attached("s", 2));
+        }
+
+        #[tokio::test]
+        async fn touching_a_session_never_evicts_it() {
+            let temp_dir = TempDir::new().unwrap();
+            let services = test_services(&temp_dir, 1);
+            services
+                .attach_session("busy", 1, attachment("client"))
+                .await;
+            let _turn = services.hold_turn_for_test("busy");
+
+            services
+                .attach_session("new", 1, attachment("client"))
+                .await;
+
+            assert!(services.runtime.is_attached("new", 1));
+            assert!(services.runtime.is_attached("busy", 1));
         }
 
         #[tokio::test]
