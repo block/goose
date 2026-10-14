@@ -122,25 +122,58 @@ static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
 const SUPPORTED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
+fn image_placeholder(mime_type: &str) -> Value {
+    json!({ "type": "input_text", "text": format!("[Image: {mime_type}]") })
+}
+
+fn oversized_image_placeholder(len: usize) -> Value {
+    json!({
+        "type": "input_text",
+        "text": format!("image is too large: {len} bytes exceeds {MAX_IMAGE_BYTES} byte limit")
+    })
+}
+
+fn has_supported_image_magic(bytes: &[u8]) -> bool {
+    matches!(
+        bytes.get(..4),
+        Some([0x89, 0x50, 0x4E, 0x47])
+            | Some([0xFF, 0xD8, 0xFF, _])
+            | Some([0x47, 0x49, 0x46, 0x38])
+    ) || matches!(
+        (bytes.get(..4), bytes.get(8..12)),
+        (Some(b"RIFF"), Some(b"WEBP"))
+    )
+}
+
 fn tool_result_image(data: &str, mime_type: &str) -> Value {
-    let (mime_type, image_url, payload) = match data.strip_prefix("data:") {
+    let (declared_mime, payload) = match data.strip_prefix("data:") {
         Some(rest) => (
             rest.split([';', ',']).next().unwrap_or_default(),
-            data.to_string(),
             rest.split_once(',').map_or("", |(_, payload)| payload),
         ),
-        None => (mime_type, format!("data:{mime_type};base64,{data}"), data),
+        None => (mime_type, data),
     };
-    if !SUPPORTED_IMAGE_TYPES.contains(&mime_type.to_ascii_lowercase().as_str()) {
-        return json!({ "type": "input_text", "text": format!("[Image: {mime_type}]") });
+    if !SUPPORTED_IMAGE_TYPES.contains(&declared_mime.to_ascii_lowercase().as_str()) {
+        return image_placeholder(declared_mime);
     }
-    let len = payload.len() / 4 * 3;
-    if len > MAX_IMAGE_BYTES {
-        return json!({
-            "type": "input_text",
-            "text": format!("image is too large: {len} bytes exceeds {MAX_IMAGE_BYTES} byte limit")
-        });
+    let approx_len = payload.len() / 4 * 3;
+    if approx_len > MAX_IMAGE_BYTES {
+        return oversized_image_placeholder(approx_len);
     }
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(payload) else {
+        return image_placeholder(declared_mime);
+    };
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return oversized_image_placeholder(bytes.len());
+    }
+    if !has_supported_image_magic(&bytes) {
+        return image_placeholder(declared_mime);
+    }
+    let image_url = if data.starts_with("data:") {
+        data.to_string()
+    } else {
+        format!("data:{declared_mime};base64,{payload}")
+    };
     json!({ "type": "input_image", "image_url": image_url })
 }
 
@@ -1311,6 +1344,41 @@ mod tests {
                     MAX_IMAGE_BYTES / 3 * 3 + 3
                 )
             }])
+        );
+    }
+
+    #[test]
+    fn test_tool_response_invalid_image_bytes() {
+        let messages = vec![Message::user().with_tool_response(
+            "call-1",
+            Ok(CallToolResult::success(vec![
+                ContentBlock::text("img"),
+                ContentBlock::image("not-valid-base64!!!", "image/png"),
+            ])),
+        )];
+        let output = &build_input_items(&messages).unwrap()[0]["output"];
+        assert_eq!(
+            output,
+            &json!([
+                { "type": "input_text", "text": "img" },
+                { "type": "input_text", "text": "[Image: image/png]" }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_tool_response_non_image_payload() {
+        let messages = vec![Message::user().with_tool_response(
+            "call-1",
+            Ok(CallToolResult::success(vec![ContentBlock::image(
+                "aGVsbG8=",
+                "image/png",
+            )])),
+        )];
+        let output = &build_input_items(&messages).unwrap()[0]["output"];
+        assert_eq!(
+            output,
+            &json!([{ "type": "input_text", "text": "[Image: image/png]" }])
         );
     }
 
