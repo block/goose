@@ -50,7 +50,7 @@ pub trait SubagentRunner<S>: MaybeSend + MaybeSync {
         cancel: CancellationToken,
     ) -> OperationStream<'static, SubagentUpdate>;
 
-    async fn on_subagent_finished(
+    fn on_subagent_finished(
         &self,
         _subagent_session_id: &str,
         _outcome: &SubagentOutcome,
@@ -160,7 +160,6 @@ fn tracked_updates(
 struct Running {
     subagent_session_ids: HashSet<String>,
     subagent_runs: SelectAll<OperationStream<'static, (String, SubagentUpdate)>>,
-    delivering: Option<(String, SubagentOutcome)>,
 }
 
 pub struct SubagentOperation<S> {
@@ -176,7 +175,7 @@ impl<S> SubagentOperation<S> {
         }
     }
 
-    async fn deliver<E: From<Message>>(
+    fn deliver<E: From<Message>>(
         &self,
         subagent_session_id: &str,
         outcome: &SubagentOutcome,
@@ -185,8 +184,7 @@ impl<S> SubagentOperation<S> {
     ) -> Option<E> {
         let message = subagent_result_message(subagent_session_id, outcome)?;
         self.runner
-            .on_subagent_finished(subagent_session_id, outcome, remaining, emit)
-            .await;
+            .on_subagent_finished(subagent_session_id, outcome, remaining, emit);
         Some(E::from(message))
     }
 }
@@ -216,7 +214,6 @@ where
         );
         let mut effects = Vec::new();
         let mut delivered = HashSet::new();
-        let interrupted = stopped.delivering.take();
         let finished = std::iter::from_fn(|| loop {
             match stopped.subagent_runs.next().now_or_never().flatten()? {
                 (subagent_session_id, SubagentUpdate::Finished(outcome)) => {
@@ -225,15 +222,12 @@ where
                 (_, SubagentUpdate::ToParent(_)) => {}
             }
         });
-        for (subagent_session_id, outcome) in interrupted.into_iter().chain(finished) {
+        for (subagent_session_id, outcome) in finished {
             if outcome == SubagentOutcome::Cancelled {
                 continue;
             }
             let remaining = pending.len().saturating_sub(delivered.len() + 1);
-            if let Some(effect) = self
-                .deliver(&subagent_session_id, &outcome, remaining, emit)
-                .await
-            {
+            if let Some(effect) = self.deliver(&subagent_session_id, &outcome, remaining, emit) {
                 delivered.insert(subagent_session_id);
                 effects.push(effect);
             }
@@ -287,12 +281,7 @@ where
                 SubagentUpdate::Finished(outcome) => outcome,
             };
             running.subagent_session_ids.remove(&subagent_session_id);
-            running.delivering = Some((subagent_session_id.clone(), outcome.clone()));
-            let effect = self
-                .deliver(&subagent_session_id, &outcome, remaining, emit)
-                .await;
-            running.delivering = None;
-            if let Some(effect) = effect {
+            if let Some(effect) = self.deliver(&subagent_session_id, &outcome, remaining, emit) {
                 return applied([effect]);
             }
         }

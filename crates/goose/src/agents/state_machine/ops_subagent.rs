@@ -136,7 +136,7 @@ impl SubagentRunner<Session> for ForegroundSubagentRunner {
         Box::pin(stream::once(future::ready(notice)).chain(self.spawn(subagent, cancel)))
     }
 
-    async fn on_subagent_finished(
+    fn on_subagent_finished(
         &self,
         subagent_session_id: &str,
         outcome: &SubagentOutcome,
@@ -472,15 +472,12 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let emit = Emitter::new(tx, cancel);
 
-        fixture
-            .runner()
-            .on_subagent_finished(
-                &fixture.subagent_id,
-                &SubagentOutcome::Completed(r#"{"summary":"done"}"#.to_string()),
-                0,
-                &emit,
-            )
-            .await;
+        fixture.runner().on_subagent_finished(
+            &fixture.subagent_id,
+            &SubagentOutcome::Completed(r#"{"summary":"done"}"#.to_string()),
+            0,
+            &emit,
+        );
 
         assert_eq!(
             notices(&mut rx),

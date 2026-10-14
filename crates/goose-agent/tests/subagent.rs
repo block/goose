@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -49,7 +48,6 @@ struct FakeRunner {
     started: Mutex<Vec<String>>,
     events: Mutex<Vec<String>>,
     started_subagent_session_ids: Vec<String>,
-    stall_next_hook: AtomicBool,
 }
 
 impl FakeRunner {
@@ -120,7 +118,7 @@ impl SubagentRunner<Parent> for FakeRunner {
         }
     }
 
-    async fn on_subagent_finished(
+    fn on_subagent_finished(
         &self,
         subagent_session_id: &str,
         _outcome: &SubagentOutcome,
@@ -130,9 +128,6 @@ impl SubagentRunner<Parent> for FakeRunner {
         self.events.lock().unwrap().push(format!(
             "finished {subagent_session_id}, {remaining} remaining"
         ));
-        if self.stall_next_hook.swap(false, Ordering::SeqCst) {
-            future::pending::<()>().await;
-        }
     }
 }
 
@@ -355,22 +350,6 @@ async fn stop_delivers_finished_subagents_and_cancels_the_rest() {
     assert!(run_once(&operation, &messages).await.is_empty());
     assert_eq!(runner.started(), ["a", "b", "c"]);
     assert!(stop(&operation, &messages).await.is_empty());
-}
-
-#[tokio::test]
-async fn stop_during_the_finished_hook_still_saves_the_result() {
-    let runner = Arc::new(FakeRunner {
-        stall_next_hook: AtomicBool::new(true),
-        ..fake(&["a"])
-    });
-    runner.finished("a", SubagentOutcome::Completed("done".into()));
-    let operation = operation(&runner);
-    let messages = [kickoff()];
-
-    interrupt(&operation, &messages);
-    let saved = stop(&operation, &messages).await;
-
-    assert_eq!(texts(&saved), ["Subagent a completed: done"]);
 }
 
 #[tokio::test]
