@@ -83,25 +83,28 @@ export function getLocale(): { locale: string; messageLocale: string } {
 
   for (const rawTag of candidates) {
     const normalized = normalizeLocaleTag(rawTag);
-    const tag = resolveChineseAlias(normalized);
+    // Regional preferences must not change the language/script used for translations.
+    const catalogTag = rawTag.replace(/_/g, '-').split('@')[0];
+    const tag = resolveChineseAlias(catalogTag);
+    const exactMatch = SUPPORTED_LOCALE_SET.has(tag);
 
-    // Exact match first
-    if (SUPPORTED_LOCALE_SET.has(tag)) return { locale: tag, messageLocale: tag };
+    // Keep ordinary aliases' existing formatting; POSIX tags need normalization.
+    if (exactMatch && !rawTag.includes('@')) return { locale: tag, messageLocale: tag };
 
-    // Try base language (e.g. "pt-BR" → "pt") for the catalog, but keep the
+    // Use the catalog or base language (e.g. "pt-BR" → "pt"), but keep the
     // full regional tag for formatting so date/number output respects the region.
-    const base = tag.split('-')[0];
-    if (SUPPORTED_LOCALE_SET.has(base)) {
+    const messageLocale = exactMatch ? tag : tag.split('-')[0];
+    if (SUPPORTED_LOCALE_SET.has(messageLocale)) {
       // Validate the full tag is a well-formed BCP 47 locale before using it
       // for formatting. Invalid tags (e.g. "en-") would cause RangeError in
-      // Intl APIs, so fall back to the base language in that case.
-      let locale = base;
+      // Intl APIs, so fall back to the catalog locale in that case.
+      let locale = messageLocale;
       try {
         [locale] = Intl.getCanonicalLocales(normalized);
       } catch {
-        // tag is not valid BCP 47 — use the base language instead
+        // tag is not valid BCP 47 — use the catalog locale instead
       }
-      return { locale, messageLocale: base };
+      return { locale, messageLocale };
     }
   }
 

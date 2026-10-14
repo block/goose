@@ -110,13 +110,41 @@ describe('getLocale', () => {
   });
 
   it.each([
+    ['zh_CN@rg=hkzzzz', 'zh-HK', 'zh-CN'],
+    ['zh_CN@rg=mozzzz', 'zh-MO', 'zh-CN'],
+    ['zh_CN@rg=twzzzz', 'zh-TW', 'zh-CN'],
+    ['zh_Hans_CN@rg=hkzzzz', 'zh-Hans-HK', 'zh-CN'],
+    ['zh_Hant_TW@rg=cnzzzz', 'zh-Hant-CN', 'zh-TW'],
+    ['zh_Hant_TW@rg=twzzzz', 'zh-Hant-TW', 'zh-TW'],
+    ['zh_TW@rg=cnzzzz', 'zh-CN', 'zh-TW'],
+    ['zh_HK@rg=cnzzzz', 'zh-CN', 'zh-TW'],
+  ])(
+    'keeps the Chinese catalog when applying the region override in %s',
+    (tag, locale, messageLocale) => {
+      mockAppConfig({ GOOSE_LOCALE: tag });
+      vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+      expect(getLocale()).toEqual({ locale, messageLocale });
+    }
+  );
+
+  it('keeps the Chinese catalog for a region override from navigator.languages', () => {
+    vi.stubGlobal('navigator', { languages: ['zh_CN@rg=hkzzzz'] });
+    expect(getLocale()).toEqual({ locale: 'zh-HK', messageLocale: 'zh-CN' });
+  });
+
+  it.each([
     ['en', 'en', 'en'],
     ['en-US', 'en-US', 'en'],
     ['en-GB', 'en-GB', 'en'],
     ['nb-NO', 'en', 'en'],
     ['nn-NO', 'en', 'en'],
     ['ru-Cyrl-RU', 'ru-Cyrl-RU', 'ru'],
+    ['zh-CN', 'zh-CN', 'zh-CN'],
+    ['zh-Hans-CN', 'zh-CN', 'zh-CN'],
     ['zh-Hant-TW', 'zh-TW', 'zh-TW'],
+    ['zh-TW', 'zh-TW', 'zh-TW'],
+    ['zh-HK', 'zh-TW', 'zh-TW'],
+    ['zh-MO', 'zh-TW', 'zh-TW'],
     ['de-DE-u-co-phonebk', 'de-DE-u-co-phonebk', 'de'],
   ])('keeps existing locale and catalog resolution for %s', (tag, locale, messageLocale) => {
     mockAppConfig({ GOOSE_LOCALE: tag });
