@@ -804,6 +804,17 @@
       "required": false
     }
   ]
-}
-
+},
+  {
+    "id": "whatsync",
+    "name": "WhatSync",
+    "description": "Search, read and send WhatsApp messages from a personal number or the WhatsApp Business API",
+    "type": "streamable-http",
+    "url": "https://whatsync.app/api/mcp",
+    "link": "https://github.com/itsanishjain/whatsync-cli",
+    "installation_notes": "Streamable HTTP extension with OAuth browser sign-in to your WhatSync account. Link your WhatsApp in the WhatSync dashboard first.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 ]
