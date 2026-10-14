@@ -18,6 +18,7 @@ use crate::agents::state_machine::{
     messages_since_kickoff, Emitter, GooseEffect, RunStatus, StateMachine, SteerQueue,
 };
 use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
+use crate::agents::subagent_handler::SubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -97,6 +98,7 @@ pub(super) struct TestPipeline {
     steer_queue: SteerQueue,
     max_turns: u32,
     scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    subagent_host: Arc<crate::agents::Agent>,
     _temp_dir: Arc<tempfile::TempDir>,
 }
 
@@ -122,7 +124,7 @@ impl TestPipeline {
             tool_inspection_manager: &self.tool_inspection_manager,
             hook_manager: self.hook_manager.clone(),
             steer_queue: self.steer_queue.clone(),
-            use_login_shell_path: false,
+            subagent_runner: SubagentRunner::new(Arc::clone(&self.subagent_host)),
             retry_timeout: std::time::Duration::from_secs(1),
             on_failure_timeout: std::time::Duration::from_secs(1),
             stop_hook_block_cap: self.stop_hook_block_cap,
@@ -744,7 +746,6 @@ async fn build_test_pipeline(
             elicitation_handler: None,
             protocol_version: None,
         },
-        false,
     ));
     let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().join("permissions")));
     let mut tool_inspection_manager = ToolInspectionManager::new();
@@ -759,6 +760,14 @@ async fn build_test_pipeline(
         .clone()
         .expect("test session has a model config");
     let calculator = Arc::new(CalculatorExtension::new(session_manager.action_required()));
+    let mut subagent_host = crate::agents::Agent::with_config(crate::agents::AgentConfig::new(
+        session_manager.clone(),
+        permission_manager.clone(),
+        None,
+        true,
+        crate::agents::GoosePlatform::GooseCli,
+    ));
+    subagent_host.set_hook_manager_for_test(HookManager::default());
     let pipeline = TestPipeline {
         session_manager,
         api,
@@ -777,6 +786,7 @@ async fn build_test_pipeline(
         steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
         max_turns: MAX_TURNS,
         scheduler,
+        subagent_host,
         _temp_dir: temp_dir,
     };
     let extension_manager = pipeline.extension_manager.clone();
