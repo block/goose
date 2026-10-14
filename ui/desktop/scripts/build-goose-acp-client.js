@@ -141,6 +141,14 @@ console.log(`Building goose ACP client (${reason}) ...`);
 // inputs it describes skip the rebuild indefinitely.
 fs.rmSync(stampPath, { force: true });
 
+// A concurrent build (postinstall alongside start-gui) can stamp while this one is still writing
+// dist. Any exit short of our own stamp below removes the stamp again, so theirs never vouches for
+// our output.
+let stamped = false;
+process.on('exit', () => {
+  if (!stamped) fs.rmSync(stampPath, { force: true });
+});
+
 buildAcpClient();
 
 // An input saved while the build was running was compiled from its older bytes, so dist may not
@@ -170,3 +178,4 @@ if (hashInputs() !== inputsBefore) {
 
 fs.mkdirSync(path.dirname(stampPath), { recursive: true });
 fs.writeFileSync(stampPath, `${JSON.stringify({ hash: inputsBefore }, null, 2)}\n`);
+stamped = true;
