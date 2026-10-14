@@ -425,11 +425,9 @@ async fn updates_after_the_outcome_are_ignored() {
     a.finish(SubagentOutcome::Completed("done".into()));
     a.to_parent("too late");
     a.finish(SubagentOutcome::Failed("again".into()));
-    let mut messages = vec![kickoff()];
-    let delivered = run_once_with(&operation, &messages, &emit).await;
-    messages.extend(delivered);
+    let delivered = run_once_with(&operation, &[kickoff()], &emit).await;
 
-    assert!(run_once_with(&operation, &messages, &emit).await.is_empty());
+    assert_eq!(texts(&delivered), ["Subagent a completed: done"]);
     assert!(shown(&mut rx).is_empty());
     assert!(a.is_closed());
 }

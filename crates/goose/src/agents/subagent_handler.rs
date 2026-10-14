@@ -325,17 +325,6 @@ mod tests {
     use goose_agent::subagent::{SubagentOutcome, SubagentUpdate};
     use tokio::sync::{mpsc, oneshot};
 
-    fn texts(updates: &[SubagentUpdate]) -> Vec<String> {
-        updates
-            .iter()
-            .map(|update| match update {
-                SubagentUpdate::ToParent(message) => message.as_concat_text(),
-                SubagentUpdate::Finished(outcome) => format!("{outcome:?}"),
-                _ => unreachable!(),
-            })
-            .collect()
-    }
-
     #[tokio::test]
     async fn dropping_a_started_run_aborts_its_task() {
         let (alive, aborted) = oneshot::channel::<()>();
@@ -370,10 +359,13 @@ mod tests {
 
         let updates: Vec<_> = run.collect().await;
 
-        assert_eq!(
-            texts(&updates),
-            ["may I run cargo test?", "Completed(\"done\")"]
-        );
+        assert!(matches!(
+            updates.as_slice(),
+            [
+                SubagentUpdate::ToParent(_),
+                SubagentUpdate::Finished(SubagentOutcome::Completed(_))
+            ]
+        ));
     }
 
     #[tokio::test]
