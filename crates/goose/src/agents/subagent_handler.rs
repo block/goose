@@ -1,7 +1,7 @@
 use crate::{
     agents::{
         final_output_tool::FinalOutputTool,
-        state_machine::{trailing_error, Emitter, MAX_TURNS_MESSAGE},
+        state_machine::{trailing_error, MAX_TURNS_MESSAGE},
         Agent, AgentEvent, SessionConfig,
     },
     conversation::{
@@ -13,13 +13,15 @@ use crate::{
     session::{Session, SessionManager, SessionType},
 };
 use anyhow::{anyhow, Result};
-use futures::future::BoxFuture;
+use futures::stream::BoxStream;
 use futures::StreamExt;
-use goose_agent::subagent::SubagentOutcome;
+use goose_agent::subagent::{SubagentOutcome, SubagentUpdate};
 use rmcp::model::Role;
 use serde::Serialize;
 use std::future::Future;
 use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use tokio_util::task::AbortOnDropHandle;
 use tracing::Instrument;
 
@@ -100,12 +102,18 @@ impl ForegroundSubagentRunner {
     pub(crate) fn spawn(
         &self,
         subagent: Session,
-        emit: Emitter,
-    ) -> BoxFuture<'static, SubagentOutcome> {
-        spawn_run(self.clone().run(subagent, emit))
+        cancel: CancellationToken,
+    ) -> BoxStream<'static, SubagentUpdate> {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        spawn_run(self.clone().run(subagent, cancel, to_parent), from_subagent)
     }
 
-    async fn run_to_end(&self, subagent: &Session, emit: &Emitter) -> Result<()> {
+    async fn run_to_end(
+        &self,
+        subagent: &Session,
+        cancel: CancellationToken,
+        to_parent: &mpsc::UnboundedSender<Message>,
+    ) -> Result<()> {
         let parent_id = subagent
             .parent_session_id
             .as_deref()
@@ -113,12 +121,12 @@ impl ForegroundSubagentRunner {
         let session_config = prepare_subagent(&self.agent, subagent).await?;
         let mut events = self
             .agent
-            .stream_subagent_turn(session_config, emit.cancel_token().clone())
+            .stream_subagent_turn(session_config, cancel)
             .await?;
         while let Some(event) = events.next().await {
             if let AgentEvent::Message(message) = event? {
                 if asks_for_a_decision(&message) {
-                    emit.message(forwarded(
+                    let _ = to_parent.send(forwarded(
                         message,
                         parent_id,
                         &subagent.id,
@@ -130,15 +138,20 @@ impl ForegroundSubagentRunner {
         Ok(())
     }
 
-    async fn run(self, subagent: Session, emit: Emitter) -> SubagentOutcome {
+    async fn run(
+        self,
+        subagent: Session,
+        cancel: CancellationToken,
+        to_parent: mpsc::UnboundedSender<Message>,
+    ) -> SubagentOutcome {
         let ending = SubagentEnding {
             agent: Arc::clone(&self.agent),
             subagent_id: subagent.id.clone(),
             ended: false,
         };
-        let run_result = self.run_to_end(&subagent, &emit).await;
+        let run_result = self.run_to_end(&subagent, cancel.clone(), &to_parent).await;
         ending.end().await;
-        let stopped = emit.cancel_token().is_cancelled();
+        let stopped = cancel.is_cancelled();
         let subagent = match self.session_manager().get_session(&subagent.id, true).await {
             Ok(subagent) => subagent,
             Err(error) => return SubagentOutcome::Failed(error.to_string()),
@@ -166,11 +179,17 @@ impl ForegroundSubagentRunner {
 
 fn spawn_run(
     run: impl Future<Output = SubagentOutcome> + Send + 'static,
-) -> BoxFuture<'static, SubagentOutcome> {
+    mut from_subagent: mpsc::UnboundedReceiver<Message>,
+) -> BoxStream<'static, SubagentUpdate> {
     let task = AbortOnDropHandle::new(tokio::spawn(run.in_current_span()));
-    Box::pin(async move {
-        task.await
-            .unwrap_or_else(|error| SubagentOutcome::Failed(error.to_string()))
+    Box::pin(async_stream::stream! {
+        while let Some(message) = from_subagent.recv().await {
+            yield SubagentUpdate::ToParent(message);
+        }
+        yield SubagentUpdate::Finished(
+            task.await
+                .unwrap_or_else(|error| SubagentOutcome::Failed(error.to_string())),
+        );
     })
 }
 
@@ -298,24 +317,82 @@ async fn build_subagent_prompt(
 mod tests {
     use std::time::Duration;
 
+    use futures::StreamExt;
+
     use super::{failure_reason, spawn_run};
     use crate::agents::state_machine::MAX_TURNS_MESSAGE;
     use crate::conversation::message::Message;
-    use goose_agent::subagent::SubagentOutcome;
-    use tokio::sync::oneshot;
+    use goose_agent::subagent::{SubagentOutcome, SubagentUpdate};
+    use tokio::sync::{mpsc, oneshot};
+
+    fn texts(updates: &[SubagentUpdate]) -> Vec<String> {
+        updates
+            .iter()
+            .map(|update| match update {
+                SubagentUpdate::ToParent(message) => message.as_concat_text(),
+                SubagentUpdate::Finished(outcome) => format!("{outcome:?}"),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
 
     #[tokio::test]
     async fn dropping_a_started_run_aborts_its_task() {
         let (alive, aborted) = oneshot::channel::<()>();
-        let run = spawn_run(async move {
-            let _alive = alive;
-            std::future::pending::<SubagentOutcome>().await
-        });
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        let run = spawn_run(
+            async move {
+                let _alive = alive;
+                let _to_parent = to_parent;
+                std::future::pending::<SubagentOutcome>().await
+            },
+            from_subagent,
+        );
 
         drop(run);
 
         let ended = tokio::time::timeout(Duration::from_secs(5), aborted).await;
         assert!(ended.expect("the task was not aborted").is_err());
+    }
+
+    #[tokio::test]
+    async fn a_run_reports_what_it_forwarded_then_its_outcome() {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        let run = spawn_run(
+            async move {
+                to_parent
+                    .send(Message::assistant().with_text("may I run cargo test?"))
+                    .unwrap();
+                SubagentOutcome::Completed("done".to_string())
+            },
+            from_subagent,
+        );
+
+        let updates: Vec<_> = run.collect().await;
+
+        assert_eq!(
+            texts(&updates),
+            ["may I run cargo test?", "Completed(\"done\")"]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_panicking_run_is_reported_as_failed() {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel::<Message>();
+        let run = spawn_run(
+            async move {
+                let _to_parent = to_parent;
+                panic!("subagent crashed")
+            },
+            from_subagent,
+        );
+
+        let updates: Vec<_> = run.collect().await;
+
+        assert!(matches!(
+            updates.as_slice(),
+            [SubagentUpdate::Finished(SubagentOutcome::Failed(_))]
+        ));
     }
 
     #[test]

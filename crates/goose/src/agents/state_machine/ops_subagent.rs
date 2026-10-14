@@ -1,6 +1,8 @@
 use async_trait::async_trait;
-use futures::future::{self, BoxFuture};
-use goose_agent::subagent::{SubagentOutcome, SubagentRunner};
+use futures::future;
+use futures::stream::{self, BoxStream, StreamExt};
+use goose_agent::subagent::{SubagentOutcome, SubagentRunner, SubagentUpdate};
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::final_output_tool::FinalOutputTool;
 use crate::agents::state_machine::Emitter;
@@ -51,8 +53,10 @@ fn finished_notice(
     Some(notice)
 }
 
-fn ended(outcome: SubagentOutcome) -> BoxFuture<'static, SubagentOutcome> {
-    Box::pin(future::ready(outcome))
+fn ended(outcome: SubagentOutcome) -> BoxStream<'static, SubagentUpdate> {
+    Box::pin(stream::once(future::ready(SubagentUpdate::Finished(
+        outcome,
+    ))))
 }
 
 fn delegated_subagent_ids(content: &[MessageContent]) -> impl Iterator<Item = &str> {
@@ -103,8 +107,8 @@ impl SubagentRunner<Session> for ForegroundSubagentRunner {
         &self,
         parent_session: &Session,
         subagent_session_id: &str,
-        emit: &Emitter,
-    ) -> BoxFuture<'static, SubagentOutcome> {
+        cancel: CancellationToken,
+    ) -> BoxStream<'static, SubagentUpdate> {
         let subagent = match self.load(subagent_session_id).await {
             Ok(subagent) => subagent,
             Err(error) => return ended(SubagentOutcome::Failed(error.to_string())),
@@ -127,8 +131,9 @@ impl SubagentRunner<Session> for ForegroundSubagentRunner {
             .recipe
             .as_ref()
             .and_then(|recipe| recipe.prompt.as_deref());
-        emit.message(inline_notice(start_notice(subagent_session_id, task)));
-        self.spawn(subagent, emit.clone())
+        let notice =
+            SubagentUpdate::ToParent(inline_notice(start_notice(subagent_session_id, task)));
+        Box::pin(stream::once(future::ready(notice)).chain(self.spawn(subagent, cancel)))
     }
 
     async fn on_subagent_finished(
@@ -155,7 +160,6 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, MetaObject};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
-    use tokio_util::sync::CancellationToken;
 
     use super::*;
     use crate::agents::final_output_tool::{FINAL_OUTPUT_SUCCESS_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -493,17 +497,20 @@ mod tests {
         let fixture = fixture().await?;
         let cancel = CancellationToken::new();
         cancel.cancel();
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let emit = Emitter::new(tx, cancel);
         let parent = fixture
             .manager
             .get_session(&fixture.parent_id, false)
             .await?;
-        let run = fixture
+        let updates: Vec<_> = fixture
             .runner()
-            .start(&parent, &fixture.subagent_id, &emit)
+            .start(&parent, &fixture.subagent_id, cancel)
+            .await
+            .collect()
             .await;
-        assert_eq!(run.await, SubagentOutcome::Cancelled);
+        assert!(matches!(
+            updates.last(),
+            Some(SubagentUpdate::Finished(SubagentOutcome::Cancelled))
+        ));
         Ok(())
     }
 

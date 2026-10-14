@@ -4,21 +4,43 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use futures::future;
+use futures::stream;
 use futures::FutureExt;
+use goose_agent::events::AgentEvent;
 use goose_agent::operation::{
-    ConversationEffect, Emitter, Operation, OperationFuture, OperationResult,
+    ConversationEffect, Emitter, Operation, OperationResult, OperationStream,
 };
-use goose_agent::subagent::{SubagentOperation, SubagentOutcome, SubagentRunner};
+use goose_agent::subagent::{SubagentOperation, SubagentOutcome, SubagentRunner, SubagentUpdate};
 use goose_provider_types::conversation::{message::Message, Conversation};
 use serde_json::json;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 struct Parent;
 
 enum Child {
     Finished(SubagentOutcome),
-    Running(oneshot::Receiver<SubagentOutcome>),
+    Running(mpsc::UnboundedReceiver<SubagentUpdate>),
+}
+
+struct RunningChild(mpsc::UnboundedSender<SubagentUpdate>);
+
+impl RunningChild {
+    fn to_parent(&self, text: &str) {
+        self.0
+            .send(SubagentUpdate::ToParent(
+                Message::assistant().with_text(text),
+            ))
+            .unwrap();
+    }
+
+    fn finish(&self, outcome: SubagentOutcome) {
+        self.0.send(SubagentUpdate::Finished(outcome)).unwrap();
+    }
+
+    fn is_closed(&self) -> bool {
+        self.0.is_closed()
+    }
 }
 
 #[derive(Default)]
@@ -38,13 +60,13 @@ impl FakeRunner {
             .insert(subagent_session_id.to_string(), Child::Finished(outcome));
     }
 
-    fn running(&self, subagent_session_id: &str) -> oneshot::Sender<SubagentOutcome> {
-        let (tx, rx) = oneshot::channel();
+    fn running(&self, subagent_session_id: &str) -> RunningChild {
+        let (tx, rx) = mpsc::unbounded_channel();
         self.children
             .lock()
             .unwrap()
             .insert(subagent_session_id.to_string(), Child::Running(rx));
-        tx
+        RunningChild(tx)
     }
 
     fn started(&self) -> Vec<String> {
@@ -70,8 +92,8 @@ impl SubagentRunner<Parent> for FakeRunner {
         &self,
         _parent_session: &Parent,
         subagent_session_id: &str,
-        _emit: &Emitter,
-    ) -> OperationFuture<'static, SubagentOutcome> {
+        _cancel: CancellationToken,
+    ) -> OperationStream<'static, SubagentUpdate> {
         self.started
             .lock()
             .unwrap()
@@ -83,13 +105,17 @@ impl SubagentRunner<Parent> for FakeRunner {
             .remove(subagent_session_id)
             .expect("unknown subagent");
         match child {
-            Child::Finished(outcome) => Box::pin(future::ready(outcome)),
+            Child::Finished(outcome) => Box::pin(stream::once(future::ready(
+                SubagentUpdate::Finished(outcome),
+            ))),
             Child::Running(rx) => {
                 self.events
                     .lock()
                     .unwrap()
                     .push(format!("started {subagent_session_id}"));
-                Box::pin(async move { rx.await.unwrap_or(SubagentOutcome::Cancelled) })
+                Box::pin(stream::unfold(rx, |mut rx| async move {
+                    rx.recv().await.map(|update| (update, rx))
+                }))
             }
         }
     }
@@ -113,6 +139,20 @@ impl SubagentRunner<Parent> for FakeRunner {
 fn emitter() -> Emitter {
     let (tx, _rx) = mpsc::unbounded_channel();
     Emitter::new(tx, CancellationToken::new())
+}
+
+fn watched_emitter() -> (Emitter, mpsc::UnboundedReceiver<AgentEvent>) {
+    let (tx, rx) = mpsc::unbounded_channel();
+    (Emitter::new(tx, CancellationToken::new()), rx)
+}
+
+fn shown(rx: &mut mpsc::UnboundedReceiver<AgentEvent>) -> Vec<String> {
+    std::iter::from_fn(|| rx.try_recv().ok())
+        .filter_map(|event| match event {
+            AgentEvent::Message(message) => Some(message.as_concat_text()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn kickoff() -> Message {
@@ -148,9 +188,17 @@ fn operation(runner: &Arc<FakeRunner>) -> SubagentOperation<Parent> {
 }
 
 async fn run_once(operation: &SubagentOperation<Parent>, messages: &[Message]) -> Vec<Message> {
+    run_once_with(operation, messages, &emitter()).await
+}
+
+async fn run_once_with(
+    operation: &SubagentOperation<Parent>,
+    messages: &[Message],
+    emit: &Emitter,
+) -> Vec<Message> {
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     let result =
-        Operation::<Parent, ConversationEffect>::run(operation, &Parent, &conversation, &emitter())
+        Operation::<Parent, ConversationEffect>::run(operation, &Parent, &conversation, emit)
             .await
             .unwrap();
     match result {
@@ -168,13 +216,21 @@ fn interrupt(operation: &SubagentOperation<Parent>, messages: &[Message]) {
 }
 
 async fn stop(operation: &SubagentOperation<Parent>, messages: &[Message]) -> Vec<Message> {
+    stop_with(operation, messages, &emitter()).await
+}
+
+async fn stop_with(
+    operation: &SubagentOperation<Parent>,
+    messages: &[Message],
+    emit: &Emitter,
+) -> Vec<Message> {
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     appended(
         Operation::<Parent, ConversationEffect>::finalize_cancellation(
             operation,
             &Parent,
             &conversation,
-            &emitter(),
+            emit,
         )
         .await,
     )
@@ -207,12 +263,12 @@ async fn running_subagents_are_delivered_one_per_pass_and_started_once() {
     let operation = operation(&runner);
     let mut messages = vec![kickoff()];
 
-    b.send(SubagentOutcome::Completed("b done".into())).unwrap();
+    b.finish(SubagentOutcome::Completed("b done".into()));
     let delivered = run_once(&operation, &messages).await;
     assert_eq!(texts(&delivered), ["Subagent b completed: b done"]);
     messages.extend(delivered);
 
-    a.send(SubagentOutcome::Failed("boom".into())).unwrap();
+    a.finish(SubagentOutcome::Failed("boom".into()));
     let delivered = run_once(&operation, &messages).await;
     assert_eq!(texts(&delivered), ["Subagent a failed: boom"]);
     messages.extend(delivered);
@@ -250,7 +306,7 @@ async fn a_subagent_cancelled_elsewhere_is_reported_and_not_restarted() {
     let operation = operation(&runner);
     let mut messages = vec![kickoff()];
 
-    a.send(SubagentOutcome::Cancelled).unwrap();
+    a.finish(SubagentOutcome::Cancelled);
     let delivered = run_once(&operation, &messages).await;
 
     assert_eq!(
@@ -272,8 +328,8 @@ async fn stop_delivers_finished_subagents_and_cancels_the_rest() {
     let mut messages = vec![kickoff()];
 
     interrupt(&operation, &messages);
-    a.send(SubagentOutcome::Completed("a done".into())).unwrap();
-    b.send(SubagentOutcome::Cancelled).unwrap();
+    a.finish(SubagentOutcome::Completed("a done".into()));
+    b.finish(SubagentOutcome::Cancelled);
     let saved = stop(&operation, &messages).await;
 
     assert_eq!(
@@ -350,4 +406,68 @@ async fn reads_the_notes_goose_saves_today() {
 
     assert_eq!(texts(&delivered), ["Subagent c completed: c done"]);
     assert_eq!(runner.started(), ["c"]);
+}
+
+#[tokio::test]
+async fn messages_from_a_running_subagent_reach_the_parent_before_its_result() {
+    let runner = Arc::new(fake(&["a"]));
+    let a = runner.running("a");
+    let operation = operation(&runner);
+    let (emit, mut rx) = watched_emitter();
+
+    a.to_parent("may I run cargo test?");
+    a.finish(SubagentOutcome::Completed("done".into()));
+    let delivered = run_once_with(&operation, &[kickoff()], &emit).await;
+
+    assert_eq!(shown(&mut rx), ["may I run cargo test?"]);
+    assert_eq!(texts(&delivered), ["Subagent a completed: done"]);
+}
+
+#[tokio::test]
+async fn a_subagent_whose_updates_end_without_an_outcome_has_failed() {
+    let runner = Arc::new(fake(&["a"]));
+    drop(runner.running("a"));
+
+    let delivered = run_once(&operation(&runner), &[kickoff()]).await;
+
+    assert_eq!(
+        texts(&delivered),
+        ["Subagent a failed: it ended without an outcome"]
+    );
+}
+
+#[tokio::test]
+async fn updates_after_the_outcome_are_ignored() {
+    let runner = Arc::new(fake(&["a"]));
+    let a = runner.running("a");
+    let operation = operation(&runner);
+    let (emit, mut rx) = watched_emitter();
+
+    a.finish(SubagentOutcome::Completed("done".into()));
+    a.to_parent("too late");
+    a.finish(SubagentOutcome::Failed("again".into()));
+    let mut messages = vec![kickoff()];
+    let delivered = run_once_with(&operation, &messages, &emit).await;
+    messages.extend(delivered);
+
+    assert!(run_once_with(&operation, &messages, &emit).await.is_empty());
+    assert!(shown(&mut rx).is_empty());
+    assert!(a.is_closed());
+}
+
+#[tokio::test]
+async fn stop_skips_messages_queued_ahead_of_a_finished_result() {
+    let runner = Arc::new(fake(&["a"]));
+    let a = runner.running("a");
+    let operation = operation(&runner);
+    let messages = [kickoff()];
+    let (emit, mut rx) = watched_emitter();
+
+    interrupt(&operation, &messages);
+    a.to_parent("may I run cargo test?");
+    a.finish(SubagentOutcome::Completed("done".into()));
+    let saved = stop_with(&operation, &messages, &emit).await;
+
+    assert_eq!(texts(&saved), ["Subagent a completed: done"]);
+    assert!(shown(&mut rx).is_empty());
 }

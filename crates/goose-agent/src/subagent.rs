@@ -3,26 +3,35 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::stream::{self, SelectAll, StreamExt};
 use futures::FutureExt;
 use goose_provider_types::conversation::message::Message;
 use goose_provider_types::conversation::Conversation;
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 use crate::operation::{
-    applied, not_applicable, Emitter, Operation, OperationFuture, OperationResult,
+    applied, not_applicable, Emitter, Operation, OperationResult, OperationStream,
 };
 
 const OPERATION_NAME: &str = "foreground_subagent";
 const DELIVERED: &str = "delivered";
 const CANCELLED: &str = "cancelled";
+const ENDED_WITHOUT_OUTCOME: &str = "it ended without an outcome";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubagentOutcome {
     Completed(String),
     Failed(String),
     Cancelled,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub enum SubagentUpdate {
+    ToParent(Message),
+    Finished(SubagentOutcome),
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
@@ -38,8 +47,8 @@ pub trait SubagentRunner<S>: MaybeSend + MaybeSync {
         &self,
         parent_session: &S,
         subagent_session_id: &str,
-        emit: &Emitter,
-    ) -> OperationFuture<'static, SubagentOutcome>;
+        cancel: CancellationToken,
+    ) -> OperationStream<'static, SubagentUpdate>;
 
     async fn on_subagent_finished(
         &self,
@@ -127,10 +136,30 @@ fn subagent_cancelled_message(subagent_session_ids: &[String]) -> Option<Message
     Some(message)
 }
 
+fn tracked_updates(
+    subagent_session_id: String,
+    updates: OperationStream<'static, SubagentUpdate>,
+) -> OperationStream<'static, (String, SubagentUpdate)> {
+    Box::pin(stream::unfold(Some(updates), move |updates| {
+        let subagent_session_id = subagent_session_id.clone();
+        async move {
+            let mut updates = updates?;
+            let update = updates.next().await.unwrap_or_else(|| {
+                SubagentUpdate::Finished(SubagentOutcome::Failed(ENDED_WITHOUT_OUTCOME.to_string()))
+            });
+            let rest = match update {
+                SubagentUpdate::Finished(_) => None,
+                SubagentUpdate::ToParent(_) => Some(updates),
+            };
+            Some(((subagent_session_id, update), rest))
+        }
+    }))
+}
+
 #[derive(Default)]
 struct Running {
     subagent_session_ids: HashSet<String>,
-    subagent_runs: FuturesUnordered<OperationFuture<'static, (String, SubagentOutcome)>>,
+    subagent_runs: SelectAll<OperationStream<'static, (String, SubagentUpdate)>>,
     delivering: Option<(String, SubagentOutcome)>,
 }
 
@@ -188,7 +217,14 @@ where
         let mut effects = Vec::new();
         let mut delivered = HashSet::new();
         let interrupted = stopped.delivering.take();
-        let finished = std::iter::from_fn(|| stopped.subagent_runs.next().now_or_never().flatten());
+        let finished = std::iter::from_fn(|| loop {
+            match stopped.subagent_runs.next().now_or_never().flatten()? {
+                (subagent_session_id, SubagentUpdate::Finished(outcome)) => {
+                    return Some((subagent_session_id, outcome))
+                }
+                (_, SubagentUpdate::ToParent(_)) => {}
+            }
+        });
         for (subagent_session_id, outcome) in interrupted.into_iter().chain(finished) {
             if outcome == SubagentOutcome::Cancelled {
                 continue;
@@ -230,17 +266,26 @@ where
             if running.subagent_session_ids.contains(subagent_session_id) {
                 continue;
             }
-            let subagent_run = self.runner.start(session, subagent_session_id, emit).await;
+            let updates = self
+                .runner
+                .start(session, subagent_session_id, emit.cancel_token().clone())
+                .await;
             running
                 .subagent_session_ids
                 .insert(subagent_session_id.clone());
-            let subagent_session_id = subagent_session_id.clone();
-            running.subagent_runs.push(Box::pin(async move {
-                (subagent_session_id, subagent_run.await)
-            }));
+            running
+                .subagent_runs
+                .push(tracked_updates(subagent_session_id.clone(), updates));
         }
 
-        while let Some((subagent_session_id, outcome)) = running.subagent_runs.next().await {
+        while let Some((subagent_session_id, update)) = running.subagent_runs.next().await {
+            let outcome = match update {
+                SubagentUpdate::ToParent(message) => {
+                    emit.message(message);
+                    continue;
+                }
+                SubagentUpdate::Finished(outcome) => outcome,
+            };
             running.subagent_session_ids.remove(&subagent_session_id);
             running.delivering = Some((subagent_session_id.clone(), outcome.clone()));
             let effect = self
