@@ -12,9 +12,13 @@ fn create_private_dir(path: &Path) -> anyhow::Result<()> {
     }
     builder.create(path)?;
     // An older goose may have created the directory with the default mode, so set it every time.
+    // A symlink is refused, so the mode of the directory it points to is never changed.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        if fs::symlink_metadata(path)?.file_type().is_symlink() {
+            anyhow::bail!("{} is a symlink", path.display());
+        }
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
     }
     Ok(())
@@ -496,6 +500,31 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o700, "{}", cache_dir.display());
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn image_cache_directory_symlink_is_refused() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test_image.pdf");
+        let cache_dir = tempfile::tempdir().unwrap();
+        let shared = tempfile::tempdir().unwrap();
+        fs::set_permissions(shared.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        std::os::unix::fs::symlink(shared.path(), cache_dir.path().join("pdf_images")).unwrap();
+
+        let result = pdf_tool(
+            test_pdf_path.to_str().unwrap(),
+            "extract_images",
+            cache_dir.path(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        let mode = fs::metadata(shared.path()).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o755);
+        assert_eq!(fs::read_dir(shared.path()).unwrap().count(), 0);
     }
 
     #[cfg(unix)]
