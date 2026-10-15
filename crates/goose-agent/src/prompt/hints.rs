@@ -4,26 +4,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::config::paths::Paths;
-use crate::hints::import_files::read_referenced_files;
+use super::import_files::read_referenced_files;
 
-pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
-pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
-
-pub fn get_context_filenames() -> Vec<String> {
-    use crate::config::Config;
-
-    Config::global()
-        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
-        .unwrap_or_else(|_| {
-            vec![
-                GOOSE_HINTS_FILENAME.to_string(),
-                AGENTS_MD_FILENAME.to_string(),
-            ]
-        })
-}
-
-#[derive(Default)]
+/// Tracks nested hints from tool arguments using caller-selected filenames.
 pub struct SubdirectoryHintTracker {
     loaded_dirs: HashSet<PathBuf>,
     pending_dirs: Vec<PathBuf>,
@@ -31,11 +14,11 @@ pub struct SubdirectoryHintTracker {
 }
 
 impl SubdirectoryHintTracker {
-    pub fn new() -> Self {
+    pub fn new(hints_filenames: Vec<String>) -> Self {
         Self {
             loaded_dirs: HashSet::new(),
             pending_dirs: Vec::new(),
-            hints_filenames: get_context_filenames(),
+            hints_filenames,
         }
     }
 
@@ -209,8 +192,7 @@ fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
 }
 
 /// Build a `Gitignore` that includes `.gitignore` files from the git root
-/// down to `cwd`, matching git's hierarchical ignore semantics. When there
-/// is no git root, only `cwd/.gitignore` is loaded.
+/// down to `cwd`. When there is no git root, only `cwd/.gitignore` is loaded.
 pub fn build_gitignore(cwd: &Path) -> Gitignore {
     let git_root = find_git_root(cwd);
     let directories = get_local_directories(git_root, cwd);
@@ -229,26 +211,17 @@ pub fn build_gitignore(cwd: &Path) -> Gitignore {
     })
 }
 
+/// Loads caller-supplied global paths and root-to-cwd hints, expanding references.
 pub fn load_hint_files(
     cwd: &Path,
     hints_filenames: &[String],
+    global_hints_paths: &[PathBuf],
     ignore_patterns: &Gitignore,
 ) -> String {
     let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-    let mut global_hints_paths: Vec<PathBuf> = hints_filenames
-        .iter()
-        .map(|name| Paths::in_config_dir(name))
-        .collect();
-    if hints_filenames
-        .iter()
-        .any(|name| name == AGENTS_MD_FILENAME)
-    {
-        global_hints_paths.push(Paths::in_agents_home_dir(AGENTS_MD_FILENAME));
-    }
-
-    for global_hints_path in &global_hints_paths {
+    for global_hints_path in global_hints_paths {
         if global_hints_path.is_file() {
             let mut visited = HashSet::new();
             let hints_dir = global_hints_path.parent().unwrap();
@@ -317,6 +290,16 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+
+    fn load_hint_files(
+        cwd: &Path,
+        hints_filenames: &[String],
+        ignore_patterns: &Gitignore,
+    ) -> String {
+        super::load_hint_files(cwd, hints_filenames, &[], ignore_patterns)
+    }
+
     fn create_dummy_gitignore() -> Gitignore {
         let temp_dir = tempfile::tempdir().expect("failed to create tempdir");
         let builder = GitignoreBuilder::new(temp_dir.path());
@@ -332,98 +315,6 @@ mod tests {
         let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Test hint content"));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn test_global_agents_md_in_agents_home() {
-        let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
-
-        let agents_home = root.path().join(".agents");
-        fs::create_dir_all(&agents_home).unwrap();
-        fs::write(
-            agents_home.join(AGENTS_MD_FILENAME),
-            "Global agents home instructions",
-        )
-        .unwrap();
-
-        let project = TempDir::new().unwrap();
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(
-            project.path(),
-            &[
-                GOOSE_HINTS_FILENAME.to_string(),
-                AGENTS_MD_FILENAME.to_string(),
-            ],
-            &gitignore,
-        );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
-
-        assert!(hints.contains("Global Hints"));
-        assert!(hints.contains("Global agents home instructions"));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn test_global_agents_md_imports_not_filtered_by_project_gitignore() {
-        let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
-
-        let agents_home = root.path().join(".agents");
-        fs::create_dir_all(&agents_home).unwrap();
-        fs::write(agents_home.join("policy.md"), "Imported policy content").unwrap();
-        fs::write(
-            agents_home.join(AGENTS_MD_FILENAME),
-            "Global header\n@policy.md\n",
-        )
-        .unwrap();
-
-        let project = TempDir::new().unwrap();
-        let mut builder = GitignoreBuilder::new(project.path());
-        builder.add_line(None, "*.md").unwrap();
-        let gitignore = builder.build().unwrap();
-
-        let hints = load_hint_files(
-            project.path(),
-            &[
-                GOOSE_HINTS_FILENAME.to_string(),
-                AGENTS_MD_FILENAME.to_string(),
-            ],
-            &gitignore,
-        );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
-
-        assert!(hints.contains("Imported policy content"));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn test_global_agents_md_skipped_when_not_in_context_file_names() {
-        let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
-
-        let agents_home = root.path().join(".agents");
-        fs::create_dir_all(&agents_home).unwrap();
-        fs::write(
-            agents_home.join(AGENTS_MD_FILENAME),
-            "Global agents home instructions",
-        )
-        .unwrap();
-
-        let project = TempDir::new().unwrap();
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(
-            project.path(),
-            &[GOOSE_HINTS_FILENAME.to_string()],
-            &gitignore,
-        );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
-
-        assert!(!hints.contains("Global agents home instructions"));
     }
 
     #[test]
@@ -774,7 +665,7 @@ End of hints"#;
         let wd = temp_dir.path().join("project");
         let src = wd.join("src");
         fs::create_dir_all(&src).unwrap();
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "src/main.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
@@ -789,7 +680,7 @@ End of hints"#;
         let wd = temp_dir.path().join("project");
         let nested = wd.join("nested");
         fs::create_dir_all(&nested).unwrap();
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"command": "cat nested/doc.md"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
@@ -806,7 +697,7 @@ End of hints"#;
         let wd = temp_dir.path().join("project");
         let src = wd.join("src");
         fs::create_dir_all(&src).unwrap();
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"command": "grep -rn pattern src/lib.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
@@ -827,7 +718,7 @@ End of hints"#;
         )
         .unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "nested/foo.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &project_root);
@@ -845,7 +736,7 @@ End of hints"#;
         fs::create_dir_all(&subdir).unwrap();
         fs::write(subdir.join(GOOSE_HINTS_FILENAME), "nested hints").unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "nested/foo.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args.clone()), &project_root);
@@ -867,7 +758,7 @@ End of hints"#;
         fs::create_dir_all(&outside).unwrap();
         fs::write(outside.join(GOOSE_HINTS_FILENAME), "outside hints").unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "nested/../../outside/file.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &project_root);
@@ -888,7 +779,7 @@ End of hints"#;
         fs::write(outside.join(GOOSE_HINTS_FILENAME), "outside hints").unwrap();
         symlink(&outside, project_root.join("alias")).unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "alias/file.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &project_root);
@@ -908,7 +799,7 @@ End of hints"#;
         fs::write(real.join(GOOSE_HINTS_FILENAME), "real hints").unwrap();
         symlink(&real, project_root.join("alias")).unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let alias_args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "alias/file.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(alias_args), &project_root);
@@ -929,7 +820,7 @@ End of hints"#;
         let project_root = temp_dir.path().join("project");
         fs::create_dir_all(&project_root).unwrap();
 
-        let mut tracker = SubdirectoryHintTracker::new();
+        let mut tracker = SubdirectoryHintTracker::new(vec![GOOSE_HINTS_FILENAME.to_string()]);
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "future/file.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args.clone()), &project_root);
@@ -952,6 +843,16 @@ mod gitignore_tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+
+    fn load_hint_files(
+        cwd: &Path,
+        hints_filenames: &[String],
+        ignore_patterns: &Gitignore,
+    ) -> String {
+        super::load_hint_files(cwd, hints_filenames, &[], ignore_patterns)
+    }
 
     #[test]
     fn test_hints_with_gitignore_filters_referenced_files() {

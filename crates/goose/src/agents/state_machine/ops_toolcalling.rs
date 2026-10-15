@@ -23,9 +23,10 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, ToolRequest,
 };
 use crate::conversation::Conversation;
-use crate::hints::load_hints::SubdirectoryHintTracker;
+use crate::hints::get_context_filenames;
 use crate::hooks::{HookChainOutcome, HookContext, HookEvent, HookManager};
 use crate::session::Session;
+use goose_agent::prompt::SubdirectoryHintTracker;
 
 pub(super) const EXPIRED_APPROVAL_RESPONSE: &str =
     "Tool approval expired because its extension lease is no longer available. Request the tool again.";
@@ -859,7 +860,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
         session: &Session,
         conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
-        let mut hints = SubdirectoryHintTracker::new();
+        let mut hints = SubdirectoryHintTracker::new(get_context_filenames());
         for message in conversation
             .messages()
             .iter()
