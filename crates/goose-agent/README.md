@@ -6,7 +6,9 @@ Instead of a fixed "call the model, run the tools, repeat" loop, an agent here i
 an ordered list of steps. Each step gets a chance to look at the conversation and
 either decline or produce effects. The machine walks the list, applies the first
 step that applies, and starts over from the top — so the whole agent's behavior
-is a function of the persisted conversation, not of in-memory loop state.
+is a function of the persisted conversation, not of in-memory loop state. Step
+gates hold a step back until what it depends on has happened, wherever it sits
+in the list.
 
 ## The pieces
 
@@ -19,9 +21,8 @@ is a function of the persisted conversation, not of in-memory loop state.
   the machine collects tools and prompt parts from *every* operation in the list
   into an `InferenceInput`. It runs whenever the conversation ends on a user or
   tool message, even if other tool calls from the same reply are still
-  unanswered. A pipeline that keeps calls open, for example while waiting for
-  the user to approve one, needs an operation before inference that yields
-  while any call is open.
+  unanswered. A pipeline that can leave calls open, for example while waiting
+  for the user to approve one, gates inference with `tool_calls_answered()`.
 - **`ToolOperation<S>`** — adapts caller-defined `rmcp` tools into one operation.
   Register `SyncTool<S>` and `AsyncTool<S>` implementations with the typed builder
   methods, or implement `ToolProvider<S>` for tools discovered dynamically per
@@ -29,6 +30,8 @@ is a function of the persisted conversation, not of in-memory loop state.
   execution, so their tool names and handlers must remain stable between those
   boundaries. Their schemas are sent to inference and matching calls are
   dispatched against the current session.
+- **`Step<'a, S, E>`** — an entry in the list: `Step::operation(..)` or
+  `Step::inference(..)`, optionally followed by `.gated_by([..])`.
 - **`StateMachine<'a, S, E>`** — holds `Vec<Step<..>>` and a `CancellationToken`.
   `step()` runs one pass and returns a `StepResult` whose `applied_step` names
   the step that applied (`None` if none did) and whose `status` says whether the
@@ -44,12 +47,38 @@ is a function of the persisted conversation, not of in-memory loop state.
   your runtime implements so the machine can load a session by id and persist
   effects. The machine reloads the session between passes; it never caches it.
 
+## Step gates
+
+A gate is a named condition on the session and conversation, built with
+`StepGate::new(name, |session, conversation| ..)`. It returns `true` when the
+step may act, and it must be quick, synchronous, and free of side effects,
+because it is checked on every pass. A gated step runs only while every one of
+its gates is open; otherwise the machine skips it and tries the next step. The
+crate ships two gates in `step_gate`:
+
+- `tool_calls_answered()` — open when every tool request since kickoff has a
+  response or was executed externally.
+- `subagents_finished(runner)` — open when every subagent the runner started has
+  been delivered or cancelled.
+
+No step is gated unless you gate it, inference included. A closed gate only
+skips the step's `run`: the step still contributes tools and prompt parts to
+inference and still runs `finalize_cancellation`. Gates don't apply to
+`run_command`. Don't gate an operation by the condition it makes true — the tool
+operation can't wait for its own answers. When a pass ends with no step applied
+while some gate was closed, the machine logs the skipped steps and their closed
+gates at debug level.
+
+Gates make a step safe wherever it sits; they don't decide which of several
+eligible steps goes first. That is still list order.
+
 ## Reading the conversation
 
 Because steps re-derive their decisions from history, the crate ships the
 predicates they need: `messages_since_kickoff`, `last_effective_role`,
-`assistant_turn_count`, `ends_turn`, and `trailing_error`. When a step must
-remember that it already did something, it records that on the message itself via
+`assistant_turn_count`, `ends_turn`, `trailing_error`, and
+`unanswered_tool_requests`. When a step must remember that it already did
+something, it records that on the message itself via
 `Operation::set_message_meta` / `message_meta` rather than in memory.
 
 ## Cancellation

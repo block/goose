@@ -1,12 +1,14 @@
 use std::sync::{Arc, Mutex};
 
+mod support;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use goose_agent::{
-    machine::{EffectHandler, MachineSession, SessionLoader, StateMachine, Step},
+    machine::{StateMachine, Step},
     operation::{
-        applied, not_applicable, yielded, ConversationEffect, Emitter, Inference, InferenceInput,
-        Operation, OperationResult, OperationStream,
+        applied, not_applicable, yielded, yielded_with, ConversationEffect, Emitter, Inference,
+        InferenceInput, Operation, OperationResult, OperationStream,
     },
     step_gate::{subagents_finished, tool_calls_answered, StepGate},
     subagent::{SubagentRunner, SubagentUpdate},
@@ -15,60 +17,12 @@ use goose_provider_types::conversation::{
     message::{Message, TOOL_META_EXTERNAL_DISPATCH_KEY},
     Conversation,
 };
-use rmcp::model::{CallToolRequestParams, CallToolResult, Role, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
 use serde_json::json;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Clone)]
-struct Session(Conversation);
-
-impl MachineSession for Session {
-    fn id(&self) -> &str {
-        "session"
-    }
-
-    fn conversation(&self) -> Option<&Conversation> {
-        Some(&self.0)
-    }
-}
-
-struct Runtime(Mutex<Session>);
-
-impl Runtime {
-    fn new(messages: impl IntoIterator<Item = Message>) -> Self {
-        Self(Mutex::new(Session(Conversation::new_unvalidated(messages))))
-    }
-}
-
-#[async_trait]
-impl SessionLoader<Session> for Runtime {
-    async fn load(&self, _session_id: &str) -> Result<Session> {
-        Ok(self.0.lock().unwrap().clone())
-    }
-}
-
-#[async_trait]
-impl EffectHandler<Session, ConversationEffect> for Runtime {
-    async fn apply_effects(
-        &self,
-        _session: &Session,
-        effects: &mut [ConversationEffect],
-        _emit: &Emitter,
-    ) -> Result<()> {
-        for effect in effects {
-            let ConversationEffect::AppendMessage(message) = effect else {
-                panic!("unexpected effect");
-            };
-            self.0.lock().unwrap().0.push(message.clone());
-        }
-        Ok(())
-    }
-}
-
-fn texts(session: &Session) -> Vec<String> {
-    session.0.iter().map(Message::as_concat_text).collect()
-}
+use support::{texts, Runtime, Session};
 
 fn emitter(cancel: CancellationToken) -> Emitter {
     let (tx, _rx) = mpsc::unbounded_channel();
@@ -123,16 +77,10 @@ impl Operation<Session> for Reply {
     async fn run(
         &self,
         _session: &Session,
-        conversation: &Conversation,
+        _conversation: &Conversation,
         _emit: &Emitter,
     ) -> Result<OperationResult> {
-        if conversation
-            .iter()
-            .any(|message| message.role == Role::Assistant)
-        {
-            return not_applicable();
-        }
-        applied([Message::assistant().with_text("reply").into()])
+        yielded_with([Message::assistant().with_text("reply").into()])
     }
 }
 
@@ -170,14 +118,6 @@ impl Operation<Session> for Contributor {
         )])
     }
 
-    async fn prompt_parts(
-        &self,
-        _session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<(String, String)>> {
-        Ok(vec![("contributed".into(), "a prompt part".into())])
-    }
-
     async fn finalize_cancellation(
         &self,
         _session: &Session,
@@ -199,7 +139,7 @@ impl Operation<Session> for Contributor {
 
 #[derive(Default)]
 struct RecordingInference {
-    input: Mutex<Option<(Vec<String>, Vec<String>)>>,
+    tools: Mutex<Option<Vec<String>>>,
 }
 
 #[async_trait]
@@ -227,8 +167,7 @@ impl Inference<Session> for RecordingInference {
             .iter()
             .map(|tool| tool.name.to_string())
             .collect();
-        let parts = input.prompt_parts.into_iter().map(|(key, _)| key).collect();
-        *self.input.lock().unwrap() = Some((tools, parts));
+        *self.tools.lock().unwrap() = Some(tools);
         yielded()
     }
 }
@@ -250,11 +189,8 @@ async fn a_gated_step_still_contributes_to_inference() -> Result<()> {
 
     machine.step(&session, &emitter(cancel)).await?;
 
-    let input = inference.input.lock().unwrap().take();
-    assert_eq!(
-        input,
-        Some((vec!["contributed".into()], vec!["contributed".into()]))
-    );
+    let tools = inference.tools.lock().unwrap().take();
+    assert_eq!(tools, Some(vec!["contributed".into()]));
     Ok(())
 }
 

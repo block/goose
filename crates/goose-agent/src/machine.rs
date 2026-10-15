@@ -228,7 +228,7 @@ where
         }
 
         for (step, gates) in skipped_steps {
-            tracing::warn!(
+            tracing::debug!(
                 step,
                 ?gates,
                 "run ended with a step skipped by closed gates"
