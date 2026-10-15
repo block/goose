@@ -4,7 +4,7 @@ import type { IncomingMessage, ClientRequest } from 'node:http';
 
 type GetFn = (url: string | URL, cb: (res: IncomingMessage) => void) => ClientRequest;
 
-const mockHttpsGet = vi.fn<GetFn>();
+const { mockHttpsGet } = vi.hoisted(() => ({ mockHttpsGet: vi.fn<GetFn>() }));
 
 vi.mock('node:https', () => ({
   default: { get: mockHttpsGet },
