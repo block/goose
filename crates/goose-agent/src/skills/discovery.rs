@@ -8,11 +8,21 @@ use std::path::{Path, PathBuf};
 use tracing::warn;
 
 /// A host-selected search root; earlier roots take precedence.
+#[derive(Debug, Clone)]
 pub struct SkillRoot {
+    /// Directory searched recursively for `SKILL.md`. Returned entry paths identify
+    /// the containing skill directory, not the Markdown file.
+    /// Relative roots are resolved against the process working directory.
     pub path: PathBuf,
+    /// Scope metadata copied to each entry, not inferred from its location.
     pub global: bool,
+    /// Writability metadata copied to each entry. Discovery does not check
+    /// permissions or enforce whether a host may modify the skill.
     pub writable: bool,
-    /// Retain lexical skill paths instead of canonicalizing them (e.g. plugin links).
+    /// Retain lexical skill-directory and supporting-file paths (e.g. plugin links)
+    /// instead of canonicalizing the skill directory. Relative roots then produce
+    /// relative result paths; supply absolute roots when absolute paths are needed.
+    /// This does not change symlink traversal or confine reads to the root.
     pub preserve_path: bool,
 }
 
@@ -202,7 +212,21 @@ fn scan_skills_from_dir(
     sources
 }
 
-/// Discovers skills in root order; the first entry with a given name wins.
+/// Recursively discovers skills from explicit roots, without consulting host configuration.
+///
+/// Roots are visited in input order. The first successfully parsed entry with a
+/// given name wins; names are compared exactly and case-sensitively. Traversal
+/// within each root is unsorted, so result order, duplicate-name winners within a
+/// root, and supporting-file order are unspecified.
+///
+/// Discovery is best-effort: missing or unreadable directories and invalid or
+/// unreadable skills are skipped. Some failures emit tracing warnings; no errors
+/// are returned. An empty result does not distinguish no skills from a failed scan.
+///
+/// Traversal follows file and directory symlinks, including targets outside a
+/// root. Canonical directory identities prevent cycles. `preserve_path` only
+/// affects returned path spelling; discovery is not a confined file-open API.
+/// The caller must enforce access policy when opening returned paths.
 pub fn discover_skills(roots: impl IntoIterator<Item = SkillRoot>) -> Vec<SourceEntry> {
     let mut sources: Vec<SourceEntry> = Vec::new();
     let mut seen = HashSet::new();
