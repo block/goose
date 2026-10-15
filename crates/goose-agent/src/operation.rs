@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use futures::Stream;
 use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::mpsc;
@@ -16,6 +17,12 @@ pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 #[cfg(target_arch = "wasm32")]
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type OperationStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
+
+#[cfg(target_arch = "wasm32")]
+pub type OperationStream<'a, T> = Pin<Box<dyn Stream<Item = T> + 'a>>;
 
 pub struct SlashCommand<'a> {
     pub command: &'a str,
