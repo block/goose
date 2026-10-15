@@ -314,8 +314,10 @@ impl Operation<Session> for Act {
     }
 }
 
-fn call(id: &str) -> Message {
-    Message::assistant().with_tool_request(id, Ok(CallToolRequestParams::new("any_tool")))
+fn calls(ids: &[&str]) -> Message {
+    ids.iter().fold(Message::assistant(), |message, id| {
+        message.with_tool_request(*id, Ok(CallToolRequestParams::new("any_tool")))
+    })
 }
 
 fn answer(id: &str) -> Message {
@@ -331,20 +333,25 @@ async fn tool_calls_answered_is_closed_only_while_this_turn_has_an_unanswered_ca
         None,
         Some(json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
     );
-    let partly_answered = Message::assistant()
-        .with_tool_request("allowed", Ok(CallToolRequestParams::new("any_tool")))
-        .with_tool_request("needs_approval", Ok(CallToolRequestParams::new("any_tool")));
     let cases = [
         ("no calls", vec![kickoff()], true),
-        ("an unanswered call", vec![kickoff(), call("open")], false),
+        (
+            "an unanswered call",
+            vec![kickoff(), calls(&["open"])],
+            false,
+        ),
         (
             "a partly answered batch",
-            vec![kickoff(), partly_answered, answer("allowed")],
+            vec![
+                kickoff(),
+                calls(&["allowed", "needs_approval"]),
+                answer("allowed"),
+            ],
             false,
         ),
         (
             "every call answered",
-            vec![kickoff(), call("done"), answer("done")],
+            vec![kickoff(), calls(&["done"]), answer("done")],
             true,
         ),
         (
@@ -354,20 +361,21 @@ async fn tool_calls_answered_is_closed_only_while_this_turn_has_an_unanswered_ca
         ),
         (
             "an unanswered call from an earlier turn",
-            vec![kickoff(), call("stale"), kickoff()],
+            vec![kickoff(), calls(&["stale"]), kickoff()],
             true,
         ),
     ];
+    let cancel = CancellationToken::new();
+    let machine = StateMachine::new(
+        vec![Step::operation(Arc::new(Act)).gated_by([tool_calls_answered()])],
+        cancel.clone(),
+    );
+    let emit = emitter(cancel);
 
     for (case, messages, open) in cases {
-        let cancel = CancellationToken::new();
-        let machine = StateMachine::new(
-            vec![Step::operation(Arc::new(Act)).gated_by([tool_calls_answered()])],
-            cancel.clone(),
-        );
         let session = Session(Conversation::new_unvalidated(messages));
 
-        let result = machine.step(&session, &emitter(cancel)).await?;
+        let result = machine.step(&session, &emit).await?;
 
         assert_eq!(result.applied_step.is_some(), open, "{case}");
     }
