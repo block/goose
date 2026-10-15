@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "モデルを変更しました: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model}（リクエスト済み）"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "すべて表示"
   },

@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model değişti: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (istenen)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Tümünü göster"
   },

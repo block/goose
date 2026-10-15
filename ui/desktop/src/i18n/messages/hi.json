@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "मॉडल बदला गया: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (अनुरोधित)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "सभी दिखाएँ"
   },

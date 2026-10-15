@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "모델 변경: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (요청됨)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "모두 표시"
   },

@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "模型已變更：{previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (已請求)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "全部顯示"
   },

@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model ditukar: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (diminta)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Tunjukkan semua"
   },

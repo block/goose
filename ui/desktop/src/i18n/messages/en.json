@@ -2021,6 +2021,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model changed: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (requested)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Show all"
   },

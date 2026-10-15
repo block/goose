@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Модель изменена: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (запрошенная)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Показать все"
   },

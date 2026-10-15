@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Mô hình đã thay đổi: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (đã yêu cầu)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Hiển thị tất cả"
   },
