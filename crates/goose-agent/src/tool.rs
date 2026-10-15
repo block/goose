@@ -6,7 +6,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use goose_provider_types::conversation::{
-    message::{Message, MessageContent, ToolRequest},
+    message::{Message, ToolRequest},
     Conversation,
 };
 use rmcp::{
@@ -16,8 +16,8 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use crate::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
-    OperationResult,
+    applied, messages_since_kickoff, not_applicable, unanswered_tool_requests, Emitter, Operation,
+    OperationFuture, OperationResult,
 };
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 
@@ -332,17 +332,8 @@ where
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
         let turn = messages_since_kickoff(conversation)?;
-        let answered: HashSet<&str> = turn
-            .iter()
-            .flat_map(Message::get_tool_response_ids)
-            .collect();
-        let pending = turn
-            .iter()
-            .flat_map(|message| message.content.iter())
-            .filter_map(MessageContent::as_tool_request)
-            .filter(|request| {
-                !request.was_executed_externally() && !answered.contains(request.id.as_str())
-            })
+        let pending = unanswered_tool_requests(turn)
+            .into_iter()
             .cloned()
             .collect::<Vec<_>>();
         if pending.is_empty() {

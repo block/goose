@@ -1,13 +1,16 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::Stream;
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::events::AgentEvent;
-use goose_provider_types::conversation::message::{Message, MessageContent, MessageErrorKind};
+use goose_provider_types::conversation::message::{
+    Message, MessageContent, MessageErrorKind, ToolRequest,
+};
 use goose_provider_types::conversation::{effective_role, Conversation, EffectiveRole};
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 use rmcp::model::Tool;
@@ -40,6 +43,20 @@ pub fn messages_since_kickoff(conversation: &Conversation) -> Result<&[Message]>
         })
         .ok_or_else(|| anyhow!("state machine conversation has no kickoff message"))?;
     Ok(&messages[start..])
+}
+
+pub fn unanswered_tool_requests(turn: &[Message]) -> Vec<&ToolRequest> {
+    let answered: HashSet<&str> = turn
+        .iter()
+        .flat_map(Message::get_tool_response_ids)
+        .collect();
+    turn.iter()
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_request)
+        .filter(|request| {
+            !request.was_executed_externally() && !answered.contains(request.id.as_str())
+        })
+        .collect()
 }
 
 pub fn trailing_error(conversation: &Conversation) -> Option<MessageErrorKind> {

@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 use crate::operation::{
-    messages_since_kickoff, ConversationEffect, Emitter, Inference, InferenceInput, MachineEffect,
-    Operation, OperationResult, RunStatus, StepResult,
+    messages_since_kickoff, unanswered_tool_requests, ConversationEffect, Emitter, Inference,
+    InferenceInput, MachineEffect, Operation, OperationResult, RunStatus, StepResult,
 };
 use goose_provider_types::conversation::message::{Message, MessageContent};
 use goose_provider_types::conversation::Conversation;
@@ -38,17 +38,83 @@ pub trait EffectUsage<E>: MaybeSend + MaybeSync {
     }
 }
 
-pub enum Step<'a, S, E = ConversationEffect> {
+#[cfg(not(target_arch = "wasm32"))]
+type GateCondition<'a, S> = dyn Fn(&S, &Conversation) -> bool + Send + Sync + 'a;
+
+#[cfg(target_arch = "wasm32")]
+type GateCondition<'a, S> = dyn Fn(&S, &Conversation) -> bool + 'a;
+
+pub struct StepGate<'a, S> {
+    name: &'static str,
+    condition: Box<GateCondition<'a, S>>,
+}
+
+impl<'a, S> StepGate<'a, S> {
+    pub fn new(
+        name: &'static str,
+        condition: impl Fn(&S, &Conversation) -> bool + MaybeSend + MaybeSync + 'a,
+    ) -> Self {
+        Self {
+            name,
+            condition: Box::new(condition),
+        }
+    }
+
+    fn is_open(&self, session: &S, conversation: &Conversation) -> bool {
+        (self.condition)(session, conversation)
+    }
+}
+
+pub fn tool_calls_answered<'a, S>() -> StepGate<'a, S> {
+    StepGate::new("tool calls answered", |_session, conversation| {
+        messages_since_kickoff(conversation)
+            .map_or(true, |turn| unanswered_tool_requests(turn).is_empty())
+    })
+}
+
+pub struct Step<'a, S, E = ConversationEffect> {
+    operation: StepOperation<'a, S, E>,
+    gates: Vec<StepGate<'a, S>>,
+}
+
+enum StepOperation<'a, S, E> {
     Operation(Arc<dyn Operation<S, E> + 'a>),
     Inference(Arc<dyn Inference<S, E> + 'a>),
 }
 
-impl<S, E: MaybeSend> Step<'_, S, E> {
-    fn operation(&self) -> &dyn Operation<S, E> {
-        match self {
-            Step::Operation(operation) => operation.as_ref(),
-            Step::Inference(inference) => inference.as_ref(),
+impl<'a, S, E: MaybeSend> Step<'a, S, E> {
+    pub fn operation(operation: Arc<dyn Operation<S, E> + 'a>) -> Self {
+        Self {
+            operation: StepOperation::Operation(operation),
+            gates: Vec::new(),
         }
+    }
+
+    pub fn inference(inference: Arc<dyn Inference<S, E> + 'a>) -> Self {
+        Self {
+            operation: StepOperation::Inference(inference),
+            gates: Vec::new(),
+        }
+    }
+
+    pub fn gated_by(mut self, gates: impl IntoIterator<Item = StepGate<'a, S>>) -> Self {
+        self.gates.extend(gates);
+        self
+    }
+
+    fn as_operation(&self) -> &dyn Operation<S, E> {
+        match &self.operation {
+            StepOperation::Operation(operation) => operation.as_ref(),
+            StepOperation::Inference(inference) => inference.as_ref(),
+        }
+    }
+
+    fn closed_gates(&self, session: &S, conversation: &Conversation) -> Vec<&'static str> {
+        self.gates
+            .iter()
+            .filter(|gate| !gate.is_open(session, conversation))
+            .map(|gate| gate.name)
+            .collect()
     }
 }
 
@@ -123,15 +189,23 @@ where
             .conversation()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
 
+        let mut skipped_steps = Vec::new();
         for (index, step) in self.steps.iter().enumerate() {
-            let name = step.operation().name();
+            let name = step.as_operation().name();
             if self.cancel.is_cancelled() {
                 return Ok(empty_result(RunStatus::Cancelled));
             }
+            let closed_gates = step.closed_gates(session, conversation);
+            if !closed_gates.is_empty() {
+                skipped_steps.push((name, closed_gates));
+                continue;
+            }
             let execution = async {
-                match step {
-                    Step::Operation(operation) => operation.run(session, conversation, emit).await,
-                    Step::Inference(inference) => {
+                match &step.operation {
+                    StepOperation::Operation(operation) => {
+                        operation.run(session, conversation, emit).await
+                    }
+                    StepOperation::Inference(inference) => {
                         let prepared_session = inference.prepare_session(session).await?;
                         let session = prepared_session.as_ref().unwrap_or(session);
                         let conversation = session.conversation().ok_or_else(|| {
@@ -142,7 +216,7 @@ where
                         }
                         let mut input = InferenceInput::default();
                         let mut tool_names = HashSet::new();
-                        for operation in self.steps.iter().map(|step| step.operation()) {
+                        for operation in self.steps.iter().map(Step::as_operation) {
                             let tools = operation.inference_tools(session).await?;
                             add_tools_to_inference_input(&mut input, &mut tool_names, tools)?;
                             input
@@ -186,6 +260,13 @@ where
             }
         }
 
+        for (step, gates) in skipped_steps {
+            tracing::warn!(
+                step,
+                ?gates,
+                "run ended with a step skipped by closed gates"
+            );
+        }
         Ok(empty_result(RunStatus::Yielded))
     }
 
@@ -277,7 +358,7 @@ where
             .conversation()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
         let effects = step
-            .operation()
+            .as_operation()
             .finalize_cancellation(&session, conversation, emit)
             .await;
         self.save(runtime, session_id, session, effects, emit).await

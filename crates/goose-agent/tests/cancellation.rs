@@ -184,9 +184,9 @@ async fn stop_saves_the_interrupted_step_then_unanswered_calls_then_the_rest() -
         let cancel = CancellationToken::new();
         let machine = StateMachine::new(
             vec![
-                Step::Operation(before.clone()),
-                Step::Operation(active.clone()),
-                Step::Operation(after.clone()),
+                Step::operation(before.clone()),
+                Step::operation(active.clone()),
+                Step::operation(after.clone()),
             ],
             cancel.clone(),
         );
@@ -218,7 +218,7 @@ async fn stop_saves_the_interrupted_step_then_unanswered_calls_then_the_rest() -
 async fn a_running_step_sees_stop_before_it_is_dropped() -> Result<()> {
     let watcher = Recorder::new("watcher", Behavior::WatchStop);
     let cancel = CancellationToken::new();
-    let machine = StateMachine::new(vec![Step::Operation(watcher.clone())], cancel.clone());
+    let machine = StateMachine::new(vec![Step::operation(watcher.clone())], cancel.clone());
     let (tx, _rx) = mpsc::unbounded_channel();
     let emit = Emitter::new(tx, cancel.clone());
     let runtime = Runtime::new([Message::user().with_text("kickoff")]);
@@ -304,7 +304,7 @@ async fn stop_saves_completed_results_then_answers_each_unanswered_request_once(
         .with_sync_tool::<BlockingSyncTool>();
 
     let cancel = CancellationToken::new();
-    let machine = StateMachine::new(vec![Step::Operation(Arc::new(operation))], cancel.clone());
+    let machine = StateMachine::new(vec![Step::operation(Arc::new(operation))], cancel.clone());
     let (tx, _rx) = mpsc::unbounded_channel();
     let emit = Emitter::new(tx, cancel.clone());
     let runtime = Runtime::new([

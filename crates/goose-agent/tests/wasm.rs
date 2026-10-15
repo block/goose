@@ -223,8 +223,8 @@ async fn run_turn(call: CallToolRequestParams) -> Conversation {
     );
     let machine = StateMachine::new(
         vec![
-            Step::Operation(Arc::new(tools)),
-            Step::Inference(Arc::new(inference)),
+            Step::operation(Arc::new(tools)),
+            Step::inference(Arc::new(inference)),
         ],
         cancel.clone(),
     );

@@ -124,8 +124,8 @@ pub(crate) fn build_state_machine(
         Arc::new(SlashCommandOperation::new(command_handlers));
     let steps = std::iter::once(command_operation)
         .chain(operations)
-        .map(Step::Operation)
-        .chain(std::iter::once(Step::Inference(inference)))
+        .map(Step::operation)
+        .chain(std::iter::once(Step::inference(inference)))
         .collect();
 
     StateMachine::new(steps, cancel)

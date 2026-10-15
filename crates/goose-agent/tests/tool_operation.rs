@@ -455,8 +455,8 @@ async fn cancellation_interrupts_inference_discovery() {
     let cancel = CancellationToken::new();
     let machine = StateMachine::new(
         vec![
-            Step::Operation(Arc::new(operation)),
-            Step::Inference(Arc::new(TestInference)),
+            Step::operation(Arc::new(operation)),
+            Step::inference(Arc::new(TestInference)),
         ],
         cancel.clone(),
     );
