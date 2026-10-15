@@ -23,27 +23,6 @@ const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation..."
 
 pub(super) const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
 
-fn compaction_part(
-    total_tokens: Option<i32>,
-    context_limit: usize,
-    threshold: f64,
-) -> Option<String> {
-    let total_tokens = total_tokens?;
-    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
-        return None;
-    }
-
-    let compaction_at = (context_limit as f64 * threshold) as i32;
-    if compaction_at <= 0 || (total_tokens as f64 / compaction_at as f64) < 0.5 {
-        return None;
-    }
-
-    Some(format!(
-        "<compaction>~{}k tokens remaining</compaction>",
-        compaction_at.saturating_sub(total_tokens) / 1000
-    ))
-}
-
 /// Reported usage stops at the inference that requested the tools, so the
 /// results that answered it are not counted until the next request.
 async fn unreported_tool_tokens(conversation: &Conversation) -> Result<i32> {
@@ -208,23 +187,6 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             },
             response.into(),
         ])
-    }
-
-    async fn moim_parts(
-        &self,
-        session: &Session,
-        conversation: &Conversation,
-    ) -> Result<Vec<String>> {
-        if self.manages_own_context {
-            return Ok(Vec::new());
-        }
-        Ok(compaction_part(
-            Some(self.context_tokens(session, conversation).await?),
-            self.context_limit,
-            self.threshold,
-        )
-        .into_iter()
-        .collect())
     }
 
     async fn run(

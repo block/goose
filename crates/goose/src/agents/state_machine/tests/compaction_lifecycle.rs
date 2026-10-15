@@ -31,7 +31,15 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
     pipeline.run([half_full.as_str()]).await?;
     let budget = pipeline.run(["check the budget"]).await?;
     budget.assert_message(-1, Agent, "budget checked");
-    assert!(api.calls().last().unwrap().input_contains("<compaction>"));
+    assert!(!api.calls().last().unwrap().input_contains("<compaction>"));
+
+    pipeline
+        .set_total_tokens((pipeline.context_limit() as f64 * 0.79) as i32)
+        .await;
+    let near_threshold = pipeline.run(["check the budget"]).await?;
+    near_threshold.assert_message(-1, Agent, "budget checked");
+    assert_eq!(near_threshold.history_replacements(), 0);
+    assert!(!api.calls().last().unwrap().input_contains("<compaction>"));
 
     let filled_usage = (pipeline.context_limit() as f64 * 0.81) as i32;
     pipeline.set_total_tokens(filled_usage).await;

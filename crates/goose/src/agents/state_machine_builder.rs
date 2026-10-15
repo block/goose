@@ -14,7 +14,7 @@ use crate::agents::state_machine::{
     SubagentOperation, ThinkingRecoveryOperation, ToolApprovalOperation, ToolExecutionOperation,
     ToolPairCompactionOperation,
 };
-use crate::agents::subagent_handler::SubagentRunner;
+use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::hooks::HookManager;
 use crate::providers::base::Provider;
 use crate::session::{Session, SessionManager};
@@ -33,7 +33,7 @@ pub(crate) struct StateMachineConfig<'a> {
     pub(crate) tool_inspection_manager: &'a ToolInspectionManager,
     pub(crate) hook_manager: HookManager,
     pub(crate) steer_queue: SteerQueue,
-    pub(crate) subagent_runner: SubagentRunner,
+    pub(crate) subagent_runner: ForegroundSubagentRunner,
     pub(crate) retry_timeout: Duration,
     pub(crate) on_failure_timeout: Duration,
     pub(crate) stop_hook_block_cap: u32,
@@ -79,7 +79,7 @@ pub(crate) fn build_state_machine(
             Arc::clone(&extension_lease),
         )),
         Arc::new(RemainingToolCallsOperation::new(hook_manager.clone())),
-        Arc::new(SubagentOperation::new(subagent_runner, cancel.clone())),
+        Arc::new(SubagentOperation::new(Arc::new(subagent_runner))),
         Arc::new(SteerOperation::new(steer_queue, hook_manager.clone())),
         Arc::new(BangShellOperation::new()),
     ];

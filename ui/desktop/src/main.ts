@@ -57,7 +57,6 @@ import './utils/gitBranchIpc';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { WEB_PROTOCOLS } from './utils/urlSecurity';
 import { openExternalUrl } from './utils/openExternalUrl';
 import { buildCSP, leaseBackendOrigin, shouldApplyRendererCsp } from './utils/csp';
 import { resolveWorkingDir } from './utils/workingDir';
@@ -295,6 +294,12 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
 }
 
 if (started) app.quit();
+
+// The installer's shortcuts carry this AppUserModelID (electron-builder appId). The running app
+// must use the same one so Windows groups it with them on the taskbar and shows its notifications.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.electron.goose');
+}
 
 // Certificate trust for active backend leases. Renderer requests and
 // main-process net.fetch both pin to the exact cert fingerprint. Each backend
@@ -2919,32 +2924,6 @@ async function appMain() {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (window) {
       window.reload();
-    }
-  });
-
-  ipcMain.on('open-in-chrome', (_event, url) => {
-    try {
-      // Validate URL
-      const parsedUrl = new URL(url);
-
-      // Only allow http and https protocols for browser URLs
-      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
-        console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
-        return;
-      }
-
-      // On macOS, use the 'open' command with Chrome
-      if (process.platform === 'darwin') {
-        spawn('open', ['-a', 'Google Chrome', url]);
-      } else if (process.platform === 'win32') {
-        // On Windows, start is built-in command of cmd.exe
-        spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);
-      } else {
-        // On Linux, use xdg-open with chrome
-        spawn('xdg-open', [url]);
-      }
-    } catch (error) {
-      console.error('Error opening URL in browser:', error);
     }
   });
 

@@ -900,8 +900,8 @@ mod tests {
         let sonnet = metadata
             .known_models
             .iter()
-            .find(|model| model.name == "claude-sonnet-4-5")
-            .expect("claude-sonnet-4-5 should come from the catalog");
+            .find(|model| model.name == "claude-sonnet-5-5")
+            .expect("claude-sonnet-5-5 should come from the catalog");
         assert_eq!(sonnet.context_limit, Some(1_000_000));
         assert!(
             metadata

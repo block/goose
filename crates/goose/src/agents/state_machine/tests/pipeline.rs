@@ -18,7 +18,7 @@ use crate::agents::state_machine::{
     messages_since_kickoff, Emitter, GooseEffect, RunStatus, StateMachine, SteerQueue,
 };
 use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
-use crate::agents::subagent_handler::SubagentRunner;
+use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -124,7 +124,7 @@ impl TestPipeline {
             tool_inspection_manager: &self.tool_inspection_manager,
             hook_manager: self.hook_manager.clone(),
             steer_queue: self.steer_queue.clone(),
-            subagent_runner: SubagentRunner::new(Arc::clone(&self.subagent_host)),
+            subagent_runner: ForegroundSubagentRunner::new(Arc::clone(&self.subagent_host)),
             retry_timeout: std::time::Duration::from_secs(1),
             on_failure_timeout: std::time::Duration::from_secs(1),
             stop_hook_block_cap: self.stop_hook_block_cap,

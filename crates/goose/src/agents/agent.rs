@@ -22,7 +22,7 @@ use crate::agents::state_machine::{
     persist_tool_confirmation_decision, run_goose, Emitter, GooseEffect, StateMachine, SteerQueue,
 };
 use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
-use crate::agents::subagent_handler::SubagentRunner;
+use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
@@ -607,7 +607,7 @@ impl Agent {
             tool_inspection_manager: &self.tool_inspection_manager,
             hook_manager: self.hook_manager.clone(),
             steer_queue,
-            subagent_runner: SubagentRunner::new(Arc::clone(self)),
+            subagent_runner: ForegroundSubagentRunner::new(Arc::clone(self)),
             retry_timeout: std::time::Duration::from_secs(retry_timeout),
             on_failure_timeout: std::time::Duration::from_secs(on_failure_timeout),
             stop_hook_block_cap,
