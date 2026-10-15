@@ -714,7 +714,6 @@ app.on('open-url', async (_event, url) => {
       const deeplinkData = parseRecipeDeeplink(url);
       const regularWindows = getRegularWindows();
       if (regularWindows.length > 0) {
-        log.info('[Main] Detected bot/recipe URL, reusing existing window');
         const targetWindow = regularWindows[0];
         if (targetWindow.isMinimized()) targetWindow.restore();
         targetWindow.focus();
@@ -1929,7 +1928,6 @@ ipcMain.on('react-ready', (event) => {
   if (windowId && pendingRecipeDeepLinks.has(windowId) && window) {
     const payload = pendingRecipeDeepLinks.get(windowId)!;
     pendingRecipeDeepLinks.delete(windowId);
-    log.info('Processing pending recipe deep link for window:', windowId);
     window.webContents.send('start-recipe', payload);
   }
 });
