@@ -579,6 +579,7 @@ impl CliSession {
         } else {
             program_status::report(ProgramStatus::Error, None);
         }
+        program_status::disable();
 
         result
     }

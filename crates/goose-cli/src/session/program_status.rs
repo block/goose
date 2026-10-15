@@ -40,6 +40,13 @@ pub fn enable(text_output: bool) {
             .unwrap_or(true);
 }
 
+pub fn disable() {
+    *REPORTER.lock().unwrap() = Reporter {
+        enabled: false,
+        last: None,
+    };
+}
+
 pub fn report(status: ProgramStatus, msg: Option<&str>) {
     let mut reporter = REPORTER.lock().unwrap();
     if !reporter.enabled {
