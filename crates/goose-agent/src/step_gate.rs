@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use crate::operation::{messages_since_kickoff, unanswered_tool_requests};
+use crate::subagent::{pending_subagents, SubagentRunner};
 use goose_provider_types::conversation::Conversation;
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 
@@ -33,5 +36,11 @@ pub fn tool_calls_answered<'a, S>() -> StepGate<'a, S> {
     StepGate::new("tool calls answered", |_session, conversation| {
         messages_since_kickoff(conversation)
             .map_or(true, |turn| unanswered_tool_requests(turn).is_empty())
+    })
+}
+
+pub fn subagents_finished<'a, S: 'a>(runner: Arc<dyn SubagentRunner<S> + 'a>) -> StepGate<'a, S> {
+    StepGate::new("subagents finished", move |session, conversation| {
+        pending_subagents(runner.as_ref(), session, conversation).is_empty()
     })
 }

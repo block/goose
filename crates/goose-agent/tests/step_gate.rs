@@ -6,9 +6,10 @@ use goose_agent::{
     machine::{EffectHandler, MachineSession, SessionLoader, StateMachine, Step},
     operation::{
         applied, not_applicable, yielded, ConversationEffect, Emitter, Inference, InferenceInput,
-        Operation, OperationResult,
+        Operation, OperationResult, OperationStream,
     },
-    step_gate::{tool_calls_answered, StepGate},
+    step_gate::{subagents_finished, tool_calls_answered, StepGate},
+    subagent::{SubagentRunner, SubagentUpdate},
 };
 use goose_provider_types::conversation::{
     message::{Message, TOOL_META_EXTERNAL_DISPATCH_KEY},
@@ -371,6 +372,71 @@ async fn tool_calls_answered_is_closed_only_while_this_turn_has_an_unanswered_ca
     let emit = emitter(cancel);
 
     for (case, messages, open) in cases {
+        let session = Session(Conversation::new_unvalidated(messages));
+
+        let result = machine.step(&session, &emit).await?;
+
+        assert_eq!(result.applied_step.is_some(), open, "{case}");
+    }
+    Ok(())
+}
+
+struct Started(Vec<&'static str>);
+
+#[async_trait]
+impl SubagentRunner<Session> for Started {
+    fn started_subagent_session_ids(
+        &self,
+        _parent_session: &Session,
+        _conversation: &Conversation,
+    ) -> Vec<String> {
+        self.0.iter().map(|id| id.to_string()).collect()
+    }
+
+    async fn start(
+        &self,
+        _parent_session: &Session,
+        _subagent_session_id: &str,
+        _cancel: CancellationToken,
+    ) -> OperationStream<'static, SubagentUpdate> {
+        panic!("a gate must not start subagents");
+    }
+}
+
+fn subagent_note(key: &str, value: serde_json::Value) -> Message {
+    let mut message = Message::user().with_visibility(false, true);
+    message
+        .metadata
+        .set_operation_note("foreground_subagent", key, value);
+    message
+}
+
+#[tokio::test]
+async fn subagents_finished_is_closed_while_a_started_subagent_is_undelivered() -> Result<()> {
+    let kickoff = || Message::user().with_text("kickoff");
+    let delivered = || subagent_note("delivered", json!("a"));
+    let cancelled = || subagent_note("cancelled", json!(["a"]));
+    let cases = [
+        ("none started", vec![], vec![kickoff()], true),
+        ("one running", vec!["a"], vec![kickoff()], false),
+        ("delivered", vec!["a"], vec![kickoff(), delivered()], true),
+        ("cancelled", vec!["a"], vec![kickoff(), cancelled()], true),
+        (
+            "one delivered, one running",
+            vec!["a", "b"],
+            vec![kickoff(), delivered()],
+            false,
+        ),
+    ];
+    let cancel = CancellationToken::new();
+    let emit = emitter(cancel.clone());
+
+    for (case, started, messages, open) in cases {
+        let machine = StateMachine::new(
+            vec![Step::operation(Arc::new(Act))
+                .gated_by([subagents_finished(Arc::new(Started(started)))])],
+            cancel.clone(),
+        );
         let session = Session(Conversation::new_unvalidated(messages));
 
         let result = machine.step(&session, &emit).await?;
