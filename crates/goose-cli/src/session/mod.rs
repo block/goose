@@ -557,11 +557,11 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
-        program_status::enable(self.output_format == "text");
         let banners = self.agent.emit_session_start(&self.session_id).await?;
         if !banners.is_empty() {
             output::display_banner(&banners);
         }
+        program_status::enable(self.output_format == "text");
 
         let result = self.run_interactive(prompt).await;
 
@@ -1348,6 +1348,7 @@ impl CliSession {
         let mut first_token_at: Option<Instant> = None;
         let mut last_usage: Option<ProviderUsage> = None;
         let mut stream_error = None;
+        let mut input_failed = false;
 
         use futures::StreamExt;
         loop {
@@ -1480,6 +1481,7 @@ impl CliSession {
                                     }
                                     Err(e) => {
                                         output::render_error(&format!("Failed to collect input: {}", e));
+                                        input_failed = true;
                                         cancel_token_clone.cancel();
                                         drain_stopped_run(&mut stream, &mut self.messages, &mut last_usage).await;
                                         break;
@@ -1555,7 +1557,8 @@ impl CliSession {
             }
         }
 
-        let failed = stream_error.is_some()
+        let failed = input_failed
+            || stream_error.is_some()
             || self
                 .messages
                 .last()
