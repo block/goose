@@ -232,6 +232,56 @@ pub(super) fn verify_memory_fit(
     Ok(())
 }
 
+pub async fn refresh_forecasts(path: &Path) -> Result<()> {
+    let mut catalogue: Catalogue = serde_json::from_slice(&std::fs::read(path)?)?;
+    catalogue.eredu_revision = eredu_revision().into();
+    validate(&catalogue)?;
+    let hub = Hub::public(None)?;
+    for model in &mut catalogue.models {
+        let manifest = hub
+            .json(
+                &format!("api/models/{}/revision/{}", model.repo_id, model.revision),
+                &[("blobs", "true")],
+            )
+            .await?;
+        ensure!(
+            manifest["sha"].as_str() == Some(&model.revision),
+            "Model revision changed"
+        );
+        for item in &mut model.variants {
+            eprintln!("Forecasting {}:{}", model.repo_id, item.variant.variant_id);
+            let metadata = forecast::fetch_metadata(
+                &hub,
+                &model.repo_id,
+                &model.revision,
+                &item.variant,
+                &manifest,
+            )
+            .await?;
+            item.memory = match super::worker::inspect(metadata).await? {
+                super::worker::Outcome::Compatible { memory, .. } => memory,
+                super::worker::Outcome::Incompatible(reasons) => anyhow::bail!(
+                    "{}:{} is no longer compatible: {}",
+                    model.repo_id,
+                    item.variant.variant_id,
+                    reasons.join("; ")
+                ),
+                super::worker::Outcome::Unverified(reason) => anyhow::bail!(
+                    "{}:{} forecast remains unverified: {reason}",
+                    model.repo_id,
+                    item.variant.variant_id
+                ),
+            };
+        }
+    }
+    catalogue.generated_at = chrono::Utc::now().to_rfc3339();
+    validate(&catalogue)?;
+    let temporary = path.with_extension("json.tmp");
+    std::fs::write(&temporary, serde_json::to_vec_pretty(&catalogue)?)?;
+    std::fs::rename(temporary, path)?;
+    Ok(())
+}
+
 pub async fn rebuild(path: &Path, report_path: &Path) -> Result<()> {
     let hub = Hub::public(Some(report_path.with_extension("metadata")))?;
     let index = quality::QualityIndex::fetch().await?;

@@ -28,6 +28,8 @@ async fn main() -> anyhow::Result<()> {
         }
         #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
         "--revalidate-lineage" => catalogue::revalidate_lineage(&path, &std::path::PathBuf::from(args.next().unwrap_or_else(|| "target/local-model-lineage-report.json".into()))).await?,
+        #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
+        "--refresh-forecasts" => catalogue::refresh_forecasts(&path).await?,
         "--rebuild" => {
             #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
             catalogue::rebuild(
@@ -42,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
             anyhow::bail!("Rebuilding requires --features hf-hub,eredu on Apple silicon; no Metal device or weights are needed");
         }
         _ => anyhow::bail!(
-            "Usage: local-model-catalogue --check [catalogue.json] | --rebuild [catalogue.json] [report.json] | --explain owner/model | --revalidate-lineage [catalogue.json] [report.json]"
+            "Usage: local-model-catalogue --check [catalogue.json] | --refresh-forecasts [catalogue.json] | --rebuild [catalogue.json] [report.json] | --explain owner/model | --revalidate-lineage [catalogue.json] [report.json]"
         ),
     }
     Ok(())

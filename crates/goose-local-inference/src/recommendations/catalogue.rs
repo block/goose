@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod build;
 #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
-pub use build::{explain, rebuild, revalidate_lineage};
+pub use build::{explain, rebuild, refresh_forecasts, revalidate_lineage};
 
 #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod worker;
