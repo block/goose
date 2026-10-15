@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Anda memiliki perubahan yang belum disimpan"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Kesalahan ProviderCard: Tidak ada metadata yang disediakan"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Penyedia Tidak Dikenal"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Batal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Pilih Penyedia"
@@ -4676,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Kunjungi"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Gunakan loop agen berbasis operasi. Matikan untuk menggunakan loop lama."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Otomatis"
   },
@@ -4732,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Ambang %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Batas token"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Meringkas permintaan dan respons alat lama untuk menghemat konteks. Batas ditentukan otomatis jika dikosongkan."

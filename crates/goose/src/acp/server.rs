@@ -28,7 +28,7 @@ use crate::conversation::message::{
     ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use crate::conversation::Conversation;
-use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
+use crate::execution::manager::{AgentManager, RuntimeContext};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
@@ -59,6 +59,7 @@ use agent_client_protocol::schema::v1::{
     SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
     UsageUpdate,
 };
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
     Agent as SacpAgent, ByteStreams, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled,
@@ -129,16 +130,8 @@ mod tool_calls;
 mod tool_notifications;
 mod tools;
 
-pub type AcpProviderFactory = Arc<
-    dyn Fn(
-            String,
-            Vec<ExtensionConfig>,
-            Option<PathBuf>,
-            bool,
-        ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
-        + Send
-        + Sync,
->;
+pub type AcpProviderFactory =
+    Arc<dyn Fn(String) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
 
 const ACP_VISIBLE_SESSION_TYPES: [SessionType; 3] =
     [SessionType::User, SessionType::Scheduled, SessionType::Acp];
@@ -332,7 +325,6 @@ pub struct GooseAcpAgent {
     client_supports_goose_custom_notifications: OnceCell<bool>,
     client_supports_recipe_param_requests: OnceCell<bool>,
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
-    use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
@@ -418,13 +410,6 @@ fn extract_timeout_from_meta(meta: &Option<Meta>) -> Option<u64> {
         .and_then(|v| v.as_u64())
 }
 
-fn use_state_machine_from_meta(meta: Option<&Meta>) -> bool {
-    meta.and_then(|meta| meta.get("goose"))
-        .and_then(|goose| goose.get("unrolledAgentLoop"))
-        .and_then(|value| value.as_bool())
-        .unwrap_or_else(crate::agents::state_machine::enabled)
-}
-
 #[derive(Debug, Default, Deserialize)]
 struct ClientCapabilitiesMeta {
     #[serde(default)]
@@ -478,14 +463,6 @@ fn extract_client_mcp_host_info(
     }
 }
 
-fn extract_use_login_shell_path(args: &InitializeRequest) -> bool {
-    args.meta
-        .as_ref()
-        .and_then(|meta| meta.get("goose/useLoginShellPath"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
-}
-
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
     match mcp_server {
         McpServer::Stdio(stdio) => {
@@ -530,13 +507,21 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn mcp_server_configs(
+    mcp_servers: Vec<McpServer>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    mcp_servers
+        .into_iter()
+        .map(mcp_server_to_extension_config)
+        .collect::<Result<_, _>>()
+        .map_err(|message| agent_client_protocol::Error::invalid_params().data(message))
+}
+
 fn add_mcp_servers(
     extensions: &mut Vec<ExtensionConfig>,
     mcp_servers: Vec<McpServer>,
 ) -> Result<(), agent_client_protocol::Error> {
-    for mcp_server in mcp_servers {
-        let extension = mcp_server_to_extension_config(mcp_server)
-            .map_err(|message| agent_client_protocol::Error::invalid_params().data(message))?;
+    for extension in mcp_server_configs(mcp_servers)? {
         push_or_replace_extension(extensions, extension);
     }
     Ok(())
@@ -580,15 +565,21 @@ fn initial_session_extensions(
     goose_extensions: Option<Vec<GooseExtension>>,
     recipe_extensions: Option<&[ExtensionConfig]>,
 ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    // A selection the client sends is the whole session: an empty list starts no
+    // extensions, and `[memory]` starts Memory without the default built-ins.
+    if let (None, Some(goose_extensions)) = (recipe_extensions, goose_extensions) {
+        let mut selected = Vec::new();
+        for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+            push_or_replace_extension(&mut selected, extension);
+        }
+        return Ok(selected);
+    }
+
     let mut extensions = selected_builtin_extensions(config, builtin_selection);
 
     if let Some(recipe_extensions) = recipe_extensions {
         for extension in recipe_extensions {
             push_or_replace_extension(&mut extensions, extension.clone());
-        }
-    } else if let Some(goose_extensions) = goose_extensions {
-        for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
-            push_or_replace_extension(&mut extensions, extension);
         }
     } else {
         for extension in get_enabled_extensions_with_config(config) {
@@ -887,7 +878,7 @@ impl GooseAcpAgent {
             let provider_name = session.provider_name.clone();
             let agent = self.get_session_agent(session_id).await?;
             let provider = agent
-                .provider()
+                .provider(session_id)
                 .await
                 .internal_err_ctx("Failed to resolve session provider")?;
             let context_limit =
@@ -900,7 +891,7 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to refresh session for setup notifications")?;
             let current_provider = agent
-                .provider()
+                .provider(session_id)
                 .await
                 .internal_err_ctx("Failed to refresh session provider")?;
             let refreshed_model_name = session
@@ -959,7 +950,6 @@ impl GooseAcpAgent {
             Arc::clone(&session_manager),
             Arc::clone(&permission_manager),
             options.scheduler,
-            Config::global().get_goose_mode().unwrap_or_default(),
             options.disable_session_naming,
             options.goose_platform.clone(),
         );
@@ -981,7 +971,6 @@ impl GooseAcpAgent {
             client_supports_goose_custom_notifications: OnceCell::new(),
             client_supports_recipe_param_requests: OnceCell::new(),
             client_requests_tool_call_label_enrichment: OnceCell::new(),
-            use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
@@ -1000,20 +989,8 @@ impl GooseAcpAgent {
         Ok(Config::global())
     }
 
-    async fn create_provider(
-        &self,
-        provider_name: &str,
-        extensions: Vec<ExtensionConfig>,
-        working_dir: Option<PathBuf>,
-        use_default_model: bool,
-    ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(
-            provider_name.to_string(),
-            extensions,
-            working_dir,
-            use_default_model,
-        )
-        .await
+    async fn create_provider(&self, provider_name: &str) -> Result<Arc<dyn Provider>> {
+        (self.provider_factory)(provider_name.to_string()).await
     }
 
     /// Warm the provider model-list cache after session creation.
@@ -1040,7 +1017,7 @@ impl GooseAcpAgent {
             if !should_refresh_inventory_for_session_init(&inventory) {
                 return;
             }
-            let provider = match agent.provider().await {
+            let provider = match agent.provider(&session_id).await {
                 Ok(provider) => provider,
                 Err(error) => {
                     warn!(
@@ -1058,17 +1035,16 @@ impl GooseAcpAgent {
         });
     }
 
-    async fn get_or_create_session_agent_with_results(
+    async fn get_or_create_session_agent(
         &self,
         cx: &ConnectionTo<Client>,
         session_id: String,
-    ) -> Result<AgentManagerGetResult, agent_client_protocol::Error> {
+    ) -> Result<Arc<Agent>, agent_client_protocol::Error> {
         self.agent_manager
             .get_or_create_agent_with_runtime_context(
                 session_id,
                 RuntimeContext {
                     mcp_host_info: self.client_mcp_host_info.get().cloned(),
-                    use_login_shell_path: self.use_login_shell_path.get().copied(),
                     session_name_update_tx: (!self.disable_session_naming)
                         .then(|| spawn_session_name_update_notifier(cx.clone())),
                 },
@@ -1082,7 +1058,7 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
         session: &Session,
-    ) {
+    ) -> Result<(), agent_client_protocol::Error> {
         let client_fs_capabilities = self
             .client_fs_capabilities
             .get()
@@ -1093,23 +1069,23 @@ impl GooseAcpAgent {
             && !client_fs_capabilities.write_text_file
             && !client_terminal
         {
-            return;
+            return Ok(());
         }
 
         if !agent
             .extension_manager
-            .is_extension_enabled("developer")
+            .is_extension_enabled(&session.id, "developer")
             .await
+            .internal_err()?
         {
-            return;
+            return Ok(());
         }
 
-        let context = agent.extension_manager.get_context().clone();
-        let dev_client = match DeveloperClient::new(context) {
+        let dev_client = match DeveloperClient::new() {
             Ok(dev_client) => dev_client,
             Err(error) => {
                 warn!(error = %error, "Failed to create ACP developer client");
-                return;
+                return Ok(());
             }
         };
 
@@ -1127,16 +1103,18 @@ impl GooseAcpAgent {
 
         let developer_config = agent
             .extension_manager
-            .get_extension_configs()
+            .get_extension_configs(&session.id)
             .await
+            .internal_err()?
             .into_iter()
             .find(|extension| extension.name() == "developer")
             .unwrap_or_else(|| builtin_to_extension_config("developer"));
 
         agent
             .extension_manager
-            .add_client("developer".into(), developer_config, client, info)
+            .add_client(&session.id, developer_config, client, info)
             .await;
+        Ok(())
     }
 
     async fn prepare_acp_session_agent(
@@ -1144,15 +1122,23 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         session: &Session,
     ) -> Result<(Arc<Agent>, Vec<ExtensionLoadResult>), agent_client_protocol::Error> {
-        let agent_result = self
-            .get_or_create_session_agent_with_results(cx, session.id.clone())
+        let agent = self
+            .get_or_create_session_agent(cx, session.id.clone())
             .await?;
-        let agent = agent_result.agent.clone();
         self.apply_acp_extension_overrides(cx, &agent, session)
+            .await?;
+        // Leases start extensions on first use anyway; starting them here is
+        // what lets the session response report extensions that fail.
+        let extension_results = agent
+            .extension_manager
+            .current_lease(&session.id)
+            .await
+            .internal_err()?
+            .start()
             .await;
         self.spawn_provider_inventory_refresh(session, &agent);
 
-        Ok((agent, agent_result.extension_results))
+        Ok((agent, extension_results))
     }
 
     async fn prepare_session_for_activation(
@@ -1181,14 +1167,15 @@ impl GooseAcpAgent {
         }
 
         if !mcp_servers.is_empty() {
-            let mut stored_extensions =
-                EnabledExtensionsState::from_extension_data(&session.extension_data)
-                    .unwrap_or_else(|| EnabledExtensionsState::new(Vec::new()));
-            add_mcp_servers(&mut stored_extensions.extensions, mcp_servers)?;
-            builder = builder.extension_data(enabled_extensions_data(
-                &session,
-                stored_extensions.extensions,
-            )?);
+            let extensions = mcp_server_configs(mcp_servers)?;
+            self.session_manager
+                .update_enabled_extensions(&session.id, |selected| {
+                    for extension in extensions {
+                        push_or_replace_extension(selected, extension);
+                    }
+                })
+                .await
+                .internal_err_ctx("Failed to add the client's MCP servers")?;
             session_needs_update = true;
         }
 
@@ -1246,7 +1233,7 @@ impl GooseAcpAgent {
     }
 
     async fn subscribe_thinking_effort_updates(&self, session_id: &str, agent: &Arc<Agent>) {
-        let Ok(provider) = agent.provider().await else {
+        let Ok(provider) = agent.provider(session_id).await else {
             return;
         };
         let Some(mut updates) = provider.subscribe_thinking_effort_support() else {
@@ -1817,9 +1804,6 @@ impl GooseAcpAgent {
         let _ = self
             .client_supports_acp_elicitation
             .set(elicitation::client_supports_form_elicitation(&args));
-        let _ = self
-            .use_login_shell_path
-            .set(extract_use_login_shell_path(&args));
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
@@ -1837,7 +1821,7 @@ impl GooseAcpAgent {
             )
             .mcp_capabilities(McpCapabilities::new().http(true))
             .meta(agent_capabilities_meta());
-        Ok(InitializeResponse::new(args.protocol_version)
+        Ok(InitializeResponse::new(ProtocolVersion::LATEST)
             .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
             .agent_capabilities(capabilities)
             .auth_methods(vec![AuthMethod::Agent(
@@ -2029,7 +2013,7 @@ impl GooseAcpAgent {
         session_id: &str,
         agent: &Arc<Agent>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let Ok(provider) = agent.provider().await else {
+        let Ok(provider) = agent.provider(session_id).await else {
             return Ok(());
         };
         if provider.get_name() != "local" {
@@ -2065,7 +2049,7 @@ impl GooseAcpAgent {
         agent: &Arc<Agent>,
     ) -> Result<usize, agent_client_protocol::Error> {
         let provider = agent
-            .provider()
+            .provider(&session.id)
             .await
             .internal_err_ctx("Failed to resolve session provider")?;
         let model = session.model_config.as_ref().ok_or_else(|| {
@@ -2125,7 +2109,6 @@ impl GooseAcpAgent {
         cancel_token: &CancellationToken,
         mut stream: BoxStream<'_, Result<crate::agents::AgentEvent>>,
     ) -> Result<AgentStreamOutcome, agent_client_protocol::Error> {
-        let mut was_cancelled = false;
         let mut output_token_limit_reached = false;
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
@@ -2138,8 +2121,7 @@ impl GooseAcpAgent {
 
         while let Some(event) = stream.next().await {
             if cancel_token.is_cancelled() {
-                was_cancelled = true;
-                break;
+                continue;
             }
 
             match event {
@@ -2227,7 +2209,19 @@ impl GooseAcpAgent {
                         warn!(session_id, ?error, "Failed to send mid-turn usage update");
                     }
                 }
-                Ok(_) => {}
+                Ok(crate::agents::AgentEvent::HistoryReplaced(_)) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.to_string(),
+                            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                                status: StatusMessage::Notice {
+                                    message: "Context compacted — earlier messages archived"
+                                        .to_string(),
+                                },
+                            }),
+                        })?;
+                    }
+                }
                 Err(error) => {
                     return Err(agent_client_protocol::Error::internal_error()
                         .data(format!("Error in agent response stream: {error}")));
@@ -2235,10 +2229,7 @@ impl GooseAcpAgent {
             }
         }
 
-        if cancel_token.is_cancelled() {
-            was_cancelled = true;
-        }
-
+        let was_cancelled = cancel_token.is_cancelled();
         if !was_cancelled {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, agent, acp_session_id, cx);
@@ -2313,23 +2304,20 @@ impl GooseAcpAgent {
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
-        let use_state_machine = use_state_machine_from_meta(args.meta.as_ref());
+        // The client's trace context must stay attached while the turn's spans and tool calls are polled.
+        #[cfg(feature = "otel")]
+        let trace_cx = crate::otel::trace_context::extract_from_meta(args.meta.as_ref())
+            .unwrap_or_else(opentelemetry::Context::current);
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
             max_turns: None,
-            retry_config: None,
         };
 
-        let stream = match agent
-            .reply(
-                user_message,
-                session_config,
-                use_state_machine,
-                Some(cancel_token.clone()),
-            )
-            .await
-        {
+        let reply = agent.reply(user_message, session_config, Some(cancel_token.clone()));
+        #[cfg(feature = "otel")]
+        let reply = opentelemetry::context::FutureExt::with_context(reply, trace_cx.clone());
+        let stream = match reply.await {
             Ok(stream) => stream,
             Err(error) => {
                 self.clear_active_run(&session_id, &run_id).await;
@@ -2338,16 +2326,17 @@ impl GooseAcpAgent {
                     .data(format!("Error getting agent reply: {error}")));
             }
         };
-        let stream_result = self
-            .forward_agent_stream(
-                cx,
-                &args.session_id,
-                &session_id,
-                &agent,
-                &cancel_token,
-                stream,
-            )
-            .await;
+        let forward = self.forward_agent_stream(
+            cx,
+            &args.session_id,
+            &session_id,
+            &agent,
+            &cancel_token,
+            stream,
+        );
+        #[cfg(feature = "otel")]
+        let forward = opentelemetry::context::FutureExt::with_context(forward, trace_cx);
+        let stream_result = forward.await;
         self.clear_active_run(&session_id, &run_id).await;
         Self::send_active_run_update(cx, &args.session_id, None)?;
         let outcome = stream_result?;
@@ -2434,7 +2423,7 @@ impl GooseAcpAgent {
     ) -> Result<(), agent_client_protocol::Error> {
         let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
-            .provider()
+            .provider(session_id)
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
@@ -2452,12 +2441,9 @@ impl GooseAcpAgent {
             )
             .invalid_params_err_ctx("Invalid model config")?;
         agent
-            .recreate_provider_for_session(session_id, &provider_name, model_config)
+            .switch_provider(session_id, &provider_name, model_config)
             .await
-            .internal_err_ctx("Failed to recreate provider")?;
-        self.subscribe_thinking_effort_updates(session_id, &agent)
-            .await;
-        // model_config is already updated on the session by the agent's update_provider call.
+            .internal_err_ctx("Failed to switch provider")?;
         Ok(())
     }
 
@@ -2472,7 +2458,7 @@ impl GooseAcpAgent {
             .internal_err()?;
         let agent = self.get_session_agent(&session_id.0).await?;
         let provider = agent
-            .provider()
+            .provider(&session_id.0)
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = provider.get_name().to_string();
@@ -2481,7 +2467,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
-        let goose_mode = agent.goose_mode().await;
+        let goose_mode = agent
+            .goose_mode(&session_id.0)
+            .await
+            .internal_err_ctx("Failed to read goose mode")?;
         let inventory = self
             .provider_inventory
             .entry_for_provider(&provider_name)
@@ -2555,7 +2544,7 @@ impl GooseAcpAgent {
         let config = self.config()?;
         let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
-            .provider()
+            .provider(session_id)
             .await
             .internal_err_ctx("Failed to get provider")?;
         let current_provider_name = current_provider.get_name();
@@ -2599,14 +2588,13 @@ impl GooseAcpAgent {
             )
             .invalid_params_err_ctx("Invalid model config")?;
 
+        agent.config.providers.release(session_id);
         agent
-            .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
+            .switch_provider(session_id, &resolved_provider_name, model_config)
             .await
-            .internal_err_ctx("Failed to recreate provider")?;
+            .internal_err_ctx("Failed to switch provider")?;
         self.subscribe_thinking_effort_updates(session_id, &agent)
             .await;
-
-        // provider_name is already updated on the session by the agent's update_provider call.
         Ok(())
     }
 
@@ -2954,6 +2942,124 @@ extensions:
         assert!(extensions
             .iter()
             .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    fn requested_builtin(name: &str) -> GooseExtension {
+        GooseExtension::Builtin {
+            name: name.to_string(),
+            description: None,
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: None,
+        }
+    }
+
+    fn developer_enabled_config() -> (Config, NamedTempFile, NamedTempFile) {
+        config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        )
+    }
+
+    #[test]
+    fn client_selection_replaces_the_builtins() {
+        let (config, _c, _s) = developer_enabled_config();
+        let project_root = tempfile::tempdir().unwrap();
+
+        for selection in [default_builtin("developer"), explicit_builtin("developer")] {
+            let extensions = initial_session_extensions(
+                &config,
+                &selection,
+                project_root.path(),
+                vec![],
+                Some(vec![requested_builtin("memory")]),
+                None,
+            )
+            .unwrap();
+
+            let names: Vec<String> = extensions.iter().map(ExtensionConfig::name).collect();
+            assert_eq!(names, vec!["memory".to_string()]);
+        }
+    }
+
+    #[test]
+    fn empty_client_selection_starts_no_extensions() {
+        let (config, _c, _s) = developer_enabled_config();
+        let project_root = tempfile::tempdir().unwrap();
+
+        let extensions = initial_session_extensions(
+            &config,
+            &default_builtin("developer"),
+            project_root.path(),
+            vec![],
+            Some(vec![]),
+            None,
+        )
+        .unwrap();
+
+        assert!(extensions.is_empty());
+    }
+
+    #[test]
+    fn client_selection_ignores_configured_extensions_and_request_mcp_servers() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+  computercontroller:
+    enabled: true
+    type: builtin
+    name: computercontroller
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+
+        let extensions = initial_session_extensions(
+            &config,
+            &default_builtin("developer"),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            Some(vec![requested_builtin("memory")]),
+            None,
+        )
+        .unwrap();
+
+        let names: Vec<String> = extensions.iter().map(ExtensionConfig::name).collect();
+        assert_eq!(names, vec!["memory".to_string()]);
+    }
+
+    #[test]
+    fn recipe_extensions_still_load_with_the_builtins() {
+        let (config, _c, _s) = developer_enabled_config();
+        let project_root = tempfile::tempdir().unwrap();
+        let recipe_extensions = vec![builtin_to_extension_config("memory")];
+
+        let extensions = initial_session_extensions(
+            &config,
+            &default_builtin("developer"),
+            project_root.path(),
+            vec![],
+            Some(vec![]),
+            Some(&recipe_extensions),
+        )
+        .unwrap();
+
+        assert!(has_developer(&extensions));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "memory"));
     }
 
     #[test]
@@ -3526,6 +3632,53 @@ print(\"hello, world\")
         );
     }
 
+    #[tokio::test]
+    async fn initialize_stamps_the_protocol_version_goose_implements() {
+        let root = tempfile::tempdir().unwrap();
+        let active_runs = Arc::new(ActiveRunRegistry::default());
+        let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
+        let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
+            Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+        });
+        let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
+            provider_factory,
+            builtin_selection: AcpBuiltinSelection::default(),
+            data_dir: root.path().to_path_buf(),
+            config_dir: root.path().to_path_buf(),
+            disable_session_naming: true,
+            goose_platform: GoosePlatform::GooseCli,
+            additional_source_roots: Vec::new(),
+            scheduler: None,
+            session_cwd: None,
+            active_runs,
+            live_voice,
+        })
+        .await
+        .unwrap();
+
+        let offered_v2 = agent_client_protocol::schema::ProtocolVersion::from(2u16);
+        let response = agent
+            .on_initialize(InitializeRequest::new(offered_v2))
+            .await
+            .unwrap();
+        assert_eq!(
+            response.protocol_version,
+            agent_client_protocol::schema::ProtocolVersion::V1,
+            "goose implements ACP v1 and must stamp v1 even when the client offers v2"
+        );
+
+        let response = agent
+            .on_initialize(InitializeRequest::new(
+                agent_client_protocol::schema::ProtocolVersion::V1,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            response.protocol_version,
+            agent_client_protocol::schema::ProtocolVersion::V1
+        );
+    }
+
     #[test]
     fn test_goose_custom_notifications_capability_reads_client_meta() {
         let mut goose_meta = serde_json::Map::new();
@@ -3615,11 +3768,9 @@ print(\"hello, world\")
         let root = tempfile::tempdir().unwrap();
         let active_runs = Arc::new(ActiveRunRegistry::default());
         let live_voice = Arc::new(LiveVoiceService::from_config(active_runs.clone()));
-        let provider_factory: AcpProviderFactory = Arc::new(
-            |_provider_name, _extensions, _working_dir, _use_default_model| {
-                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
-            },
-        );
+        let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
+            Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+        });
         let server = Arc::new(
             GooseAcpAgent::new(GooseAcpAgentOptions {
                 provider_factory,
@@ -3647,14 +3798,13 @@ print(\"hello, world\")
             )
             .await
             .unwrap();
-        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+        let session_agent = Agent::with_config(AgentConfig::new(
             server.session_manager.clone(),
             server.permission_manager.clone(),
             None,
-            GooseMode::Auto,
             true,
             GoosePlatform::GooseCli,
-        )));
+        ));
         let provider = Arc::new(AsyncEffortProvider::new());
         session_agent
             .update_provider(

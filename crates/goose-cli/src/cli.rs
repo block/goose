@@ -571,7 +571,7 @@ enum SessionCommand {
         #[arg(
             long = "format",
             value_name = "FORMAT",
-            help = "Output format (markdown, json, yaml)",
+            help = "Output format (markdown, json, yaml, html)",
             default_value = "markdown"
         )]
         format: String,
@@ -1146,7 +1146,7 @@ enum Command {
 
         /// Disable the Rust-driven parallel orchestrator and fall back to
         /// the single-prompt path that asks the main agent to delegate
-        /// each check via `delegate(... async: true ...)`. The default
+        /// each check via `delegate(...)`. The default
         /// orchestrator dispatches one `goose run` subprocess per check
         /// (capped at 4 concurrent), bounding wall-clock to the slowest
         /// single check rather than waiting on the model to issue
@@ -1448,7 +1448,8 @@ enum McpProbeElicitation {
 }
 
 async fn handle_mcp_probe(extension_command: String, script_path: Option<String>) -> Result<()> {
-    use goose::agents::{Agent, AgentConfig, ToolCallContext};
+    use goose::agents::extension_manager::CallRequest;
+    use goose::agents::{Agent, AgentConfig};
     use goose::config::ExtensionConfig;
     use rmcp::model::{ElicitRequestParams, ElicitResult, ElicitationAction};
     use tokio_util::sync::CancellationToken;
@@ -1507,7 +1508,6 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
         std::sync::Arc::new(SessionManager::instance()),
         goose::config::permission::PermissionManager::instance(),
         None,
-        config.get_goose_mode().unwrap_or_default(),
         true,
         GoosePlatform::GooseCli,
     );
@@ -1556,7 +1556,7 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
             std::env::current_dir()?,
             "MCP Probe".to_string(),
             goose::session::session_manager::SessionType::Hidden,
-            agent.config.goose_mode,
+            config.get_goose_mode().unwrap_or_default(),
         )
         .await?;
     let session_id = session.id.as_str();
@@ -1564,44 +1564,36 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
 
     let mut results = Vec::new();
     for step in script.steps {
+        let lease = agent.extension_manager.current_lease(session_id).await?;
         let result = match step {
             McpProbeStep::ListTools => serde_json::json!({
                 "action": "listTools",
-                "result": agent.extension_manager.list_tools_from_extension(
-                    session_id,
+                "result": lease.list_tools_from_extension(
                     "probe",
                     CancellationToken::new(),
                 ).await?,
             }),
             McpProbeStep::ListPrompts => serde_json::json!({
                 "action": "listPrompts",
-                "result": agent.extension_manager.list_prompts_from_extension(
-                    session_id,
+                "result": lease.list_prompts_from_extension(
                     "probe",
                     CancellationToken::new(),
                 ).await?,
             }),
             McpProbeStep::ListResources => serde_json::json!({
                 "action": "listResources",
-                "result": agent.extension_manager.list_resources_result_from_extension(
-                    session_id,
+                "result": lease.list_resources_result_from_extension(
                     "probe",
                     CancellationToken::new(),
                 ).await?,
             }),
             McpProbeStep::CallTool { name, arguments } => {
                 let scoped_name = format!("probe__{name}");
-                let ctx = ToolCallContext::new(
-                    session_id.to_string(),
-                    Some(std::env::current_dir()?),
-                    Some("mcp-probe-tool-call".to_string()),
-                );
-                let result = agent
-                    .extension_manager
-                    .dispatch_tool_call(
-                        &ctx,
+                let result = lease
+                    .call(
                         rmcp::model::CallToolRequestParams::new(scoped_name)
                             .with_arguments(arguments),
+                        CallRequest::new("mcp-probe-tool-call"),
                         CancellationToken::new(),
                     )
                     .await?

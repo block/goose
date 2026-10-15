@@ -106,28 +106,11 @@ impl AcpServer {
             scheduler.list_scheduled_jobs().await;
         }
 
-        let provider_factory: AcpProviderFactory = Arc::new(
-            move |provider_name, extensions, working_dir, use_default_model| {
-                Box::pin(async move {
-                    if use_default_model {
-                        crate::providers::create_with_default_model(&provider_name, extensions)
-                            .await
-                    } else {
-                        match working_dir {
-                            Some(working_dir) => {
-                                crate::providers::create_with_working_dir(
-                                    &provider_name,
-                                    extensions,
-                                    working_dir,
-                                )
-                                .await
-                            }
-                            None => crate::providers::create(&provider_name, extensions).await,
-                        }
-                    }
-                })
-            },
-        );
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name| {
+            Box::pin(async move {
+                crate::providers::create_with_default_model(&provider_name, Vec::new()).await
+            })
+        });
 
         let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
             provider_factory,
@@ -226,7 +209,7 @@ mod tests {
         let running = server.create_agent().await.unwrap();
         let steering = server.create_agent().await.unwrap();
 
-        let owner = Arc::new(crate::agents::Agent::new());
+        let owner = crate::agents::Agent::new();
         running
             .test_start_active_run("session-1", "run-1".to_string(), owner.clone())
             .await
@@ -251,7 +234,7 @@ mod tests {
         let server = server(root.path().to_path_buf(), false);
 
         let running = server.create_agent().await.unwrap();
-        let owner = Arc::new(crate::agents::Agent::new());
+        let owner = crate::agents::Agent::new();
         running
             .test_start_active_run("session-1", "run-1".to_string(), owner)
             .await

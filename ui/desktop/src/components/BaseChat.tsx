@@ -28,7 +28,6 @@ import {
   type Message,
   type UserInput,
 } from '../types/message';
-import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
@@ -63,12 +62,6 @@ const isUserMessage = (message: Message) => message.role === 'user';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
-  onMessageSubmit?: (message: string) => void;
-  renderHeader?: () => React.ReactNode;
-  customChatInputProps?: Record<string, unknown>;
-  customMainLayoutProps?: Record<string, unknown>;
-  contentClassName?: string;
-  disableSearch?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
   isActiveSession: boolean;
@@ -79,9 +72,6 @@ interface BaseChatProps {
 
 export default function BaseChat({
   setChat,
-  renderHeader,
-  customChatInputProps = {},
-  customMainLayoutProps = {},
   sessionId,
   initialMessage,
   noAutoSubmit,
@@ -136,10 +126,7 @@ export default function BaseChat({
         setQuoteButtonPos(null);
         return;
       }
-      if (
-        !conversationRef.current ||
-        !conversationRef.current.contains(sel.anchorNode)
-      ) {
+      if (!conversationRef.current || !conversationRef.current.contains(sel.anchorNode)) {
         setQuoteButtonPos(null);
         return;
       }
@@ -254,17 +241,6 @@ export default function BaseChat({
 
   const recipe = session?.recipe as Recipe | null | undefined;
 
-  const resolvedInitialMessage = useMemo((): UserInput | undefined => {
-    if (!initialMessage) return undefined;
-    if (recipe?.prompt && session?.user_recipe_values) {
-      return {
-        ...initialMessage,
-        msg: substituteParameters(initialMessage.msg, session.user_recipe_values),
-      };
-    }
-    return initialMessage;
-  }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
-
   // noAutoSubmit only suppresses auto-submitting the initial prompt of a fresh session
   // (goose://new-session?prompt=...). Once the conversation has messages, later flows
   // such as forks or resumes should auto-submit normally.
@@ -276,7 +252,7 @@ export default function BaseChat({
     session,
     messages,
     chatState,
-    initialMessage: resolvedInitialMessage,
+    initialMessage,
     canAutoSubmit,
     handleSubmit,
   });
@@ -441,28 +417,17 @@ export default function BaseChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.name, setChat]);
 
-  // If we have a recipe prompt and user recipe values, substitute parameters
-  let recipePrompt = '';
-  if (messages.length === 0 && recipe?.prompt) {
-    recipePrompt = session?.user_recipe_values
-      ? substituteParameters(recipe.prompt, session.user_recipe_values)
-      : recipe.prompt;
-  }
+  const recipePrompt = messages.length === 0 ? (recipe?.prompt ?? '') : '';
 
   const initialPrompt =
-    noAutoSubmit && messages.length === 0 && resolvedInitialMessage?.msg
-      ? resolvedInitialMessage.msg
+    noAutoSubmit && messages.length === 0 && initialMessage?.msg
+      ? initialMessage.msg
       : recipePrompt;
 
   if (sessionLoadError) {
     return (
       <div className="h-full flex flex-col min-h-0">
-        <MainPanelLayout
-          backgroundColor={'bg-background-primary'}
-          removeTopPadding={true}
-          {...customMainLayoutProps}
-        >
-          {renderHeader && renderHeader()}
+        <MainPanelLayout backgroundColor={'bg-background-primary'} removeTopPadding={true}>
           <div className="flex flex-col flex-1 min-h-0 relative">
             <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
@@ -490,14 +455,7 @@ export default function BaseChat({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <MainPanelLayout
-        backgroundColor={'bg-background-primary'}
-        removeTopPadding={true}
-        {...customMainLayoutProps}
-      >
-        {/* Custom header */}
-        {renderHeader && renderHeader()}
-
+      <MainPanelLayout backgroundColor={'bg-background-primary'} removeTopPadding={true}>
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 min-h-0 relative">
           {/* Goose watermark - top right */}
@@ -539,8 +497,6 @@ export default function BaseChat({
                 <RecipeActivities
                   append={appendToChat}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
-                  title={recipe.title}
-                  parameterValues={session?.user_recipe_values || {}}
                 />
               </div>
             )}
@@ -549,17 +505,17 @@ export default function BaseChat({
               <>
                 <SearchView>
                   <div ref={conversationRef}>
-                  <ProgressiveMessageList
-                    messages={messages}
-                    sessionId={sessionId}
-                    toolCallNotifications={toolCallNotifications}
-                    append={appendToChat}
-                    isUserMessage={isUserMessage}
-                    isStreamingMessage={chatState !== ChatState.Idle}
-                    onRenderingComplete={handleRenderingComplete}
-                    onMessageUpdate={onMessageUpdate}
-                    submitElicitationResponse={submitElicitationResponse}
-                  />
+                    <ProgressiveMessageList
+                      messages={messages}
+                      sessionId={sessionId}
+                      toolCallNotifications={toolCallNotifications}
+                      append={appendToChat}
+                      isUserMessage={isUserMessage}
+                      isStreamingMessage={chatState !== ChatState.Idle}
+                      onRenderingComplete={handleRenderingComplete}
+                      onMessageUpdate={onMessageUpdate}
+                      submitElicitationResponse={submitElicitationResponse}
+                    />
                   </div>
                 </SearchView>
 
@@ -655,7 +611,6 @@ export default function BaseChat({
             }}
             appendQuote={pendingQuote}
             onAppendQuoteConsumed={() => setPendingQuote(null)}
-            {...customChatInputProps}
           />
         </ChatInputCard>
       </MainPanelLayout>

@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "आपके पास सहेजे नहीं गए परिवर्तन हैं"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "प्रदाता कार्ड त्रुटि: कोई मेटाडेटा प्रदान नहीं किया गया"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "अज्ञात प्रदाता"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API प्रारूप"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "रद्द करें"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "प्रदाता चुनें"
@@ -4676,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "जाएं"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "ऑपरेशन-आधारित एजेंट लूप का उपयोग करें। लेगेसी लूप का उपयोग करने के लिए इसे बंद करें।"
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "स्वचालित"
   },
@@ -4732,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "थ्रेशोल्ड %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "टोकन सीमा"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "कॉन्टेक्स्ट बचाने के लिए पुराने टूल अनुरोधों और उत्तरों का सारांश बनाता है। खाली छोड़ने पर कटऑफ स्वचालित होता है।"

@@ -52,6 +52,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "chatgpt_codex" => "openai",
         "databricks_v2" => "databricks",
         "zhipu" => "zhipuai",
+        "moonshot" => "moonshotai",
         "together" => "togetherai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
@@ -226,6 +227,10 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         return Some("cohere");
     }
 
+    if model_lower.starts_with("glm-") {
+        return Some("zhipuai");
+    }
+
     None
 }
 
@@ -255,6 +260,7 @@ fn strip_common_prefixes(model: &str) -> String {
         "ministral-",
         "pixtral-",
         "devstral-",
+        "glm-",
     ];
 
     let mut earliest_pos = None;

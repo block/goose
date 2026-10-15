@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Sie haben nicht gespeicherte Änderungen"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard-Fehler: Keine Metadaten bereitgestellt"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Unbekannter Anbieter"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API-Format"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Abbrechen"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Anbieter auswählen"
@@ -4676,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Besuchen Sie"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Verwende die operationsbasierte Agentenschleife. Deaktiviere sie, um die Legacy-Schleife zu verwenden."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Automatisch"
   },
@@ -4732,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Schwellenwert %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Token-Limit"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Fasst ältere Werkzeuganfragen und -antworten zusammen, um Kontext zu sparen. Ohne Eingabe wird der Grenzwert automatisch festgelegt."

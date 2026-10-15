@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "저장되지 않은 변경 사항이 있습니다."
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard 오류: 메타데이터가 제공되지 않았습니다."
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "알 수 없는 제공업체"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API 형식"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "취소"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "제공업체 선택"
@@ -4676,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "방문하여"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "작업 기반 에이전트 루프를 사용합니다. 기존 루프를 사용하려면 끄세요."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "자동"
   },
@@ -4732,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "임계값 %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "토큰 한도"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "이전 도구 요청과 응답을 요약하여 컨텍스트를 절약합니다. 비워 두면 컷오프가 자동으로 설정됩니다."

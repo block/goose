@@ -2720,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "未保存の変更があります"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCardエラー: メタデータが提供されていません"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "不明なプロバイダー"
   },
@@ -2731,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API形式"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "キャンセル"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "プロバイダーを選択"
@@ -4676,9 +4670,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "次のURLにアクセスし、"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "オペレーションベースのエージェントループを使用します。オフにすると従来のループを使用します。"
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "自動"
   },
@@ -4732,6 +4723,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "しきい値 %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "トークン上限"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "古いツールのリクエストとレスポンスを要約してコンテキストを節約します。空欄の場合、カットオフは自動です。"

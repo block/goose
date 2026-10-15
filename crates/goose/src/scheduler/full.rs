@@ -18,7 +18,6 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 #[cfg(feature = "telemetry")]
 use crate::posthog;
-use crate::providers::create;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::validate_recipe::{
     recipe_file_format, validate_recipe_for_scheduling, SchedulerRecipeError,
@@ -862,7 +861,6 @@ async fn execute_job(
         session_manager,
         PermissionManager::instance(),
         None,
-        GooseMode::Auto,
         true,
         GoosePlatform::GooseCli,
     ));
@@ -895,9 +893,8 @@ async fn execute_job(
         agent.add_extension(ext.clone(), &session.id).await?;
     }
 
-    let agent_provider = create(&provider_name, extensions).await?;
     agent
-        .update_provider(agent_provider, model_config, &session.id)
+        .switch_provider(&session.id, &provider_name, model_config)
         .await?;
     agent
         .update_goose_mode(GooseMode::Auto, &session.id)
@@ -976,16 +973,10 @@ async fn execute_job(
         id: session.id.clone(),
         schedule_id: Some(job.id.clone()),
         max_turns: None,
-        retry_config: None,
     };
 
     let stream = agent
-        .reply(
-            user_message,
-            session_config,
-            crate::agents::state_machine::enabled(),
-            Some(cancel_token),
-        )
+        .reply(user_message, session_config, Some(cancel_token.clone()))
         .await?;
 
     use futures::StreamExt;
@@ -1382,16 +1373,33 @@ mod tests {
         };
 
         scheduler.add_scheduled_job(job, true).await.unwrap();
-        sleep(Duration::from_millis(1500)).await;
+        let (jobs, sessions) = tokio::time::timeout(Duration::from_secs(3), async {
+            let mut poll = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                poll.tick().await;
+                let jobs = scheduler.list_scheduled_jobs().await;
+                let sessions = session_manager
+                    .list_sessions_by_types(&[SessionType::Scheduled])
+                    .await
+                    .unwrap();
+                if jobs[0].last_run.is_some() && !sessions.is_empty() {
+                    break (jobs, sessions);
+                }
+            }
+        })
+        .await
+        .expect("Scheduled job should run and create a session within 3 seconds");
 
-        let jobs = scheduler.list_scheduled_jobs().await;
         assert!(jobs[0].last_run.is_some(), "Job should have run");
-        let sessions = session_manager
-            .list_sessions_by_types(&[SessionType::Scheduled])
+        assert!(
+            !sessions.is_empty(),
+            "Scheduled job should create a session"
+        );
+        assert_eq!(sessions[0].goose_mode, GooseMode::Auto);
+        scheduler
+            .remove_scheduled_job("scheduled_job", false)
             .await
             .unwrap();
-        assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].goose_mode, GooseMode::Auto);
     }
 
     #[tokio::test]
