@@ -530,7 +530,7 @@ fn read_referenced_files_with_budget(
     )
 }
 
-pub(super) fn read_referenced_files(
+pub fn read_referenced_files(
     file_path: &Path,
     import_boundary: &Path,
     visited: &mut HashSet<PathBuf>,
@@ -562,7 +562,7 @@ mod tests {
         Files with extensions: @component.tsx @file.test.js @config.local.json
         Files without extensions: @Makefile @LICENSE @Dockerfile @CHANGELOG
         Complex paths: @src/utils/helper.js @docs/api/endpoints.md
-
+        
         Should not match:
         - Email addresses: user@example.com admin@company.org
         - Social handles: @username @user123

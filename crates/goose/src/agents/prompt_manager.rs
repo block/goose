@@ -5,7 +5,8 @@ use indexmap::IndexMap;
 use serde::Serialize;
 
 use crate::agents::{extension::ExtensionInfo, moim};
-use crate::hints::{build_gitignore, get_context_filenames, load_hint_files};
+use crate::hints::load_hints::build_gitignore;
+use crate::hints::{get_context_filenames, load_hint_files};
 use crate::session::Session;
 use crate::{
     config::{Config, GooseMode},
@@ -164,7 +165,20 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             );
         }
 
-        goose_agent::prompt::append_instructions(base_prompt, system_prompt_extras.into_values())
+        if system_prompt_extras.is_empty() {
+            base_prompt
+        } else {
+            let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
+                .into_values()
+                .map(|extra| sanitize_unicode_tags(&extra))
+                .collect();
+
+            format!(
+                "{}\n\n# Additional Instructions:\n\n{}",
+                base_prompt,
+                sanitized_system_prompt_extras.join("\n\n")
+            )
+        }
     }
 }
 

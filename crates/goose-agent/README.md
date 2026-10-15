@@ -75,14 +75,13 @@ its tool response message. Use one operation instance per active execution.
 operation that only builds, emits, and returns holds nothing. Dropping a future
 cannot undo external actions or stop blocking work that has already started.
 
-## Prompts and skills
+## Skills
 
-`prompt` provides template rendering and ordered instruction assembly.
 `skills` provides argument substitution and loaded-skill formatting. On native
-platforms, these modules also load hint files and discover skills from explicit,
-ordered roots. Configuration paths, built-in skills, template lookup, and tool
-registration remain host responsibilities; these helpers do not automatically
-change the agent pipeline. Filesystem discovery is not a secure file-open API.
+platforms, it also discovers skills from explicit, ordered roots. Configuration
+paths, built-in skills, and tool registration remain host responsibilities;
+these helpers do not automatically change the agent pipeline. Filesystem
+discovery is not a secure file-open API.
 
 ## WebAssembly
 

@@ -1,7 +1,6 @@
 use crate::config::paths::Paths;
-pub use goose_agent::prompt::render_string;
 use include_dir::{include_dir, Dir};
-use minijinja::Error as MiniJinjaError;
+use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -70,6 +69,38 @@ fn user_prompts_dir() -> PathBuf {
 
 fn is_registered(name: &str) -> bool {
     TEMPLATE_REGISTRY.iter().any(|(n, _)| *n == name)
+}
+
+/// Wrap code in a markdown fence longer than any backtick run it contains,
+/// so embedded fences cannot close the block early.
+fn code_fence(code: String) -> String {
+    let longest_run = code
+        .chars()
+        .fold((0usize, 0usize), |(max, run), c| {
+            if c == '`' {
+                (max.max(run + 1), run + 1)
+            } else {
+                (max, 0)
+            }
+        })
+        .0;
+    let fence = "`".repeat((longest_run + 1).max(3));
+    format!("{fence}\n{}\n{fence}", code.trim_end_matches('\n'))
+}
+
+pub fn render_string<T: Serialize>(
+    template_str: &str,
+    context: &T,
+) -> Result<String, MiniJinjaError> {
+    let mut env = Environment::new();
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
+    env.add_filter("code_fence", code_fence);
+    env.add_template("template", template_str)?;
+    let tmpl = env.get_template("template")?;
+    let ctx = MJValue::from_serialize(context);
+    let rendered = tmpl.render(ctx)?;
+    Ok(rendered.trim().to_string())
 }
 
 pub fn render_template<T: Serialize>(name: &str, context: &T) -> Result<String, MiniJinjaError> {
