@@ -1,8 +1,7 @@
+#[cfg(feature = "hf-hub")]
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
-use goose_provider_types::errors::ProviderError;
-
+#[cfg(feature = "hf-hub")]
 fn safetensors_shard(filename: &str) -> Option<(&str, u32, u32)> {
     let stem = filename.strip_suffix(".safetensors")?;
     let (indexed_name, total) = stem.rsplit_once("-of-")?;
@@ -12,6 +11,7 @@ fn safetensors_shard(filename: &str) -> Option<(&str, u32, u32)> {
     (index > 0 && index <= total).then_some((family, index, total))
 }
 
+#[cfg(feature = "hf-hub")]
 pub(crate) fn snapshot_files_are_complete(
     filenames: &HashSet<&str>,
     index: Option<&serde_json::Value>,
@@ -58,32 +58,6 @@ pub(crate) fn snapshot_files_are_complete(
     })
 }
 
-fn validate_snapshot_files(path: &Path) -> Result<(), ProviderError> {
-    let filenames: Vec<_> = std::fs::read_dir(path)
-        .map_err(eredu_file_error)?
-        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
-        .collect();
-    let filename_set = filenames.iter().map(String::as_str).collect();
-    let index_path = path.join("model.safetensors.index.json");
-    let index = if index_path.is_file() {
-        let contents = std::fs::read(&index_path).map_err(eredu_file_error)?;
-        Some(serde_json::from_slice(&contents).map_err(eredu_file_error)?)
-    } else {
-        None
-    };
-    if !snapshot_files_are_complete(&filename_set, index.as_ref()) {
-        return Err(ProviderError::ExecutionError(format!(
-            "Eredu model at '{}' has incomplete SafeTensors weights",
-            path.display()
-        )));
-    }
-    Ok(())
-}
-
-fn eredu_file_error(error: impl std::fmt::Display) -> ProviderError {
-    ProviderError::ExecutionError(format!("Eredu model validation failed: {error}"))
-}
-
 pub(crate) const EREDU_BACKEND_ID: &str = "eredu";
 
 pub(crate) fn unavailable_reason() -> Option<&'static str> {
@@ -99,28 +73,27 @@ pub(crate) fn unavailable_reason() -> Option<&'static str> {
 #[cfg(all(feature = "eredu", target_os = "macos", target_arch = "aarch64"))]
 mod imp {
     use std::any::Any;
-    use std::collections::HashMap;
     use std::path::Path;
     use std::sync::mpsc;
     use std::thread::JoinHandle;
     use std::time::Instant;
 
     use ::eredu::api::{
-        default_local_device, inspect_local_model, inspect_text_model, local_device_plan,
-        GenerationForecast, GenerationForecastError, GenerationForecastOptions, LoadedModel,
-        LocalInspectionOptions, PreparedChatGenerationRequest, PreparedChatGenerationSettings,
-        PreparedChatInput, PreparedChatSpeculativeGenerationOptions,
-        PreparedChatSpeculativeGenerationRequest, TextInspectionOptions, TextModelOptions,
+        default_local_device, inspect_artifact, local_device_plan, ArtifactSource,
+        ChatCapabilityRejection, ChatContentFormat, ChatInputPreparationError, ChatInputRequest,
+        ChatMessage, ChatPart, ChatPreparationOptions, ChatToolCall, ChatToolDefinition,
+        CompanionSelection, GenerationForecast, GenerationForecastError, GenerationForecastOptions,
+        GenerationRequest as EreduGenerationRequest, OutputMode, PlannedModel,
+        PreparedChatGenerationSettings, PreparedTextModel, TextInspectionOptions, TextModelError,
+        TextModelOptions,
     };
-    use ::eredu::runtime::chat::{
-        ChatTemplateRequest, NativeToolSupport, PreparedChat, SemanticSupport, ToolChoice,
-    };
+    use ::eredu::runtime::chat::{NativeToolSupport, SemanticSupport, ToolChoice};
     use base64::prelude::*;
     use eredu_backend_mlx::{backend::MlxBackend, native::MlxDrafter, MlxBackendFactory};
     use eredu_core::{
         DraftPlacementPlan, DraftingPlan, ExecutionPlan, GenerationCancellationToken,
-        GenerationConfigOverrides, InspectionSeverity, Media, MediaBinding, RealizedDrafting,
-        RgbImage, SemanticEvent, TextSamplingStrategy,
+        GenerationConfigOverrides, InspectionSeverity, RealizedDrafting, RgbImage, SemanticEvent,
+        TextSamplingStrategy,
     };
     use eredu_text::tokenizer::ModelChatTemplate;
     use goose_provider_types::conversation::message::{Message, MessageContent};
@@ -136,7 +109,6 @@ mod imp {
 
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};
     use crate::model::{ChatTemplate, ModelSettings, SamplingConfig, ToolCallingMode};
-    use crate::thinking_output::ThinkingOutputFilter;
     use crate::tool_emulation::{
         build_emulator_tool_description, load_tiny_model_prompt, message_for_emulator_action,
         StreamingEmulatorParser, CODE_EXECUTION_TOOL,
@@ -145,7 +117,7 @@ mod imp {
 
     use super::EREDU_BACKEND_ID;
 
-    type Model = LoadedModel<MlxBackend<'static>>;
+    type Session = PlannedModel<MlxBackend<'static>, RealizedDrafting<MlxDrafter>>;
 
     pub(crate) struct EreduBackend;
 
@@ -170,38 +142,16 @@ mod imp {
     }
 
     pub(crate) fn validate_model_directory(path: &Path) -> Result<(), ProviderError> {
-        super::validate_snapshot_files(path)?;
-        let config: Value =
-            serde_json::from_slice(&std::fs::read(path.join("config.json")).map_err(error)?)
-                .map_err(error)?;
-        eredu_architectures::configuration::resolve_model_config(&config).map_err(error)?;
+        inspect_artifact(&ArtifactSource::new(path)).map_err(error)?;
         Ok(())
     }
 
     fn load_model(
         resolved: &ResolvedModelPaths,
         settings: &ModelSettings,
-    ) -> Result<(Model, RealizedDrafting<MlxDrafter>), ProviderError> {
+    ) -> Result<Session, ProviderError> {
         if settings.draft_model.is_some() && resolved.draft_model_path.is_none() {
             return Err(error("The selected draft model is not available locally. Download it before enabling speculative decoding."));
-        }
-        let options = text_options(settings)?;
-        let report = inspect_text_model(
-            inspect_local_model(&resolved.model_path, LocalInspectionOptions::default())
-                .map_err(error)?,
-            &options,
-            TextInspectionOptions::default(),
-        );
-        if !report.is_loadable() {
-            return Err(error(
-                report
-                    .issues
-                    .iter()
-                    .filter(|issue| issue.severity == InspectionSeverity::Error)
-                    .map(|issue| issue.detail.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; "),
-            ));
         }
         let device = local_device_plan(default_local_device()).map_err(error)?;
         let mut plan = ExecutionPlan::fully_resident(device.clone());
@@ -214,27 +164,32 @@ mod imp {
                 adaptive_lookahead: false,
             });
         }
-        let inspection = eredu_architectures::configuration::inspect_artifact(&resolved.model_path)
-            .map_err(error)?;
+        let mut source = ArtifactSource::new(&resolved.model_path);
         if let Some(projector) = &resolved.mmproj_path {
-            let expected = std::fs::canonicalize(projector).map_err(error)?;
-            let matches = inspection.validated_gguf().is_some_and(|gguf| {
-                gguf.companions().any(|(_, companion)| {
-                    std::fs::canonicalize(companion.path()).is_ok_and(|path| path == expected)
-                })
-            });
-            if !matches {
-                return Err(error("Eredu could not select Goose's GGUF projector. Place one compatible projector beside the checkpoint or select llama.cpp."));
-            }
+            source = source.with_projector(CompanionSelection::Explicit(projector.clone()));
         }
-        let planned = LoadedModel::load_inspected_execution_plan_with_text_options(
-            &MlxBackendFactory::default(),
-            inspection,
-            &plan,
-            options,
+        let prepared = PreparedTextModel::from_artifact(
+            inspect_artifact(&source).map_err(error)?,
+            text_options(settings)?,
         )
         .map_err(error)?;
-        Ok(planned.into_parts())
+        let factory = MlxBackendFactory::default();
+        let mut selected = prepared
+            .select_execution_plan(&factory, &plan)
+            .map_err(error)?;
+        let report = selected.inspect(TextInspectionOptions::default());
+        if !report.is_loadable() {
+            return Err(error(
+                report
+                    .issues
+                    .iter()
+                    .filter(|issue| issue.severity == InspectionSeverity::Error)
+                    .map(|issue| issue.detail.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
+        }
+        selected.load().map_err(error)
     }
 
     struct GenerationRequest {
@@ -297,7 +252,7 @@ mod imp {
             let worker = std::thread::Builder::new()
                 .name("goose-eredu".into())
                 .spawn(move || {
-                    let (mut model, mut drafting) = match load_model(&resolved, &settings) {
+                    let mut session = match load_model(&resolved, &settings) {
                         Ok(loaded) => {
                             let _ = ready.send(Ok(()));
                             loaded
@@ -308,8 +263,8 @@ mod imp {
                         }
                     };
                     for request in requests {
-                        let result = generate(&mut model, &mut drafting, &request);
-                        let settled = model.synchronize().map_err(error);
+                        let result = generate(&mut session, &request);
+                        let settled = session.model().synchronize().map_err(error);
                         let result = result.and_then(|output| settled.map(|()| output));
                         let _ = request.reply.send(result);
                     }
@@ -457,34 +412,11 @@ mod imp {
         })
     }
 
-    fn tool_aliases(tools: &[Tool]) -> HashMap<String, String> {
-        let mut aliases = HashMap::new();
-        for (index, tool) in tools.iter().enumerate() {
-            let name = tool.name.as_ref();
-            if !name.is_empty()
-                && name.len() <= 64
-                && name
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-            {
-                continue;
-            }
-            let mut alias = format!("goose_tool_{index}");
-            while tools.iter().any(|tool| tool.name == alias) || aliases.contains_key(&alias) {
-                alias.push('_');
-            }
-            aliases.insert(alias, name.to_owned());
-        }
-        aliases
-    }
-
     fn prepare(
-        model: &mut Model,
         request: &GenerationRequest,
-        aliases: &HashMap<String, String>,
         emulated: bool,
-    ) -> Result<(PreparedChat, Vec<MediaBinding>), ProviderError> {
-        let mut messages = if emulated {
+    ) -> Result<ChatInputRequest, ProviderError> {
+        let messages = if emulated {
             let system = format!(
                 "{}\n{}\n{}",
                 request.system,
@@ -518,30 +450,54 @@ mod imp {
             ));
             values
         };
-        let mut bindings = Vec::new();
-        for message in &mut messages {
-            if let Some(calls) = message.get_mut("tool_calls").and_then(Value::as_array_mut) {
-                for call in calls {
-                    if let Some(function) = call.get_mut("function") {
-                        if let Some(arguments) = function.get("arguments").and_then(Value::as_str) {
-                            function["arguments"] =
-                                serde_json::from_str(arguments).map_err(error)?;
-                        }
-                        if let Some(name) = function.get("name").and_then(Value::as_str) {
-                            if let Some((alias, _)) = aliases
-                                .iter()
-                                .find(|(_, original)| original.as_str() == name)
-                            {
-                                function["name"] = json!(alias);
-                            }
-                        }
-                    }
-                }
-            }
-            if let Some(parts) = message.get_mut("content").and_then(Value::as_array_mut) {
-                for part in parts {
-                    if part.get("type").and_then(Value::as_str) != Some("image_url") {
-                        continue;
+        let messages = messages
+            .into_iter()
+            .map(chat_message)
+            .collect::<Result<_, _>>()?;
+        let tools = if emulated {
+            Vec::new()
+        } else {
+            request
+                .tools
+                .iter()
+                .map(|tool| ChatToolDefinition {
+                    name: tool.name.to_string(),
+                    description: tool.description.as_ref().map(ToString::to_string),
+                    parameters: json!(tool.input_schema),
+                })
+                .collect()
+        };
+        Ok(ChatInputRequest {
+            messages,
+            tools,
+            options: ChatPreparationOptions {
+                tool_choice: if emulated || request.tools.is_empty() {
+                    ToolChoice::None
+                } else {
+                    ToolChoice::Auto
+                },
+                enable_thinking: Some(request.settings.enable_thinking),
+                // Goose enables thinking by default, including for plain-text models.
+                allow_unparsed_reasoning: true,
+                add_generation_prompt: true,
+                content_format: ChatContentFormat::String {
+                    separator: "\n".into(),
+                },
+                ..Default::default()
+            },
+        })
+    }
+
+    fn chat_message(message: Value) -> Result<ChatMessage, ProviderError> {
+        let content = match &message["content"] {
+            Value::String(text) => vec![ChatPart::Text(text.clone())],
+            Value::Array(parts) => parts
+                .iter()
+                .map(|part| {
+                    if part["type"] == "text" {
+                        return Ok(ChatPart::Text(
+                            part["text"].as_str().unwrap_or_default().to_owned(),
+                        ));
                     }
                     let url = part["image_url"]["url"]
                         .as_str()
@@ -556,63 +512,48 @@ mod imp {
                         })?;
                     let bytes = BASE64_STANDARD.decode(data).map_err(error)?;
                     let image = image::load_from_memory(&bytes).map_err(error)?.into_rgb8();
-                    let media = Media::Image(
-                        RgbImage::new(image.as_raw().clone(), image.width(), image.height())
-                            .map_err(error)?,
-                    );
-                    let placeholder = format!("<goose_image_{}>", uuid::Uuid::new_v4());
-                    *part = json!({"type": "text", "text": placeholder});
-                    bindings.push(MediaBinding::new(placeholder, media));
-                }
-            }
-        }
-        for message in &mut messages {
-            if let Some(parts) = message.get("content").and_then(Value::as_array) {
-                if parts.iter().all(|part| part["type"] == "text") {
-                    message["content"] = json!(parts
-                        .iter()
-                        .filter_map(|part| part["text"].as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n"));
-                }
-            }
-        }
-        let mut tools = if emulated {
-            Vec::new()
-        } else {
-            openai::format_tools(&request.tools).map_err(error)?
+                    let (width, height) = image.dimensions();
+                    Ok(ChatPart::Image(
+                        RgbImage::new(image.into_raw(), width, height).map_err(error)?,
+                    ))
+                })
+                .collect::<Result<_, ProviderError>>()?,
+            _ => Vec::new(),
         };
-        for tool in &mut tools {
-            if let Some(name) = tool["function"]["name"].as_str() {
-                if let Some((alias, _)) = aliases
-                    .iter()
-                    .find(|(_, original)| original.as_str() == name)
-                {
-                    tool["function"]["name"] = json!(alias);
-                }
-            }
-        }
-        let prepared = model
-            .prepare_chat(ChatTemplateRequest {
-                messages,
-                tools,
-                tool_choice: if emulated || request.tools.is_empty() {
-                    ToolChoice::None
-                } else {
-                    ToolChoice::Auto
-                },
-                enable_thinking: Some(request.settings.enable_thinking),
-                allow_unparsed_reasoning: true,
-                add_generation_prompt: true,
-                ..Default::default()
-            })
-            .map_err(error)?;
-        Ok((prepared, bindings))
+        Ok(match message["role"].as_str() {
+            Some("system") => ChatMessage::System(content),
+            Some("user") => ChatMessage::User(content),
+            Some("assistant") => ChatMessage::Assistant {
+                content,
+                reasoning_content: message["reasoning_content"].as_str().map(str::to_owned),
+                tool_calls: message["tool_calls"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|call| {
+                        ChatToolCall::from_json_arguments(
+                            call["id"].as_str().map(str::to_owned),
+                            call["function"]["name"].as_str().unwrap_or_default(),
+                            call["function"]["arguments"].as_str().unwrap_or_default(),
+                        )
+                        .map_err(error)
+                    })
+                    .collect::<Result<_, _>>()?,
+            },
+            Some("tool") => ChatMessage::Tool {
+                tool_call_id: message["tool_call_id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+                name: message["name"].as_str().map(str::to_owned),
+                content,
+            },
+            role => return Err(error(format!("Unsupported chat role: {role:?}"))),
+        })
     }
 
     fn generate(
-        model: &mut Model,
-        drafting: &mut RealizedDrafting<MlxDrafter>,
+        session: &mut Session,
         request: &GenerationRequest,
     ) -> Result<GenerationResult, ProviderError> {
         if request.tx.is_closed() {
@@ -626,119 +567,85 @@ mod imp {
                 memory_forecast: Value::Null,
             });
         }
-        model.reset().map_err(error)?;
-        let aliases = tool_aliases(&request.tools);
+        session.model_mut().reset().map_err(error)?;
         let mut emulated = !request.tools.is_empty()
             && request.settings.tool_calling == ToolCallingMode::ForceEmulated;
-        let prepared = prepare(model, request, &aliases, emulated);
-        let (prepared, bindings) = match prepared {
-            Ok((prepared, bindings))
+        let prepared = session
+            .model_mut()
+            .prepare_typed_chat(prepare(request, emulated)?);
+        let prepared = match prepared {
+            Ok(prepared)
                 if emulated
                     || request.tools.is_empty()
-                    || matches!(prepared.native_tool_support(), NativeToolSupport::Supported) =>
+                    || matches!(
+                        prepared.chat().native_tool_support(),
+                        NativeToolSupport::Supported
+                    ) =>
             {
-                (prepared, bindings)
+                prepared
             }
-            result
-                if !request.tools.is_empty()
-                    && request.settings.tool_calling == ToolCallingMode::Auto =>
-            {
-                let _ = result;
+            Ok(_) if request.settings.tool_calling == ToolCallingMode::Auto => {
                 emulated = true;
-                prepare(model, request, &aliases, true)?
+                session
+                    .model_mut()
+                    .prepare_typed_chat(prepare(request, true)?)
+                    .map_err(error)?
             }
-            Ok((prepared, _)) => {
+            Err(ChatInputPreparationError::Text(TextModelError::UnsupportedCapability(
+                ChatCapabilityRejection::NativeTools(_),
+            ))) if request.settings.tool_calling == ToolCallingMode::Auto => {
+                emulated = true;
+                session
+                    .model_mut()
+                    .prepare_typed_chat(prepare(request, true)?)
+                    .map_err(error)?
+            }
+            Ok(prepared) => {
                 return Err(error(format!(
                     "Native tools unavailable: {:?}",
-                    prepared.native_tool_support()
+                    prepared.chat().native_tool_support()
                 )))
             }
-            Err(err) => return Err(err),
+            Err(err) => return Err(error(err)),
         };
         let started = Instant::now();
-        let (input, count) = if bindings.is_empty() {
-            let tokens = model
-                .encode(prepared.rendered_prompt(), false)
-                .map_err(error)?;
-            let count = model.count_token_ids(&tokens).map_err(error)?;
-            (PreparedChatInput::token_ids(&prepared, tokens), count)
-        } else {
-            let prompt = model
-                .prepare_chat_multimodal_input(&prepared, &bindings)
-                .map_err(error)?;
-            let count = model.count_prepared_input(&prompt).map_err(error)?;
-            (
-                PreparedChatInput::prepared_backend_input(&prepared, prompt),
-                count,
-            )
-        };
-        let input_tokens = usize::try_from(count.model_positions).map_err(error)?;
+        let prepared = session
+            .model()
+            .materialize_chat_input(prepared)
+            .map_err(error)?;
+        let input_tokens = usize::try_from(prepared.count().model_positions).map_err(error)?;
         let settings = generation_settings(request, input_tokens)?;
-        let semantic =
-            !emulated && matches!(prepared.semantic_support(), SemanticSupport::Supported);
-        let mut emitter = Emitter::new(
-            request,
-            aliases,
-            emulated,
-            semantic,
-            prepared.rendered_prompt(),
+        let (chat, payload) = prepared.into_parts();
+        let output_mode = if matches!(chat.semantic_support(), SemanticSupport::Supported) {
+            OutputMode::Semantic
+        } else {
+            OutputMode::Text
+        };
+        let mut emitter = Emitter::new(request, emulated);
+        let generation = EreduGenerationRequest {
+            input: payload.into_input(session.model(), &chat).map_err(error)?,
+            output_mode,
+            settings,
+            caller_stop_sequences: &[],
+            cancellation: request.cancellation.clone(),
+            control_handle: None,
+            on_event: |event| emitter.event(event),
+        };
+        let memory_forecast = forecast_diagnostic(
+            session.forecast_generation(&generation, &GenerationForecastOptions::default()),
         );
-        let forecast_options = GenerationForecastOptions::default();
-        let (output_tokens, timing, draft, memory_forecast) =
-            if let Some(draft) = drafting.as_speculative_draft() {
-                let generation = PreparedChatSpeculativeGenerationRequest {
-                    input,
-                    drafting: draft,
-                    settings,
-                    options: PreparedChatSpeculativeGenerationOptions::default(),
-                    caller_stop_sequences: &[],
-                    cancellation: request.cancellation.clone(),
-                    on_event: |event| emitter.event(event),
-                };
-                let forecast = forecast_diagnostic(
-                    model.forecast_prepared_speculative_generation(&generation, &forecast_options),
-                );
-                let output = if semantic {
-                    model.generate_prepared_chat_speculative(generation)
-                } else {
-                    model.generate_prepared_text_speculative(generation)
-                }
-                .map_err(error)?;
-                let stats = output.stats();
-                let draft = DraftStats {
-                    model: request.settings.draft_model.clone(),
-                    draft_tokens: stats.draft_tokens(),
-                    accepted_tokens: stats.accepted_tokens(),
-                    target_tokens: stats.target_tokens(),
-                    rounds: stats.rounds(),
-                    accept_rate: stats.accept_rate(),
-                };
-                (
-                    output.token_ids.len(),
-                    *output.timing(),
-                    Some(draft),
-                    forecast,
-                )
-            } else {
-                let generation = PreparedChatGenerationRequest {
-                    input,
-                    settings,
-                    caller_stop_sequences: &[],
-                    cancellation: request.cancellation.clone(),
-                    on_event: |event| emitter.event(event),
-                };
-                let forecast = forecast_diagnostic(
-                    model.forecast_prepared_generation(&generation, &forecast_options),
-                );
-                let output = if semantic {
-                    model.generate_prepared_chat(generation)
-                } else {
-                    model.generate_prepared_text(generation)
-                }
-                .map_err(error)?;
-                (output.token_ids.len(), *output.timing(), None, forecast)
-            };
-        emitter.finish()?;
+        let output = session.generate(generation).map_err(error)?;
+        let output_tokens = output.token_ids.len();
+        let timing = *output.timing();
+        let draft = output.stats().drafting.as_ref().map(|stats| DraftStats {
+            model: request.settings.draft_model.clone(),
+            draft_tokens: stats.draft_tokens(),
+            accepted_tokens: stats.accepted_tokens(),
+            target_tokens: stats.target_tokens(),
+            rounds: stats.rounds(),
+            accept_rate: stats.accept_rate(),
+        });
+        emitter.finish();
         Ok(GenerationResult {
             input_tokens,
             output_tokens,
@@ -760,50 +667,25 @@ mod imp {
         }
     }
 
-    struct PendingTool {
-        index: usize,
-        id: String,
-        name: String,
-        arguments: String,
-    }
-
     struct Emitter<'a> {
         request: &'a GenerationRequest,
-        aliases: HashMap<String, String>,
-        tool: Option<PendingTool>,
         emulator: Option<StreamingEmulatorParser>,
-        filter: Option<ThinkingOutputFilter>,
-        failure: Option<ProviderError>,
         emulated_tool_emitted: bool,
     }
 
     impl<'a> Emitter<'a> {
-        fn new(
-            request: &'a GenerationRequest,
-            aliases: HashMap<String, String>,
-            emulated: bool,
-            semantic: bool,
-            prompt: &str,
-        ) -> Self {
+        fn new(request: &'a GenerationRequest, emulated: bool) -> Self {
             Self {
                 request,
-                aliases,
-                tool: None,
                 emulator: emulated.then(|| {
                     StreamingEmulatorParser::new(
                         request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL),
                     )
                 }),
-                filter: (!semantic)
-                    .then(|| ThinkingOutputFilter::new(request.settings.enable_thinking, prompt)),
-                failure: None,
                 emulated_tool_emitted: false,
             }
         }
         fn send(&mut self, mut message: Message) {
-            if self.failure.is_some() {
-                return;
-            }
             message.id = Some(self.request.message_id.clone());
             if self
                 .request
@@ -832,70 +714,28 @@ mod imp {
             }
         }
         fn event(&mut self, event: SemanticEvent) {
-            if self.failure.is_some() {
-                return;
-            }
             match event {
-                SemanticEvent::TextDelta(text) => {
-                    if let Some(filter) = &mut self.filter {
-                        let output = filter.push_text(&text);
-                        if !output.thinking.is_empty() {
-                            self.send(Message::assistant().with_thinking(output.thinking, ""));
-                        }
-                        self.content(&output.content);
-                    } else {
-                        self.content(&text);
-                    }
-                }
+                SemanticEvent::TextDelta(text) => self.content(&text),
                 SemanticEvent::ReasoningDelta(text) if self.request.settings.enable_thinking => {
                     self.send(Message::assistant().with_thinking(text, ""))
                 }
-                SemanticEvent::ToolCallStart { index, id, name } => {
-                    self.tool = Some(PendingTool {
-                        index,
-                        id,
-                        name: self.aliases.get(&name).cloned().unwrap_or(name),
-                        arguments: String::new(),
-                    });
-                }
-                SemanticEvent::ToolArgumentsDelta {
-                    index,
-                    json_fragment,
+                SemanticEvent::ToolCallCompleted {
+                    id,
+                    name,
+                    arguments,
+                    ..
                 } => {
-                    if let Some(tool) = self.tool.as_mut().filter(|tool| tool.index == index) {
-                        tool.arguments.push_str(&json_fragment);
-                    }
-                }
-                SemanticEvent::ToolCallEnd => {
-                    if let Some(tool) = self.tool.take() {
-                        match serde_json::from_str(&tool.arguments) {
-                            Ok(arguments) => self.send(Message::assistant().with_tool_request(
-                                tool.id,
-                                Ok(CallToolRequestParams::new(tool.name).with_arguments(arguments)),
-                            )),
-                            Err(err) => {
-                                self.failure = Some(error(err));
-                                self.request.cancellation.cancel();
-                            }
-                        }
-                    }
+                    self.send(Message::assistant().with_tool_request(
+                        id,
+                        Ok(CallToolRequestParams::new(name).with_arguments(arguments)),
+                    ));
                 }
                 _ => {}
             }
         }
-        fn finish(&mut self) -> Result<(), ProviderError> {
-            if let Some(err) = self.failure.take() {
-                return Err(err);
-            }
+        fn finish(&mut self) {
             if self.request.tx.is_closed() || self.emulated_tool_emitted {
-                return Ok(());
-            }
-            if let Some(filter) = &mut self.filter {
-                let output = filter.finish();
-                if !output.thinking.is_empty() {
-                    self.send(Message::assistant().with_thinking(output.thinking, ""));
-                }
-                self.content(&output.content);
+                return;
             }
             if let Some(parser) = &mut self.emulator {
                 let actions = parser.flush();
@@ -908,7 +748,6 @@ mod imp {
                     }
                 }
             }
-            Ok(())
         }
     }
 
@@ -945,24 +784,23 @@ mod imp {
         #[test]
         fn native_calls_are_published_only_when_completed() {
             let (request, mut rx) = request();
-            let mut emitter = Emitter::new(
-                &request,
-                HashMap::from([("alias".into(), "extension.original".into())]),
-                false,
-                true,
-                "",
-            );
+            let mut emitter = Emitter::new(&request, false);
             emitter.event(SemanticEvent::ToolCallStart {
                 index: 0,
                 id: "call".into(),
-                name: "alias".into(),
+                name: "extension.original".into(),
             });
             emitter.event(SemanticEvent::ToolArgumentsDelta {
                 index: 0,
                 json_fragment: r#"{"command":"pwd"}"#.into(),
             });
             assert!(rx.try_recv().is_err());
-            emitter.event(SemanticEvent::ToolCallEnd);
+            emitter.event(SemanticEvent::ToolCallCompleted {
+                index: 0,
+                id: "call".into(),
+                name: "extension.original".into(),
+                arguments: serde_json::from_str(r#"{"command":"pwd"}"#).unwrap(),
+            });
             let (message, _) = rx.try_recv().unwrap().unwrap();
             let message = message.unwrap();
             let MessageContent::ToolRequest(call) = &message.content[0] else {
@@ -973,14 +811,14 @@ mod imp {
                 call.tool_call.as_ref().unwrap().arguments.as_ref().unwrap()["command"],
                 "pwd"
             );
-            emitter.finish().unwrap();
+            emitter.finish();
             assert!(rx.try_recv().is_err());
         }
 
         #[test]
         fn cancelled_partial_native_call_is_not_executable() {
             let (request, mut rx) = request();
-            let mut emitter = Emitter::new(&request, HashMap::new(), false, true, "");
+            let mut emitter = Emitter::new(&request, false);
             emitter.event(SemanticEvent::ToolCallStart {
                 index: 0,
                 id: "call".into(),
@@ -991,21 +829,8 @@ mod imp {
                 json_fragment: "{\"command\":".into(),
             });
             request.cancellation.cancel();
-            emitter.finish().unwrap();
+            emitter.finish();
             assert!(rx.try_recv().is_err());
-        }
-
-        #[test]
-        fn aliases_do_not_collide_with_advertised_tool_names() {
-            let tools = vec![
-                Tool::new("extension.invalid", "", rmcp::object!({"type":"object"})),
-                Tool::new("goose_tool_0", "", rmcp::object!({"type":"object"})),
-            ];
-            let aliases = tool_aliases(&tools);
-            assert!(aliases.values().any(|name| name == "extension.invalid"));
-            assert!(aliases
-                .keys()
-                .all(|alias| tools.iter().all(|tool| tool.name.as_ref() != alias)));
         }
 
         #[test]
@@ -1046,6 +871,8 @@ mod imp {
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};
     use crate::model::ModelSettings;
     use crate::ResolvedModelPaths;
+    use goose_provider_types::errors::ProviderError;
+    use std::path::Path;
 
     pub(crate) struct EreduBackend;
     impl EreduBackend {
@@ -1060,8 +887,7 @@ mod imp {
                 .into(),
         )
     }
-    pub(crate) fn validate_model_directory(path: &Path) -> Result<(), ProviderError> {
-        validate_snapshot_files(path)?;
+    pub(crate) fn validate_model_directory(_path: &Path) -> Result<(), ProviderError> {
         Err(unavailable())
     }
     impl LocalInferenceBackend for EreduBackend {
