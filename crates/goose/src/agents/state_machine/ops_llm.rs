@@ -56,7 +56,7 @@ fn enrich_unclaimed_tool_errors(messages: &[Message], tools: &[rmcp::model::Tool
                 continue;
             };
             if metadata
-                .remove(super::ops_unknown_tool::UNCLAIMED_TOOL_ERROR)
+                .remove(super::ops_remaining_tool_calls::UNCLAIMED_TOOL_ERROR)
                 .is_none()
             {
                 continue;

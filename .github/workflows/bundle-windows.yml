@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      environment:
+        description: 'GitHub Environment containing signing secrets'
+        required: true
+        type: environment
+        default: signing
       package_cli:
         description: 'Whether to package and upload the CLI artifact'
         required: false
