@@ -576,6 +576,8 @@ impl CliSession {
                 console::style("●").red(),
                 console::style(format!("session closed · {}", self.session_id)).dim()
             );
+        } else {
+            program_status::report(ProgramStatus::Error, None);
         }
 
         result
