@@ -8,9 +8,10 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 use crate::operation::{
-    messages_since_kickoff, unanswered_tool_requests, ConversationEffect, Emitter, Inference,
-    InferenceInput, MachineEffect, Operation, OperationResult, RunStatus, StepResult,
+    messages_since_kickoff, ConversationEffect, Emitter, Inference, InferenceInput, MachineEffect,
+    Operation, OperationResult, RunStatus, StepResult,
 };
+use crate::step_gate::StepGate;
 use goose_provider_types::conversation::message::{Message, MessageContent};
 use goose_provider_types::conversation::Conversation;
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
@@ -36,40 +37,6 @@ pub trait EffectUsage<E>: MaybeSend + MaybeSync {
     fn usage(&self, _effect: &E) -> Option<goose_provider_types::conversation::token_usage::Usage> {
         None
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-type GateCondition<'a, S> = dyn Fn(&S, &Conversation) -> bool + Send + Sync + 'a;
-
-#[cfg(target_arch = "wasm32")]
-type GateCondition<'a, S> = dyn Fn(&S, &Conversation) -> bool + 'a;
-
-pub struct StepGate<'a, S> {
-    name: &'static str,
-    condition: Box<GateCondition<'a, S>>,
-}
-
-impl<'a, S> StepGate<'a, S> {
-    pub fn new(
-        name: &'static str,
-        condition: impl Fn(&S, &Conversation) -> bool + MaybeSend + MaybeSync + 'a,
-    ) -> Self {
-        Self {
-            name,
-            condition: Box::new(condition),
-        }
-    }
-
-    fn is_open(&self, session: &S, conversation: &Conversation) -> bool {
-        (self.condition)(session, conversation)
-    }
-}
-
-pub fn tool_calls_answered<'a, S>() -> StepGate<'a, S> {
-    StepGate::new("tool calls answered", |_session, conversation| {
-        messages_since_kickoff(conversation)
-            .map_or(true, |turn| unanswered_tool_requests(turn).is_empty())
-    })
 }
 
 pub struct Step<'a, S, E = ConversationEffect> {

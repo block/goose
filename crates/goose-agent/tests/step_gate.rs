@@ -3,14 +3,12 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use async_trait::async_trait;
 use goose_agent::{
-    machine::{
-        tool_calls_answered, EffectHandler, MachineSession, SessionLoader, StateMachine, Step,
-        StepGate,
-    },
+    machine::{EffectHandler, MachineSession, SessionLoader, StateMachine, Step},
     operation::{
         applied, not_applicable, yielded, ConversationEffect, Emitter, Inference, InferenceInput,
         Operation, OperationResult,
     },
+    step_gate::{tool_calls_answered, StepGate},
 };
 use goose_provider_types::conversation::{
     message::{Message, TOOL_META_EXTERNAL_DISPATCH_KEY},
