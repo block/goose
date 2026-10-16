@@ -550,6 +550,27 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
   </TabItem>
 </Tabs>
 
+### Custom Model Prices
+
+Each model in a custom provider's JSON file can declare prices in USD **per token**:
+
+```json
+{
+  "name": "my-model",
+  "input_token_cost": 0.00000242,
+  "output_token_cost": 0.00001,
+  "cache_read_token_cost": 0.000000242,
+  "cache_write_token_cost": 0.000003025
+}
+```
+
+Each price is independently optional. A declared price, including `0`, overrides
+that model's catalog rate. Omitted prices use catalog rates when available;
+missing cache rates otherwise fall back to the resolved input price. Declaring
+both input and output prices as `0` keeps the model free unless you explicitly
+set a cache price. goose can estimate a cost only when both input and output
+prices can be resolved. Provider-reported costs take precedence over estimates.
+
 ### Command-Based Authentication
 
 Instead of a static `api_key_env`, a custom provider can be configured to run a command to obtain its credential. This is useful for short-lived credentials issued by an IdP or key vault: goose re-runs the command to refresh the credential instead of requiring a restart when it expires.
