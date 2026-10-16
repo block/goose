@@ -314,9 +314,9 @@ impl McpClientTrait for CodeExecutionClient {
         };
         Ok(match result {
             Ok(content) => CallToolResult::success(content),
-            Err(error) => {
-                CallToolResult::error(vec![ContentBlock::text(format!("Error: {error}"))])
-            }
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(javascript::limit_error(
+                format!("Error: {error}"),
+            ))]),
         })
     }
 

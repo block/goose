@@ -30,6 +30,19 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const OUTPUT_LIMIT: usize = 1_000_000;
 const OUTPUT_LIMIT_ERROR: &str =
     "Output limit exceeded; return or log only information needed for the next step";
+const ERROR_TRUNCATED: &str = "\n[Error truncated: output limit exceeded]";
+
+pub(super) fn limit_error(mut error: String) -> String {
+    if error.len() > OUTPUT_LIMIT {
+        let mut end = OUTPUT_LIMIT - ERROR_TRUNCATED.len();
+        while !error.is_char_boundary(end) {
+            end -= 1;
+        }
+        error.truncate(end);
+        error.push_str(ERROR_TRUNCATED);
+    }
+    error
+}
 
 #[derive(Default)]
 struct Output(Vec<u8>);
@@ -380,7 +393,7 @@ pub(super) async fn execute(
         result = &mut receiver => result.map_err(|e| format!("JavaScript worker failed: {e}"))?,
     };
     drop(cancel_on_drop);
-    result
+    result.map_err(limit_error)
 }
 #[cfg(test)]
 mod tests {
@@ -597,6 +610,43 @@ mod tests {
         assert_eq!(
             run("async function run() { return 42; }").await.unwrap(),
             "Result: 42"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejected_values_and_callback_errors_are_bounded() {
+        for body in [
+            "throw new Error('xxxxxxxxxxxxxxxx'.repeat(62500));",
+            "throw 'xxxxxxxxxxxxxxxx'.repeat(62500);",
+            "await Promise.reject(new Error('\u{20ac}\u{20ac}\u{20ac}\u{20ac}\u{20ac}'.repeat(70000)));",
+        ] {
+            let error = execute(
+                format!("async function run() {{ {body} }}"),
+                echo(),
+                Duration::from_secs(5),
+                CancellationToken::new(),
+                CancellationToken::new(),
+            ).await.unwrap_err();
+            assert!(error.len() <= OUTPUT_LIMIT);
+            assert!(error.ends_with(ERROR_TRUNCATED));
+        }
+        let callback: ToolCallback =
+            Arc::new(|_, _| Box::pin(async { Err("server error ".repeat(100_000)) }));
+        let error = execute(
+            "async function run() { await tools.call('example__fail', {}); }".into(),
+            callback,
+            Duration::from_secs(5),
+            CancellationToken::new(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.len() <= OUTPUT_LIMIT);
+        assert!(error.contains("example__fail"));
+        assert!(error.ends_with(ERROR_TRUNCATED));
+        assert_eq!(
+            run("async function run() { return 7; }").await.unwrap(),
+            "Result: 7"
         );
     }
 
