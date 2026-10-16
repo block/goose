@@ -1,7 +1,7 @@
 //! Tool call emulation for models without native tool-calling support.
 //!
 //! The model is prompted to emit shell commands as `$ command` on a new line and
-//! code blocks as `` ```execute_typescript `` fenced blocks. A streaming parser detects these
+//! code blocks as `` ```execute_javascript `` fenced blocks. A streaming parser detects these
 //! patterns and converts them into tool-call messages.
 //!
 //! # Known false-positive scenarios
@@ -13,7 +13,7 @@
 //!   a shell command. Mid-sentence `$` (e.g. "costs $50") is safe — only `\n$` or
 //!   `$` at the very start of output triggers command detection.
 //!
-//! - **`` ```execute_typescript `` as a top-level explanatory fence.** If the model
+//! - **`` ```execute_javascript `` as a top-level explanatory fence.** If the model
 //!   uses this exact fence tag in prose, the content will be executed. Nested Markdown
 //!   examples and fences with other info strings remain text.
 //!
@@ -34,7 +34,7 @@ use super::inference_engine::{
 use crate::tool_emulation::{EmulatorAction, StreamingEmulatorParser};
 
 const SHELL_TOOL: &str = "developer__shell";
-const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+const CODE_EXECUTION_TOOL: &str = "execute_javascript";
 
 pub(super) fn load_tiny_model_prompt() -> String {
     use std::env;
@@ -74,52 +74,29 @@ pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     if code_mode_enabled {
         tool_desc.push_str("\n\n# Running Code\n\n");
         tool_desc.push_str(
-            "You can call tools by writing code in a ```execute block. \
+            "You can call tools by writing code in a ```execute_javascript block. \
              The code runs immediately — do not explain it, just run it.\n\n",
         );
         tool_desc.push_str("Example — counting files in /tmp:\n\n");
-        tool_desc.push_str("```execute_typescript\nasync function run() {\n");
+        tool_desc.push_str("```execute_javascript\nasync function run() {\n");
         tool_desc.push_str(
-            "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
+            "  const result = await tools.call(\"shell\", { command: \"ls -1 /tmp | wc -l\" });\n",
         );
         tool_desc.push_str("  return result;\n}\n```\n\n");
         tool_desc.push_str("Rules:\n");
         tool_desc.push_str("- Code MUST define async function run() and return a result\n");
-        tool_desc.push_str("- All function calls are async — use await\n");
-        tool_desc.push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
+        tool_desc.push_str("- All function calls are async — use await; batch independent calls with Promise.all\n- Discover exact names with list_functions and inspect schemas with get_function_details\n");
+        tool_desc.push_str(
+            "- Use ```execute_javascript for tool calls, $ for simple shell one-liners\n\n",
+        );
         tool_desc.push_str("Available functions:\n\n");
 
         for tool in tools {
             if tool.name.starts_with("code_execution__") {
                 continue;
             }
-            let parts: Vec<&str> = tool.name.splitn(2, "__").collect();
-            if parts.len() == 2 {
-                let namespace = {
-                    let mut c = parts[0].chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(first) => first.to_uppercase().chain(c).collect::<String>(),
-                    }
-                };
-                let camel_name: String = parts[1]
-                    .split('_')
-                    .enumerate()
-                    .map(|(i, part)| {
-                        if i == 0 {
-                            part.to_string()
-                        } else {
-                            let mut c = part.chars();
-                            match c.next() {
-                                None => String::new(),
-                                Some(first) => first.to_uppercase().chain(c).collect(),
-                            }
-                        }
-                    })
-                    .collect();
-                let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("");
-                tool_desc.push_str(&format!("- {namespace}.{camel_name}(): {desc}\n"));
-            }
+            let desc = tool.description.as_deref().unwrap_or("");
+            tool_desc.push_str(&format!("- {}: {desc}\n", tool.name));
         }
     } else {
         tool_desc.push_str("\n\n# Tools\n\nYou have access to the following tools:\n\n");

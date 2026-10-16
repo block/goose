@@ -1,7 +1,7 @@
 //! Shared text-based tool call emulation for local inference backends.
 //!
 //! Models that do not have native tool-calling support are prompted to emit shell commands
-//! as `$ command` on a new line and code blocks as ```execute_typescript fenced blocks.
+//! as `$ command` on a new line and code blocks as ```execute_javascript fenced blocks.
 //! The parser converts those patterns into Goose tool-call messages.
 
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
@@ -20,7 +20,7 @@ use uuid::Uuid;
 #[cfg(feature = "mlx")]
 pub(crate) const SHELL_TOOL: &str = "developer__shell";
 #[cfg(feature = "mlx")]
-pub(crate) const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+pub(crate) const CODE_EXECUTION_TOOL: &str = "execute_javascript";
 
 #[cfg(feature = "mlx")]
 pub(crate) fn load_tiny_model_prompt() -> String {
@@ -62,20 +62,20 @@ pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     if code_mode_enabled {
         tool_desc.push_str("\n\n# Running Code\n\n");
         tool_desc.push_str(
-            "You can call tools by writing code in a ```execute_typescript block. \
+            "You can call tools by writing code in a ```execute_javascript block. \
              The code runs immediately — do not explain it, just run it.\n\n",
         );
         tool_desc.push_str("Example — counting files in /tmp:\n\n");
-        tool_desc.push_str("```execute_typescript\nasync function run() {\n");
+        tool_desc.push_str("```execute_javascript\nasync function run() {\n");
         tool_desc.push_str(
-            "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
+            "  const result = await tools.call(\"shell\", { command: \"ls -1 /tmp | wc -l\" });\n",
         );
         tool_desc.push_str("  return result;\n}\n```\n\n");
         tool_desc.push_str("Rules:\n");
         tool_desc.push_str("- Code MUST define async function run() and return a result\n");
-        tool_desc.push_str("- All function calls are async — use await\n");
+        tool_desc.push_str("- All function calls are async — use await; batch independent calls with Promise.all\n- Discover exact names with list_functions and inspect schemas with get_function_details\n");
         tool_desc.push_str(
-            "- Use ```execute_typescript for tool calls, $ for simple shell one-liners\n\n",
+            "- Use ```execute_javascript for tool calls, $ for simple shell one-liners\n\n",
         );
         tool_desc.push_str("Available functions:\n\n");
 
@@ -83,33 +83,8 @@ pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
             if tool.name.starts_with("code_execution__") {
                 continue;
             }
-            let parts: Vec<&str> = tool.name.splitn(2, "__").collect();
-            if parts.len() == 2 {
-                let namespace = {
-                    let mut c = parts[0].chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(first) => first.to_uppercase().chain(c).collect::<String>(),
-                    }
-                };
-                let camel_name: String = parts[1]
-                    .split('_')
-                    .enumerate()
-                    .map(|(i, part)| {
-                        if i == 0 {
-                            part.to_string()
-                        } else {
-                            let mut c = part.chars();
-                            match c.next() {
-                                None => String::new(),
-                                Some(first) => first.to_uppercase().chain(c).collect(),
-                            }
-                        }
-                    })
-                    .collect();
-                let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("");
-                tool_desc.push_str(&format!("- {namespace}.{camel_name}(): {desc}\n"));
-            }
+            let desc = tool.description.as_deref().unwrap_or("");
+            tool_desc.push_str(&format!("- {}: {desc}\n", tool.name));
         }
     } else {
         tool_desc.push_str("\n\n# Tools\n\nYou have access to the following tools:\n\n");
@@ -166,7 +141,7 @@ fn execute_fence_len(line: &str) -> Option<usize> {
 
     rest.get(fence_len..)?
         .trim_matches([' ', '\t'])
-        .eq("execute_typescript")
+        .eq("execute_javascript")
         .then_some(fence_len)
 }
 
@@ -197,7 +172,7 @@ fn is_top_level_execute_fence(markdown: &str, line_start: usize) -> bool {
                     && matches!(
                         tag,
                         Tag::CodeBlock(CodeBlockKind::Fenced(ref info))
-                            if info.as_ref() == "execute_typescript"
+                            if info.as_ref() == "execute_javascript"
                     )
                 {
                     return true;
@@ -604,7 +579,7 @@ mod tests {
 
     #[test]
     fn top_level_execute_block_after_text_is_detected() {
-        let input = "Here's the code:\n```execute_typescript\nconsole.log('hi');\n```\n";
+        let input = "Here's the code:\n```execute_javascript\nconsole.log('hi');\n```\n";
         let actions = parse_all(input, true);
 
         assert_eq!(text(&actions), "Here's the code:\n");
@@ -613,7 +588,7 @@ mod tests {
 
     #[test]
     fn execute_fence_can_be_split_across_chunks() {
-        let input = "```execute_typescript\nlet x = 1;\n```\n";
+        let input = "```execute_javascript\nlet x = 1;\n```\n";
         let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
         let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
         let actions = parse_chunks(&chunk_refs, true);
@@ -623,7 +598,7 @@ mod tests {
 
     #[test]
     fn execute_blocks_are_disabled_without_code_mode() {
-        let input = "```execute_typescript\nlet x = 1;\n```\n";
+        let input = "```execute_javascript\nlet x = 1;\n```\n";
         let actions = parse_all(input, false);
 
         assert_eq!(text(&actions), input);
@@ -633,11 +608,11 @@ mod tests {
     #[test]
     fn nested_execute_fences_remain_text() {
         let cases = [
-            "````markdown\n```execute_typescript\ninert();\n```\n````\n",
-            "~~~markdown\n```execute_typescript\ninert();\n```\n~~~\n",
-            "> ```execute_typescript\n> inert();\n> ```\n",
-            "- ```execute_typescript\n  inert();\n  ```\n",
-            "<div>\n```execute_typescript\ninert();\n```\n\n",
+            "````markdown\n```execute_javascript\ninert();\n```\n````\n",
+            "~~~markdown\n```execute_javascript\ninert();\n```\n~~~\n",
+            "> ```execute_javascript\n> inert();\n> ```\n",
+            "- ```execute_javascript\n  inert();\n  ```\n",
+            "<div>\n```execute_javascript\ninert();\n```\n\n",
         ];
 
         for input in cases {
@@ -649,16 +624,16 @@ mod tests {
 
     #[test]
     fn invalid_fence_info_does_not_hide_following_execute() {
-        let input = "```execute_typescript```\n```execute_typescript\nsafe();\n```\n";
+        let input = "```execute_javascript```\n```execute_javascript\nsafe();\n```\n";
         let actions = parse_all(input, true);
 
         assert_eq!(execute_blocks(&actions), ["safe();"]);
-        assert!(text(&actions).contains("```execute_typescript```"));
+        assert!(text(&actions).contains("```execute_javascript```"));
     }
 
     #[test]
     fn longer_execute_fence_requires_matching_close() {
-        let input = "````execute_typescript\nlet before = 1;\n```\nlet after = 2;\n````\n";
+        let input = "````execute_javascript\nlet before = 1;\n```\nlet after = 2;\n````\n";
         let actions = parse_all(input, true);
 
         assert_eq!(
@@ -672,7 +647,7 @@ mod tests {
         let mut parser = StreamingEmulatorParser::new(true);
 
         assert!(parser
-            .process_chunk("```execute_typescript\nlet x = 1;\n```")
+            .process_chunk("```execute_javascript\nlet x = 1;\n```")
             .iter()
             .all(|action| !matches!(action, EmulatorAction::ExecuteCode(_))));
         assert!(parser
@@ -686,7 +661,7 @@ mod tests {
 
     #[test]
     fn unicode_whitespace_does_not_close_execute_fence() {
-        let input = "```execute_typescript\nlet before = 1;\n```\u{a0}\nlet after = 2;\n```\n";
+        let input = "```execute_javascript\nlet before = 1;\n```\u{a0}\nlet after = 2;\n```\n";
         let actions = parse_all(input, true);
 
         assert_eq!(
@@ -713,8 +688,8 @@ mod tests {
     #[test]
     fn eof_flushes_closed_and_unclosed_execute_blocks() {
         for (input, expected) in [
-            ("```execute_typescript\nsafe();\n```", "safe();"),
-            ("```execute_typescript\nsafe();", "safe();"),
+            ("```execute_javascript\nsafe();\n```", "safe();"),
+            ("```execute_javascript\nsafe();", "safe();"),
         ] {
             let actions = parse_all(input, true);
             assert_eq!(execute_blocks(&actions), [expected]);
@@ -723,9 +698,9 @@ mod tests {
 
     #[cfg(feature = "mlx")]
     #[test]
-    fn tool_description_uses_execute_typescript_fence() {
+    fn tool_description_uses_execute_javascript_fence() {
         let description = build_emulator_tool_description(&[], true);
 
-        assert!(description.contains("```execute_typescript"));
+        assert!(description.contains("```execute_javascript"));
     }
 }

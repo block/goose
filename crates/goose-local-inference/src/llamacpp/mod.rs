@@ -28,7 +28,7 @@ use goose_provider_types::formats::openai::format_tools;
 
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 
-const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+const CODE_EXECUTION_TOOL: &str = "execute_javascript";
 
 pub(super) fn builtin_chat_template_names() -> Vec<String> {
     let count = unsafe { llama_cpp_sys_2::llama_chat_builtin_templates(std::ptr::null_mut(), 0) };
