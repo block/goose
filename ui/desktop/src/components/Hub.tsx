@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useLocation } from 'react-router';
 import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
@@ -53,15 +54,15 @@ export default function Hub({
   setView,
   draftRef,
   liveVoice,
-  initialWorkingDir,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   /** Unsent input of this screen, kept above the route outlet across the unmount. */
   draftRef: RefObject<string>;
   liveVoice: LiveVoiceController;
-  initialWorkingDir?: string;
 }) {
   const intl = useIntl();
+  const { state } = useLocation();
+  const initialWorkingDir = (state as { workingDir?: string } | null)?.workingDir;
   const { extensionsList } = useConfig();
   const [workingDir, setWorkingDir] = useState(initialWorkingDir ?? getInitialWorkingDir());
   const userSelectedWorkingDirRef = useRef(false);

@@ -3,6 +3,7 @@
  */
 import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import Hub from './Hub';
 import { IntlTestWrapper } from '../i18n/test-utils';
 import { createSession } from '../sessions';
@@ -90,12 +91,9 @@ function pendingSession() {
 function renderHub(draftRef: { current: string }, setView = vi.fn(), initialWorkingDir?: string) {
   return render(
     <IntlTestWrapper>
-      <Hub
-        setView={setView}
-        draftRef={draftRef}
-        liveVoice={liveVoice}
-        initialWorkingDir={initialWorkingDir}
-      />
+      <MemoryRouter initialEntries={[{ pathname: '/', state: { workingDir: initialWorkingDir } }]}>
+        <Hub setView={setView} draftRef={draftRef} liveVoice={liveVoice} />
+      </MemoryRouter>
     </IntlTestWrapper>
   );
 }
@@ -117,20 +115,22 @@ describe('Hub', () => {
     vi.mocked(subscribeToAcpRecovery).mockReturnValue(() => undefined);
   });
 
-  it('starts in the inherited folder and lets an explicit selection override it', async () => {
-    vi.mocked(createSession).mockResolvedValue({ id: 'session-1' } as Session);
-    const hub = renderHub({ current: '' }, vi.fn(), '/projects/website');
+  it.each([undefined, '/projects/payments'])(
+    'starts in the inherited folder unless another folder is selected (%s)',
+    async (selectedDir) => {
+      vi.mocked(createSession).mockResolvedValue({ id: 'session-1' } as Session);
+      renderHub({ current: '' }, vi.fn(), '/projects/website');
 
-    await waitFor(() => expect(captured.chatInput?.workingDir).toBe('/projects/website'));
-    await submit();
-    expect(createSession).toHaveBeenLastCalledWith('/projects/website', { allExtensions: [] });
-    hub.unmount();
-
-    renderHub({ current: '' }, vi.fn(), '/projects/website');
-    await act(async () => captured.chatInput?.onWorkingDirChange('/projects/payments'));
-    await submit();
-    expect(createSession).toHaveBeenLastCalledWith('/projects/payments', { allExtensions: [] });
-  });
+      await waitFor(() => expect(captured.chatInput?.workingDir).toBe('/projects/website'));
+      if (selectedDir) {
+        await act(async () => captured.chatInput?.onWorkingDirChange(selectedDir));
+      }
+      await submit();
+      expect(createSession).toHaveBeenCalledWith(selectedDir ?? '/projects/website', {
+        allExtensions: [],
+      });
+    }
+  );
 
   it('requests Live voice availability again after ACP recovers', async () => {
     let recoveryChanged: ((recovering: boolean) => void) | undefined;

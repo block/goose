@@ -73,16 +73,7 @@ const HubRouteWrapper = ({
   liveVoice: LiveVoiceController;
 }) => {
   const setView = useNavigation();
-  const location = useLocation();
-  const { workingDir } = (location.state as { workingDir?: string } | null) ?? {};
-  return (
-    <Hub
-      setView={setView}
-      draftRef={draftRef}
-      liveVoice={liveVoice}
-      initialWorkingDir={workingDir}
-    />
-  );
+  return <Hub setView={setView} draftRef={draftRef} liveVoice={liveVoice} />;
 };
 
 export function resolveSessionInitialMessage(
