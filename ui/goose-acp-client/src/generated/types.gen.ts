@@ -2493,6 +2493,7 @@ export type LocalInferenceChatTemplate = {
  * Download a model for local inference.
  */
 export type LocalInferenceModelDownloadRequest_unstable = {
+    format?: string | null;
     spec: string;
     backendId?: string | null;
     variantId?: string | null;
@@ -2554,6 +2555,8 @@ export type LocalInferenceModelSettingsReadRequest_unstable = {
 };
 
 export type LocalInferenceModelSettingsReadResponse_unstable = {
+    availableBackends?: Array<string>;
+    defaultBackend?: string;
     settings: LocalInferenceModelSettingsDto;
 };
 
