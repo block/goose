@@ -1,7 +1,6 @@
 # Building goose for RISC-V (riscv64gc-unknown-linux-gnu)
 
 This document describes how to build goose-cli for RISC-V 64-bit systems.
-Code mode uses Boa and needs no platform-specific runtime patches.
 
 > [!WARNING]
 > This is an experimental, community-contributed build process. RISC-V is not
@@ -32,8 +31,7 @@ linker = "riscv64-linux-gnu-gcc"
 ```
 
 Adjust the binary name if your distribution ships the cross gcc under a
-different name. Run `bash scripts/setup-riscv.sh` to check for the linker and
-print the build command.
+different name.
 
 ## Build
 
