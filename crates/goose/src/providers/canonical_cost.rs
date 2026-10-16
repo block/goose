@@ -87,8 +87,9 @@ pub(crate) fn resolve_pricing(provider: &str, model: &str) -> Option<Pricing> {
 }
 
 /// [`ModelInfo`] for a pricing-declared model — custom provider config file
-/// first, then bundled definitions. Any declared rate qualifies; missing rates
-/// are resolved from lower-priority sources before estimating the cost.
+/// first, then bundled definitions. Only models declaring both input and
+/// output prices qualify: partial pricing cannot be estimated correctly
+/// without silently pricing one direction at zero.
 pub(crate) fn configured_model_info(provider: &str, model: &str) -> Option<ModelInfo> {
     custom_file_model_info(provider, model).or_else(|| bundled_model_info(provider, model))
 }
@@ -115,46 +116,32 @@ fn currency_symbol(declared: &str) -> String {
 }
 
 /// Merge user-declared pricing with registry/bundled pricing: declared
-/// rates win independently; registry/bundled rates fill any omitted fields.
+/// input/output and supplied cache prices win; canonical cache rates fill gaps.
 fn merge_pricing(mut declared: Pricing, base: &Pricing) -> Pricing {
     // A declared zero price means "free here": registry cache rates must not
     // reintroduce cost for cached tokens.
     if matches!(declared.input, Some(0.0)) && matches!(declared.output, Some(0.0)) {
         return declared;
     }
-    declared.tiers = base.tiers.clone();
-    for tier in &mut declared.tiers {
-        tier.input = declared.input.or(tier.input);
-        tier.output = declared.output.or(tier.output);
-        tier.cache_read = declared.cache_read.or(tier.cache_read);
-        tier.cache_write = declared.cache_write.or(tier.cache_write);
+    if declared.cache_read.is_none() {
+        declared.cache_read = base.cache_read;
     }
-    declared.input = declared.input.or(base.input);
-    declared.output = declared.output.or(base.output);
-    declared.cache_read = declared.cache_read.or(base.cache_read);
-    declared.cache_write = declared.cache_write.or(base.cache_write);
+    if declared.cache_write.is_none() {
+        declared.cache_write = base.cache_write;
+    }
     declared
 }
 
 /// Convert a declarative [`ModelInfo`]'s per-token USD costs into canonical
 /// [`Pricing`] (per-million-token USD).
 fn pricing_from_model_info(info: &ModelInfo) -> Option<Pricing> {
-    let pricing = Pricing {
-        input: info.input_token_cost.map(|c| c * 1_000_000.0),
-        output: info.output_token_cost.map(|c| c * 1_000_000.0),
+    Some(Pricing {
+        input: Some(info.input_token_cost.map(|c| c * 1_000_000.0)?),
+        output: Some(info.output_token_cost.map(|c| c * 1_000_000.0)?),
         cache_read: info.cache_read_token_cost.map(|c| c * 1_000_000.0),
         cache_write: info.cache_write_token_cost.map(|c| c * 1_000_000.0),
         tiers: Vec::new(),
-    };
-    [
-        pricing.input,
-        pricing.output,
-        pricing.cache_read,
-        pricing.cache_write,
-    ]
-    .iter()
-    .any(Option::is_some)
-    .then_some(pricing)
+    })
 }
 
 /// Read the custom provider config file for `provider` from disk. Reads are
@@ -178,7 +165,7 @@ fn custom_file_model_info(provider: &str, model: &str) -> Option<ModelInfo> {
             return None;
         }
     };
-    pricing_model(&config, model)
+    full_pricing_model(&config, model)
 }
 
 /// Bundled declarative provider definitions are embedded and immutable, so
@@ -189,7 +176,7 @@ fn bundled_model_info(provider: &str, model: &str) -> Option<ModelInfo> {
     configs
         .iter()
         .find(|config| config.name == provider)
-        .and_then(|config| pricing_model(config, model))
+        .and_then(|config| full_pricing_model(config, model))
 }
 
 /// A registry price that is unset or zero provides no usable rate signal
@@ -198,12 +185,12 @@ fn is_price_gap(price: Option<f64>) -> bool {
     matches!(price, None | Some(0.0))
 }
 
-fn pricing_model(config: &DeclarativeProviderConfig, model: &str) -> Option<ModelInfo> {
+fn full_pricing_model(config: &DeclarativeProviderConfig, model: &str) -> Option<ModelInfo> {
     config
         .models
         .iter()
         .find(|m| m.name == model)
-        .filter(|info| pricing_from_model_info(info).is_some())
+        .filter(|info| info.input_token_cost.is_some() && info.output_token_cost.is_some())
         .cloned()
 }
 
@@ -294,37 +281,6 @@ mod tests {
     fn pricing_from_model_info_returns_none_without_prices() {
         let info = ModelInfo::new("m").with_context_limit(1_000);
         assert!(pricing_from_model_info(&info).is_none());
-    }
-
-    #[test]
-    fn partial_overrides_preserve_unmodified_long_context_rates() {
-        let base = Pricing {
-            input: Some(2.0),
-            output: Some(6.0),
-            cache_read: Some(0.2),
-            cache_write: Some(2.5),
-            tiers: vec![goose_providers::canonical::PricingTier {
-                above_input_tokens: 100_000,
-                input: Some(4.0),
-                output: Some(12.0),
-                cache_read: Some(0.4),
-                cache_write: Some(5.0),
-            }],
-        };
-        for (input, expected) in [(None, 14.11), (Some(1.0), 12.91)] {
-            let pricing = merge_pricing(
-                Pricing {
-                    input,
-                    cache_read: Some(0.1),
-                    ..Default::default()
-                },
-                &base,
-            );
-            let usage = usage(Some(600_000), Some(1_000_000), None)
-                .with_cache_tokens(Some(100_000), Some(100_000));
-            let cost = pricing.estimate_cost(&usage).unwrap();
-            assert!((cost - expected).abs() < 1e-9, "got {cost}");
-        }
     }
 
     #[test]

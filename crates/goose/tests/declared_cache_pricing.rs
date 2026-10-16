@@ -4,7 +4,7 @@ use goose_providers::conversation::token_usage::Usage;
 use serde_json::json;
 
 #[test]
-fn custom_prices_override_catalog_rates_independently() {
+fn custom_cache_prices_require_input_and_output_prices() {
     let root = tempfile::tempdir().unwrap();
     let root_path = root.path().to_str().unwrap();
     let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path))]);
@@ -15,16 +15,36 @@ fn custom_prices_override_catalog_rates_independently() {
 
     for (prices, expected) in [
         (json!({}), 12.25),
-        (json!({"input_token_cost": 0.000001}), 11.05),
-        (json!({"output_token_cost": 0.000004}), 6.25),
+        (
+            json!({"input_token_cost": 0.000001, "currency": "EUR",
+                 "cache_read_token_cost": 0.0000002}),
+            12.25,
+        ),
+        (json!({"output_token_cost": 0.000004}), 12.25),
         (
             json!({"input_token_cost": 0.000001, "output_token_cost": 0.000004}),
             5.05,
         ),
-        (json!({"cache_read_token_cost": 0.0000002}), 12.04),
-        (json!({"cache_write_token_cost": 0.000003}), 12.4),
-        (json!({"cache_read_token_cost": 0.0}), 12.0),
-        (json!({"cache_write_token_cost": 0.0}), 11.5),
+        (
+            json!({"input_token_cost": 0.000001, "output_token_cost": 0.000004,
+                 "cache_read_token_cost": 0.0000002}),
+            4.84,
+        ),
+        (
+            json!({"input_token_cost": 0.000001, "output_token_cost": 0.000004,
+                 "cache_write_token_cost": 0.000003}),
+            5.65,
+        ),
+        (
+            json!({"input_token_cost": 0.000001, "output_token_cost": 0.000004,
+                 "cache_read_token_cost": 0.0}),
+            4.8,
+        ),
+        (
+            json!({"input_token_cost": 0.000001, "output_token_cost": 0.000004,
+                 "cache_write_token_cost": 0.0}),
+            4.75,
+        ),
         (
             json!({"input_token_cost": 0.0, "output_token_cost": 0.0}),
             0.0,

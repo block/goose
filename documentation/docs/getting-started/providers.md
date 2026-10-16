@@ -564,12 +564,15 @@ Each model in a custom provider's JSON file can declare prices in USD **per toke
 }
 ```
 
-Each price is independently optional. A declared price, including `0`, overrides
-that model's catalog rate. Omitted prices use catalog rates when available;
-missing cache rates otherwise fall back to the resolved input price. Declaring
-both input and output prices as `0` keeps the model free unless you explicitly
-set a cache price. goose can estimate a cost only when both input and output
-prices can be resolved. Provider-reported costs take precedence over estimates.
+Both `input_token_cost` and `output_token_cost` must be present for goose to
+use a model's configured pricing. If either is missing, goose falls back to
+catalog pricing for the model.
+
+Cache-read and cache-write prices are independently optional. Supplied cache
+prices, including `0`, override catalog cache rates. Omitted cache prices use
+catalog cache rates when available, otherwise the input price. Declaring both
+input and output prices as `0` keeps the model free unless you explicitly set
+a cache price. Provider-reported costs take precedence over estimates.
 
 ### Command-Based Authentication
 
