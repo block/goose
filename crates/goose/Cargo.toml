@@ -263,9 +263,9 @@ subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "minwinbase", "sddl", "securitybaseapi", "winbase", "winerror"] }
+winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "jobapi2", "minwinbase", "processthreadsapi", "sddl", "securitybaseapi", "synchapi", "winbase", "winerror"] }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
-ntapi = { version = "0.4.3", default-features = false }
+ntapi = { version = "0.4.3", default-features = false, features = ["user"] }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]
