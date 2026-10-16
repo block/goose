@@ -13,6 +13,7 @@ use std::{
     cell::RefCell,
     collections::{HashSet, VecDeque},
     future::Future,
+    io::{self, Write},
     pin::Pin,
     rc::Rc,
     sync::Arc,
@@ -24,12 +25,32 @@ pub(super) type ToolFuture = Pin<Box<dyn Future<Output = Result<Value, String>> 
 pub(super) type ToolCallback = Arc<dyn Fn(String, Value) -> ToolFuture + Send + Sync>;
 
 const INSTRUCTION_LIMIT: usize = 2_000_000;
-const DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+pub(super) const DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const OUTPUT_LIMIT: usize = 1_000_000;
+const OUTPUT_LIMIT_ERROR: &str =
+    "Output limit exceeded; return or log only information needed for the next step";
+
+#[derive(Default)]
+struct Output(Vec<u8>);
+
+impl Write for Output {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > OUTPUT_LIMIT - self.0.len() {
+            return Err(io::Error::other(OUTPUT_LIMIT_ERROR));
+        }
+        self.0.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 struct HostState {
     callback: ToolCallback,
-    output: String,
+    output: Output,
 }
 
 #[derive(Default)]
@@ -167,17 +188,12 @@ fn console(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsV
     let mut state = context
         .remove_data::<HostState>()
         .expect("worker host state");
-    if state.output.len() + line.len() + 1 > OUTPUT_LIMIT {
-        context.insert_data(*state);
-        return Err(JsNativeError::range()
-            .with_message(
-                "Console output limit exceeded; log only information needed for the next step",
-            )
-            .into());
-    }
-    state.output.push_str(&line);
-    state.output.push('\n');
+    let result = state
+        .output
+        .write_all(line.as_bytes())
+        .and_then(|()| state.output.write_all(b"\n"));
     context.insert_data(*state);
+    result.map_err(|_| JsNativeError::range().with_message(OUTPUT_LIMIT_ERROR))?;
     Ok(JsValue::undefined())
 }
 
@@ -202,7 +218,7 @@ async fn evaluate(
     context.runtime_limits_mut().set_recursion_limit(128);
     context.insert_data(HostState {
         callback,
-        output: String::new(),
+        output: Output::default(),
     });
     let tools = ObjectInitializer::new(&mut context)
         .function(
@@ -276,16 +292,19 @@ async fn evaluate(
                             "Unsupported JavaScript return value; return JSON or undefined: {e}"
                         )
                         })?;
-                        let mut output = context
-                            .get_data::<HostState>()
-                            .expect("worker host state")
-                            .output
-                            .clone();
+                        let mut state = context
+                            .remove_data::<HostState>()
+                            .expect("worker host state");
+                        let mut output = std::mem::take(&mut state.output);
+                        context.insert_data(*state);
                         if let Some(result) = result {
-                            output.push_str("Result: ");
-                            output.push_str(&result.to_string());
+                            output
+                                .write_all(b"Result: ")
+                                .map_err(|_| OUTPUT_LIMIT_ERROR)?;
+                            serde_json::to_writer(&mut output, &result)
+                                .map_err(|_| OUTPUT_LIMIT_ERROR)?;
                         }
-                        return Ok(output);
+                        return String::from_utf8(output.0).map_err(|e| e.to_string());
                     }
                 }
             }
@@ -348,13 +367,14 @@ pub(super) async fn execute(
         _ = cancellation.cancelled() => {
             dispatch.cancel();
             stop_worker.cancel();
-            let _ = receiver.await;
+            // Synchronous Boa work may not yield; do not wait indefinitely for it.
+            let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, receiver).await;
             Err("Execution cancelled".into())
         }
         _ = tokio::time::sleep(timeout) => {
             dispatch.cancel();
             stop_worker.cancel();
-            let _ = receiver.await;
+            let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, receiver).await;
             Err(format!("Execution timed out after {} seconds", timeout.as_secs_f64()))
         }
         result = &mut receiver => result.map_err(|e| format!("JavaScript worker failed: {e}"))?,
@@ -535,6 +555,103 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn output_limit_includes_serialized_results_and_console_output() {
+        for body in [
+            "return 'xxxxxxxxxxxxxxxx'.repeat(62500);",
+            "console.log('xxxxxxxxxxxxxxxx'.repeat(62500));",
+            "console.log('xxxxxxxxxxxxxxxx'.repeat(37500)); return 'yyyyyyyyyyyyyyyy'.repeat(37500);",
+            "return ['xxxxxxxxxxxxxxxx'.repeat(37500), 'yyyyyyyyyyyyyyyy'.repeat(37500)];",
+            "return '\\u0000\\u0000\\u0000\\u0000'.repeat(50000);",
+            "return '\\u20ac\\u20ac\\u20ac\\u20ac\\u20ac'.repeat(70000);",
+        ] {
+            let error = execute(
+                format!("async function run() {{ {body} }}"),
+                echo(),
+                Duration::from_secs(5),
+                CancellationToken::new(),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err();
+            assert!(error.contains(OUTPUT_LIMIT_ERROR), "{body}: {error}");
+        }
+        let length = OUTPUT_LIMIT - "ok\nResult: \"\"".len();
+        let result = execute(
+            format!(
+                "async function run() {{ console.log('ok'); return 'xxxxxxxxxxxxxxxx'.repeat({}) + 'x'.repeat({}); }}",
+                length / 16,
+                length % 16,
+            ),
+            echo(),
+            Duration::from_secs(5),
+            CancellationToken::new(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.len(), OUTPUT_LIMIT);
+        assert!(result.starts_with("ok\nResult: \""));
+        assert_eq!(
+            run("async function run() { return 42; }").await.unwrap(),
+            "Result: 42"
+        );
+    }
+
+    #[tokio::test]
+    async fn synchronous_worker_work_does_not_block_cancellation_or_timeout() {
+        for cancel in [true, false] {
+            let started = Arc::new(tokio::sync::Notify::new());
+            let (release, blocked) = std::sync::mpsc::channel();
+            let blocked = Arc::new(std::sync::Mutex::new(blocked));
+            let callback: ToolCallback = Arc::new({
+                let started = started.clone();
+                move |_, _| {
+                    started.notify_one();
+                    // Simulate synchronous native work that cannot poll cancellation.
+                    let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
+                    Box::pin(async { Ok(Value::Null) })
+                }
+            });
+            let token = CancellationToken::new();
+            let dispatch = CancellationToken::new();
+            let execution = execute(
+                "async function run() { return await tools.call('block', {}); }".into(),
+                callback,
+                if cancel {
+                    Duration::from_secs(10)
+                } else {
+                    Duration::from_millis(100)
+                },
+                token.clone(),
+                dispatch.clone(),
+            );
+            let control = async {
+                started.notified().await;
+                if cancel {
+                    token.cancel();
+                }
+            };
+            let (result, _) = tokio::join!(
+                tokio::time::timeout(Duration::from_secs(2), execution),
+                control,
+            );
+            let _ = release.send(());
+            let error = result
+                .expect("cancellation must not wait for synchronous work")
+                .unwrap_err();
+            assert!(
+                error.contains(if cancel { "cancelled" } else { "timed out" }),
+                "{error}"
+            );
+            assert!(dispatch.is_cancelled());
+            assert_eq!(
+                run("async function run() { return 7; }").await.unwrap(),
+                "Result: 7"
+            );
+        }
     }
     #[tokio::test]
     async fn cancellation_in_promise_continuations_drains_in_flight_calls() {

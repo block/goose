@@ -184,22 +184,39 @@ fn dispatch_tool(
             .ok_or("Tool arguments must be a JSON object")?;
         let tool_call = CallToolRequestParams::new(full_name).with_arguments(arguments);
         let handle = rt.spawn(async move {
-            let dispatch_result = dispatching_lease(&ctx)
-                .call(tool_call, CallRequest::from(&ctx), cancellation_token)
-                .await;
-            match dispatch_result {
-                Ok(dispatch_result) => match manager
-                    .applying_mutation(dispatch_result, &ctx.session_id)
-                    .result
-                    .await
-                {
-                    Ok(result) if result.is_error == Some(true) => {
-                        Err(callback_result_to_value(&result).to_string())
-                    }
-                    Ok(result) => Ok(callback_result_to_value(&result)),
-                    Err(e) => Err(format!("Tool error: {}", e.message)),
-                },
-                Err(e) => Err(format!("Dispatch error: {e}")),
+            let execution = async {
+                let dispatch_result = dispatching_lease(&ctx)
+                    .call(
+                        tool_call,
+                        CallRequest::from(&ctx),
+                        cancellation_token.clone(),
+                    )
+                    .await;
+                match dispatch_result {
+                    Ok(dispatch_result) => match manager
+                        .applying_mutation(dispatch_result, &ctx.session_id)
+                        .result
+                        .await
+                    {
+                        Ok(result) if result.is_error == Some(true) => {
+                            Err(callback_result_to_value(&result).to_string())
+                        }
+                        Ok(result) => Ok(callback_result_to_value(&result)),
+                        Err(e) => Err(format!("Tool error: {}", e.message)),
+                    },
+                    Err(e) => Err(format!("Dispatch error: {e}")),
+                }
+            };
+            tokio::pin!(execution);
+            tokio::select! {
+                biased;
+                result = &mut execution => result,
+                _ = cancellation_token.cancelled() => {
+                    // Cleanup runs on Goose's runtime even if the Boa worker cannot yield.
+                    tokio::time::timeout(javascript::DRAIN_TIMEOUT, &mut execution)
+                        .await
+                        .unwrap_or_else(|_| Err("Execution cancelled".into()))
+                }
             }
         });
         struct AbortOnDrop(tokio::task::AbortHandle);
@@ -364,6 +381,107 @@ mod tests {
     }
 
     struct VisibilityClient;
+
+    struct PendingClient {
+        started: Arc<tokio::sync::Notify>,
+        released: Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait]
+    impl McpClientTrait for PendingClient {
+        async fn list_tools(
+            &self,
+            session_id: &str,
+            next_cursor: Option<String>,
+            cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            VisibilityClient
+                .list_tools(session_id, next_cursor, cancellation_token)
+                .await
+        }
+
+        async fn call_tool(
+            &self,
+            _: &ToolCallContext,
+            _: &str,
+            _: Option<JsonObject>,
+            _: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            struct Released(Arc<tokio::sync::Notify>);
+            impl Drop for Released {
+                fn drop(&mut self) {
+                    self.0.notify_one();
+                }
+            }
+            let _guard = Released(self.released.clone());
+            self.started.notify_one();
+            std::future::pending().await
+        }
+
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_dispatch_releases_tools_without_polling_the_worker_future() {
+        use futures::FutureExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::with_data_dir(temp.path().join("manager")));
+        let session = manager
+            .get_context()
+            .session_manager
+            .create_session(
+                temp.path().to_path_buf(),
+                "blocked-worker".into(),
+                crate::session::session_manager::SessionType::Hidden,
+                crate::config::GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let started = Arc::new(tokio::sync::Notify::new());
+        let released = Arc::new(tokio::sync::Notify::new());
+        manager
+            .add_client(
+                &session.id,
+                ExtensionConfig::Builtin {
+                    name: "pending".into(),
+                    description: String::new(),
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                Arc::new(PendingClient {
+                    started: started.clone(),
+                    released: released.clone(),
+                }),
+                None,
+            )
+            .await;
+        let lease = Arc::new(manager.scope_lease(&session.id).await);
+        let ctx = ToolCallContext::new(session.id, None, None).with_extension_lease(lease);
+        let dispatch = CancellationToken::new();
+        let mut callback = dispatch_tool(
+            ctx,
+            "pending__ordinary".into(),
+            manager,
+            dispatch.clone(),
+            tokio::runtime::Handle::current(),
+            json!({}),
+        );
+        assert!(callback.as_mut().now_or_never().is_none());
+        tokio::time::timeout(Duration::from_secs(2), started.notified())
+            .await
+            .unwrap();
+        dispatch.cancel();
+        tokio::time::timeout(Duration::from_secs(2), released.notified())
+            .await
+            .unwrap();
+        // The Boa worker could be blocked here: callback has not been polled again.
+        drop(callback);
+    }
 
     #[async_trait]
     impl McpClientTrait for VisibilityClient {
