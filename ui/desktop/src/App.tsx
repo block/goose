@@ -16,6 +16,7 @@ import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
+import { acpChatSessionStore } from './acp/chatSessionStore';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -72,7 +73,16 @@ const HubRouteWrapper = ({
   liveVoice: LiveVoiceController;
 }) => {
   const setView = useNavigation();
-  return <Hub setView={setView} draftRef={draftRef} liveVoice={liveVoice} />;
+  const location = useLocation();
+  const { workingDir } = (location.state as { workingDir?: string } | null) ?? {};
+  return (
+    <Hub
+      setView={setView}
+      draftRef={draftRef}
+      liveVoice={liveVoice}
+      initialWorkingDir={workingDir}
+    />
+  );
 };
 
 export function resolveSessionInitialMessage(
@@ -545,12 +555,21 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      navigate('/');
+      if (location.pathname === '/') return;
+
+      const sessionId =
+        location.pathname === '/pair'
+          ? new URLSearchParams(location.search).get('resumeSessionId')
+          : null;
+      const workingDir = sessionId
+        ? acpChatSessionStore.getSnapshot(sessionId)?.session?.working_dir
+        : undefined;
+      navigate('/', { state: { workingDir } });
     };
 
     window.electron.on('new-chat', handleNewChat);
     return () => window.electron.off('new-chat', handleNewChat);
-  }, [navigate]);
+  }, [navigate, location.pathname, location.search]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {

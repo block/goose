@@ -14,6 +14,8 @@ import type { LiveVoiceController } from '../liveVoice/useLiveVoice';
 type ChatInputCapture = {
   draftRef?: { current: string };
   handleSubmit: (input: UserInput) => void;
+  workingDir: string;
+  onWorkingDirChange: (dir: string) => void;
   liveVoice?: {
     availability: { status: string; message: string } | null;
     start: () => Promise<void>;
@@ -52,7 +54,8 @@ vi.mock('../sessions', () => ({ createSession: vi.fn() }));
 
 vi.mock('../utils/workingDir', () => ({
   getInitialWorkingDir: () => '/tmp/goose',
-  getEffectiveWorkingDir: () => Promise.resolve('/tmp/goose'),
+  getEffectiveWorkingDir: (inheritedWorkingDir?: string) =>
+    Promise.resolve(inheritedWorkingDir ?? '/tmp/goose'),
 }));
 
 vi.mock('../utils/nextChatExtensions', () => ({
@@ -84,10 +87,15 @@ function pendingSession() {
   return settle;
 }
 
-function renderHub(draftRef: { current: string }, setView = vi.fn()) {
+function renderHub(draftRef: { current: string }, setView = vi.fn(), initialWorkingDir?: string) {
   return render(
     <IntlTestWrapper>
-      <Hub setView={setView} draftRef={draftRef} liveVoice={liveVoice} />
+      <Hub
+        setView={setView}
+        draftRef={draftRef}
+        liveVoice={liveVoice}
+        initialWorkingDir={initialWorkingDir}
+      />
     </IntlTestWrapper>
   );
 }
@@ -107,6 +115,21 @@ describe('Hub', () => {
     captured.chatInput = null;
     vi.mocked(acpGetLiveVoiceAvailability).mockRejectedValue(new Error('ACP unavailable'));
     vi.mocked(subscribeToAcpRecovery).mockReturnValue(() => undefined);
+  });
+
+  it('starts in the inherited folder and lets an explicit selection override it', async () => {
+    vi.mocked(createSession).mockResolvedValue({ id: 'session-1' } as Session);
+    const hub = renderHub({ current: '' }, vi.fn(), '/projects/website');
+
+    await waitFor(() => expect(captured.chatInput?.workingDir).toBe('/projects/website'));
+    await submit();
+    expect(createSession).toHaveBeenLastCalledWith('/projects/website', { allExtensions: [] });
+    hub.unmount();
+
+    renderHub({ current: '' }, vi.fn(), '/projects/website');
+    await act(async () => captured.chatInput?.onWorkingDirChange('/projects/payments'));
+    await submit();
+    expect(createSession).toHaveBeenLastCalledWith('/projects/payments', { allExtensions: [] });
   });
 
   it('requests Live voice availability again after ACP recovers', async () => {

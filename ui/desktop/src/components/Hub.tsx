@@ -53,15 +53,17 @@ export default function Hub({
   setView,
   draftRef,
   liveVoice,
+  initialWorkingDir,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   /** Unsent input of this screen, kept above the route outlet across the unmount. */
   draftRef: RefObject<string>;
   liveVoice: LiveVoiceController;
+  initialWorkingDir?: string;
 }) {
   const intl = useIntl();
   const { extensionsList } = useConfig();
-  const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
+  const [workingDir, setWorkingDir] = useState(initialWorkingDir ?? getInitialWorkingDir());
   const userSelectedWorkingDirRef = useRef(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [liveVoiceAvailability, setLiveVoiceAvailability] =
@@ -75,13 +77,13 @@ export default function Hub({
   // creation, so a configured remote directory may have changed since then.
   useEffect(() => {
     let active = true;
-    void getEffectiveWorkingDir().then((dir) => {
+    void getEffectiveWorkingDir(initialWorkingDir).then((dir) => {
       if (active && !userSelectedWorkingDirRef.current) setWorkingDir(dir);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialWorkingDir]);
 
   useEffect(() => {
     let requestGeneration = 0;
@@ -155,7 +157,9 @@ export default function Hub({
 
       // Resolve the effective directory at submit time: the IPC lookup may still
       // be pending when the user submits, and an explicit pick must win.
-      const dir = userSelectedWorkingDirRef.current ? workingDir : await getEffectiveWorkingDir();
+      const dir = userSelectedWorkingDirRef.current
+        ? workingDir
+        : await getEffectiveWorkingDir(initialWorkingDir);
       const session = await createSession(dir, sessionOptions);
       setNextChatExtensionDraft(null);
       return session;
