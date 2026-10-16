@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -447,4 +448,64 @@ async fn stop_skips_messages_queued_ahead_of_a_finished_result() {
 
     assert_eq!(texts(&saved), ["Subagent a completed: done"]);
     assert!(shown(&mut rx).is_empty());
+}
+
+#[tokio::test]
+async fn concurrency_limit_queues_subagents_until_a_slot_is_available() {
+    let runner = Arc::new(fake(&["a", "b", "c"]));
+    let a = runner.running("a");
+    let b = runner.running("b");
+    let c = runner.running("c");
+    let operation = operation(&runner).with_max_concurrency(NonZeroUsize::new(2).unwrap());
+    let mut messages = vec![kickoff()];
+
+    interrupt(&operation, &messages);
+    assert_eq!(runner.started(), ["a", "b"]);
+
+    b.finish(SubagentOutcome::Failed("boom".into()));
+    messages.extend(run_once(&operation, &messages).await);
+    assert_eq!(runner.started(), ["a", "b"]);
+
+    interrupt(&operation, &messages);
+    assert_eq!(runner.started(), ["a", "b", "c"]);
+
+    c.finish(SubagentOutcome::Completed("c done".into()));
+    messages.extend(run_once(&operation, &messages).await);
+    a.finish(SubagentOutcome::Completed("a done".into()));
+    messages.extend(run_once(&operation, &messages).await);
+
+    assert_eq!(
+        texts(&messages[1..]),
+        [
+            "Subagent b failed: boom",
+            "Subagent c completed: c done",
+            "Subagent a completed: a done",
+        ]
+    );
+    assert!(run_once(&operation, &messages).await.is_empty());
+    assert_eq!(runner.started(), ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn stop_cancels_running_and_queued_subagents_without_starting_the_queue() {
+    let runner = Arc::new(fake(&["a", "b"]));
+    let a = runner.running("a");
+    let _b = runner.running("b");
+    let operation = operation(&runner).with_max_concurrency(NonZeroUsize::MIN);
+    let mut messages = vec![kickoff()];
+
+    interrupt(&operation, &messages);
+    assert_eq!(runner.started(), ["a"]);
+    messages.extend(stop(&operation, &messages).await);
+
+    assert!(a.is_closed());
+    assert_eq!(
+        texts(&messages[1..]),
+        [
+            "Subagent a was cancelled before it finished and will not run again.\n\
+         Subagent b was cancelled before it finished and will not run again.",
+        ]
+    );
+    assert!(run_once(&operation, &messages).await.is_empty());
+    assert_eq!(runner.started(), ["a"]);
 }
