@@ -71,7 +71,11 @@ pub(crate) fn build_state_machine(
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
-        Arc::new(RecipeOperation::new(provider.clone(), hook_manager.clone())),
+        Arc::new(RecipeOperation::new(
+            provider.clone(),
+            Arc::clone(&extension_manager),
+            hook_manager.clone(),
+        )),
         Arc::new(ToolExecutionOperation::new(
             Arc::clone(&extension_manager),
             hook_manager.clone(),

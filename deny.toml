@@ -10,4 +10,10 @@ ignore = [
     # rsa: Marvin Attack timing sidechannel. No safe upgrade is available, and
     # the reachable path is through jsonwebtoken.
     "RUSTSEC-2023-0071",
+    # zip 8 is yanked, but these crates require it unconditionally. Remove when
+    # releases supporting zip 9 are available:
+    # https://github.com/huggingface/candle/issues/4042
+    # https://github.com/bokuweb/docx-rs/issues/943
+    # https://github.com/MathNya/umya-spreadsheet/issues/383
+    "zip@8.6.0",
 ]

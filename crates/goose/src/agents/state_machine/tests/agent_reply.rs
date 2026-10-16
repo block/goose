@@ -1435,20 +1435,22 @@ async fn cancelling_the_parent_ends_a_waiting_subagent() -> Result<()> {
     let subagent_id = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             if let [subagent_id] = hook_sessions(&hook_log, "SessionEnd").as_slice() {
-                return subagent_id.clone();
+                if !agent.tracks_confirmations_for(subagent_id)
+                    && agent
+                        .extension_manager
+                        .scope_lease(subagent_id)
+                        .await
+                        .configs()
+                        .is_empty()
+                {
+                    return subagent_id.clone();
+                }
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
     .await?;
     assert_ne!(subagent_id, session_id);
-    assert!(!agent.tracks_confirmations_for(&subagent_id));
-    assert!(agent
-        .extension_manager
-        .scope_lease(&subagent_id)
-        .await
-        .configs()
-        .is_empty());
     Ok(())
 }
 

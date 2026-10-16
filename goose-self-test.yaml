@@ -12,6 +12,7 @@ activities:
   - Validate the configurable Databricks AI Gateway path across all inference routes
   - Validate declared vision through persisted custom-provider configuration and outbound requests
   - Analyze code structure and parsing capabilities
+  - Validate Boa JavaScript discovery, batching, cancellation, and isolation
   - Test extension discovery and management
   - Test load tool for knowledge injection and discovery
   - Test delegate tool for task delegation
@@ -28,7 +29,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, delegation, declared-vision, reasoning, zai-coding-plan, acp-effort, compaction, advanced"
+    description: "Which test phases to run: all, basic, extensions, delegation, code-mode, declared-vision, reasoning, zai-coding-plan, acp-effort, compaction, advanced"
 
   - key: test_depth
     input_type: string
@@ -86,6 +87,21 @@ instructions: |
   - Enable/disable extensions
   - Test extension interactions
   - Verify isolation between extensions
+
+  ### Code Mode: Boa Runtime
+  When code mode is enabled (or test_phases is code-mode):
+  - Use list_functions and get_function_details to inspect exact tool names and original JSON schemas.
+  - Use execute_javascript with async function run() and tools.call(name, arguments).
+  - Compare sequential calls and Promise.all batches; verify results and caught tool errors.
+  - Verify unknown names and invalid arguments produce actionable errors.
+  - Verify console output and returned JSON contain only the information requested.
+  - Verify typeof fetch, process, Deno, and require are undefined; imports must fail.
+  - Check cyclic and BigInt return values produce useful errors.
+  - Check infinite loops before and after await, recursive calls, and unresolved promises terminate.
+  - Cancel a script awaiting a long-running tool and verify the tool stops.
+  - Run a normal script afterward and in another session; verify no JavaScript state leaks.
+  - Verify hidden tools cannot be discovered or called and hidden results remain hidden.
+  - Record any permission or mutation checks that require manual interaction.
 
   ### Phase 3: Delegate & Load Testing
   Test the unified delegation and knowledge-loading tools:
@@ -217,6 +233,21 @@ prompt: |
 
   Log command results and failures to: {{ workspace_dir }}/compaction.md
   Do not modify source files or configuration to make these checks pass.
+  {% endif %}
+
+  {% if test_phases == "all" or "code-mode" in test_phases %}
+  ## Code Mode: JavaScript Runtime
+  Enable the code_execution extension if necessary. Discover exact names with list_functions
+  and inspect the JSON schemas of two read-only tools with get_function_details.
+  Execute async function run() scripts using tools.call(name, arguments):
+  1. Compare sequential calls with a Promise.all batch and log only a short summary.
+  2. Catch an unknown-tool error and confirm it points back to discovery.
+  3. Check syntax errors, invalid argument objects, cyclic returns, and BigInt returns.
+  4. Check infinite loops before and after await and unresolved promises terminate, then run a normal script.
+  5. Confirm JavaScript globals do not expose filesystem, network, package, or environment APIs.
+  6. Run a second script to confirm globals from the first execution are absent.
+  Record checks requiring external cancellation or a second session as manual follow-up.
+  Log results to: {{ workspace_dir }}/code_mode.md
   {% endif %}
 
   {% if test_phases == "all" or "extensions" in test_phases %}
