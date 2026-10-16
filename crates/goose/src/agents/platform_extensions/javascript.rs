@@ -25,6 +25,7 @@ pub(super) type ToolFuture = Pin<Box<dyn Future<Output = Result<Value, String>> 
 pub(super) type ToolCallback = Arc<dyn Fn(String, Value) -> ToolFuture + Send + Sync>;
 
 const INSTRUCTION_LIMIT: usize = 2_000_000;
+static WORKER_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
 pub(super) const DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const OUTPUT_LIMIT: usize = 1_000_000;
@@ -346,13 +347,43 @@ pub(super) async fn execute(
     cancellation: CancellationToken,
     dispatch: CancellationToken,
 ) -> Result<String, String> {
+    execute_with_slots(
+        code,
+        callback,
+        timeout,
+        cancellation,
+        dispatch,
+        &WORKER_SLOTS,
+    )
+    .await
+}
+
+async fn execute_with_slots(
+    code: String,
+    callback: ToolCallback,
+    timeout: Duration,
+    cancellation: CancellationToken,
+    dispatch: CancellationToken,
+    slots: &'static tokio::sync::Semaphore,
+) -> Result<String, String> {
     let cancel_on_drop = dispatch.clone().drop_guard();
+    let deadline = tokio::time::Instant::now() + timeout;
+    let permit = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => return Err("Execution cancelled".into()),
+        _ = tokio::time::sleep_until(deadline) => {
+            return Err(format!("Execution timed out after {} seconds while waiting for a JavaScript worker", timeout.as_secs_f64()));
+        }
+        permit = slots.acquire() => permit.map_err(|e| format!("JavaScript workers unavailable: {e}"))?,
+    };
     let worker_cancellation = cancellation.child_token();
     let stop_worker = worker_cancellation.clone();
     let _stop_on_drop = stop_worker.clone().drop_guard();
     let worker_dispatch = dispatch.clone();
     let (sender, receiver) = tokio::sync::oneshot::channel();
     std::thread::Builder::new().name("goose-javascript".into()).spawn(move || {
+        // The worker retains its slot even if the caller stops waiting for it.
+        let _permit = permit;
         let result = tokio::runtime::Builder::new_current_thread().enable_all().build()
             .map_err(|e| e.to_string()).and_then(|runtime| runtime.block_on(async {
                 let execution = evaluate(&code, callback, worker_dispatch.clone());
@@ -360,7 +391,7 @@ pub(super) async fn execute(
                 let result = tokio::select! {
                     biased;
                     _ = worker_cancellation.cancelled() => Err("Execution cancelled".into()),
-                    _ = tokio::time::sleep(timeout) => Err(format!("Execution timed out after {} seconds", timeout.as_secs_f64())),
+                    _ = tokio::time::sleep_until(deadline) => Err(format!("Execution timed out after {} seconds", timeout.as_secs_f64())),
                     result = &mut execution => {
                         worker_dispatch.cancel();
                         return result;
@@ -384,7 +415,7 @@ pub(super) async fn execute(
             let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, receiver).await;
             Err("Execution cancelled".into())
         }
-        _ = tokio::time::sleep(timeout) => {
+        _ = tokio::time::sleep_until(deadline) => {
             dispatch.cancel();
             stop_worker.cancel();
             let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, receiver).await;
@@ -400,6 +431,177 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    async fn execute(
+        code: String,
+        callback: ToolCallback,
+        timeout: Duration,
+        cancellation: CancellationToken,
+        dispatch: CancellationToken,
+    ) -> Result<String, String> {
+        // Keep timeout-focused tests independent of pool saturation, tested separately below.
+        static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(32);
+        execute_with_slots(code, callback, timeout, cancellation, dispatch, &SLOTS).await
+    }
+
+    #[tokio::test]
+    async fn worker_capacity_bounds_concurrency_and_waiting_is_cancellable() {
+        static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+        let active = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let started = Arc::new(tokio::sync::Notify::new());
+        let release = CancellationToken::new();
+        let callback: ToolCallback = Arc::new({
+            let active = active.clone();
+            let peak = peak.clone();
+            let started = started.clone();
+            let release = release.clone();
+            move |_, _| {
+                let active = active.clone();
+                let peak = peak.clone();
+                let started = started.clone();
+                let release = release.clone();
+                Box::pin(async move {
+                    struct Active(Arc<AtomicUsize>);
+                    impl Drop for Active {
+                        fn drop(&mut self) {
+                            self.0.fetch_sub(1, Ordering::SeqCst);
+                        }
+                    }
+                    let count = active.fetch_add(1, Ordering::SeqCst) + 1;
+                    let _active = Active(active);
+                    peak.fetch_max(count, Ordering::SeqCst);
+                    started.notify_one();
+                    release.cancelled().await;
+                    Ok(json!(true))
+                })
+            }
+        });
+        let spawn = || {
+            tokio::spawn(execute_with_slots(
+                "async function run() { return await tools.call('wait', {}); }".into(),
+                callback.clone(),
+                Duration::from_secs(10),
+                CancellationToken::new(),
+                CancellationToken::new(),
+                &SLOTS,
+            ))
+        };
+        let first = spawn();
+        let second = spawn();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while active.load(Ordering::SeqCst) < 2 {
+                started.notified().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(SLOTS.available_permits(), 0);
+        let dispatch = CancellationToken::new();
+        let error = execute_with_slots(
+            "async function run() { return 42; }".into(),
+            echo(),
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            dispatch.clone(),
+            &SLOTS,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("waiting for a JavaScript worker"), "{error}");
+        assert!(dispatch.is_cancelled());
+        let token = CancellationToken::new();
+        let dispatch = CancellationToken::new();
+        let queued = execute_with_slots(
+            "async function run() { return 42; }".into(),
+            echo(),
+            Duration::from_secs(10),
+            token.clone(),
+            dispatch.clone(),
+            &SLOTS,
+        );
+        tokio::pin!(queued);
+        assert!(queued.as_mut().now_or_never().is_none());
+        token.cancel();
+        assert_eq!(queued.await.unwrap_err(), "Execution cancelled");
+        assert!(dispatch.is_cancelled());
+        release.cancel();
+        assert_eq!(first.await.unwrap().unwrap(), "Result: true");
+        assert_eq!(second.await.unwrap().unwrap(), "Result: true");
+        assert_eq!(peak.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            execute_with_slots(
+                "async function run() { return 42; }".into(),
+                echo(),
+                Duration::from_secs(2),
+                CancellationToken::new(),
+                CancellationToken::new(),
+                &SLOTS,
+            )
+            .await
+            .unwrap(),
+            "Result: 42"
+        );
+    }
+
+    #[tokio::test]
+    async fn abandoned_worker_retains_capacity_until_it_finishes() {
+        static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+        let started = Arc::new(tokio::sync::Notify::new());
+        let (release, blocked) = std::sync::mpsc::channel();
+        let blocked = std::sync::Mutex::new(blocked);
+        let callback: ToolCallback = Arc::new({
+            let started = started.clone();
+            move |_, _| {
+                started.notify_one();
+                let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
+                Box::pin(async { Ok(Value::Null) })
+            }
+        });
+        let token = CancellationToken::new();
+        let execution = tokio::spawn(execute_with_slots(
+            "async function run() { await tools.call('block', {}); }".into(),
+            callback,
+            Duration::from_secs(10),
+            token.clone(),
+            CancellationToken::new(),
+            &SLOTS,
+        ));
+        tokio::time::timeout(Duration::from_secs(2), started.notified())
+            .await
+            .unwrap();
+        token.cancel();
+        let result = tokio::time::timeout(Duration::from_secs(2), execution).await;
+        let held = SLOTS.available_permits() == 0;
+        let queued = execute_with_slots(
+            "async function run() { return 7; }".into(),
+            echo(),
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            &SLOTS,
+        )
+        .await;
+        let _ = release.send(());
+        assert_eq!(result.unwrap().unwrap().unwrap_err(), "Execution cancelled");
+        assert!(held);
+        assert!(queued
+            .unwrap_err()
+            .contains("waiting for a JavaScript worker"));
+        assert_eq!(
+            execute_with_slots(
+                "async function run() { return 9; }".into(),
+                echo(),
+                Duration::from_secs(2),
+                CancellationToken::new(),
+                CancellationToken::new(),
+                &SLOTS,
+            )
+            .await
+            .unwrap(),
+            "Result: 9"
+        );
+    }
 
     fn echo() -> ToolCallback {
         Arc::new(|name, args| {
