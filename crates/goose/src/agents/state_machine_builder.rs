@@ -6,12 +6,13 @@ use tokio_util::sync::CancellationToken;
 
 use crate::agents::extension_manager::{ExtensionLease, ExtensionManager};
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, EmptyResponseOperation,
-    ExitOnErrorOperation, GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer,
-    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RemainingToolCallsOperation, RetryOperation, SkillOperation, SlashCommandOperation,
-    StateMachine, StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation,
-    SubagentOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    subagents_finished, tool_calls_answered, BangShellOperation, CompactionOperation,
+    DoctorOperation, EmptyResponseOperation, ExitOnErrorOperation, GooseEffect,
+    GooseInferenceProvider, GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RemainingToolCallsOperation, RetryOperation,
+    SkillOperation, SlashCommandOperation, StateMachine, StatusOperation, SteerOperation,
+    SteerQueue, Step, StopHookOperation, SubagentOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation,
 };
 use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::hooks::HookManager;
@@ -40,9 +41,9 @@ pub(crate) struct StateMachineConfig<'a> {
     pub(crate) cancel: CancellationToken,
 }
 
-pub(crate) fn build_state_machine(
-    config: StateMachineConfig<'_>,
-) -> StateMachine<'_, Session, GooseEffect> {
+pub(crate) fn build_state_machine<'a>(
+    config: StateMachineConfig<'a>,
+) -> StateMachine<'a, Session, GooseEffect> {
     let StateMachineConfig {
         provider,
         model_config,
@@ -64,48 +65,81 @@ pub(crate) fn build_state_machine(
         cancel,
     } = config;
     let manages_own_context = provider.manages_own_context();
+    let subagent_runner = Arc::new(subagent_runner);
+    let inference_ready = || {
+        vec![
+            tool_calls_answered(),
+            subagents_finished(subagent_runner.clone()),
+        ]
+    };
 
-    let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-        Arc::new(ToolApprovalOperation::new(tool_inspection_manager)),
-        Arc::new(SkillOperation::new(
+    let mut command_handlers = Vec::new();
+    let mut step = |operation: Arc<dyn Operation<Session, GooseEffect> + 'a>| {
+        command_handlers.push(Arc::clone(&operation));
+        Step::operation(operation)
+    };
+
+    let mut steps = vec![
+        step(Arc::new(ToolApprovalOperation::new(
+            tool_inspection_manager,
+        ))),
+        step(Arc::new(SkillOperation::new(
             hook_manager.clone(),
             Arc::clone(&extension_lease),
-        )),
-        Arc::new(RecipeOperation::new(provider.clone(), hook_manager.clone())),
-        Arc::new(ToolExecutionOperation::new(
+        ))),
+        step(Arc::new(RecipeOperation::new(
+            provider.clone(),
+            hook_manager.clone(),
+        ))),
+        step(Arc::new(ToolExecutionOperation::new(
             Arc::clone(&extension_manager),
             hook_manager.clone(),
             Arc::clone(&extension_lease),
-        )),
-        Arc::new(RemainingToolCallsOperation::new(hook_manager.clone())),
-        Arc::new(SubagentOperation::new(Arc::new(subagent_runner))),
-        Arc::new(SteerOperation::new(steer_queue, hook_manager.clone())),
-        Arc::new(BangShellOperation::new()),
+        ))),
+        step(Arc::new(RemainingToolCallsOperation::new(
+            hook_manager.clone(),
+        ))),
+        step(Arc::new(SubagentOperation::new(subagent_runner.clone())))
+            .gated_by([tool_calls_answered()]),
+        step(Arc::new(SteerOperation::new(
+            steer_queue,
+            hook_manager.clone(),
+        )))
+        .gated_by(inference_ready()),
+        step(Arc::new(BangShellOperation::new())),
     ];
     if !manages_own_context {
-        operations.push(Arc::new(CompactionOperation::new(
-            provider.clone(),
-            model_config.clone(),
-            context_limit,
-            compaction_threshold,
-        )));
+        steps.push(
+            step(Arc::new(CompactionOperation::new(
+                provider.clone(),
+                model_config.clone(),
+                context_limit,
+                compaction_threshold,
+            )))
+            .gated_by(inference_ready()),
+        );
     }
-    let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-        Arc::new(ToolPairCompactionOperation::new(
+    steps.extend([
+        step(Arc::new(ToolPairCompactionOperation::new(
             provider.clone(),
             model_config.clone(),
             tool_call_cutoff,
             tool_pair_summarization && !manages_own_context,
-        )),
-        Arc::new(DoctorOperation::new(session_manager)),
-        Arc::new(ProjectOperation),
-        Arc::new(RetryOperation::new(retry_timeout, on_failure_timeout)),
-        Arc::new(EmptyResponseOperation),
-        Arc::new(StopHookOperation::new(hook_manager, stop_hook_block_cap)),
-        Arc::new(ExitOnErrorOperation),
-        Arc::new(MaxTurnsOperation::new(max_turns)),
-    ];
-    operations.extend(remaining_operations);
+        ))),
+        step(Arc::new(DoctorOperation::new(session_manager))),
+        step(Arc::new(ProjectOperation)),
+        step(Arc::new(RetryOperation::new(
+            retry_timeout,
+            on_failure_timeout,
+        ))),
+        step(Arc::new(EmptyResponseOperation)),
+        step(Arc::new(StopHookOperation::new(
+            hook_manager,
+            stop_hook_block_cap,
+        ))),
+        step(Arc::new(ExitOnErrorOperation)),
+        step(Arc::new(MaxTurnsOperation::new(max_turns))).gated_by(inference_ready()),
+    ]);
     let request_preparer = GooseInferenceRequestPreparer {
         extension_manager,
         extension_lease,
@@ -118,14 +152,13 @@ pub(crate) fn build_state_machine(
         InferenceRunner::new(inference_provider, model_config)
             .with_request_preparer(Arc::new(request_preparer)),
     );
-    let mut command_handlers = operations.clone();
     command_handlers.push(status_operation);
-    let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
-        Arc::new(SlashCommandOperation::new(command_handlers));
-    let steps = std::iter::once(command_operation)
-        .chain(operations)
-        .map(Step::Operation)
-        .chain(std::iter::once(Step::Inference(inference)))
+    let command_operation = Arc::new(SlashCommandOperation::new(command_handlers));
+    let steps = std::iter::once(Step::operation(command_operation))
+        .chain(steps)
+        .chain(std::iter::once(
+            Step::inference(inference).gated_by(inference_ready()),
+        ))
         .collect();
 
     StateMachine::new(steps, cancel)

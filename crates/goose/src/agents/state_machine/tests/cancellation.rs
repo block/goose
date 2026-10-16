@@ -72,8 +72,8 @@ async fn interrupted_inference_saves_streamed_output_then_answers_its_request() 
     let cancel = CancellationToken::new();
     let machine: StateMachine<Session, GooseEffect> = StateMachine::new(
         vec![
-            Step::Operation(Arc::new(ToolOperation::new())),
-            Step::Inference(Arc::new(InferenceRunner::new(
+            Step::operation(Arc::new(ToolOperation::new())),
+            Step::inference(Arc::new(InferenceRunner::new(
                 Arc::new(InterruptedProvider {
                     cancel: cancel.clone(),
                 }),

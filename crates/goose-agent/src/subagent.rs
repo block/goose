@@ -75,14 +75,19 @@ fn finished_subagent_session_ids(message: &Message) -> impl Iterator<Item = &str
     delivered.into_iter().chain(cancelled)
 }
 
-fn pending_subagents(conversation: &Conversation, started: Vec<String>) -> Vec<String> {
+pub(crate) fn pending_subagents<S>(
+    runner: &dyn SubagentRunner<S>,
+    session: &S,
+    conversation: &Conversation,
+) -> Vec<String> {
     let mut seen: HashSet<String> = conversation
         .messages()
         .iter()
         .flat_map(finished_subagent_session_ids)
         .map(str::to_owned)
         .collect();
-    started
+    runner
+        .started_subagent_session_ids(session, conversation)
         .into_iter()
         .filter(|subagent_session_id| seen.insert(subagent_session_id.clone()))
         .collect()
@@ -207,11 +212,7 @@ where
         emit: &Emitter,
     ) -> Vec<E> {
         let mut stopped = std::mem::take(&mut *self.running.lock().await);
-        let pending = pending_subagents(
-            conversation,
-            self.runner
-                .started_subagent_session_ids(session, conversation),
-        );
+        let pending = pending_subagents(self.runner.as_ref(), session, conversation);
         let mut effects = Vec::new();
         let mut delivered = HashSet::new();
         let finished = std::iter::from_fn(|| loop {
@@ -248,11 +249,7 @@ where
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let pending = pending_subagents(
-            conversation,
-            self.runner
-                .started_subagent_session_ids(session, conversation),
-        );
+        let pending = pending_subagents(self.runner.as_ref(), session, conversation);
         let remaining = pending.len().saturating_sub(1);
 
         let mut running = self.running.lock().await;

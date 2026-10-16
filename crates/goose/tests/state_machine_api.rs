@@ -109,8 +109,8 @@ async fn custom_pipeline_supports_step_apply_run_and_usage() -> Result<()> {
     let emit = Emitter::new(tx, cancel.clone());
     let machine = StateMachine::new(
         vec![
-            Step::Operation(Arc::new(PromptPart)),
-            Step::Inference(Arc::new(TestInference)),
+            Step::operation(Arc::new(PromptPart)),
+            Step::inference(Arc::new(TestInference)),
         ],
         cancel,
     );
