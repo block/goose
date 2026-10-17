@@ -503,10 +503,9 @@ export default function BaseChat({
 
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>
+                <SearchView key={sessionId}>
                   <div ref={conversationRef}>
                     <MessageList
-                      key={sessionId}
                       messages={messages}
                       sessionId={sessionId}
                       toolCallNotifications={toolCallNotifications}

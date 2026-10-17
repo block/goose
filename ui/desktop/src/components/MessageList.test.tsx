@@ -97,13 +97,16 @@ function renderList(messages: Message[]) {
   );
 }
 
+beforeEach(() => {
+  vi.mocked(window.electron.on).mockClear();
+  vi.mocked(window.electron.off).mockClear();
+});
+
 describe('MessageList render isolation', () => {
   beforeEach(() => {
     renderCounts.clear();
     messageUpdateCallbacks.clear();
     append.mockClear();
-    vi.mocked(window.electron.on).mockClear();
-    vi.mocked(window.electron.off).mockClear();
   });
 
   it('does not rerender historical rows from cloned equivalent messages', () => {
@@ -195,11 +198,6 @@ describe('MessageList render isolation', () => {
 });
 
 describe('MessageList transcript window', () => {
-  beforeEach(() => {
-    vi.mocked(window.electron.on).mockClear();
-    vi.mocked(window.electron.off).mockClear();
-  });
-
   function messages(count: number): Message[] {
     return Array.from({ length: count }, (_, index) =>
       message(`assistant-${index}`, 'assistant', [{ type: 'text', text: `Message ${index}` }])
@@ -216,6 +214,22 @@ describe('MessageList transcript window', () => {
     expect(screen.queryByText('assistant-300')).not.toBeNull();
     expect(screen.queryByText('assistant-499')).not.toBeNull();
     expect(screen.queryByText('280 messages hidden')).not.toBeNull();
+  });
+
+  it('counts and windows visible messages', () => {
+    const transcript = messages(300).map((item, index) =>
+      index >= 100 && index < 160
+        ? { ...item, metadata: { ...item.metadata, userVisible: false } }
+        : item
+    );
+
+    renderList(transcript);
+
+    expect(screen.queryByText('assistant-20')).toBeNull();
+    expect(screen.queryByText('assistant-39')).toBeNull();
+    expect(screen.queryByText('assistant-40')).not.toBeNull();
+    expect(screen.queryByText('assistant-100')).toBeNull();
+    expect(screen.queryByText('20 messages hidden')).not.toBeNull();
   });
 
   it('renders the full conversation when requested', () => {

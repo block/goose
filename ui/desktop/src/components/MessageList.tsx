@@ -155,7 +155,6 @@ interface MessageListProps {
   toolCallNotifications?: Map<string, NotificationEvent[]>;
   append?: (value: string) => void;
   isUserMessage: (message: Message) => boolean;
-  renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean;
   onMessageUpdate?: (
     messageId: string,
@@ -176,7 +175,6 @@ export default function MessageList({
   toolCallNotifications = emptyToolCallNotifications,
   append = emptyAppend,
   isUserMessage,
-  renderMessage,
   isStreamingMessage = false,
   onMessageUpdate,
   onRenderingComplete,
@@ -184,34 +182,37 @@ export default function MessageList({
 }: MessageListProps) {
   const intl = useIntl();
   const [showAllMessages, setShowAllMessages] = useState(false);
+  const visibleMessages = useMemo(
+    () =>
+      messages.flatMap((message, index) =>
+        message.metadata.userVisible ? [{ message, index }] : []
+      ),
+    [messages]
+  );
   const hiddenMessageCount = showAllMessages
     ? 0
-    : Math.max(0, messages.length - MESSAGE_DISPLAY_LIMIT);
+    : Math.max(0, visibleMessages.length - MESSAGE_DISPLAY_LIMIT);
+  const hasHiddenMessages = hiddenMessageCount > 0;
   const displayedMessages = useMemo(() => {
-    if (hiddenMessageCount === 0) {
-      return messages.map((message, index) => ({ message, index }));
+    if (!hasHiddenMessages) {
+      return visibleMessages;
     }
 
-    const tailStart = messages.length - TAIL_MESSAGE_COUNT;
-    return [
-      ...messages.slice(0, HEAD_MESSAGE_COUNT).map((message, index) => ({ message, index })),
-      ...messages.slice(tailStart).map((message, index) => ({
-        message,
-        index: tailStart + index,
-      })),
-    ];
-  }, [hiddenMessageCount, messages]);
+    const tailStart = visibleMessages.length - TAIL_MESSAGE_COUNT;
+    return [...visibleMessages.slice(0, HEAD_MESSAGE_COUNT), ...visibleMessages.slice(tailStart)];
+  }, [hasHiddenMessages, visibleMessages]);
 
   useEffect(() => {
     onRenderingComplete?.();
   }, [messages.length, onRenderingComplete, sessionId]);
 
   useEffect(() => {
-    if (hiddenMessageCount === 0) return;
+    if (!hasHiddenMessages) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
-      const isSearchShortcut = (isMac ? event.metaKey : event.ctrlKey) && event.key === 'f';
+      const isSearchShortcut =
+        (isMac ? event.metaKey : event.ctrlKey) && !event.shiftKey && event.key === 'f';
 
       if (isSearchShortcut) {
         setShowAllMessages(true);
@@ -225,7 +226,7 @@ export default function MessageList({
       window.removeEventListener('keydown', handleKeyDown);
       window.electron.off('find-command', handleFindCommand);
     };
-  }, [hiddenMessageCount]);
+  }, [hasHiddenMessages]);
 
   const rowContexts = useMemo(() => deriveMessageRowContexts(messages), [messages]);
   const messageRows: React.ReactNode[] = [];
@@ -247,12 +248,6 @@ export default function MessageList({
           </button>
         </div>
       );
-    }
-
-    if (!message.metadata.userVisible) return;
-    if (renderMessage) {
-      messageRows.push(renderMessage(message, index));
-      return;
     }
 
     const isUser = isUserMessage(message);
