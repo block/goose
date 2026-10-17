@@ -1261,6 +1261,20 @@ mod tests {
     }
 
     #[test]
+    fn openrouter_inventory_keeps_base_and_unlisted_variants() {
+        let ids = vec![
+            "deepseek/deepseek-v4-flash".to_string(),
+            "deepseek/deepseek-v4-flash:batch".to_string(),
+            "deepseek/deepseek-v4-flash:free".to_string(),
+        ];
+        let models = enrich_model_ids_with_canonical("openrouter", &ids);
+        assert_eq!(
+            models.iter().map(|model| &model.id).collect::<Vec<_>>(),
+            ids.iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn refresh_guard_complete_clears_refreshing_key() {
         let refreshing_keys = Arc::new(RwLock::new(HashSet::from(["key-a".to_string()])));
         let mut guard = RefreshGuard {
