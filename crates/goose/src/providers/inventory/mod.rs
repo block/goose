@@ -7,7 +7,10 @@ pub use resolver::{
 };
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
-use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
+use super::canonical::{
+    map_provider_name, map_to_canonical_model, maybe_get_canonical_model_with_variant_fallback,
+    CanonicalModelRegistry,
+};
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
 use crate::session::session_manager::SessionStorage;
@@ -1186,6 +1189,13 @@ fn enriched_model(
         let (provider, model) = canonical_id.split_once('/')?;
         registry.get(provider, model).cloned()
     });
+    // A variant borrows its base row's metadata but keeps its own id as the name,
+    // so the picker still lists it next to the base model.
+    let metadata = canonical.clone().or_else(|| {
+        maybe_get_canonical_model_with_variant_fallback(provider_family, model_id)
+            .filter(|(_, is_variant_fallback)| *is_variant_fallback)
+            .map(|(model, _)| model)
+    });
 
     InventoryModel {
         id: model_id.to_string(),
@@ -1193,12 +1203,12 @@ fn enriched_model(
             .as_ref()
             .map(|model| model.name.clone())
             .unwrap_or_else(|| model_id.to_string()),
-        family: canonical.as_ref().and_then(|model| model.family.clone()),
-        context_limit: canonical
+        family: metadata.as_ref().and_then(|model| model.family.clone()),
+        context_limit: metadata
             .as_ref()
             .map(|model| model.limit.context)
             .or(fallback_context_limit),
-        reasoning: canonical.as_ref().and_then(|model| model.reasoning),
+        reasoning: metadata.as_ref().and_then(|model| model.reasoning),
         recommended: false,
     }
 }
@@ -1272,6 +1282,12 @@ mod tests {
             models.iter().map(|model| &model.id).collect::<Vec<_>>(),
             ids.iter().collect::<Vec<_>>()
         );
+        for variant in &models[1..] {
+            assert_eq!(variant.name, variant.id);
+            assert_eq!(variant.family, models[0].family);
+            assert_eq!(variant.context_limit, models[0].context_limit);
+            assert_eq!(variant.reasoning, models[0].reasoning);
+        }
     }
 
     #[test]
