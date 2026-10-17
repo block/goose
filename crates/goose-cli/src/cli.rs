@@ -1310,6 +1310,17 @@ enum TermCommand {
             long_help = "When enabled, anything you type that isn't a valid command will be sent to goose. Supported for zsh, bash, and nu."
         )]
         default: bool,
+
+        /// Record recent shell commands as context for @goose
+        #[arg(
+            long = "dangerous-include-history",
+            help = "Record recent shell commands as context for @goose",
+            long_help = "When enabled, goose records recent shell commands and includes them as \
+                         context when you ask @goose a question.\n\n\
+                         WARNING: command lines can contain credentials and other sensitive data, \
+                         which will be sent to the configured model provider."
+        )]
+        include_history: bool,
     },
 
     /// Log a shell command (called by shell hook)
@@ -2430,7 +2441,8 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
             shell,
             name,
             default,
-        } => handle_term_init(shell, name, default).await,
+            include_history,
+        } => handle_term_init(shell, name, default, include_history).await,
         TermCommand::Log { command } => handle_term_log(command).await,
         TermCommand::Run { prompt } => handle_term_run(prompt).await,
         TermCommand::Info => handle_term_info().await,
