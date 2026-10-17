@@ -4,7 +4,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
-import ProgressiveMessageList from './ProgressiveMessageList';
+import MessageList from './MessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
@@ -505,7 +505,8 @@ export default function BaseChat({
               <>
                 <SearchView>
                   <div ref={conversationRef}>
-                    <ProgressiveMessageList
+                    <MessageList
+                      key={sessionId}
                       messages={messages}
                       sessionId={sessionId}
                       toolCallNotifications={toolCallNotifications}
