@@ -648,6 +648,18 @@
     "environmentVariables": []
   },
   {
+    "id": "seoaeogeo",
+    "name": "SEO·AEO·GEO",
+    "description": "Audit a page for Google and AI search crawlers and get ranked fixes to apply",
+    "url": "https://seoaeogeo.app/mcp",
+    "link": "https://seoaeogeo.app/agents",
+    "installation_notes": "Hosted remote server. No account or API key; free preview, rate-limited per IP.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
