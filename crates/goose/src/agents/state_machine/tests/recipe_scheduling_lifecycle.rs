@@ -11,16 +11,87 @@ use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_
 use crate::agents::platform_extensions::scheduler::MANAGE_SCHEDULE_TOOL_NAME_COMPLETE;
 #[cfg(feature = "code-mode")]
 use crate::agents::state_machine::ops_tool_approval::TOOL_EXECUTABLE_KEY;
-use crate::agents::state_machine::MAX_TURNS_MESSAGE;
 use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
 use crate::agents::types::{RetryConfig, SuccessCheck};
 #[cfg(feature = "code-mode")]
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
+use crate::conversation::message::Message;
 #[cfg(feature = "code-mode")]
 use crate::conversation::message::MessageContent;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::{Recipe, Response, SubRecipe};
+
+#[tokio::test]
+async fn slash_recipe_extensions_remain_available_in_the_session() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    pipeline.remove_extension("todo").await?;
+    let recipe_path = pipeline.working_dir().join("extension-repro.yaml");
+    std::fs::write(
+        &recipe_path,
+        r#"
+version: 1.0.0
+title: Extension repro
+description: Load Todo through a recipe command
+prompt: Run the extension recipe
+extensions:
+  - type: platform
+    name: todo
+"#,
+    )?;
+    let mappings =
+        json!([{ "command": "extension-repro", "recipe_path": recipe_path }]).to_string();
+    let _guard = env_lock::lock_env([("SLASH_COMMANDS", Some(mappings.as_str()))]);
+    api.on("Run the extension recipe").reply("recipe complete");
+    let result = pipeline.run(["/extension-repro"]).await?;
+    result.assert_message(-1, Agent, "recipe complete");
+    let call = api.calls().last().cloned().unwrap();
+    assert!(call.advertises_tool("todo__todo_write"));
+    assert!(call.advertises_tool(super::calculator_extension::ADD));
+
+    api.on("write a note after the recipe")
+        .call("todo__todo_write", json!({ "content": "still available" }));
+    api.on("Updated (").reply("note saved");
+    let result = pipeline.run(["write a note after the recipe"]).await?;
+    result.assert_message(-1, Agent, "note saved");
+    Ok(())
+}
+
+#[tokio::test]
+async fn slash_recipe_extension_failure_is_reported_before_applying_the_recipe() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe_path = pipeline.working_dir().join("broken-extension.json");
+    std::fs::write(
+        &recipe_path,
+        json!({
+            "title": "Broken extension",
+            "description": "Report a recipe extension startup failure",
+            "prompt": "This recipe should not run",
+            "extensions": [{
+                "type": "stdio",
+                "name": "missing-server",
+                "cmd": pipeline.working_dir().join("missing-mcp-binary"),
+                "args": [],
+                "timeout": 1
+            }]
+        })
+        .to_string(),
+    )?;
+    let mappings =
+        json!([{ "command": "broken-extension", "recipe_path": recipe_path }]).to_string();
+    let _guard = env_lock::lock_env([("SLASH_COMMANDS", Some(mappings.as_str()))]);
+
+    let result = pipeline.run(["/broken-extension"]).await?;
+
+    result.assert_message(
+        -1,
+        Agent,
+        "Could not load recipe extension 'missing-server'",
+    );
+    assert_eq!(api.call_count(), 0);
+    assert!(result.session.recipe.is_none());
+    Ok(())
+}
 
 #[tokio::test]
 async fn inherited_recipe_parameters_instructions_and_extensions_reach_inference() -> Result<()> {
@@ -117,7 +188,14 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     result.assert_message(-1, Agent, "delegation stayed in chat");
 
     let (pipeline, api) = test_pipeline().await?;
-    let pipeline = pipeline.with_provider_name("state-machine-test").await?;
+    pipeline.remove_extension("todo").await?;
+    let host = api.uri();
+    let _guard = env_lock::lock_env([
+        ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+        ("OPENAI_HOST", Some(host.as_str())),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
+        ("OPENAI_CUSTOM_HEADERS", Some("")),
+    ]);
     let child_path = pipeline.working_dir().join("bounded-child.yaml");
     std::fs::write(
         &child_path,
@@ -126,6 +204,9 @@ version: 1.0.0
 title: Bounded child
 description: Stops after one turn
 prompt: Keep taking actions
+extensions:
+  - type: platform
+    name: todo
 settings:
   max_turns: 1
 "#,
@@ -155,13 +236,136 @@ settings:
         .call("delegate", json!({ "source": "bounded" }));
     api.on("Keep taking actions")
         .unadvertised_call("keep_working", json!({}));
-    api.on(MAX_TURNS_MESSAGE).reply("child stopped on time");
+    api.on("failed: max turns reached")
+        .reply("child stopped on time");
 
     let result = pipeline.run(["Delegate the bounded child"]).await?;
     assert_eq!(api.call_count(), 3);
-    result.assert_message(-2, ToolResponse, MAX_TURNS_MESSAGE);
+    let calls = api.calls();
+    assert!(!calls[0].advertises_tool("todo__todo_write"));
+    assert!(calls[1].advertises_tool("todo__todo_write"));
+    assert!(!calls[2].advertises_tool("todo__todo_write"));
+    let delivery = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| {
+            message.is_agent_visible()
+                && !message.is_user_visible()
+                && message
+                    .as_concat_text()
+                    .contains("failed: max turns reached")
+        })
+        .expect("child turn-limit failure is delivered to the parent LLM");
+    assert_eq!(delivery.role, rmcp::model::Role::User);
     result.assert_message(-1, Agent, "child stopped on time");
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn final_output_beside_delegate_is_not_shown_before_the_subagent_runs() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_max_turns(2);
+    let host = api.uri();
+    let _guard = env_lock::lock_env([
+        ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+        ("OPENAI_HOST", Some(host.as_str())),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
+        ("OPENAI_CUSTOM_HEADERS", Some("")),
+    ]);
+    let recipe = Recipe::builder()
+        .title("Structured delegation")
+        .description("Delegates, then returns structured output")
+        .prompt("Research and summarize")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .extensions(vec![ExtensionConfig::Platform {
+            name: "summon".to_string(),
+            description: "Delegate work".to_string(),
+            display_name: None,
+            bundled: None,
+            available_tools: vec![],
+        }])
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    api.on("Research and summarize").calls([
+        (
+            "call_delegate",
+            "delegate",
+            json!({ "instructions": "Find the answer", "max_turns": 1 }),
+        ),
+        (
+            "call_early_output",
+            FINAL_OUTPUT_TOOL_NAME,
+            json!({ "result": "early" }),
+        ),
+    ]);
+    api.on("Find the answer")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "summary": "found it" }));
+    api.on("found it")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "final" }));
+
+    let result = pipeline.run(["Research and summarize"]).await?;
+    assert_eq!(api.call_count(), 3);
+    let shown_outputs: Vec<String> = result
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|message| message.role == rmcp::model::Role::Assistant && message.is_user_visible())
+        .map(|message| message.as_concat_text())
+        .filter(|text| text.contains("\"result\""))
+        .collect();
+    assert_eq!(shown_outputs, vec![r#"{"result":"final"}"#.to_string()]);
+    result.assert_message(-1, Agent, r#"{"result":"final"}"#);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn final_output_nudge_goes_in_before_a_queued_steer() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe = Recipe::builder()
+        .title("Structured answer")
+        .description("Returns structured output")
+        .prompt("Research the topic")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    pipeline
+        .steer(Message::user().with_text("then be brief"))
+        .await;
+    api.on("Research the topic").reply("draft");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "done" }));
+    api.on("then be brief")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "brief" }));
+
+    let result = pipeline.run(["Research the topic"]).await?;
+
+    assert_eq!(api.call_count(), 3);
+    let messages = result.conversation().messages();
+    let position = |text: &str| {
+        messages
+            .iter()
+            .position(|message| message.as_concat_text().contains(text))
+            .unwrap_or_else(|| panic!("{text} was persisted"))
+    };
+    assert!(position(FINAL_OUTPUT_CONTINUATION_MESSAGE) < position("then be brief"));
+    result.assert_message(-1, Agent, r#"{"result":"brief"}"#);
     Ok(())
 }
 
@@ -194,6 +398,7 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     exhausted.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
 
     let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_max_turns(2);
     api.on("compute the answer").reply("thinking about it");
     api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
         .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
@@ -217,6 +422,77 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
     assert!(api.calls()[0].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
     assert!(api.calls()[1].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
     completed.assert_message(-1, Agent, r#"{"result":"42"}"#);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_responses_hand_the_turn_to_recipe_operations() -> Result<()> {
+    let shows_empty_fallback = |conversation: &crate::conversation::Conversation| {
+        conversation.iter().any(|message| {
+            message.is_user_visible() && message.as_concat_text().contains("empty response")
+        })
+    };
+    let retry = |check: &str| RetryConfig {
+        max_retries: 1,
+        checks: vec![SuccessCheck::Shell {
+            command: check.to_string(),
+        }],
+        on_failure: None,
+        timeout_seconds: None,
+        on_failure_timeout_seconds: None,
+    };
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("compute the answer").reply("");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .instructions("Compute the answer")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let nudged = pipeline.run(["compute the answer"]).await?;
+    nudged.assert_message(-1, Agent, r#"{"result":"42"}"#);
+    assert!(!shows_empty_fallback(nudged.conversation()));
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("check the work").reply("");
+    let recipe = Recipe::builder()
+        .title("passing retry")
+        .description("passing retry")
+        .prompt("check the work")
+        .retry(retry("true"))
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let passed = pipeline.run(["check the work"]).await?;
+    assert!(!shows_empty_fallback(passed.conversation()));
+
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("never succeed").reply("");
+    let recipe = Recipe::builder()
+        .title("failing retry")
+        .description("failing retry")
+        .prompt("never succeed")
+        .retry(retry("exit 1"))
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+    let (_pipeline, exhausted, _) = pipeline
+        .run_reconstructing_each_step("never succeed")
+        .await?;
+    exhausted.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
+    assert!(!shows_empty_fallback(exhausted.conversation()));
 
     Ok(())
 }
@@ -500,6 +776,7 @@ async fn scheduled_run_attaches_recipe_to_session_before_inference() -> Result<(
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("GOOSE_PROVIDER", Some("openai")),
+        ("OPENAI_BASE_PATH", Some("chat/completions")),
         ("GOOSE_MODEL", Some("gpt-4o")),
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ("OPENAI_HOST", Some(host.as_str())),

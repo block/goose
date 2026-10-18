@@ -232,6 +232,13 @@ impl OpenAiFixture {
         exchanges: Vec<(String, &'static str)>,
         expected_session_id: Arc<dyn ExpectedSessionId>,
         response_delay: Duration,
+        Self::with_response_delay(exchanges, expected_session_id, Duration::ZERO).await
+    }
+
+    pub async fn with_response_delay(
+        exchanges: Vec<(String, &'static str)>,
+        expected_session_id: Arc<dyn ExpectedSessionId>,
+        delay: Duration,
     ) -> Self {
         let mock_server = MockServer::start().await;
         let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
@@ -275,6 +282,8 @@ impl OpenAiFixture {
                             .insert_header("content-type", "text/event-stream")
                             .set_delay(response_delay)
                             .set_body_string(response);
+                            .set_body_string(response)
+                            .set_delay(delay);
                     }
                     drop(q);
 
@@ -384,23 +393,25 @@ pub async fn spawn_acp_server_in_process(
     write_global_test_config(&config_path, openai_base_url);
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();
-        Arc::new(
-            move |_provider_name, _extensions, _working_dir, _use_default_model| {
-                let base_url = base_url.clone();
-                Box::pin(async move {
-                    let api_client = ApiClient::new_with_tls(
-                        base_url,
-                        ApiAuthMethod::BearerToken("test-key".to_string()),
-                        None,
-                    )
-                    .unwrap();
-                    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
-                    Ok(provider)
-                })
-            },
-        )
+        Arc::new(move |_provider_name| {
+            let base_url = base_url.clone();
+            Box::pin(async move {
+                let api_client = ApiClient::new_with_tls(
+                    base_url,
+                    ApiAuthMethod::BearerToken("test-key".to_string()),
+                    None,
+                )
+                .unwrap();
+                let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
+                Ok(provider)
+            })
+        })
     });
 
+    let active_runs = Arc::new(goose::acp::server::ActiveRunRegistry::default());
+    let live_voice = Arc::new(goose::acp::server::LiveVoiceService::from_config(
+        active_runs.clone(),
+    ));
     let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
         provider_factory,
         builtin_selection: goose::acp::server::AcpBuiltinSelection {
@@ -414,7 +425,8 @@ pub async fn spawn_acp_server_in_process(
         additional_source_roots: Vec::new(),
         session_cwd: None,
         scheduler: Some(Arc::new(FixtureScheduler::new())),
-        active_prompt_runs: Default::default(),
+        active_runs,
+        live_voice,
     })
     .await
     .unwrap();

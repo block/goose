@@ -17,11 +17,9 @@ import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatSession } from '../hooks/useChatSession';
-import { acpDeleteSession, acpUpdateWorkingDir } from '../acp/sessions';
+import { acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
-import { RecipeWarningModal } from './ui/RecipeWarningModal';
-import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
 import RecipeActivities from './recipes/RecipeActivities';
 import {
@@ -30,12 +28,16 @@ import {
   type Message,
   type UserInput,
 } from '../types/message';
-import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
+import type { LiveVoiceAvailabilityResponse_unstable } from '@aaif/goose-acp-client';
+import { acpGetLiveVoiceAvailability } from '../acp/liveVoice';
+import type { LiveVoiceController } from '../liveVoice/useLiveVoice';
+
+const NEW_LIVE_VOICE_GREETING = 'Hello! What can I help you with?';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -60,28 +62,21 @@ const isUserMessage = (message: Message) => message.role === 'user';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
-  onMessageSubmit?: (message: string) => void;
-  renderHeader?: () => React.ReactNode;
-  customChatInputProps?: Record<string, unknown>;
-  customMainLayoutProps?: Record<string, unknown>;
-  contentClassName?: string;
-  disableSearch?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
   isActiveSession: boolean;
   initialMessage?: UserInput;
   noAutoSubmit?: boolean;
+  liveVoice: LiveVoiceController;
 }
 
 export default function BaseChat({
   setChat,
-  renderHeader,
-  customChatInputProps = {},
-  customMainLayoutProps = {},
   sessionId,
   initialMessage,
   noAutoSubmit,
   isActiveSession,
+  liveVoice,
 }: BaseChatProps) {
   const intl = useIntl();
   const location = useLocation();
@@ -89,17 +84,60 @@ export default function BaseChat({
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const disableAnimation = location.state?.disableAnimation || false;
+  const shouldStartLiveVoice = location.state?.startLiveVoice === true;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
-  const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
   const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
+  const [liveVoiceAvailability, setLiveVoiceAvailability] =
+    useState<LiveVoiceAvailabilityResponse_unstable | null>(null);
   const isMobile = useIsMobile();
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
+  const {
+    activeSessionId: activeLiveVoiceSessionId,
+    liveVoiceSessionId,
+    start: startSharedLiveVoice,
+  } = liveVoice;
+  const ownsLiveVoice = liveVoiceSessionId === sessionId;
+  const liveVoiceActiveInAnotherSession =
+    activeLiveVoiceSessionId !== null && activeLiveVoiceSessionId !== sessionId;
+  const startLiveVoice = useCallback(
+    async (initialCommentary?: string) => {
+      if (activeLiveVoiceSessionId && activeLiveVoiceSessionId !== sessionId) {
+        setView('pair', { resumeSessionId: activeLiveVoiceSessionId });
+        return;
+      }
+      await startSharedLiveVoice(sessionId, initialCommentary);
+    },
+    [activeLiveVoiceSessionId, sessionId, setView, startSharedLiveVoice]
+  );
   const isNavCollapsed = !navContext?.isNavExpanded;
   const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
+
+  const [pendingQuote, setPendingQuote] = useState<string | null>(null);
+  const [quoteButtonPos, setQuoteButtonPos] = useState<{ x: number; y: number } | null>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setQuoteButtonPos(null);
+        return;
+      }
+      if (!conversationRef.current || !conversationRef.current.contains(sel.anchorNode)) {
+        setQuoteButtonPos(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setQuoteButtonPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, []);
 
   useEffect(() => subscribeToAcpRecovery(setAcpRecovering), []);
 
@@ -119,6 +157,7 @@ export default function BaseChat({
     notifications: toolCallNotifications,
     pauseQueueOnStop,
     queueProcessingBlocked,
+    hasActiveRun,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -128,6 +167,66 @@ export default function BaseChat({
     (text: string) => handleSubmit({ msg: text, images: [] }),
     [handleSubmit]
   );
+
+  const sessionLoaded = session !== undefined;
+  const liveVoiceChatBusy = chatState !== ChatState.Idle;
+
+  useEffect(() => {
+    if (!isActiveSession || !shouldStartLiveVoice || liveVoiceAvailability === null) {
+      return;
+    }
+
+    if (liveVoiceAvailability.status === 'ready') {
+      void startLiveVoice(NEW_LIVE_VOICE_GREETING);
+    }
+
+    navigate(location, {
+      replace: true,
+      state: { ...location.state, startLiveVoice: undefined },
+    });
+  }, [
+    isActiveSession,
+    shouldStartLiveVoice,
+    liveVoiceAvailability,
+    startLiveVoice,
+    location,
+    navigate,
+  ]);
+
+  useEffect(() => {
+    if (!isActiveSession || !sessionLoaded || acpRecovering || liveVoiceActiveInAnotherSession) {
+      setLiveVoiceAvailability(null);
+      return;
+    }
+
+    let current = true;
+    setLiveVoiceAvailability(null);
+    void acpGetLiveVoiceAvailability(sessionId).then(
+      (response) => {
+        if (current) {
+          setLiveVoiceAvailability(response);
+        }
+      },
+      () => {
+        if (current) {
+          setLiveVoiceAvailability(null);
+        }
+      }
+    );
+    return () => {
+      current = false;
+    };
+  }, [
+    acpRecovering,
+    hasActiveRun,
+    isActiveSession,
+    liveVoice.phase,
+    liveVoiceActiveInAnotherSession,
+    liveVoiceChatBusy,
+    session?.goose_mode,
+    sessionId,
+    sessionLoaded,
+  ]);
 
   const handleWorkingDirChange = useCallback(
     async (newDir: string) => {
@@ -142,32 +241,18 @@ export default function BaseChat({
 
   const recipe = session?.recipe as Recipe | null | undefined;
 
-  const resolvedInitialMessage = useMemo((): UserInput | undefined => {
-    if (!initialMessage) return undefined;
-    if (recipe?.prompt && session?.user_recipe_values) {
-      return {
-        ...initialMessage,
-        msg: substituteParameters(initialMessage.msg, session.user_recipe_values),
-      };
-    }
-    return initialMessage;
-  }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
-
   // noAutoSubmit only suppresses auto-submitting the initial prompt of a fresh session
   // (goose://new-session?prompt=...). Once the conversation has messages, later flows
   // such as forks or resumes should auto-submit normally.
   const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
-  const canAutoSubmit =
-    !acpRecovering &&
-    !suppressInitialAutoSubmit &&
-    (session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false);
+  const canAutoSubmit = !acpRecovering && !suppressInitialAutoSubmit;
 
   useAutoSubmit({
     sessionId,
     session,
     messages,
     chatState,
-    initialMessage: resolvedInitialMessage,
+    initialMessage,
     canAutoSubmit,
     handleSubmit,
   });
@@ -221,7 +306,6 @@ export default function BaseChat({
 
   const sessionModel = session?.model_config?.model_name ?? null;
   const sessionProvider = session?.provider_name ?? null;
-  const sessionLoaded = session !== undefined;
   const latestInference = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
@@ -235,38 +319,6 @@ export default function BaseChat({
     }
     return null;
   }, [messages]);
-
-  useEffect(() => {
-    if (!recipe || !isActiveSession || session?.session_type === 'scheduled') return;
-
-    (async () => {
-      const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
-      setHasNotAcceptedRecipe(!accepted);
-
-      if (!accepted) {
-        const scanResult = await scanRecipe(recipe);
-        setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
-      }
-    })();
-  }, [recipe, isActiveSession, session?.session_type]);
-
-  const handleRecipeAccept = async (accept: boolean) => {
-    if (recipe && accept) {
-      await window.electron.recordRecipeHash(recipe);
-      setHasNotAcceptedRecipe(false);
-      return;
-    }
-
-    if (sessionId) {
-      try {
-        await acpDeleteSession(sessionId);
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
-      } catch (error) {
-        console.error('Failed to delete declined recipe session:', error);
-      }
-    }
-    setView('chat');
-  };
 
   // Track if this is the initial render for session resuming
   const initialRenderRef = useRef(true);
@@ -365,28 +417,17 @@ export default function BaseChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.name, setChat]);
 
-  // If we have a recipe prompt and user recipe values, substitute parameters
-  let recipePrompt = '';
-  if (messages.length === 0 && recipe?.prompt) {
-    recipePrompt = session?.user_recipe_values
-      ? substituteParameters(recipe.prompt, session.user_recipe_values)
-      : recipe.prompt;
-  }
+  const recipePrompt = messages.length === 0 ? (recipe?.prompt ?? '') : '';
 
   const initialPrompt =
-    noAutoSubmit && messages.length === 0 && resolvedInitialMessage?.msg
-      ? resolvedInitialMessage.msg
+    noAutoSubmit && messages.length === 0 && initialMessage?.msg
+      ? initialMessage.msg
       : recipePrompt;
 
   if (sessionLoadError) {
     return (
       <div className="h-full flex flex-col min-h-0">
-        <MainPanelLayout
-          backgroundColor={'bg-background-primary'}
-          removeTopPadding={true}
-          {...customMainLayoutProps}
-        >
-          {renderHeader && renderHeader()}
+        <MainPanelLayout backgroundColor={'bg-background-primary'} removeTopPadding={true}>
           <div className="flex flex-col flex-1 min-h-0 relative">
             <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
@@ -414,14 +455,7 @@ export default function BaseChat({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <MainPanelLayout
-        backgroundColor={'bg-background-primary'}
-        removeTopPadding={true}
-        {...customMainLayoutProps}
-      >
-        {/* Custom header */}
-        {renderHeader && renderHeader()}
-
+      <MainPanelLayout backgroundColor={'bg-background-primary'} removeTopPadding={true}>
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 min-h-0 relative">
           {/* Goose watermark - top right */}
@@ -463,8 +497,6 @@ export default function BaseChat({
                 <RecipeActivities
                   append={appendToChat}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
-                  title={recipe.title}
-                  parameterValues={session?.user_recipe_values || {}}
                 />
               </div>
             )}
@@ -472,17 +504,19 @@ export default function BaseChat({
             {messages.length > 0 || recipe ? (
               <>
                 <SearchView>
-                  <ProgressiveMessageList
-                    messages={messages}
-                    sessionId={sessionId}
-                    toolCallNotifications={toolCallNotifications}
-                    append={appendToChat}
-                    isUserMessage={isUserMessage}
-                    isStreamingMessage={chatState !== ChatState.Idle}
-                    onRenderingComplete={handleRenderingComplete}
-                    onMessageUpdate={onMessageUpdate}
-                    submitElicitationResponse={submitElicitationResponse}
-                  />
+                  <div ref={conversationRef}>
+                    <ProgressiveMessageList
+                      messages={messages}
+                      sessionId={sessionId}
+                      toolCallNotifications={toolCallNotifications}
+                      append={appendToChat}
+                      isUserMessage={isUserMessage}
+                      isStreamingMessage={chatState !== ChatState.Idle}
+                      onRenderingComplete={handleRenderingComplete}
+                      onMessageUpdate={onMessageUpdate}
+                      submitElicitationResponse={submitElicitationResponse}
+                    />
+                  </div>
                 </SearchView>
 
                 <div className="block h-8" />
@@ -503,6 +537,25 @@ export default function BaseChat({
           </div>
         )}
 
+        {quoteButtonPos && (
+          <button
+            className="fixed z-50 -translate-x-1/2 -translate-y-full rounded-md bg-background-inverse px-2 py-1 text-xs font-medium text-text-inverse shadow-md hover:opacity-90"
+            style={{ left: quoteButtonPos.x, top: quoteButtonPos.y }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const sel = window.getSelection();
+              const text = sel?.toString().trim() ?? '';
+              if (text) {
+                setPendingQuote(text);
+                sel?.removeAllRanges();
+              }
+              setQuoteButtonPos(null);
+            }}
+          >
+            Add to message
+          </button>
+        )}
+
         <ChatInputCard
           className={cn(
             'relative z-30 mx-4 mb-4',
@@ -514,6 +567,7 @@ export default function BaseChat({
             sessionId={sessionId}
             handleSubmit={chatInputSubmit}
             chatState={chatState}
+            hasActiveRun={hasActiveRun}
             onStop={stopStreaming}
             onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
@@ -539,7 +593,6 @@ export default function BaseChat({
             messages={messages}
             disableAnimation={disableAnimation}
             recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
@@ -547,24 +600,20 @@ export default function BaseChat({
             workingDir={session?.working_dir}
             onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
-            {...customChatInputProps}
+            liveVoice={{
+              availability: liveVoiceAvailability,
+              phase: ownsLiveVoice ? liveVoice.phase : 'idle',
+              muted: ownsLiveVoice ? liveVoice.muted : false,
+              activeInAnotherSession: liveVoiceActiveInAnotherSession,
+              start: () => startLiveVoice(),
+              stop: liveVoice.stop,
+              toggleMute: liveVoice.toggleMute,
+            }}
+            appendQuote={pendingQuote}
+            onAppendQuoteConsumed={() => setPendingQuote(null)}
           />
         </ChatInputCard>
       </MainPanelLayout>
-
-      {recipe && isActiveSession && session?.session_type !== 'scheduled' && (
-        <RecipeWarningModal
-          isOpen={!!hasNotAcceptedRecipe}
-          onConfirm={() => handleRecipeAccept(true)}
-          onCancel={() => handleRecipeAccept(false)}
-          recipeDetails={{
-            title: recipe.title,
-            description: recipe.description,
-            instructions: recipe.instructions || undefined,
-          }}
-          hasSecurityWarnings={hasRecipeSecurityWarnings}
-        />
-      )}
     </div>
   );
 }

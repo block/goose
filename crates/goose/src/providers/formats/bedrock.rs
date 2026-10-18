@@ -165,6 +165,12 @@ pub fn to_bedrock_message_with_caching(
         .content
         .iter()
         .filter(|content| {
+            if matches!(
+                content,
+                MessageContent::ActionRequired(_) | MessageContent::ToolConfirmationRequest(_)
+            ) {
+                return false;
+            }
             if !thinking_is_stale {
                 return true;
             }
@@ -196,11 +202,11 @@ pub fn to_bedrock_message_with_caching(
 pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::ContentBlock> {
     Ok(match content {
         MessageContent::Text(text) => bedrock::ContentBlock::Text(text.text.to_string()),
-        MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
-            bedrock::ContentBlock::Text("".to_string())
+        MessageContent::ToolConfirmationRequest(_) => {
+            bail!("ToolConfirmationRequest should be filtered before Bedrock conversion")
         }
-        MessageContent::ActionRequired(_action_required) => {
-            bedrock::ContentBlock::Text("".to_string())
+        MessageContent::ActionRequired(_) => {
+            bail!("ActionRequired should be filtered before Bedrock conversion")
         }
         MessageContent::Image(image) => {
             bedrock::ContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
@@ -612,13 +618,18 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage::from_cache_exclusive_input(
-        Some(usage.input_tokens),
+    let cache_read = usage.cache_read_input_tokens;
+    let cache_write = usage.cache_write_input_tokens;
+    let input_tokens = usage
+        .input_tokens
+        .saturating_add(cache_read.unwrap_or(0))
+        .saturating_add(cache_write.unwrap_or(0));
+    Usage::new(
+        Some(input_tokens),
         Some(usage.output_tokens),
         Some(usage.total_tokens),
-        usage.cache_read_input_tokens,
-        usage.cache_write_input_tokens,
     )
+    .with_cache_tokens(cache_read, cache_write)
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {
@@ -1106,11 +1117,11 @@ mod tests {
     }
 
     #[test]
-    fn test_from_bedrock_usage_folds_cache_tokens_into_input() {
+    fn test_from_bedrock_usage_includes_cache_in_input_and_preserves_total() {
         let usage = bedrock::TokenUsage::builder()
             .input_tokens(7)
             .output_tokens(50)
-            .total_tokens(57)
+            .total_tokens(6057)
             .cache_read_input_tokens(5000)
             .cache_write_input_tokens(1000)
             .build()
@@ -1660,5 +1671,43 @@ mod tests {
 
         assert!(!bedrock_model_supports_temperature(&config));
         assert_eq!(inference_config.temperature(), None);
+    }
+
+    #[test]
+    fn test_elicitation_message_becomes_empty() {
+        use crate::conversation::message::{ActionRequired, ActionRequiredData};
+        use rmcp::model::Role;
+
+        let elicitation_request = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![MessageContent::ActionRequired(ActionRequired {
+                data: ActionRequiredData::Elicitation {
+                    id: "elicit-1".to_string(),
+                    message: "Choose something".to_string(),
+                    requested_schema: serde_json::json!({}),
+                },
+            })],
+        );
+
+        let elicitation_response = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::ActionRequired(ActionRequired {
+                data: ActionRequiredData::ElicitationResponse {
+                    id: "elicit-1".to_string(),
+                    user_data: serde_json::json!({"choice": "yes"}),
+                    action: rmcp::model::ElicitationAction::Accept,
+                },
+            })],
+        );
+
+        let request_result =
+            to_bedrock_message_with_caching(&elicitation_request, false, None).unwrap();
+        let response_result =
+            to_bedrock_message_with_caching(&elicitation_response, false, None).unwrap();
+
+        assert!(request_result.content().is_empty());
+        assert!(response_result.content().is_empty());
     }
 }

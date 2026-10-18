@@ -1733,6 +1733,36 @@
   "launcher.placeholder": {
     "defaultMessage": "Спросите goose о чем угодно..."
   },
+  "liveVoice.connecting": {
+    "defaultMessage": "Connecting Live voice"
+  },
+  "liveVoice.emptyComposerRequired": {
+    "defaultMessage": "Clear the message and attachments to use Live voice"
+  },
+  "liveVoice.error": {
+    "defaultMessage": "Live voice failed. Try again"
+  },
+  "liveVoice.live": {
+    "defaultMessage": "Stop Live voice"
+  },
+  "liveVoice.mute": {
+    "defaultMessage": "Mute microphone"
+  },
+  "liveVoice.returnToActive": {
+    "defaultMessage": "Return to active Live voice"
+  },
+  "liveVoice.stopping": {
+    "defaultMessage": "Stopping Live voice"
+  },
+  "liveVoice.unmute": {
+    "defaultMessage": "Unmute microphone"
+  },
+  "liveVoiceSettings.description": {
+    "defaultMessage": "Общайтесь с Goose голосом в реальном времени"
+  },
+  "liveVoiceSettings.title": {
+    "defaultMessage": "Голосовой режим"
+  },
   "loadingGoose.compacting": {
     "defaultMessage": "goose сжимает разговор..."
   },
@@ -1932,13 +1962,16 @@
     "defaultMessage": "Неверный URL"
   },
   "mcpAppRenderer.movePipWindow": {
-    "defaultMessage": "Переместить окно «картинка в картинке» (используйте стрелки)"
+    "defaultMessage": "Переместить окно «картинка в картинке»"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Картинка в картинке"
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Воспроизведение в режиме «картинка в картинке»"
+  },
+  "mcpAppRenderer.resizePipWindow": {
+    "defaultMessage": "Изменить размер окна «картинка в картинке»"
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count, plural, one {Найден # элемент} few {Найдено # элемента} many {Найдено # элементов} other {Найдено # элемента}}"
@@ -2351,6 +2384,9 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
+  "navigationPanel.loadingChats": {
+    "defaultMessage": "Загрузка чатов…"
+  },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Создано"
   },
@@ -2684,9 +2720,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "У вас есть несохраненные изменения"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ошибка ProviderCard: метаданные не предоставлены"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Неизвестный провайдер"
   },
@@ -2695,9 +2728,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Формат API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Отмена"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Выберите провайдера"
@@ -3794,9 +3824,6 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "Открыть в новом окне"
   },
-  "sessions.action.shareNostr": {
-    "defaultMessage": "Поделиться зашифрованной ссылкой Nostr"
-  },
   "sessions.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -3836,21 +3863,6 @@
   "sessions.import": {
     "defaultMessage": "Импортировать сеанс"
   },
-  "sessions.importNostr": {
-    "defaultMessage": "Импортировать ссылку"
-  },
-  "sessions.importNostr.description": {
-    "defaultMessage": "Вставьте ссылку общего доступа Goose Nostr, чтобы получить, расшифровать и импортировать сеанс."
-  },
-  "sessions.importNostr.placeholder": {
-    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
-  },
-  "sessions.importNostr.title": {
-    "defaultMessage": "Импортировать сеанс Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Импорт..."
-  },
   "sessions.includeAcp": {
     "defaultMessage": "Включить сессии ACP"
   },
@@ -3878,12 +3890,6 @@
   "sessions.searchPlaceholder": {
     "defaultMessage": "Поиск по истории..."
   },
-  "sessions.shareNostr.description": {
-    "defaultMessage": "Любой, у кого есть эта ссылка, сможет получить и расшифровать ваш сеанс. Обращайтесь с ней как с секретом."
-  },
-  "sessions.shareNostr.title": {
-    "defaultMessage": "Зашифрованная ссылка общего доступа Nostr"
-  },
   "sessions.toast.copied": {
     "defaultMessage": "Скопировано в буфер обмена"
   },
@@ -3910,12 +3916,6 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "Сеанс успешно импортирован"
-  },
-  "sessions.toast.shareNostr": {
-    "defaultMessage": "Зашифрованная ссылка Nostr создана"
-  },
-  "sessions.toast.shareNostrFailed": {
-    "defaultMessage": "Не удалось создать ссылку Nostr: {error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Не удалось обновить описание сеанса: {error}"
@@ -4670,10 +4670,73 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Перейдите на"
   },
-  "settings.legacyAgentLoop.description": {
-    "defaultMessage": "Fall back to the classic agent loop if the new one causes issues"
+  "settings.agentLoop.operations.auto.placeholder": {
+    "defaultMessage": "Автоматически"
   },
-  "settings.legacyAgentLoop.title": {
-    "defaultMessage": "Use Legacy Agent Loop"
+  "settings.agentLoop.operations.blockLimit.label": {
+    "defaultMessage": "Лимит блокировок"
+  },
+  "settings.agentLoop.operations.contextCompaction.description": {
+    "defaultMessage": "Сводит историю диалога до заполнения контекстного окна."
+  },
+  "settings.agentLoop.operations.contextCompaction.title": {
+    "defaultMessage": "Сжатие контекста"
+  },
+  "settings.agentLoop.operations.cutoff.label": {
+    "defaultMessage": "Порог отсечения"
+  },
+  "settings.agentLoop.operations.enable": {
+    "defaultMessage": "Включить {operation}"
+  },
+  "settings.agentLoop.operations.failureTimeout.label": {
+    "defaultMessage": "Тайм-аут ошибки"
+  },
+  "settings.agentLoop.operations.heading": {
+    "defaultMessage": "Настраиваемые операции"
+  },
+  "settings.agentLoop.operations.maxTurns.description": {
+    "defaultMessage": "Останавливает автономную работу и запрашивает подтверждение пользователя перед продолжением."
+  },
+  "settings.agentLoop.operations.maxTurns.title": {
+    "defaultMessage": "Максимум ходов"
+  },
+  "settings.agentLoop.operations.recipeRetry.description": {
+    "defaultMessage": "Повторно запускает проверки рецепта, если настроенная проверка успеха завершается неудачно."
+  },
+  "settings.agentLoop.operations.recipeRetry.title": {
+    "defaultMessage": "Повтор рецепта"
+  },
+  "settings.agentLoop.operations.retryTimeout.label": {
+    "defaultMessage": "Тайм-аут повтора"
+  },
+  "settings.agentLoop.operations.slashCommands.description": {
+    "defaultMessage": "Распознаёт команды, такие как /compact, /skills и ярлыки рецептов."
+  },
+  "settings.agentLoop.operations.slashCommands.title": {
+    "defaultMessage": "Слэш-команды"
+  },
+  "settings.agentLoop.operations.stopHooks.description": {
+    "defaultMessage": "Позволяет хукам блокировать завершение, предотвращая бесконечные циклы остановки."
+  },
+  "settings.agentLoop.operations.stopHooks.title": {
+    "defaultMessage": "Хуки остановки"
+  },
+  "settings.agentLoop.operations.threshold.label": {
+    "defaultMessage": "Порог %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Лимит токенов"
+  },
+  "settings.agentLoop.operations.toolPairCompaction.description": {
+    "defaultMessage": "Сводит старые запросы и ответы инструментов для экономии контекста. Если поле пусто, порог выбирается автоматически."
+  },
+  "settings.agentLoop.operations.toolPairCompaction.title": {
+    "defaultMessage": "Сжатие пар инструментов"
+  },
+  "settings.agentLoop.operations.turns.label": {
+    "defaultMessage": "Ходы"
+  },
+  "settings.agentLoop.title": {
+    "defaultMessage": "Цикл агента"
   }
 }

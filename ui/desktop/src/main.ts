@@ -57,9 +57,8 @@ import './utils/gitBranchIpc';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { WEB_PROTOCOLS } from './utils/urlSecurity';
 import { openExternalUrl } from './utils/openExternalUrl';
-import { buildCSP, leaseBackendOrigin } from './utils/csp';
+import { buildCSP, leaseBackendOrigin, shouldApplyRendererCsp } from './utils/csp';
 import { resolveWorkingDir } from './utils/workingDir';
 import {
   DesktopFileAccess,
@@ -295,6 +294,12 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
 }
 
 if (started) app.quit();
+
+// The installer's shortcuts carry this AppUserModelID (electron-builder appId). The running app
+// must use the same one so Windows groups it with them on the taskbar and shows its notifications.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.electron.goose');
+}
 
 // Certificate trust for active backend leases. Renderer requests and
 // main-process net.fetch both pin to the exact cert fingerprint. Each backend
@@ -546,54 +551,13 @@ function queuePendingDeepLink(windowId: number, url: string): void {
 
 const reactReadyWindows = new Set<number>();
 
-const DEEPLINK_BURST_DEDUP_MS = 2000;
-const recentSessionDeepLinkSends = new Map<string, number>();
-
-function pruneExpiredSessionDeepLinkSends(now: number): void {
-  for (const [url, sentAt] of recentSessionDeepLinkSends) {
-    if (now - sentAt >= DEEPLINK_BURST_DEDUP_MS) {
-      recentSessionDeepLinkSends.delete(url);
-    }
-  }
-}
-
-function isBurstDuplicateSessionDeepLink(url: string): boolean {
-  const now = Date.now();
-  pruneExpiredSessionDeepLinkSends(now);
-  const sentAt = recentSessionDeepLinkSends.get(url);
-  return sentAt !== undefined && now - sentAt < DEEPLINK_BURST_DEDUP_MS;
-}
-
-function recordSessionDeepLinkSend(url: string): void {
-  const now = Date.now();
-  recentSessionDeepLinkSends.set(url, now);
-  pruneExpiredSessionDeepLinkSends(now);
-}
-
-function sendOpenSharedSession(window: BrowserWindow, url: string): void {
-  if (isBurstDuplicateSessionDeepLink(url)) {
-    log.info('[Main] Ignoring burst duplicate session deep link');
-    return;
-  }
-  recordSessionDeepLinkSend(url);
-  window.webContents.send('open-shared-session', url);
-}
-
-function deliverExtensionOrSessionDeepLink(
-  url: string,
-  parsedUrl: URL,
-  targetWindow: BrowserWindow
-): void {
+function deliverExtensionDeepLink(url: string, targetWindow: BrowserWindow): void {
   if (!reactReadyWindows.has(targetWindow.id) || targetWindow.webContents.isLoadingMainFrame()) {
     queuePendingDeepLink(targetWindow.id, url);
     return;
   }
 
-  if (parsedUrl.hostname === 'extension') {
-    targetWindow.webContents.send('add-extension', url);
-  } else if (parsedUrl.hostname === 'sessions') {
-    sendOpenSharedSession(targetWindow, url);
-  }
+  targetWindow.webContents.send('add-extension', url);
 }
 
 function getResumeSessionId(parsedUrl: URL): string | null {
@@ -670,8 +634,6 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
-  } else if (parsedUrl.hostname === 'sessions') {
-    sendOpenSharedSession(window, url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -740,14 +702,14 @@ app.on('open-url', async (_event, url) => {
       return;
     }
 
-    // For extension/session URLs, send to an existing regular window or open one
+    // For extension URLs, send to an existing regular window or open one
     const regularWindows = getRegularWindows();
     if (regularWindows.length > 0) {
       const targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
-      if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
-        deliverExtensionOrSessionDeepLink(url, parsedUrl, targetWindow);
+      if (parsedUrl.hostname === 'extension') {
+        deliverExtensionDeepLink(url, targetWindow);
       }
     } else {
       openUrlHandledLaunch = true;
@@ -982,7 +944,6 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -1918,8 +1879,6 @@ ipcMain.on('react-ready', (event) => {
       const parsedUrl = new URL(deepLinkUrl);
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
-      } else if (parsedUrl.hostname === 'sessions') {
-        sendOpenSharedSession(window, deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);
@@ -1976,7 +1935,6 @@ const validSettingKeys: Set<string> = new Set([
   'seenAnnouncementIds',
   'disableAutoDownload',
   'recentModels',
-  'useLegacyAgentLoop',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -2482,9 +2440,13 @@ async function appMain() {
     }
   });
 
-  // Add CSP headers to all sessions, recomputed on every response so external
-  // backend settings take effect without restarting the app.
+  // Add CSP headers to the renderer's own documents, recomputed on every
+  // response so external backend settings take effect without restarting the app.
   rendererSession.webRequest.onHeadersReceived((details, callback) => {
+    if (!shouldApplyRendererCsp(details.resourceType)) {
+      callback({});
+      return;
+    }
     const currentSettings = getSettings();
     callback({
       responseHeaders: {
@@ -2962,32 +2924,6 @@ async function appMain() {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (window) {
       window.reload();
-    }
-  });
-
-  ipcMain.on('open-in-chrome', (_event, url) => {
-    try {
-      // Validate URL
-      const parsedUrl = new URL(url);
-
-      // Only allow http and https protocols for browser URLs
-      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
-        console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
-        return;
-      }
-
-      // On macOS, use the 'open' command with Chrome
-      if (process.platform === 'darwin') {
-        spawn('open', ['-a', 'Google Chrome', url]);
-      } else if (process.platform === 'win32') {
-        // On Windows, start is built-in command of cmd.exe
-        spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);
-      } else {
-        // On Linux, use xdg-open with chrome
-        spawn('xdg-open', [url]);
-      }
-    } catch (error) {
-      console.error('Error opening URL in browser:', error);
     }
   });
 
