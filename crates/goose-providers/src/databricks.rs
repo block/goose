@@ -24,8 +24,8 @@ pub use crate::formats::databricks::DATABRICKS_PROVIDER_NAME;
 use crate::formats::openai_responses::create_responses_request;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{
-    handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
-    stream_responses_compat,
+    handle_status, map_http_error_to_provider_error_with_headers, sanitize_url,
+    stream_openai_compat, stream_responses_compat,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::retry::ProviderRetry;
@@ -740,12 +740,18 @@ impl Provider for DatabricksProvider {
                     if !resp.status().is_success() {
                         let status = resp.status();
                         let url = sanitize_url(resp.url().as_str());
+                        let headers = resp.headers().clone();
                         let error_text = crate::http_status::read_error_body(resp)
                             .await
                             .unwrap_or_default();
 
                         let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                        return Err(map_http_error_to_provider_error(status, json_payload, &url));
+                        return Err(map_http_error_to_provider_error_with_headers(
+                            status,
+                            json_payload,
+                            &url,
+                            &headers,
+                        ));
                     }
                     Ok(resp)
                 })
@@ -765,14 +771,16 @@ impl Provider for DatabricksProvider {
                         if !resp.status().is_success() {
                             let status = resp.status();
                             let url = sanitize_url(resp.url().as_str());
+                            let headers = resp.headers().clone();
                             let error_text = crate::http_status::read_error_body(resp)
                                 .await
                                 .unwrap_or_default();
                             let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                            return Err(map_http_error_to_provider_error(
+                            return Err(map_http_error_to_provider_error_with_headers(
                                 status,
                                 json_payload,
                                 &url,
+                                &headers,
                             ));
                         }
                         Ok(resp)

@@ -246,7 +246,40 @@ pub fn map_http_error_to_provider_error(
     payload: Option<Value>,
     url: &str,
 ) -> ProviderError {
-    map_http_error(status, payload, url, None)
+    map_http_error_to_provider_error_with_headers(status, payload, url, &HeaderMap::new())
+}
+
+/// Like [`map_http_error_to_provider_error`], but also honors the response
+/// `Retry-After` header (and the OpenRouter-style `retry_after_seconds` body
+/// field) on 429s. Prefer this wherever the response headers are still
+/// available: providers that map errors directly (databricks, google,
+/// snowflake, gcpvertexai) otherwise silently drop the server's retry hint,
+/// and the agent's retry loop falls back to generic exponential backoff
+/// instead of the server-requested delay.
+pub fn map_http_error_to_provider_error_with_headers(
+    status: StatusCode,
+    payload: Option<Value>,
+    url: &str,
+    headers: &HeaderMap,
+) -> ProviderError {
+    let err = map_http_error(status, payload.clone(), url, None);
+    apply_retry_after(err, headers, payload.as_ref())
+}
+
+/// Fold a 429's retry hint into the error so the agent's retry loop honors
+/// the server-requested delay. Non-429 errors pass through unchanged.
+fn apply_retry_after(
+    err: ProviderError,
+    headers: &HeaderMap,
+    payload: Option<&Value>,
+) -> ProviderError {
+    match err {
+        ProviderError::RateLimitExceeded { details, .. } => ProviderError::RateLimitExceeded {
+            details,
+            retry_delay: extract_retry_after(headers, payload),
+        },
+        other => other,
+    }
 }
 
 /// Folds the request id into the message text so every variant carries it without a new field.
@@ -456,14 +489,8 @@ async fn handle_status_with_limit(
         let body = String::from_utf8_lossy(&body);
         let payload = serde_json::from_str::<Value>(&body).ok();
         let request_id = extract_request_id(&headers);
-        let mut err = map_http_error(status, payload.clone(), &url, request_id.as_deref());
-        if let ProviderError::RateLimitExceeded { details, .. } = &err {
-            err = ProviderError::RateLimitExceeded {
-                details: details.clone(),
-                retry_delay: extract_retry_after(&headers, payload.as_ref()),
-            };
-        }
-        return Err(err);
+        let err = map_http_error(status, payload.clone(), &url, request_id.as_deref());
+        return Err(apply_retry_after(err, &headers, payload.as_ref()));
     }
     Ok(response)
 }
@@ -1000,6 +1027,65 @@ mod tests {
                 expected_context_overflow,
                 "unexpected classification for {case}: {error:?}"
             );
+        }
+    }
+
+    #[test]
+    fn direct_error_mapping_honors_retry_after_header() {
+        // 429s mapped through the direct (non-`handle_status`) path must carry
+        // the server's Retry-After hint, exactly like `handle_status` does —
+        // otherwise providers on this path (databricks, google, snowflake,
+        // gcpvertexai) silently drop the hint and the agent's retry
+        // loop falls back to generic exponential backoff.
+        let payload = json!({ "error": { "message": "slow down" } });
+        let headers = headers_with_retry_after("30");
+        let err = map_http_error_to_provider_error_with_headers(
+            StatusCode::TOO_MANY_REQUESTS,
+            Some(payload),
+            "http://test/endpoint",
+            &headers,
+        );
+        match err {
+            ProviderError::RateLimitExceeded { retry_delay, .. } => {
+                assert_eq!(retry_delay, Some(Duration::from_secs(30)));
+            }
+            other => panic!("expected rate limit, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn direct_error_mapping_honors_retry_after_body_seconds() {
+        // Same guarantee for the OpenRouter-style body field when no header
+        // is present.
+        let payload = json!({ "error": { "metadata": { "retry_after_seconds": 45.0 } } });
+        let err = map_http_error_to_provider_error_with_headers(
+            StatusCode::TOO_MANY_REQUESTS,
+            Some(payload),
+            "http://test/endpoint",
+            &empty_headers(),
+        );
+        match err {
+            ProviderError::RateLimitExceeded { retry_delay, .. } => {
+                assert_eq!(retry_delay, Some(Duration::from_secs(45)));
+            }
+            other => panic!("expected rate limit, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn direct_error_mapping_without_retry_hint_has_none() {
+        // No hint anywhere: retry_delay stays None (agent uses backoff).
+        let payload = json!({ "error": { "message": "slow down" } });
+        let err = map_http_error_to_provider_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            Some(payload),
+            "http://test/endpoint",
+        );
+        match err {
+            ProviderError::RateLimitExceeded { retry_delay, .. } => {
+                assert_eq!(retry_delay, None);
+            }
+            other => panic!("expected rate limit, got: {other:?}"),
         }
     }
 }

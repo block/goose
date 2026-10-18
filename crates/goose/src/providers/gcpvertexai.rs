@@ -27,7 +27,9 @@ use crate::providers::formats::gcpvertexai::{
     DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
-use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
+use crate::providers::openai_compatible::{
+    map_http_error_to_provider_error_with_headers, sanitize_url,
+};
 use crate::providers::retry::RetryConfig;
 use goose_providers::errors::ProviderError;
 use goose_providers::http_status::read_error_body;
@@ -400,9 +402,12 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let url = sanitize_url(response.url().as_str());
+                let headers = response.headers().clone();
                 let response_text = read_error_body(response).await.unwrap_or_default();
                 let payload = serde_json::from_str::<Value>(&response_text).ok();
-                return Err(map_http_error_to_provider_error(status, payload, &url));
+                return Err(map_http_error_to_provider_error_with_headers(
+                    status, payload, &url, &headers,
+                ));
             }
         }
     }
