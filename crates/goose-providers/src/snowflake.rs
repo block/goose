@@ -10,9 +10,7 @@ use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::snowflake::{create_request, get_usage, response_to_message};
-use crate::openai_compatible::{
-    map_http_error_to_provider_error_with_headers, sanitize_url,
-};
+use crate::openai_compatible::{map_http_error_to_provider_error_with_headers, sanitize_url};
 use crate::retry::ProviderRetry;
 use crate::utils::get_model;
 
