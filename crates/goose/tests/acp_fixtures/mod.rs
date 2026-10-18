@@ -232,7 +232,8 @@ impl OpenAiFixture {
         exchanges: Vec<(String, &'static str)>,
         expected_session_id: Arc<dyn ExpectedSessionId>,
         response_delay: Duration,
-        Self::with_response_delay(exchanges, expected_session_id, Duration::ZERO).await
+    ) -> Self {
+        Self::with_response_delay(exchanges, expected_session_id, response_delay).await
     }
 
     pub async fn with_response_delay(
@@ -280,8 +281,6 @@ impl OpenAiFixture {
                         q.pop_front();
                         return ResponseTemplate::new(200)
                             .insert_header("content-type", "text/event-stream")
-                            .set_delay(response_delay)
-                            .set_body_string(response);
                             .set_body_string(response)
                             .set_delay(delay);
                     }

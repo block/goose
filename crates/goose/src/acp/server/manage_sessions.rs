@@ -161,11 +161,9 @@ impl GooseAcpAgent {
             })?;
 
         let active_run_id = self
-            .active_prompt_runs
-            .lock()
-            .await
-            .get(session_id)
-            .map(|run| run.run_id.clone());
+            .active_runs
+            .agent_run(session_id)
+            .map(|(run_id, _agent)| run_id);
 
         Ok(GetSessionInfoResponse {
             session: build_session_info_with_active_run(session, active_run_id.as_deref()),

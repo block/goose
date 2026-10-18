@@ -3875,14 +3875,14 @@ print(\"hello, world\")
     #[tokio::test]
     async fn session_info_reports_each_sessions_active_run_from_the_shared_registry() {
         let root = tempfile::tempdir().unwrap();
-        let provider_factory: AcpProviderFactory = Arc::new(
-            |_provider_name, _extensions, _working_dir, _use_default_model| {
-                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
-            },
-        );
-        let shared_registry: ActiveRunRegistry = Default::default();
-        let new_agent = |registry: ActiveRunRegistry| {
+        let provider_factory: AcpProviderFactory = Arc::new(|_provider_name| {
+            Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+        });
+        let shared_registry: Arc<ActiveRunRegistry> = Arc::new(ActiveRunRegistry::default());
+        let live_voice = Arc::new(LiveVoiceService::from_config(shared_registry.clone()));
+        let new_agent = |registry: Arc<ActiveRunRegistry>| {
             let provider_factory = provider_factory.clone();
+            let live_voice = live_voice.clone();
             let data_dir = root.path().to_path_buf();
             GooseAcpAgent::new(GooseAcpAgentOptions {
                 provider_factory,
@@ -3894,7 +3894,8 @@ print(\"hello, world\")
                 additional_source_roots: Vec::new(),
                 scheduler: None,
                 session_cwd: None,
-                active_prompt_runs: registry,
+                active_runs: registry,
+                live_voice,
             })
         };
         let owner = Arc::new(new_agent(shared_registry.clone()).await.unwrap());
@@ -3953,11 +3954,11 @@ print(\"hello, world\")
             .is_null());
 
         owner
-            .test_start_active_run(&sessions[0].id, "run-1".to_string(), Arc::new(Agent::new()))
+            .test_start_active_run(&sessions[0].id, "run-1".to_string(), Agent::new())
             .await
             .unwrap();
         owner
-            .test_start_active_run(&sessions[1].id, "run-2".to_string(), Arc::new(Agent::new()))
+            .test_start_active_run(&sessions[1].id, "run-2".to_string(), Agent::new())
             .await
             .unwrap();
 
