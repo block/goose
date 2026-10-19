@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Message, MessageContent } from '../types/message';
-import { deriveMessageRowContexts, inferenceModel } from './messageRowContext';
+import {
+  deriveMessageRowContexts,
+  type InferenceModel,
+  inferenceModel,
+  isModelChange,
+} from './messageRowContext';
 
 const visibleMetadata: Message['metadata'] = { agentVisible: true, userVisible: true };
 
@@ -141,7 +146,11 @@ describe('deriveMessageRowContexts', () => {
 
     expect(contexts[0].previousModel).toBeNull();
     expect(contexts[1].previousModel).toBeNull();
-    expect(contexts[2].previousModel).toEqual({ id: 'model-a', confirmed: true });
+    expect(contexts[2].previousModel).toEqual({
+      id: 'model-a',
+      requestedModel: 'model-a',
+      confirmed: true,
+    });
   });
 
   it('falls back to the requested model when the provider does not report a resolved one', () => {
@@ -153,7 +162,44 @@ describe('deriveMessageRowContexts', () => {
 
     const contexts = deriveMessageRowContexts(messages);
 
-    expect(contexts[2].previousModel).toEqual({ id: 'model-a', confirmed: false });
-    expect(inferenceModel(messages[2])).toEqual({ id: 'model-b', confirmed: false });
+    expect(contexts[2].previousModel).toEqual({
+      id: 'model-a',
+      requestedModel: 'model-a',
+      confirmed: false,
+    });
+    expect(inferenceModel(messages[2])).toEqual({
+      id: 'model-b',
+      requestedModel: 'model-b',
+      confirmed: false,
+    });
+  });
+});
+
+describe('isModelChange', () => {
+  const resolved = (requestedModel: string, id: string): InferenceModel => ({
+    id,
+    requestedModel,
+    confirmed: true,
+  });
+  const requested = (requestedModel: string): InferenceModel => ({
+    id: requestedModel,
+    requestedModel,
+    confirmed: false,
+  });
+
+  it('compares resolved models when both replies report one', () => {
+    expect(isModelChange(resolved('model-a', 'model-a-1'), resolved('model-a', 'model-a-2'))).toBe(
+      true
+    );
+    expect(isModelChange(resolved('model-a', 'model-a-1'), resolved('model-b', 'model-a-1'))).toBe(
+      false
+    );
+  });
+
+  it('compares requested models when a reply has no resolved model', () => {
+    expect(isModelChange(resolved('model-a', 'model-a-1'), requested('model-a'))).toBe(false);
+    expect(isModelChange(requested('model-a'), resolved('model-a', 'model-a-1'))).toBe(false);
+    expect(isModelChange(resolved('model-a', 'model-a-1'), requested('model-b'))).toBe(true);
+    expect(isModelChange(requested('model-a'), requested('model-b'))).toBe(true);
   });
 });

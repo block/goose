@@ -19,6 +19,7 @@ export interface ToolRenderState {
 
 export interface InferenceModel {
   id: string;
+  requestedModel: string;
   /** False when the provider did not report which model served the message. */
   confirmed: boolean;
 }
@@ -35,9 +36,19 @@ export function inferenceModel(message: Message): InferenceModel | null {
   if (message.role !== 'assistant' || !message.metadata.userVisible) return null;
   const inference = message.metadata.inference;
   if (!inference) return null;
-  return inference.resolvedModel
-    ? { id: inference.resolvedModel, confirmed: true }
-    : { id: inference.requestedModel, confirmed: false };
+  return {
+    id: inference.resolvedModel || inference.requestedModel,
+    requestedModel: inference.requestedModel,
+    confirmed: Boolean(inference.resolvedModel),
+  };
+}
+
+// A provider can report the resolved model for one reply and not for the next (for example,
+// when its metadata lookup fails), so only two resolved models can be compared with each other.
+export function isModelChange(previous: InferenceModel, current: InferenceModel): boolean {
+  return previous.confirmed && current.confirmed
+    ? previous.id !== current.id
+    : previous.requestedModel !== current.requestedModel;
 }
 
 export function deriveMessageRowContexts(messages: Message[]): MessageRowContext[] {

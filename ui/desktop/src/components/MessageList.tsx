@@ -22,6 +22,7 @@ import {
   deriveMessageRowContexts,
   type InferenceModel,
   inferenceModel,
+  isModelChange,
   type MessageRowContext,
 } from './messageRowContext';
 
@@ -267,7 +268,7 @@ export default function MessageList({
     const currentModel = inferenceModel(message);
     const previousModel = rowContext.previousModel;
     const modelChangeMessage =
-      currentModel && previousModel && currentModel.id !== previousModel.id
+      currentModel && previousModel && isModelChange(previousModel, currentModel)
         ? intl.formatMessage(i18n.modelChanged, {
             previousModel: modelLabel(previousModel),
             currentModel: modelLabel(currentModel),

@@ -233,6 +233,26 @@ describe('MessageList model change disclosure', () => {
       screen.getByText('Model changed: model-a-2026-01-01 → model-b (requested)')
     ).toBeInTheDocument();
   });
+
+  it('does not report a change when only the resolved model is missing', () => {
+    renderList([
+      assistantWithModel('assistant-1', {
+        provider: 'test',
+        requestedModel: 'model-a',
+        resolvedModel: 'model-a-2026-01-01',
+      }),
+      message('user-1', 'user', [{ type: 'text', text: 'Continue' }]),
+      assistantWithModel('assistant-2', { provider: 'test', requestedModel: 'model-a' }),
+      message('user-2', 'user', [{ type: 'text', text: 'Continue' }]),
+      assistantWithModel('assistant-3', {
+        provider: 'test',
+        requestedModel: 'model-a',
+        resolvedModel: 'model-a-2026-01-01',
+      }),
+    ]);
+
+    expect(screen.queryByText(/Model changed/)).toBeNull();
+  });
 });
 
 describe('MessageList transcript window', () => {
