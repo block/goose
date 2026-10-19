@@ -4277,6 +4277,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "ऐसी सबरेसिपी कॉन्फ़िगर करें जिसे रेसिपी निष्पादन के दौरान टूल की तरह कॉल किया जा सके"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "नवीनतम प्रगति लोड करें"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "सबएजेंट की प्रगति यहाँ लाइव नहीं दिखाई जाती।"
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "मॉडल सूची पर वापस जाएँ"
   },

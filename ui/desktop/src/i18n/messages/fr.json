@@ -4277,6 +4277,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "Configurez une sous-recette qui peut être appelée en tant qu'outil lors de l'exécution de la recette"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Charger la progression la plus récente"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "La progression du sous-agent n'est pas affichée en direct ici."
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Retour à la liste des modèles"
   },
