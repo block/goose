@@ -411,6 +411,16 @@ impl GooseAcpAgent {
             self.requests_tool_call_label_enrichment(),
             replay_tail_from_meta(args.meta.as_ref()),
         )?;
+        let pending_confirmations = session
+            .conversation
+            .as_ref()
+            .map(pending_tool_confirmations)
+            .unwrap_or_default();
+        let awaiting_confirmation = !pending_confirmations.is_empty()
+            || session
+                .conversation
+                .as_ref()
+                .is_some_and(has_unapplied_tool_confirmation_response);
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
@@ -446,17 +456,9 @@ impl GooseAcpAgent {
         }
         response = response.meta(meta);
 
-        let pending_confirmations = session
-            .conversation
-            .as_ref()
-            .map(pending_tool_confirmations)
-            .unwrap_or_default();
-        let should_resume_state_machine = !pending_confirmations.is_empty()
-            || session
-                .conversation
-                .as_ref()
-                .is_some_and(has_unapplied_tool_confirmation_response);
-        if should_resume_state_machine {
+        let is_subagent = session.session_type == SessionType::SubAgent;
+        let already_running = self.active_runs.agent_run(&session_id_str).is_some();
+        if awaiting_confirmation && !is_subagent && !already_running {
             self.start_resumed_state_machine_turn(
                 cx,
                 &agent,
@@ -464,14 +466,6 @@ impl GooseAcpAgent {
                 &pending_confirmations,
             )
             .await?;
-        } else {
-            self.resend_pending_tool_permissions(
-                cx,
-                &agent,
-                &session_id_str,
-                &pending_confirmations,
-                None,
-            )?;
         }
 
         self.closed_session_ids.lock().await.remove(&session_id_str);
