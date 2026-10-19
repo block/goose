@@ -1739,9 +1739,9 @@ mod tests {
         );
 
         let request_result =
-            to_bedrock_message_with_caching(&elicitation_request, false, None).unwrap();
+            to_bedrock_message_with_caching(&elicitation_request, false, None, true).unwrap();
         let response_result =
-            to_bedrock_message_with_caching(&elicitation_response, false, None).unwrap();
+            to_bedrock_message_with_caching(&elicitation_response, false, None, true).unwrap();
 
         assert!(request_result.content().is_empty());
         assert!(response_result.content().is_empty());
