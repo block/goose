@@ -49,7 +49,6 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, instrument, warn};
 
-const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 
 fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
@@ -562,11 +561,9 @@ impl Agent {
         cancel: CancellationToken,
         steer_queue: SteerQueue,
     ) -> StateMachine<'_, Session, GooseEffect> {
-        let max_turns = session_config.max_turns.unwrap_or_else(|| {
-            Config::global()
-                .get_param::<u32>("GOOSE_MAX_TURNS")
-                .unwrap_or(DEFAULT_MAX_TURNS)
-        });
+        let max_turns = session_config
+            .max_turns
+            .unwrap_or_else(|| Config::global().default_max_turns());
         let extension_lease = self
             .tool_confirmation_coordinator
             .session(&session_config.id)
