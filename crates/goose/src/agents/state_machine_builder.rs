@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
@@ -13,7 +14,8 @@ use crate::agents::state_machine::{
     StateMachine, StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation,
     SubagentOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
 };
-use crate::agents::subagent_handler::SubagentRunner;
+use crate::agents::subagent_handler::ForegroundSubagentRunner;
+use crate::config::Config;
 use crate::hooks::HookManager;
 use crate::providers::base::Provider;
 use crate::session::{Session, SessionManager};
@@ -32,7 +34,7 @@ pub(crate) struct StateMachineConfig<'a> {
     pub(crate) tool_inspection_manager: &'a ToolInspectionManager,
     pub(crate) hook_manager: HookManager,
     pub(crate) steer_queue: SteerQueue,
-    pub(crate) subagent_runner: SubagentRunner,
+    pub(crate) subagent_runner: ForegroundSubagentRunner,
     pub(crate) retry_timeout: Duration,
     pub(crate) on_failure_timeout: Duration,
     pub(crate) stop_hook_block_cap: u32,
@@ -71,14 +73,24 @@ pub(crate) fn build_state_machine(
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
-        Arc::new(RecipeOperation::new(provider.clone(), hook_manager.clone())),
+        Arc::new(RecipeOperation::new(
+            provider.clone(),
+            Arc::clone(&extension_manager),
+            hook_manager.clone(),
+        )),
         Arc::new(ToolExecutionOperation::new(
             Arc::clone(&extension_manager),
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
         Arc::new(RemainingToolCallsOperation::new(hook_manager.clone())),
-        Arc::new(SubagentOperation::new(subagent_runner, cancel.clone())),
+        Arc::new(
+            SubagentOperation::new(Arc::new(subagent_runner)).with_max_concurrency(
+                Config::global()
+                    .get_param::<NonZeroUsize>("GOOSE_MAX_CONCURRENT_SUBAGENTS")
+                    .unwrap_or(NonZeroUsize::new(5).unwrap()),
+            ),
+        ),
         Arc::new(SteerOperation::new(steer_queue, hook_manager.clone())),
         Arc::new(BangShellOperation::new()),
     ];

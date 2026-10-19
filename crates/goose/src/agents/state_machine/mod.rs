@@ -45,6 +45,7 @@ pub use goose_agent::operation::{
     not_applicable, trailing_error, yielded, yielded_with, ConversationEffect, Emitter, Inference,
     InferenceInput, MachineEffect, Operation, OperationResult, RunStatus, SlashCommand, StepResult,
 };
+pub(super) use goose_agent::subagent::SubagentOperation;
 pub(crate) use tool_confirmation::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
     persist_tool_confirmation_decision,
@@ -67,7 +68,7 @@ pub(super) use ops_slash_command::SlashCommandOperation;
 pub(super) use ops_status::StatusOperation;
 pub(super) use ops_steer::{SteerOperation, SteerQueue};
 pub(super) use ops_stop_hook::StopHookOperation;
-pub(super) use ops_subagent::{SubagentOperation, DELEGATED_META_KEY};
+pub(super) use ops_subagent::DELEGATED_META_KEY;
 pub(super) use ops_tool_approval::ToolApprovalOperation;
 pub(super) use ops_tool_pair_compaction::ToolPairCompactionOperation;
 pub(super) use ops_toolcalling::ToolExecutionOperation;

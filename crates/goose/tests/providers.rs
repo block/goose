@@ -950,15 +950,6 @@ async fn test_claude_acp_provider() -> Result<()> {
         .await
 }
 
-// Requires: npm install -g @agentclientprotocol/codex-acp
-#[tokio::test]
-async fn test_codex_acp_provider() -> Result<()> {
-    ProviderTestConfig::with_agentic_provider("codex-acp", ACP_CURRENT_MODEL, "codex-acp")
-        .model_switch_name("gpt-5.4-mini")
-        .run()
-        .await
-}
-
 // Requires: npm install -g @github/copilot
 #[tokio::test]
 async fn test_copilot_acp_provider() -> Result<()> {

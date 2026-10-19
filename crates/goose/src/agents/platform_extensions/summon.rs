@@ -5,7 +5,7 @@ use crate::agents::state_machine::DELEGATED_META_KEY;
 use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
-use crate::config::{Config, GooseMode};
+use crate::config::{resolve_extensions_for_new_session, Config, GooseMode};
 use crate::conversation::message::Message;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
@@ -477,7 +477,7 @@ impl SummonClient {
                 "extensions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Extensions to enable. Omit to inherit all, empty array for none."
+                    "description": "Restrict extensions by name. Omit to use the source recipe's declared extensions, or inherit the parent's if none are declared. Empty array for none."
                 },
                 "provider": {
                     "type": "string",
@@ -1162,9 +1162,12 @@ impl SummonClient {
         recipe: &Recipe,
         session: &Session,
     ) -> Result<SubagentConfig> {
-        let mut extensions = EnabledExtensionsState::extensions_or_default(
-            Some(&session.extension_data),
-            Config::global(),
+        let mut extensions = resolve_extensions_for_new_session(
+            recipe.extensions.as_deref(),
+            Some(EnabledExtensionsState::extensions_or_default(
+                Some(&session.extension_data),
+                Config::global(),
+            )),
         );
 
         if let Some(filter) = &params.extensions {
@@ -1181,7 +1184,7 @@ impl SummonClient {
                     .collect();
                 if !unmatched.is_empty() {
                     warn!(
-                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        "Delegate requested extensions not available: {:?}. Available: {:?}",
                         unmatched, available_names
                     );
                 }
@@ -1499,6 +1502,49 @@ mod tests {
             session_manager,
             scheduler: None,
         }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn delegate_extension_selection() -> Result<()> {
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_PROVIDER", Some("openai")),
+            ("GOOSE_SUBAGENT_MODEL", Some("test-model")),
+        ]);
+        let client = SummonClient::new(create_test_context())?;
+        let mut parent = session_with(goose_providers::model::ModelConfig::new("test-model"));
+        let inherited = Recipe::from_content(
+            "title: Parent\ndescription: Parent\nprompt: Run\nextensions:\n  - type: platform\n    name: summon\n",
+        )?.extensions.unwrap();
+        EnabledExtensionsState::new(inherited).to_extension_data(&mut parent.extension_data)?;
+        let declared = Recipe::from_content(
+            "title: Child\ndescription: Child\nprompt: Run\nextensions:\n  - type: platform\n    name: todo\n  - type: platform\n    name: extensionmanager\n",
+        )?.extensions;
+        for (extensions, filter, expected) in [
+            (None, None, vec!["summon"]),
+            (Some(vec![]), None, vec![]),
+            (declared.clone(), None, vec!["todo", "extensionmanager"]),
+            (declared, Some(vec!["todo".to_string()]), vec!["todo"]),
+        ] {
+            let mut recipe = empty_recipe();
+            recipe.extensions = extensions;
+            let params = DelegateParams {
+                extensions: filter,
+                ..Default::default()
+            };
+            let resolved = client
+                .resolve_subagent_config(&params, &recipe, &parent)
+                .await?;
+            assert_eq!(
+                resolved
+                    .extensions
+                    .iter()
+                    .map(|config| config.name())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+        Ok(())
     }
 
     #[tokio::test]

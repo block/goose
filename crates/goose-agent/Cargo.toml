@@ -23,15 +23,20 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
+serde.workspace = true
+regex = { workspace = true, features = ["unicode-perl"] }
+goose-sdk-types = { version = "0.1.0-alpha.12", path = "../goose-sdk-types", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 rmcp = { workspace = true, features = ["local"] }
 
 [dev-dependencies]
 schemars.workspace = true
-serde = { workspace = true, features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 js-sys = "0.3.105"
 wasm-bindgen-futures = "0.4.78"
 wasm-bindgen-test = "0.3.78"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+serde_yaml.workspace = true
