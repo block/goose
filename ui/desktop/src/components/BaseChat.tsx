@@ -495,7 +495,7 @@ export default function BaseChat({
               </div>
             )}
 
-            {recipe && (
+            {recipe && !isSubagentSession && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
                   append={appendToChat}
