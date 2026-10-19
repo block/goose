@@ -38,6 +38,7 @@ export function fetchAllowlistContent(url: string): Promise<string> {
       settled = true;
       clearTimeout(timeout);
       resolve(content);
+      controller.abort();
     };
 
     const finishReject = (error: Error) => {

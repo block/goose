@@ -114,9 +114,11 @@ describe('fetchAllowlistContent', () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it('follows HTTPS-to-HTTPS redirects and returns body', async () => {
+  it('follows HTTPS-to-HTTPS redirects and aborts remaining streams', async () => {
     let callCount = 0;
-    mockHttpsGet.mockImplementation((_url, _options, cb) => {
+    let signal: AbortSignal | undefined;
+    mockHttpsGet.mockImplementation((_url, options, cb) => {
+      signal = options.signal as AbortSignal;
       const req = mockRequest();
       callCount++;
       if (callCount === 1) {
@@ -135,6 +137,7 @@ describe('fetchAllowlistContent', () => {
 
     const content = await fetchAllowlistContent('https://example.com/policy.yaml');
     expect(content).toBe('extensions: []');
+    expect(signal?.aborted).toBe(true);
     expect(mockHttpsGet).toHaveBeenCalledTimes(2);
     expect(mockHttpsGet).toHaveBeenNthCalledWith(
       2,
