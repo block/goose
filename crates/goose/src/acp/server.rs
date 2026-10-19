@@ -92,7 +92,7 @@ use self::message_meta::{
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
     build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
-    tool_call_update_fields_from_response, trusted_update_meta,
+    tool_call_update_fields_from_response, tool_response_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
@@ -1540,7 +1540,7 @@ impl GooseAcpAgent {
         let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-            .meta(trusted_update_meta(tool_response));
+            .meta(tool_response_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 

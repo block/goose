@@ -3,7 +3,7 @@ use super::message_meta::{
 };
 use super::tool_calls::conversion::{
     build_initial_tool_call_with_message_meta, tool_call_update_fields_from_response,
-    trusted_update_meta,
+    tool_response_meta,
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
@@ -172,7 +172,7 @@ fn replay_conversation_to_client(
                         replay_tool_requests.get(&tool_response.id),
                         true,
                     );
-                    let meta = trusted_update_meta(tool_response).unwrap_or_default();
+                    let meta = tool_response_meta(tool_response).unwrap_or_default();
 
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
