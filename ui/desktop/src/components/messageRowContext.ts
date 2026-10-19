@@ -51,6 +51,17 @@ export function isModelChange(previous: InferenceModel, current: InferenceModel)
     : previous.requestedModel !== current.requestedModel;
 }
 
+// A reply without a resolved model keeps the last resolved model of the same requested model,
+// so a later resolved model is still compared with it.
+function keepsPreviousModel(previous: InferenceModel | null, current: InferenceModel): boolean {
+  return (
+    previous !== null &&
+    previous.confirmed &&
+    !current.confirmed &&
+    previous.requestedModel === current.requestedModel
+  );
+}
+
 export function deriveMessageRowContexts(messages: Message[]): MessageRowContext[] {
   const toolCallChains = identifyConsecutiveToolCalls(messages);
   const chainedMessageIndices = new Set<number>();
@@ -113,7 +124,9 @@ export function deriveMessageRowContexts(messages: Message[]): MessageRowContext
   return messages.map((message, messageIndex) => {
     const currentModel = inferenceModel(message);
     const rowPreviousModel = currentModel ? previousModel : null;
-    if (currentModel) previousModel = currentModel;
+    if (currentModel && !keepsPreviousModel(previousModel, currentModel)) {
+      previousModel = currentModel;
+    }
 
     const toolConfirmation = getToolConfirmationContent(message);
     const confirmationData = getAnyToolConfirmationData(message);

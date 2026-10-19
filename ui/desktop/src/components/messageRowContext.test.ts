@@ -173,6 +173,32 @@ describe('deriveMessageRowContexts', () => {
       confirmed: false,
     });
   });
+
+  it('keeps the last resolved model across a reply without one', () => {
+    const resolvedReply = (id: string, resolvedModel: string): Message => {
+      const base = messageWithRequestedModel(id, 'model-a');
+      return {
+        ...base,
+        metadata: {
+          ...base.metadata,
+          inference: { provider: 'test', requestedModel: 'model-a', resolvedModel },
+        },
+      };
+    };
+    const messages = [
+      resolvedReply('first', 'model-a-1'),
+      message('user-1', 'user', [{ type: 'text', text: 'Continue' }]),
+      messageWithRequestedModel('second', 'model-a'),
+      message('user-2', 'user', [{ type: 'text', text: 'Continue' }]),
+      resolvedReply('third', 'model-a-2'),
+    ];
+
+    const contexts = deriveMessageRowContexts(messages);
+
+    const firstModel = { id: 'model-a-1', requestedModel: 'model-a', confirmed: true };
+    expect(contexts[2].previousModel).toEqual(firstModel);
+    expect(contexts[4].previousModel).toEqual(firstModel);
+  });
 });
 
 describe('isModelChange', () => {

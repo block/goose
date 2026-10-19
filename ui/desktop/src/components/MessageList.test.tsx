@@ -253,6 +253,28 @@ describe('MessageList model change disclosure', () => {
 
     expect(screen.queryByText(/Model changed/)).toBeNull();
   });
+
+  it('compares a resolved model with the last resolved one after a reply without one', () => {
+    renderList([
+      assistantWithModel('assistant-1', {
+        provider: 'test',
+        requestedModel: 'model-a',
+        resolvedModel: 'model-a-2026-01-01',
+      }),
+      message('user-1', 'user', [{ type: 'text', text: 'Continue' }]),
+      assistantWithModel('assistant-2', { provider: 'test', requestedModel: 'model-a' }),
+      message('user-2', 'user', [{ type: 'text', text: 'Continue' }]),
+      assistantWithModel('assistant-3', {
+        provider: 'test',
+        requestedModel: 'model-a',
+        resolvedModel: 'model-a-2026-02-01',
+      }),
+    ]);
+
+    expect(
+      screen.getByText('Model changed: model-a-2026-01-01 → model-a-2026-02-01')
+    ).toBeInTheDocument();
+  });
 });
 
 describe('MessageList transcript window', () => {
