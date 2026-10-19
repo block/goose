@@ -1,6 +1,8 @@
 import https from 'node:https';
 import * as yaml from 'yaml';
 
+const ALLOWLIST_FETCH_TIMEOUT_MS = 30_000;
+
 export function parseAllowlistCommands(content: string): string[] {
   const parsed: unknown = yaml.parse(content);
 
@@ -28,29 +30,56 @@ export function parseAllowlistCommands(content: string): string[] {
 
 export function fetchAllowlistContent(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
+
+    const finishResolve = (content: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(content);
+    };
+
+    const finishReject = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    };
+
+    const timeout = setTimeout(() => {
+      finishReject(new Error('Allowlist fetch timed out'));
+      controller.abort();
+    }, ALLOWLIST_FETCH_TIMEOUT_MS);
+
     const follow = (currentUrl: string, depth: number) => {
+      if (settled) return;
       if (depth > 10) {
-        reject(new Error('Too many redirects fetching allowlist'));
+        finishReject(new Error('Too many redirects fetching allowlist'));
         return;
       }
       let parsed: URL;
       try {
         parsed = new URL(currentUrl);
       } catch {
-        reject(new Error(`Invalid allowlist URL: ${currentUrl}`));
+        finishReject(new Error(`Invalid allowlist URL: ${currentUrl}`));
         return;
       }
       if (parsed.protocol !== 'https:') {
-        reject(new Error(`GOOSE_ALLOWLIST must use HTTPS: ${currentUrl}`));
+        finishReject(new Error(`GOOSE_ALLOWLIST must use HTTPS: ${currentUrl}`));
         return;
       }
       https
-        .get(currentUrl, (res) => {
+        .get(currentUrl, { signal: controller.signal }, (res) => {
+          if (settled) {
+            res.resume();
+            return;
+          }
           const { statusCode } = res;
           if (statusCode && statusCode >= 300 && statusCode < 400) {
             const location = res.headers.location;
             if (!location) {
-              reject(new Error('Allowlist redirect missing Location header'));
+              finishReject(new Error('Allowlist redirect missing Location header'));
               return;
             }
             res.resume();
@@ -58,7 +87,7 @@ export function fetchAllowlistContent(url: string): Promise<string> {
             try {
               redirectUrl = new URL(location, currentUrl).href;
             } catch {
-              reject(new Error(`Invalid allowlist redirect URL: ${location}`));
+              finishReject(new Error(`Invalid allowlist redirect URL: ${location}`));
               return;
             }
             follow(redirectUrl, depth + 1);
@@ -66,16 +95,16 @@ export function fetchAllowlistContent(url: string): Promise<string> {
             let data = '';
             res.setEncoding('utf8');
             res.on('data', (chunk: string) => {
-              data += chunk;
+              if (!settled) data += chunk;
             });
-            res.on('end', () => resolve(data));
-            res.on('error', reject);
+            res.on('end', () => finishResolve(data));
+            res.on('error', finishReject);
           } else {
             res.resume();
-            reject(new Error(`Allowlist fetch failed: HTTP ${statusCode}`));
+            finishReject(new Error(`Allowlist fetch failed: HTTP ${statusCode}`));
           }
         })
-        .on('error', reject);
+        .on('error', finishReject);
     };
     follow(url, 0);
   });
