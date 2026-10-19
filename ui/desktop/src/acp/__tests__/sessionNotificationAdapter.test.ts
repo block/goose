@@ -489,7 +489,25 @@ describe('createAcpSessionNotificationAdapter', () => {
     });
 
     describe('tools', () => {
-      it('maps tool calls and successful responses, including MCP app metadata', () => {
+      it('preserves the subagent session ID without MCP app metadata', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              ...DEFAULT_TOOL_CALL_UPDATE,
+              status: 'completed',
+              _meta: { goose: { subagentSessionId: 'child-session' } },
+            })
+          )
+        );
+
+        expect(getToolResponses(messages[0])[0].toolResult).toMatchObject({
+          status: 'success',
+          value: { _meta: { subagent_session_id: 'child-session' } },
+        });
+      });
+
+      it('maps tool calls and successful responses, preserving app and subagent metadata', () => {
         const adapter = createAcpSessionNotificationAdapter();
 
         const toolCallStateChanges = adapter.apply(
@@ -548,6 +566,7 @@ describe('createAcpSessionNotificationAdapter', () => {
             ],
             _meta: {
               goose: {
+                subagentSessionId: 'child-session',
                 mcpApp: {
                   resourceUri: 'ui://app/resource',
                   extensionName: 'developer',
@@ -571,6 +590,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               content: [{ type: 'text', text: 'rendered result' }],
               isError: false,
               _meta: {
+                subagent_session_id: 'child-session',
                 ui: { resourceUri: 'ui://app/resource' },
                 extensionName: 'developer',
                 toolName: 'read_file',

@@ -836,6 +836,65 @@ fn test_load_session_replays_image_attachment() {
     run_test(async { run_load_session_replays_image_attachment::<AcpServerConnection>().await });
 }
 
+async fn seed_session_awaiting_approval(data_root: &Path, session_type: SessionType) -> String {
+    let session_manager = SessionManager::new(data_root.to_path_buf());
+    let session = session_manager
+        .create_session(
+            data_root.to_path_buf(),
+            "Awaiting approval".to_string(),
+            session_type,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap();
+    for message in [
+        Message::user().with_text("run the tool"),
+        Message::assistant().with_action_required(
+            "approval",
+            "tool".to_string(),
+            Default::default(),
+            None,
+        ),
+    ] {
+        session_manager
+            .add_message(&session.id, &message)
+            .await
+            .unwrap();
+    }
+    session.id
+}
+
+fn starts_a_run(updates: &[SessionUpdate]) -> bool {
+    updates.iter().any(|update| match update {
+        SessionUpdate::SessionInfoUpdate(info) => info
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .and_then(|goose| goose.get("activeRunId"))
+            .is_some_and(serde_json::Value::is_string),
+        _ => false,
+    })
+}
+
+#[test]
+fn test_load_session_resumes_pending_approval_except_for_subagents() {
+    run_test(async {
+        for (session_type, resumes) in [(SessionType::Acp, true), (SessionType::SubAgent, false)] {
+            let data_root = tempfile::tempdir().unwrap();
+            let session_id = seed_session_awaiting_approval(data_root.path(), session_type).await;
+            let mut conn = new_connection(data_root.path()).await;
+
+            let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
+
+            assert_eq!(
+                starts_a_run(&session.session_updates()),
+                resumes,
+                "{session_type:?}"
+            );
+        }
+    });
+}
+
 #[test]
 fn test_mode_set() {
     run_test(async { run_mode_set::<AcpServerConnection>().await });

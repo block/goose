@@ -4280,6 +4280,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "Konfigurasikan subresipi yang boleh dipanggil sebagai alat semasa pelaksanaan resipi"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Muatkan kemajuan terkini"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Kemajuan subagen tidak dipaparkan secara langsung di sini."
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Kembali ke senarai model"
   },
