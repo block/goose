@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
+import type { IpcRendererEvent } from 'electron';
 import type { ImageData, Message, MessageContent } from '../types/message';
 import { IntlTestWrapper } from '../i18n/test-utils';
 import MessageList from './MessageList';
@@ -257,7 +258,7 @@ describe('MessageList transcript window', () => {
       .mocked(window.electron.on)
       .mock.calls.find(([event]) => event === 'find-command')?.[1];
 
-    act(() => findHandler?.({} as Electron.IpcRendererEvent));
+    act(() => findHandler?.({} as IpcRendererEvent));
 
     expect(screen.queryByText('assistant-20')).not.toBeNull();
   });
@@ -267,7 +268,11 @@ describe('MessageList transcript window', () => {
       ...item,
       metadata: {
         ...item.metadata,
-        inference: { resolvedModel: index < 20 ? 'old-model' : 'new-model' },
+        inference: {
+          provider: 'test',
+          requestedModel: 'test-model',
+          resolvedModel: index < 20 ? 'old-model' : 'new-model',
+        },
       },
     }));
 
