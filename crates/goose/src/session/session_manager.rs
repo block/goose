@@ -1048,6 +1048,43 @@ async fn insert_usage_ledger_row(
     Ok(())
 }
 
+const DB_BUSY_RETRIES: u32 = 3;
+const DB_BUSY_INITIAL_BACKOFF_MS: u64 = 200;
+
+// sqlx renders SQLite busy errors as "database is locked (code: 5)"; the
+// DatabaseError kind is not constructible in tests, so match on text.
+fn is_busy_error(error: &anyhow::Error) -> bool {
+    error.to_string().contains("database is locked")
+}
+// SQLite returns SQLITE_BUSY without honoring busy_timeout when lock
+// contention would deadlock (concurrent writers, cross-process holders).
+// Prompt-critical writes must outlast a busy writer instead of aborting
+// the agent turn, so retry them with backoff.
+async fn with_busy_retry<T, F, Fut>(mut operation: F) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    for attempt in 0..=DB_BUSY_RETRIES {
+        match operation().await {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                if attempt == DB_BUSY_RETRIES || !is_busy_error(&error) {
+                    return Err(error);
+                }
+                let backoff = DB_BUSY_INITIAL_BACKOFF_MS * (1 << attempt);
+                tracing::warn!(
+                    attempt,
+                    backoff_ms = backoff,
+                    "session database is locked, retrying"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+            }
+        }
+    }
+    unreachable!("busy retry loop returns from its final iteration")
+}
+
 impl SessionStorage {
     fn create_pool(path: &Path) -> Pool<Sqlite> {
         if let Some(parent) = path.parent() {
@@ -2103,47 +2140,50 @@ impl SessionStorage {
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
         let pool = self.pool().await?;
-        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+        with_busy_retry(|| async {
+            let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        let metadata_json = serde_json::to_string(&message.metadata)?;
-        // Messages are read back ordered by (created_timestamp, id), so one built
-        // before the messages it is appended after would sort ahead of them —
-        // operations do that whenever they prepare a reply and fill it in while a
-        // tool runs. Never move a message ahead of what is already stored.
-        let latest: Option<i64> =
+            let metadata_json = serde_json::to_string(&message.metadata)?;
+            // Messages are read back ordered by (created_timestamp, id), so one built
+            // before the messages it is appended after would sort ahead of them —
+            // operations do that whenever they prepare a reply and fill it in while a
+            // tool runs. Never move a message ahead of what is already stored.
+            let latest: Option<i64> =
             sqlx::query_scalar("SELECT MAX(created_timestamp) FROM messages WHERE session_id = ?")
                 .bind(session_id)
                 .fetch_one(&mut *tx)
                 .await?;
-        let created = message.created.max(latest.unwrap_or(message.created));
+            let created = message.created.max(latest.unwrap_or(message.created));
 
-        let message_id = message
+            let message_id = message
             .id
             .clone()
             .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
 
-        sqlx::query(
+            sqlx::query(
             r#"
             INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?)
-        "#,
-        )
-        .bind(message_id)
-        .bind(session_id)
-        .bind(role_to_string(&message.role))
-        .bind(serde_json::to_string(&message.content)?)
-        .bind(created)
-        .bind(metadata_json)
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+            "#,
+            )
+            .bind(message_id)
             .bind(session_id)
+            .bind(role_to_string(&message.role))
+            .bind(serde_json::to_string(&message.content)?)
+            .bind(created)
+            .bind(metadata_json)
             .execute(&mut *tx)
             .await?;
 
-        tx.commit().await?;
-        Ok(())
+            sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+                .bind(session_id)
+                .execute(&mut *tx)
+                .await?;
+
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
     }
 
     async fn replace_conversation_inner(
@@ -2192,7 +2232,7 @@ impl SessionStorage {
         conversation: &Conversation,
     ) -> Result<()> {
         let pool = self.pool().await?;
-        Self::replace_conversation_inner(pool, session_id, conversation).await
+        with_busy_retry(|| Self::replace_conversation_inner(pool, session_id, conversation)).await
     }
 
     async fn save_compacted_conversation(
@@ -2201,9 +2241,10 @@ impl SessionStorage {
         conversation: &Conversation,
     ) -> Result<()> {
         let pool = self.pool().await?;
-        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+        with_busy_retry(|| async {
+            let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        for message in conversation.messages() {
+            for message in conversation.messages() {
             let message_id = message
                 .id
                 .as_ref()
@@ -2243,12 +2284,14 @@ impl SessionStorage {
             }
         }
 
-        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(())
+            sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+                .bind(session_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
     }
 
     async fn list_sessions_matching(&self, query: SessionListQuery<'_>) -> Result<Vec<Session>> {
@@ -2987,6 +3030,68 @@ fn merge_tool_meta(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn busy_error_detects_sqlite_locked() {
+        let locked = anyhow::anyhow!("error returned from database: (code: 5) database is locked");
+        assert!(is_busy_error(&locked));
+        let other = anyhow::anyhow!("no such table: messages (code: 1)");
+        assert!(!is_busy_error(&other));
+    }
+
+    #[tokio::test]
+    async fn with_busy_retry_retries_locked_errors_then_succeeds() {
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let attempts_clone = attempts.clone();
+        let result: Result<u32> = with_busy_retry(move || {
+            let attempts = attempts_clone.clone();
+            async move {
+                if attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                    Err(anyhow::anyhow!("database is locked (code: 5)"))
+                } else {
+                    Ok(7)
+                }
+            }
+        })
+        .await;
+        assert_eq!(result.unwrap(), 7);
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn with_busy_retry_gives_up_after_max_retries() {
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let attempts_clone = attempts.clone();
+        let result: Result<()> = with_busy_retry(move || {
+            let attempts = attempts_clone.clone();
+            async move {
+                attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Err(anyhow::anyhow!("database is locked (code: 5)"))
+            }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            attempts.load(std::sync::atomic::Ordering::SeqCst),
+            DB_BUSY_RETRIES + 1
+        );
+    }
+
+    #[tokio::test]
+    async fn with_busy_retry_passes_through_non_busy_errors() {
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let attempts_clone = attempts.clone();
+        let result: Result<()> = with_busy_retry(move || {
+            let attempts = attempts_clone.clone();
+            async move {
+                attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Err(anyhow::anyhow!("no such table"))
+            }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
     use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::MessageStream;
     use goose_providers::conversation::token_usage::{CostSource, ProviderUsage};
