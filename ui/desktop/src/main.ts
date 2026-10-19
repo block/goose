@@ -18,7 +18,7 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
-import { fetchAllowlistContent } from './allowlistFetcher';
+import { fetchAllowlistContent, parseAllowlistCommands } from './allowlistFetcher';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -43,7 +43,6 @@ import { isRetiredGooseChatApp } from './utils/retiredApps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
-import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
   getUpdateAvailable,
@@ -3079,18 +3078,13 @@ app.whenReady().then(async () => {
   }
 });
 
-async function getAllowList(): Promise<string[]> {
+async function getAllowList(): Promise<string[] | null> {
   if (!process.env.GOOSE_ALLOWLIST) {
-    return [];
+    return null;
   }
 
   const yamlContent = await fetchAllowlistContent(process.env.GOOSE_ALLOWLIST);
-  const parsedYaml = yaml.parse(yamlContent);
-
-  if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
-    return parsedYaml.extensions.map((ext: { id: string; command: string }) => ext.command);
-  }
-  return [];
+  return parseAllowlistCommands(yamlContent);
 }
 
 app.on('will-quit', async () => {

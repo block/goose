@@ -42,7 +42,8 @@ const i18n = defineMessages({
   },
   policyErrorMessage: {
     id: 'extensionInstallModal.policyErrorMessage',
-    defaultMessage: 'The extension allowlist policy could not be retrieved. Extension installation is blocked until the policy is available.\n\nContact your administrator to check the GOOSE_ALLOWLIST configuration.',
+    defaultMessage:
+      'The extension allowlist policy could not be retrieved. Extension installation is blocked until the policy is available.\n\nContact your administrator to check the GOOSE_ALLOWLIST configuration.',
   },
   untrustedTitle: {
     id: 'extensionInstallModal.untrustedTitle',
@@ -187,7 +188,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
 
       const allowedCommands = await window.electron.getAllowedExtensions();
 
-      if (!allowedCommands || allowedCommands.length === 0) {
+      if (allowedCommands === null) {
         return 'trusted';
       }
 

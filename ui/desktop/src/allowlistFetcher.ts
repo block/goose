@@ -1,4 +1,30 @@
 import https from 'node:https';
+import * as yaml from 'yaml';
+
+export function parseAllowlistCommands(content: string): string[] {
+  const parsed: unknown = yaml.parse(content);
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !Array.isArray((parsed as { extensions?: unknown }).extensions)
+  ) {
+    throw new Error('Invalid GOOSE_ALLOWLIST policy: expected an extensions array');
+  }
+
+  return (parsed as { extensions: unknown[] }).extensions.map((extension, index) => {
+    if (
+      !extension ||
+      typeof extension !== 'object' ||
+      typeof (extension as { command?: unknown }).command !== 'string' ||
+      (extension as { command: string }).command.trim() === ''
+    ) {
+      throw new Error(`Invalid GOOSE_ALLOWLIST policy: extension ${index} requires a command`);
+    }
+
+    return (extension as { command: string }).command;
+  });
+}
 
 export function fetchAllowlistContent(url: string): Promise<string> {
   return new Promise((resolve, reject) => {

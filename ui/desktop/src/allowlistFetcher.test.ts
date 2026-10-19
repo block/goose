@@ -10,7 +10,7 @@ vi.mock('node:https', () => ({
   default: { get: mockHttpsGet },
 }));
 
-import { fetchAllowlistContent } from './allowlistFetcher';
+import { fetchAllowlistContent, parseAllowlistCommands } from './allowlistFetcher';
 
 type MockResponse = EventEmitter & {
   statusCode: number;
@@ -132,5 +132,27 @@ describe('fetchAllowlistContent', () => {
     await expect(fetchAllowlistContent('https://example.com/policy.yaml')).rejects.toThrow(
       'Too many redirects'
     );
+  });
+});
+
+describe('parseAllowlistCommands', () => {
+  it('returns commands from a valid policy', () => {
+    expect(
+      parseAllowlistCommands('extensions:\n  - id: example\n    command: npx example\n')
+    ).toEqual(['npx example']);
+  });
+
+  it('preserves a configured empty policy as deny-all', () => {
+    expect(parseAllowlistCommands('extensions: []')).toEqual([]);
+  });
+
+  it.each([
+    ['', 'expected an extensions array'],
+    ['name: login-page', 'expected an extensions array'],
+    ['extensions: invalid', 'expected an extensions array'],
+    ['extensions:\n  - id: missing-command', 'requires a command'],
+    ['extensions:\n  - command: ""', 'requires a command'],
+  ])('rejects an invalid policy', (content, message) => {
+    expect(() => parseAllowlistCommands(content)).toThrow(message);
   });
 });
