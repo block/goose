@@ -69,7 +69,8 @@ describe('fetchAllowlistContent', () => {
 
   it('returns body content for a valid HTTPS 200 response', async () => {
     const req = mockRequest();
-    mockHttpsGet.mockImplementation((_url, _options, cb) => {
+    mockHttpsGet.mockImplementation((_url, options, cb) => {
+      expect(options.headers).toEqual({ 'accept-encoding': 'identity' });
       const res = mockResponse(200);
       cb(res as unknown as IncomingMessage);
       setTimeout(() => {
