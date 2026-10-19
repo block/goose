@@ -508,10 +508,8 @@ impl BedrockProvider {
         Fut: Future<Output = Result<T, ProviderError>>,
     {
         match request().await {
-            Err(err)
-                if is_documents_unsupported_error(&err)
-                    && !self.documents_unsupported.swap(true, Ordering::Relaxed) =>
-            {
+            Err(err) if is_documents_unsupported_error(&err) => {
+                self.documents_unsupported.store(true, Ordering::Relaxed);
                 request().await
             }
             result => result,
