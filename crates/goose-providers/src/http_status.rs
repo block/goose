@@ -44,7 +44,11 @@ const MAX_RETRY_AFTER_SECS: f64 = 3600.0;
 /// `error.metadata.retry_after_seconds` (OpenRouter shape, more precise than
 /// the integer header) and falls back to the RFC 7231 `Retry-After` header
 /// in either its delay-seconds form or its HTTP-date form.
-fn extract_retry_after(headers: &HeaderMap, payload: Option<&Value>) -> Option<Duration> {
+///
+/// Public so providers with their own retry loops (e.g. gcpvertexai) can
+/// honor the server's retry hint on the statuses they short-circuit, instead
+/// of always falling back to generic exponential backoff.
+pub fn extract_retry_after(headers: &HeaderMap, payload: Option<&Value>) -> Option<Duration> {
     if let Some(secs) = payload
         .and_then(|p| p.get("error"))
         .and_then(|e| e.get("metadata"))
