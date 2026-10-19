@@ -359,6 +359,14 @@ You can reach a [LiteLLM](https://docs.litellm.ai/) proxy in either of two waysâ
     OPENAI_PROJECT=compliance-approved
     ```
   </TabItem>
+  <TabItem value="fikra" label="Fikra API">
+    For hosted inference on DeepSeek-family and GLM/Kimi/StepFun models through the OpenAI-compatible Fikra API:
+    ```sh
+    OPENAI_HOST=https://fikraapi.co.ke
+    OPENAI_API_KEY=your-fikra-api-key
+    ```
+    Model ids come from `https://fikraapi.co.ke/v1/models`, for example `GOOSE_MODEL=deepseek-v4.1-flash`. Served models include DeepSeek V4.1 Flash ($0.045 per 1M input, $0.09 per 1M output, 1M context), GLM 5.3, GLM 5.3 Flash, GLM 5.2, Kimi K3 and StepFun Step 5. Pricing is per-token USD with a $1 minimum top-up (M-Pesa and cards), documented at https://fikraapi.co.ke/pricing (verified 2026-10-19).
+  </TabItem>
   <TabItem value="custom-headers" label="Custom Headers">
     For OpenAI-compatible endpoints that require custom headers:
     ```sh
