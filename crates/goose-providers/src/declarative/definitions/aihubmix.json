@@ -8,16 +8,17 @@
   "headers": {
     "APP-Code": "FFEW3343"
   },
+  "catalog_provider_id": "aihubmix",
   "dynamic_models": true,
   "models": [
     { "name": "claude-sonnet-5-5", "context_limit": 1000000 },
     { "name": "gpt-6.1-sol", "context_limit": 1050000 },
     { "name": "claude-opus-5-5", "context_limit": 1000000 },
-    { "name": "gemini-3.8-flash", "context_limit": 1050000 },
+    { "name": "gemini-3.8-flash", "context_limit": 1048576 },
     { "name": "deepseek-v4-pro", "context_limit": 1000000 },
-    { "name": "kimi-k3", "context_limit": 1050000 },
-    { "name": "qwen3.8-max", "context_limit": 1000000 },
-    { "name": "glm-5.3", "context_limit": 1050000 },
+    { "name": "kimi-k3", "context_limit": 1048576 },
+    { "name": "qwen3.8-max", "context_limit": 991000 },
+    { "name": "glm-5.3", "context_limit": 1000000 },
     { "name": "grok-4.7", "context_limit": 500000 }
   ],
   "supports_streaming": true,
