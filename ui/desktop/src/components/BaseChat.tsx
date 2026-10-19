@@ -512,7 +512,7 @@ export default function BaseChat({
                       messages={messages}
                       sessionId={sessionId}
                       toolCallNotifications={toolCallNotifications}
-                      append={appendToChat}
+                      append={isSubagentSession ? undefined : appendToChat}
                       isUserMessage={isUserMessage}
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onRenderingComplete={handleRenderingComplete}
