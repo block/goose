@@ -45,11 +45,11 @@ export function fetchAllowlistContent(url: string): Promise<string> {
       settled = true;
       clearTimeout(timeout);
       reject(error);
+      controller.abort();
     };
 
     const timeout = setTimeout(() => {
       finishReject(new Error('Allowlist fetch timed out'));
-      controller.abort();
     }, ALLOWLIST_FETCH_TIMEOUT_MS);
 
     const follow = (currentUrl: string, depth: number) => {

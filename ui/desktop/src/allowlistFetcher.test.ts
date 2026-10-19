@@ -97,6 +97,22 @@ describe('fetchAllowlistContent', () => {
     );
   });
 
+  it('aborts the active request after a terminal response', async () => {
+    const req = mockRequest();
+    const res = mockResponse(404);
+    let signal: AbortSignal | undefined;
+    mockHttpsGet.mockImplementation((_url, options, cb) => {
+      signal = options.signal as AbortSignal;
+      setTimeout(() => cb(res as unknown as IncomingMessage), 0);
+      return req as unknown as ClientRequest;
+    });
+
+    await expect(fetchAllowlistContent('https://example.com/policy.yaml')).rejects.toThrow(
+      'Allowlist fetch failed: HTTP 404'
+    );
+    expect(signal?.aborted).toBe(true);
+  });
+
   it('follows HTTPS-to-HTTPS redirects and returns body', async () => {
     let callCount = 0;
     mockHttpsGet.mockImplementation((_url, _options, cb) => {
