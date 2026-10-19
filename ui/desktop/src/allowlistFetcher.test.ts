@@ -121,6 +121,21 @@ describe('fetchAllowlistContent', () => {
     );
   });
 
+  it('rejects a malformed redirect URL', async () => {
+    const req = mockRequest();
+    const res = mockResponse(301, { location: 'http://[' });
+    mockHttpsGet.mockImplementation((_url, cb) => {
+      setTimeout(() => cb(res as unknown as IncomingMessage), 0);
+      return req as unknown as ClientRequest;
+    });
+
+    await expect(fetchAllowlistContent('https://example.com/policy.yaml')).rejects.toThrow(
+      'Invalid allowlist redirect URL'
+    );
+    expect(mockHttpsGet).toHaveBeenCalledTimes(1);
+    expect(res.resume).toHaveBeenCalledOnce();
+  });
+
   it('rejects after too many redirects', async () => {
     mockHttpsGet.mockImplementation((_url, cb) => {
       const req = mockRequest();

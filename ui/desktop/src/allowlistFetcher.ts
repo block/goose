@@ -54,7 +54,14 @@ export function fetchAllowlistContent(url: string): Promise<string> {
               return;
             }
             res.resume();
-            follow(new URL(location, currentUrl).href, depth + 1);
+            let redirectUrl: string;
+            try {
+              redirectUrl = new URL(location, currentUrl).href;
+            } catch {
+              reject(new Error(`Invalid allowlist redirect URL: ${location}`));
+              return;
+            }
+            follow(redirectUrl, depth + 1);
           } else if (statusCode && statusCode >= 200 && statusCode < 300) {
             let data = '';
             res.setEncoding('utf8');
