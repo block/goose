@@ -1665,6 +1665,10 @@ fn prompt_error_from_message_content(
                     .data(serde_json::Value::Object(data)),
             )
         }
+        MessageContent::Error(error) => Some(
+            agent_client_protocol::Error::new(-32603, error.message.clone())
+                .data(serde_json::json!({ "kind": error.kind })),
+        ),
         _ => None,
     }
 }
@@ -3485,6 +3489,37 @@ print(\"hello, world\")
         assert_eq!(
             error.code,
             agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+        );
+    }
+
+    #[test_case(
+        crate::conversation::message::MessageErrorKind::Other,
+        "Network error: connection refused",
+        "other"
+        ; "other"
+    )]
+    #[test_case(
+        crate::conversation::message::MessageErrorKind::ContextLengthExceeded,
+        "Context length exceeded",
+        "contextLengthExceeded"
+        ; "context_length_exceeded"
+    )]
+    fn test_other_error_messages_map_to_internal_error(
+        kind: crate::conversation::message::MessageErrorKind,
+        message: &str,
+        expected_kind: &str,
+    ) {
+        let content = MessageContent::error(kind, message);
+
+        let error = prompt_error_from_message_content(&content).expect("expected prompt error");
+
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            serde_json::json!({
+                "code": -32603,
+                "message": message,
+                "data": { "kind": expected_kind }
+            })
         );
     }
 

@@ -284,10 +284,13 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                emit.message(Message::assistant().with_text(format!(
-                    "Ran into this error trying to compact: {e}.\n\n\
-                     Please try again or create a new session"
-                )));
+                emit.message(Message::assistant().with_error(
+                    MessageErrorKind::ContextLengthExceeded,
+                    format!(
+                        "Ran into this error trying to compact: {e}.\n\n\
+                         Please try again or create a new session"
+                    ),
+                ));
                 yielded()
             }
         }
