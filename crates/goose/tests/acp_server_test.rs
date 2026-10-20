@@ -836,6 +836,65 @@ fn test_load_session_replays_image_attachment() {
     run_test(async { run_load_session_replays_image_attachment::<AcpServerConnection>().await });
 }
 
+async fn seed_session_awaiting_approval(data_root: &Path, session_type: SessionType) -> String {
+    let session_manager = SessionManager::new(data_root.to_path_buf());
+    let session = session_manager
+        .create_session(
+            data_root.to_path_buf(),
+            "Awaiting approval".to_string(),
+            session_type,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap();
+    for message in [
+        Message::user().with_text("run the tool"),
+        Message::assistant().with_action_required(
+            "approval",
+            "tool".to_string(),
+            Default::default(),
+            None,
+        ),
+    ] {
+        session_manager
+            .add_message(&session.id, &message)
+            .await
+            .unwrap();
+    }
+    session.id
+}
+
+fn starts_a_run(updates: &[SessionUpdate]) -> bool {
+    updates.iter().any(|update| match update {
+        SessionUpdate::SessionInfoUpdate(info) => info
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .and_then(|goose| goose.get("activeRunId"))
+            .is_some_and(serde_json::Value::is_string),
+        _ => false,
+    })
+}
+
+#[test]
+fn test_load_session_resumes_pending_approval_except_for_subagents() {
+    run_test(async {
+        for (session_type, resumes) in [(SessionType::Acp, true), (SessionType::SubAgent, false)] {
+            let data_root = tempfile::tempdir().unwrap();
+            let session_id = seed_session_awaiting_approval(data_root.path(), session_type).await;
+            let mut conn = new_connection(data_root.path()).await;
+
+            let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
+
+            assert_eq!(
+                starts_a_run(&session.session_updates()),
+                resumes,
+                "{session_type:?}"
+            );
+        }
+    });
+}
+
 #[test]
 fn test_mode_set() {
     run_test(async { run_mode_set::<AcpServerConnection>().await });
@@ -1212,32 +1271,10 @@ fn test_prompt_mcp() {
     run_test(async { run_prompt_mcp::<AcpServerConnection>().await });
 }
 
-/// Selects the agent loop until dropped. Only use inside `run_test`: it holds the
-/// ACP test lock, so no other test in this binary observes the override.
-struct AgentLoopOverride(Option<std::ffi::OsString>);
-
-impl AgentLoopOverride {
-    fn new(state_machine: bool) -> Self {
-        let previous = std::env::var_os("GOOSE_STATE_MACHINE");
-        std::env::set_var("GOOSE_STATE_MACHINE", if state_machine { "1" } else { "0" });
-        Self(previous)
-    }
-}
-
-impl Drop for AgentLoopOverride {
-    fn drop(&mut self) {
-        match self.0.take() {
-            Some(previous) => std::env::set_var("GOOSE_STATE_MACHINE", previous),
-            None => std::env::remove_var("GOOSE_STATE_MACHINE"),
-        }
-    }
-}
-
 /// Two provider calls separated by a tool call. The canned responses report 2469
 /// and then 2631 total tokens, so 2469 can only arrive in an update sent while
 /// the prompt is still running.
-async fn assert_usage_updates_during_prompt(state_machine: bool) {
-    let _agent_loop = AgentLoopOverride::new(state_machine);
+async fn assert_usage_updates_during_prompt() {
     let prompt = "Use the get_code tool and output only its result.";
     let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
@@ -1280,22 +1317,12 @@ async fn assert_usage_updates_during_prompt(state_machine: bool) {
         );
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
-    assert_eq!(
-        used,
-        [2469, 2631, 2631],
-        "state_machine={state_machine}, agent text: {}",
-        output.text
-    );
+    assert_eq!(used, [2469, 2631, 2631], "agent text: {}", output.text);
 }
 
 #[test]
-fn test_prompt_usage_updates_during_turn_legacy_loop() {
-    run_test(async { assert_usage_updates_during_prompt(false).await });
-}
-
-#[test]
-fn test_prompt_usage_updates_during_turn_state_machine() {
-    run_test(async { assert_usage_updates_during_prompt(true).await });
+fn test_prompt_usage_updates_during_turn() {
+    run_test(async { assert_usage_updates_during_prompt().await });
 }
 
 #[test]

@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Что мы собираем:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Загрузка сообщений... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "{count, plural, one {# сообщение скрыто} few {# сообщения скрыты} many {# сообщений скрыто} other {# сообщений скрыто}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "Модель изменена: {previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "Нажмите Cmd/Ctrl+F, чтобы сразу загрузить все сообщения для поиска"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (запрошенная)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "Показать все"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "Все промпты сброшены к значениям по умолчанию"
@@ -2720,9 +2723,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "У вас есть несохраненные изменения"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ошибка ProviderCard: метаданные не предоставлены"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Неизвестный провайдер"
   },
@@ -2731,9 +2731,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Формат API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Отмена"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Выберите провайдера"
@@ -4283,6 +4280,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "Настройте подрецепт, который можно вызывать как инструмент при выполнении рецепта"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Загрузить последний прогресс"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Прогресс субагента здесь не отображается в реальном времени."
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Назад к списку моделей"
   },
@@ -4676,9 +4679,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Перейдите на"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Использовать цикл агента на основе операций. Отключите, чтобы использовать прежний цикл."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Автоматически"
   },
@@ -4753,6 +4753,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Порог %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Лимит токенов"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Сводит старые запросы и ответы инструментов для экономии контекста. Если поле пусто, порог выбирается автоматически."

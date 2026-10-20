@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Ce que nous collectons :"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Chargement des messages... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "{count, plural, one {# message masqué} other {# messages masqués}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "Modèle modifié : {previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "Appuyez sur Cmd/Ctrl+F pour charger immédiatement tous les messages et effectuer une recherche"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (demandé)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "Tout afficher"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "Toutes les invites ont été réinitialisées aux valeurs par défaut"
@@ -2720,9 +2723,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Vous avez des modifications non enregistrées"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Erreur ProviderCard : aucune métadonnée fournie"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Fournisseur inconnu"
   },
@@ -2731,9 +2731,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format d'API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Annuler"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Choisir un fournisseur"
@@ -4283,6 +4280,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "Configurez une sous-recette qui peut être appelée en tant qu'outil lors de l'exécution de la recette"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Charger la progression la plus récente"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "La progression du sous-agent n'est pas affichée en direct ici."
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Retour à la liste des modèles"
   },
@@ -4676,9 +4679,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Visitez"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "Utilise la boucle d’agent basée sur les opérations. Désactivez-la pour utiliser la boucle héritée."
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "Automatique"
   },
@@ -4753,6 +4753,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "Seuil %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "Limite de tokens"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "Résume les anciennes requêtes et réponses d’outils pour économiser le contexte. Le seuil est automatique si le champ est vide."

@@ -1,7 +1,38 @@
-use crate::utils::split_command_args;
 use anyhow::Result;
 use regex::{Captures, Regex};
 use std::sync::LazyLock;
+
+fn split_command_args(input: &str) -> anyhow::Result<Vec<String>> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut in_double_quote = false;
+    let mut in_single_quote = false;
+
+    for c in input.chars() {
+        match c {
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '\'' if !in_double_quote && (in_single_quote || current.is_empty()) => {
+                in_single_quote = !in_single_quote
+            }
+            c if c.is_whitespace() && !in_double_quote && !in_single_quote => {
+                if !current.is_empty() {
+                    parts.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+
+    if in_double_quote || in_single_quote {
+        return Err(anyhow::anyhow!("Unmatched quote in command"));
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    Ok(parts)
+}
 
 static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(

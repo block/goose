@@ -8,6 +8,8 @@ pub mod chatrecall;
 pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
+#[cfg(feature = "code-mode")]
+mod javascript;
 #[cfg(feature = "scheduler")]
 pub mod scheduler;
 pub mod summarize;
@@ -162,11 +164,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 hidden: false,
                 client_factory: |ctx| {
                     Some(Box::new(
-                        code_execution::CodeExecutionClient::new(
-                            ctx,
-                            code_execution::get_tool_disclosure(),
-                        )
-                        .unwrap(),
+                        code_execution::CodeExecutionClient::new(ctx).unwrap(),
                     ))
                 },
             },
@@ -181,7 +179,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: true,
                 hidden: false,
-                client_factory: |ctx| Some(Box::new(developer::DeveloperClient::new(ctx).unwrap())),
+                client_factory: |_| Some(Box::new(developer::DeveloperClient::new().unwrap())),
             },
         );
 
@@ -226,7 +224,6 @@ pub struct PlatformExtensionContext {
     pub providers: std::sync::Arc<crate::agents::provider_manager::ProviderManager>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub scheduler: Option<std::sync::Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
-    pub use_login_shell_path: bool,
 }
 
 impl PlatformExtensionContext {

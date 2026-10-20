@@ -152,6 +152,11 @@ export function useChatSession({
     [sessionId, onSessionLoaded]
   );
 
+  const refreshSession = useCallback(
+    () => acpChatSessionController.restoreSession(sessionId),
+    [sessionId]
+  );
+
   // Load session on mount or sessionId change
   useEffect(() => {
     void retrySessionLoad();
@@ -351,6 +356,7 @@ export function useChatSession({
     submitElicitationResponse,
     stopStreaming,
     retrySessionLoad,
+    refreshSession,
     tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: false,

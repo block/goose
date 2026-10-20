@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "我們收集的內容："
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "正在載入訊息... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "已隱藏 {count, plural, other {# 則訊息}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "模型已變更：{previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "按 Cmd/Ctrl+F 立即載入所有訊息以進行搜尋"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (已請求)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "全部顯示"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "所有提示已重設為預設值"
@@ -2720,9 +2723,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "您有未儲存的變更"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard 錯誤：未提供中繼資料"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "未知的提供者"
   },
@@ -2731,9 +2731,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API 格式"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "取消"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "選擇提供者"
@@ -4283,6 +4280,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "設定可在配方執行期間作為工具呼叫的子配方"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "載入最新進度"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "子代理的進度不會在此即時顯示。"
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "返回模型清單"
   },
@@ -4676,9 +4679,6 @@
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "前往"
   },
-  "settings.agentLoop.description": {
-    "defaultMessage": "使用以操作為基礎的代理程式迴圈。關閉後將使用舊版迴圈。"
-  },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "自動"
   },
@@ -4753,6 +4753,9 @@
   },
   "settings.agentLoop.operations.threshold.label": {
     "defaultMessage": "閾值 %"
+  },
+  "settings.agentLoop.operations.tokenLimit.label": {
+    "defaultMessage": "詞元上限"
   },
   "settings.agentLoop.operations.toolPairCompaction.description": {
     "defaultMessage": "摘要較早的工具請求和回應以節省內容。留空時自動設定截斷值。"

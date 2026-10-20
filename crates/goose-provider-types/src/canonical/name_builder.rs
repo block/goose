@@ -52,6 +52,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "chatgpt_codex" => "openai",
         "databricks_v2" => "databricks",
         "zhipu" => "zhipuai",
+        "moonshot" => "moonshotai",
         "together" => "togetherai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",

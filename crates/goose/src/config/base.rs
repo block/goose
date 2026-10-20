@@ -1276,6 +1276,14 @@ config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
 impl Config {
+    pub(crate) fn resolve_goose_mode(&self) -> Result<GooseMode, ConfigError> {
+        match self.get_goose_mode_strict() {
+            Ok(mode) => Ok(mode),
+            Err(ConfigError::NotFound(_)) => Ok(GooseMode::Auto),
+            Err(error) => Err(error),
+        }
+    }
+
     pub(crate) fn get_goose_mode_strict(&self) -> Result<GooseMode, ConfigError> {
         match env::var("GOOSE_MODE") {
             Ok(value) => {
@@ -1328,6 +1336,10 @@ config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 
 impl Config {
+    pub(crate) fn default_max_turns(&self) -> u32 {
+        self.get_param::<u32>("GOOSE_MAX_TURNS").unwrap_or(1000)
+    }
+
     pub fn get_goose_context_limit(&self) -> Result<Option<usize>, ConfigError> {
         match self.get_param::<usize>("GOOSE_CONTEXT_LIMIT") {
             Ok(0) => Err(ConfigError::DeserializeError(
@@ -1456,6 +1468,43 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::{NamedTempFile, TempDir};
+
+    #[test]
+    fn resolve_goose_mode_defaults_only_when_missing() {
+        let _guard = env_lock::lock_env([("GOOSE_MODE", None::<&str>)]);
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+
+        assert_eq!(config.resolve_goose_mode().unwrap(), GooseMode::Auto);
+        for mode in [
+            GooseMode::Auto,
+            GooseMode::SmartApprove,
+            GooseMode::Approve,
+            GooseMode::Chat,
+        ] {
+            config.set_goose_mode(mode).unwrap();
+            assert_eq!(config.resolve_goose_mode().unwrap(), mode);
+        }
+
+        std::fs::write(config_file.path(), "GOOSE_MODE: invalid\n").unwrap();
+        assert!(matches!(
+            config.resolve_goose_mode(),
+            Err(ConfigError::DeserializeError(_))
+        ));
+    }
+
+    #[test]
+    fn resolve_goose_mode_rejects_invalid_environment_value() {
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("invalid"))]);
+        let config = new_test_config();
+        assert!(matches!(
+            config.resolve_goose_mode(),
+            Err(ConfigError::DeserializeError(_))
+        ));
+    }
+
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
         let config = new_test_config();

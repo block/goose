@@ -219,7 +219,7 @@ impl SkillOperation {
         Some(session)
     }
 
-    async fn command_response(
+    fn command_response(
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
@@ -236,8 +236,8 @@ impl SkillOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.message(command).await;
-        let response = emit.message(response).await;
+        emit.message(command);
+        let response = emit.message(response);
         yielded_with([
             ConversationEffect::SetMessageVisibility {
                 message_id,
@@ -270,8 +270,7 @@ impl Operation<Session, GooseEffect> for SkillOperation {
                     &session.working_dir,
                 )),
                 emit,
-            )
-            .await;
+            );
         }
 
         let prompt = match crate::slash_commands::skill_slash_command::resolve_command(
@@ -281,7 +280,7 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         ) {
             Ok(Some(prompt)) => prompt,
             Ok(None) => return not_applicable(),
-            Err(error) => return Self::command_response(conversation, error, emit).await,
+            Err(error) => return Self::command_response(conversation, error, emit),
         };
         let command_message = messages_since_kickoff(conversation)?
             .first()
@@ -366,8 +365,7 @@ impl Operation<Session, GooseEffect> for SkillOperation {
                     let span = tool_span(&tool_call.name, &request.id, &session.id);
                     // `load_skill` is executed here rather than by
                     // ToolExecutionOperation, which is registered after this one.
-                    // Run the same hook lifecycle it would have run, so the state
-                    // machine and the legacy loop agree on what a skill load emits.
+                    // Run the same hook lifecycle it would have run there.
                     let tool_input = tool_call
                         .arguments
                         .as_ref()
@@ -427,7 +425,7 @@ impl Operation<Session, GooseEffect> for SkillOperation {
             };
             response.add_tool_response_with_metadata(request.id, result, request.metadata.as_ref());
         }
-        let response = emit.message(response).await;
+        let response = emit.message(response);
         applied([response.into()])
     }
 }

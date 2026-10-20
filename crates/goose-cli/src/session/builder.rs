@@ -230,32 +230,28 @@ impl Default for SessionBuilderConfig {
 }
 
 pub struct ExtensionFailure {
-    pub label: Option<String>,
+    pub label: String,
     pub error: anyhow::Error,
 }
 
 async fn load_extensions(
     agent: Arc<Agent>,
-    extensions: Vec<ExtensionConfig>,
     session_id: &str,
-) -> Vec<ExtensionFailure> {
-    let results = match agent.add_extensions_bulk(extensions, session_id).await {
-        Ok(results) => results,
-        Err(error) => {
-            tracing::error!("failed to load extensions: {}", error);
-            return vec![ExtensionFailure { label: None, error }];
-        }
-    };
-
-    results
+) -> anyhow::Result<Vec<ExtensionFailure>> {
+    Ok(agent
+        .extension_manager
+        .current_lease(session_id)
+        .await?
+        .start()
+        .await
         .into_iter()
         .filter_map(|r| {
             r.error.map(|error| ExtensionFailure {
-                label: Some(r.name),
+                label: r.name,
                 error: anyhow::anyhow!(error),
             })
         })
-        .collect()
+        .collect())
 }
 
 struct ResolvedProviderConfig {
@@ -654,7 +650,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let agent: Agent = Agent::new();
+    let agent = Agent::new();
 
     let session_manager = agent.config.session_manager.clone();
 
@@ -689,8 +685,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         process::exit(1);
     }
 
-    let session_id =
-        resolve_session_id(&session_config, &session_manager, agent.config.goose_mode).await;
+    let session_id = resolve_session_id(
+        &session_config,
+        &session_manager,
+        config.get_goose_mode().unwrap_or_default(),
+    )
+    .await;
 
     if session_config.container.is_some() {
         session_manager
@@ -824,7 +824,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         });
 
     agent
-        .update_goose_mode(agent.config.goose_mode, &session_id)
+        .update_goose_mode(config.get_goose_mode().unwrap_or_default(), &session_id)
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to set session mode: {}", e));
@@ -848,11 +848,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Extensions are loaded after session creation because we may change
     // directory when resuming.
-    let agent_ptr = Arc::new(agent);
+    let agent_ptr = agent;
     let loading_handle = AbortOnDropHandle::new(tokio::spawn({
         let agent = agent_ptr.clone();
         let sid = session_id.clone();
-        async move { load_extensions(agent, extensions_for_provider, &sid).await }
+        async move { load_extensions(agent, &sid).await }
     }));
 
     let edit_mode = config
@@ -883,7 +883,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
-        recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
         session_config.stats,
         session_config.interactive,

@@ -90,7 +90,7 @@ impl SessionToolConfirmationState {
     pub(super) async fn wait_for_all_confirmation_answers(
         &self,
         cancel: &CancellationToken,
-    ) -> Result<bool> {
+    ) -> bool {
         loop {
             let answer_received = self.confirmation_answered.notified();
             tokio::pin!(answer_received);
@@ -110,12 +110,12 @@ impl SessionToolConfirmationState {
                 )
             };
             if let Some(has_state_machine_answer) = completed {
-                return Ok(has_state_machine_answer);
+                return has_state_machine_answer;
             }
 
             tokio::select! {
                 _ = answer_received => {}
-                _ = cancel.cancelled() => return Err(anyhow!("state-machine turn cancelled")),
+                _ = cancel.cancelled() => return true,
             }
         }
     }
@@ -190,6 +190,21 @@ impl ToolConfirmationCoordinator {
             .or_insert_with(|| Arc::new(SessionToolConfirmationState::new()))
             .clone()
     }
+
+    #[cfg(test)]
+    pub(super) fn tracks(&self, session_id: &str) -> bool {
+        self.sessions
+            .lock()
+            .expect("tool confirmation coordinator unavailable")
+            .contains_key(session_id)
+    }
+
+    pub(super) fn release(&self, session_id: &str) {
+        self.sessions
+            .lock()
+            .expect("tool confirmation coordinator unavailable")
+            .remove(session_id);
+    }
 }
 
 #[cfg(test)]
@@ -227,8 +242,7 @@ mod tests {
 
         let has_state_machine_answer = session
             .wait_for_all_confirmation_answers(&CancellationToken::new())
-            .await
-            .unwrap();
+            .await;
 
         assert!(has_state_machine_answer);
     }

@@ -1,5 +1,6 @@
 use crate::agents::Container;
 use crate::config::paths::Paths;
+use crate::config::ExtensionConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageMetadata, MessageUsage, TokenState};
 use crate::conversation::Conversation;
@@ -8,7 +9,7 @@ use crate::providers::base::Provider;
 use crate::recipe::validate_recipe::strip_unreferenced_parameters;
 use crate::recipe::Recipe;
 use crate::session::export_markdown::export_session_to_markdown;
-use crate::session::extension_data::{ExtensionData, ExtensionState};
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState};
 use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
 };
@@ -761,6 +762,32 @@ impl SessionManager {
                 data.set_extension_state(extension_name, version, value)
             })
             .await
+    }
+
+    /// Reads, changes and writes the selection in one transaction, so
+    /// concurrent changes from other connections are not lost.
+    pub async fn update_enabled_extensions<R>(
+        &self,
+        session_id: &str,
+        update: impl FnOnce(&mut Vec<ExtensionConfig>) -> R,
+    ) -> Result<R> {
+        let mut outcome = None;
+        self.storage
+            .update_json_column(session_id, "extension_data", |data: &mut ExtensionData| {
+                let mut extensions = EnabledExtensionsState::from_extension_data(data)
+                    .map(|state| state.extensions)
+                    .unwrap_or_default();
+                let output = update(&mut extensions);
+                outcome = Some(
+                    EnabledExtensionsState::check_unique_keys(&extensions)
+                        .and_then(|()| {
+                            EnabledExtensionsState::new(extensions).to_extension_data(data)
+                        })
+                        .map(|()| output),
+                );
+            })
+            .await?;
+        outcome.expect("the update ran")
     }
 
     pub async fn set_system_prompt_extra(
@@ -2291,16 +2318,22 @@ impl SessionStorage {
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
                    s.system_prompt_override, s.system_prompt_extras_json, s.container_id,
-                   {} as message_count,
-                   MAX({}) as last_message_timestamp,
-                   {} as sort_timestamp
-            FROM sessions s
-            {}
-            {}
-            GROUP BY s.id
-            {}
-            {}
-            {}
+                   page.message_count, page.last_message_timestamp, page.sort_timestamp
+            FROM (
+                SELECT s.id,
+                       {} as message_count,
+                       MAX({}) as last_message_timestamp,
+                       {} as sort_timestamp
+                FROM sessions s
+                {}
+                {}
+                GROUP BY s.id
+                {}
+                {}
+                {}
+            ) page
+            JOIN sessions s ON s.id = page.id
+            ORDER BY page.sort_timestamp DESC, s.id DESC
             "#,
             message_count_sql,
             normalized_message_timestamp,
@@ -2899,94 +2932,33 @@ impl SessionStorage {
         use crate::conversation::message::MessageContent;
 
         let pool = self.pool().await?;
-        let rows = sqlx::query_as::<_, (Option<String>, String)>(
-            "SELECT message_id, content_json FROM messages \
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+        let rows = sqlx::query_as::<_, (i64, String)>(
+            "SELECT id, content_json FROM messages \
              WHERE session_id = ? \
              ORDER BY id DESC \
              LIMIT 100",
         )
         .bind(session_id)
-        .fetch_all(pool)
-        .await?;
-
-        for (message_id, content_json) in rows {
-            let content: Vec<MessageContent> = serde_json::from_str(&content_json)?;
-            let contains_tool_request = content.iter().any(|block| {
-                matches!(
-                    block,
-                    MessageContent::ToolRequest(tool_request)
-                        if tool_request.id == tool_call_id
-                )
-            });
-            if contains_tool_request {
-                let Some(message_id) = message_id else {
-                    return Ok(());
-                };
-                return self
-                    .update_tool_request_meta_by_message_id(
-                        session_id,
-                        &message_id,
-                        tool_call_id,
-                        patch,
-                    )
-                    .await;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Patch `tool_meta` on a specific `ToolRequest` within a stored message's
-    /// `content_json`. Finds the row(s) with matching `message_id`, scans each
-    /// row's content for a `ToolRequest` with the given `tool_call_id`, and
-    /// merges `patch` into its `tool_meta`. Uses `BEGIN IMMEDIATE` so
-    /// concurrent writers serialize correctly.
-    async fn update_tool_request_meta_by_message_id(
-        &self,
-        session_id: &str,
-        message_id: &str,
-        tool_call_id: &str,
-        patch: serde_json::Value,
-    ) -> Result<()> {
-        use crate::conversation::message::MessageContent;
-
-        let pool = self.pool().await?;
-        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-
-        let rows = sqlx::query_as::<_, (i64, String)>(
-            "SELECT id, content_json FROM messages \
-             WHERE session_id = ? AND message_id = ? \
-             ORDER BY id ASC",
-        )
-        .bind(session_id)
-        .bind(message_id)
         .fetch_all(&mut *tx)
         .await?;
 
         for (row_id, content_json) in rows {
             let mut content: Vec<MessageContent> = serde_json::from_str(&content_json)?;
-            let mut found = false;
-            for block in &mut content {
-                if let MessageContent::ToolRequest(tr) = block {
-                    if tr.id == tool_call_id {
-                        tr.tool_meta = Some(merge_tool_meta(tr.tool_meta.take(), &patch));
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            if !found {
+            let Some(tool_request) = content.iter_mut().find_map(|block| match block {
+                MessageContent::ToolRequest(request) if request.id == tool_call_id => Some(request),
+                _ => None,
+            }) else {
                 continue;
-            }
+            };
+            tool_request.tool_meta = Some(merge_tool_meta(tool_request.tool_meta.take(), &patch));
 
-            let updated_json = serde_json::to_string(&content)?;
             sqlx::query("UPDATE messages SET content_json = ? WHERE id = ?")
-                .bind(updated_json)
+                .bind(serde_json::to_string(&content)?)
                 .bind(row_id)
                 .execute(&mut *tx)
                 .await?;
-            tx.commit().await?;
-            return Ok(());
+            break;
         }
 
         tx.commit().await?;
@@ -3400,6 +3372,54 @@ mod tests {
             .map(Message::as_concat_text)
             .collect();
         assert_eq!(texts, ["appended first", "built first"]);
+    }
+
+    #[tokio::test]
+    async fn tool_request_meta_patches_the_latest_reused_tool_call() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Reused ids".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let tool_call = || {
+            Message::assistant()
+                .with_id("chatcmpl-recorded")
+                .with_tool_request(
+                    "call_0",
+                    Ok(rmcp::model::CallToolRequestParams::new("tool")),
+                )
+        };
+        sm.add_message(&session.id, &tool_call()).await.unwrap();
+        sm.add_message(&session.id, &tool_call()).await.unwrap();
+
+        sm.update_tool_request_meta(
+            &session.id,
+            "call_0",
+            serde_json::json!({ "patched": true }),
+        )
+        .await
+        .unwrap();
+
+        let conversation = sm
+            .get_session(&session.id, true)
+            .await
+            .unwrap()
+            .conversation
+            .expect("session has a conversation");
+        let patched: Vec<bool> = conversation
+            .messages()
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter_map(MessageContent::as_tool_request)
+            .map(|request| request.tool_meta.is_some())
+            .collect();
+        assert_eq!(patched, [false, true]);
     }
 
     #[tokio::test]

@@ -515,7 +515,6 @@ mod tests {
             providers: manager.get_context().providers.clone(),
             session_manager: manager.get_context().session_manager.clone(),
             scheduler: None,
-            use_login_shell_path: false,
         })
         .unwrap()
     }
@@ -592,7 +591,10 @@ mod tests {
             "the mutation is for the loop, not the model"
         );
         assert!(
-            !manager.is_extension_enabled("developer").await,
+            !manager
+                .is_extension_enabled(&user_id, "developer")
+                .await
+                .unwrap(),
             "the tool declares the change; the loop applies it"
         );
 
@@ -668,6 +670,9 @@ mod tests {
 
         let unknown_enable = manage(&client, "missing-session", "enable").await;
         assert!(unknown_enable.is_error.unwrap_or(false));
-        assert!(!manager.is_extension_enabled("developer").await);
+        assert!(!manager
+            .is_extension_enabled(&subagent_id, "developer")
+            .await
+            .unwrap());
     }
 }

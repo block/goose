@@ -683,6 +683,13 @@ impl Provider for AcpProvider {
         Some(self.acp_session_id().to_string())
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        // ACP agents advertise their own model ids, which are CLI/account-specific
+        // and often absent from the canonical registry, and the agent's order is
+        // its priority order. Keep the live list intact for inventory/config.
+        true
+    }
+
     async fn resume(&self, session_id: &str) -> Result<(), ProviderError> {
         if self.acp_session_id().0.as_ref() == session_id {
             return Ok(());

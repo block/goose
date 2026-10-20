@@ -1,5 +1,8 @@
 use super::api_client::ApiClient;
-use super::base::{known_models_from_registry, ConfigKey, ModelInfo, Provider, ProviderMetadata};
+use super::base::{
+    find_declared_model, known_models_from_registry, ConfigKey, ModelInfo, Provider,
+    ProviderMetadata,
+};
 use super::retry::ProviderRetry;
 use crate::api_client::{AuthMethod, TlsConfig};
 use crate::conversation::message::Message;
@@ -15,10 +18,11 @@ use crate::formats::openai_responses::{
     create_responses_request_for_model, get_responses_usage, responses_api_to_message,
     ResponsesApiResponse,
 };
-use crate::http_status::read_json_response;
+use crate::http_status::{extract_request_id, read_json_response};
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
-    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
+    annotate_request_id, handle_response_openai_compat, handle_status, stream_openai_compat,
+    stream_responses_compat,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::thinking::ThinkingEffort;
@@ -63,6 +67,8 @@ pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
 
 type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
+
+pub type OpenAiSessionIdProvider = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 
 /// Ensure a base URL has an explicit scheme.
 ///
@@ -119,7 +125,7 @@ pub fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts> {
     Ok((format!("{}{}", authority, path), query_params, false))
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct OpenAiProvider {
     #[serde(skip)]
     api_client: ApiClient,
@@ -135,7 +141,18 @@ pub struct OpenAiProvider {
     preserve_thinking_context: bool,
     native_openai: bool,
     #[serde(skip)]
+    session_id_provider: Option<OpenAiSessionIdProvider>,
+    #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, CachedContextLimit>>>,
+}
+
+impl std::fmt::Debug for OpenAiProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAiProvider")
+            .field("name", &self.name)
+            .field("base_path", &self.base_path)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Builder for [`OpenAiProvider`].
@@ -155,6 +172,7 @@ pub struct OpenAiProviderBuilder {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    session_id_provider: Option<OpenAiSessionIdProvider>,
     native_openai: bool,
 }
 
@@ -172,6 +190,7 @@ impl OpenAiProviderBuilder {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            session_id_provider: None,
             native_openai: false,
         }
     }
@@ -244,6 +263,11 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn session_id_provider(mut self, provider: OpenAiSessionIdProvider) -> Self {
+        self.session_id_provider = Some(provider);
+        self
+    }
+
     pub fn native_openai(mut self, native_openai: bool) -> Self {
         self.native_openai = native_openai;
         self
@@ -262,6 +286,7 @@ impl OpenAiProviderBuilder {
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
+            session_id_provider: self.session_id_provider,
             native_openai: self.native_openai,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -279,6 +304,7 @@ impl OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut request_config = model_config.clone();
+        request_config.supports_vision = self.vision_support(model_config);
         if self.native_openai && request_config.reasoning.is_none() {
             let canonical = goose_provider_types::canonical::maybe_get_canonical_model(
                 "openai",
@@ -299,11 +325,28 @@ impl OpenAiProvider {
         self.stream_responses_payload(model_config, payload).await
     }
 
+    fn insert_prompt_cache_key(&self, payload: &mut serde_json::Value) {
+        let Some(session_id) = self
+            .session_id_provider
+            .as_ref()
+            .and_then(|provider| provider())
+            .filter(|id| !id.is_empty())
+        else {
+            return;
+        };
+        payload
+            .as_object_mut()
+            .unwrap()
+            .entry("prompt_cache_key")
+            .or_insert_with(|| serde_json::Value::String(session_id));
+    }
+
     async fn stream_responses_payload(
         &self,
         model_config: &ModelConfig,
-        payload: serde_json::Value,
+        mut payload: serde_json::Value,
     ) -> Result<MessageStream, ProviderError> {
+        self.insert_prompt_cache_key(&mut payload);
         let mut log = start_log(model_config, &payload)?;
         let response = self
             .with_retry(|| async {
@@ -328,18 +371,22 @@ impl OpenAiProvider {
         if self.supports_streaming {
             stream_responses_compat(response, log)
         } else {
-            let json: serde_json::Value = read_json_response(response).await?;
+            let request_id = extract_request_id(response.headers());
+            let annotate = |e| annotate_request_id(e, request_id.as_deref());
+            let json: serde_json::Value = read_json_response(response).await.map_err(annotate)?;
             let parsed: ResponsesApiResponse =
                 serde_json::from_value(json.clone()).map_err(|e| {
-                    ProviderError::ExecutionError(format!(
+                    annotate(ProviderError::ExecutionError(format!(
                         "Failed to parse responses API response: {}",
                         e
-                    ))
+                    )))
                 })?;
-            let message = responses_api_to_message(&parsed)?;
+            let message =
+                responses_api_to_message(&parsed).map_err(|e| annotate(ProviderError::from(e)))?;
             let usage_data = get_responses_usage(&parsed);
             let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
             let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            usage.request_id = request_id;
             usage.response_id = Some(parsed.id.clone());
             let finish_reason = json
                 .pointer("/incomplete_details/reason")
@@ -371,6 +418,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            session_id_provider: None,
             native_openai: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -463,10 +511,13 @@ impl OpenAiProvider {
     }
 
     fn declared_model(&self, model_name: &str) -> Option<&ModelInfo> {
-        self.custom_models
-            .as_ref()?
-            .iter()
-            .find(|m| m.name == model_name)
+        find_declared_model(self.custom_models.as_deref()?, model_name)
+    }
+
+    fn vision_support(&self, model_config: &ModelConfig) -> Option<bool> {
+        self.declared_model(&model_config.model_name)
+            .and_then(|model| model.supports_vision)
+            .or(model_config.supports_vision)
     }
 
     fn sanitize_request_for_compat(
@@ -806,6 +857,7 @@ impl Provider for OpenAiProvider {
             let declared_model = self.declared_model(&model_config.model_name);
             let thinking_preservation_format =
                 declared_model.and_then(|m| m.thinking_preservation_format);
+            let supports_vision = self.vision_support(model_config).unwrap_or_default();
 
             let mut payload = create_request_with_options(
                 model_config,
@@ -817,7 +869,7 @@ impl Provider for OpenAiProvider {
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context
                         || thinking_preservation_format.is_some(),
-                    supports_vision: model_config.supports_vision.unwrap_or_default(),
+                    supports_vision,
                     thinking_preservation_format,
                 },
             )?;
@@ -848,15 +900,22 @@ impl Provider for OpenAiProvider {
             if self.supports_streaming {
                 stream_openai_compat(response, log)
             } else {
-                let json: serde_json::Value = read_json_response(response).await?;
+                let request_id = extract_request_id(response.headers());
+                let annotate = |e| annotate_request_id(e, request_id.as_deref());
+                let json: serde_json::Value =
+                    read_json_response(response).await.map_err(annotate)?;
 
                 let message = response_to_message(&json).map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+                    annotate(ProviderError::RequestFailed(format!(
+                        "Failed to parse message: {}",
+                        e
+                    )))
                 })?;
 
                 let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
                 let usage_data = get_usage(usage_json);
                 let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                usage.request_id = request_id;
                 record_response_metadata(&mut usage, &json);
                 if let Some(cost) = get_cost(usage_json) {
                     usage = usage.with_cost(cost, CostSource::ProviderReported);
@@ -1033,6 +1092,7 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            session_id_provider: None,
             native_openai: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -1585,6 +1645,7 @@ mod tests {
             dynamic_models: Some(true),
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            session_id_provider: None,
             native_openai: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }

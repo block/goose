@@ -1794,7 +1794,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "Tool Permission Configuration".to_string(),
             SessionType::Hidden,
-            agent.config.goose_mode,
+            config.get_goose_mode().unwrap_or_default(),
         )
         .await?;
 
@@ -1826,7 +1826,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let permission_manager = PermissionManager::instance();
     let selected_tools = agent
         .list_tools(&session.id, Some(selected_extension_name.clone()))
-        .await
+        .await?
         .into_iter()
         .map(|tool| {
             ToolInfo::new(

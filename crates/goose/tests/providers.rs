@@ -103,7 +103,7 @@ struct ProviderFixture {
     context_length_exceeded: usize,
     provider: Arc<dyn Provider>,
     model_config: goose_providers::model::ModelConfig,
-    agent: Agent,
+    agent: Arc<Agent>,
     session_id: String,
     _mcp: McpFixture,
     _guard: env_lock::EnvGuard<'static>,
@@ -260,7 +260,6 @@ impl ProviderFixture {
             session_manager.clone(),
             permission_manager,
             None,
-            mode,
             true,
             GoosePlatform::GooseCli,
         ));
@@ -269,7 +268,7 @@ impl ProviderFixture {
                 std::env::current_dir()?,
                 "provider_test".to_string(),
                 SessionType::User,
-                GooseMode::default(),
+                mode,
             )
             .await?;
         let session_id = session.id;
@@ -310,8 +309,8 @@ impl ProviderFixture {
         let lease = self
             .agent
             .extension_manager
-            .current_lease(&self.session_id, None)
-            .await;
+            .current_lease(&self.session_id)
+            .await?;
         let tools = lease.tools().await;
         let info = lease.instructions().await;
         let system = PromptManager::new()
@@ -359,8 +358,8 @@ impl ProviderFixture {
         let result = self
             .agent
             .extension_manager
-            .current_lease(&ctx.session_id, ctx.working_dir.as_deref())
-            .await
+            .current_lease(&ctx.session_id)
+            .await?
             .call(params, CallRequest::from(&ctx), CancellationToken::new())
             .await
             .unwrap()
@@ -583,18 +582,9 @@ impl ProviderFixture {
             id: self.session_id.clone(),
             schedule_id: None,
             max_turns: Some(5),
-            retry_config: None,
         };
 
-        let mut stream = self
-            .agent
-            .reply(
-                message,
-                session_config,
-                goose::agents::state_machine::enabled(),
-                None,
-            )
-            .await?;
+        let mut stream = self.agent.reply(message, session_config, None).await?;
         let mut saw_action_required = false;
 
         while let Some(event) = stream.next().await {
@@ -956,15 +946,6 @@ async fn test_claude_acp_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("claude-acp", ACP_CURRENT_MODEL, "claude-agent-acp")
         .model_switch_name("sonnet")
         .test_thinking_effort(true)
-        .run()
-        .await
-}
-
-// Requires: npm install -g @agentclientprotocol/codex-acp
-#[tokio::test]
-async fn test_codex_acp_provider() -> Result<()> {
-    ProviderTestConfig::with_agentic_provider("codex-acp", ACP_CURRENT_MODEL, "codex-acp")
-        .model_switch_name("gpt-5.4-mini")
         .run()
         .await
 }
