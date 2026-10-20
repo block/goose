@@ -1,10 +1,10 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::final_output_tool::FinalOutputTool;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
+use crate::agents::state_machine::DELEGATED_META_KEY;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
-use crate::config::{Config, GooseMode};
+use crate::config::{resolve_extensions_for_new_session, Config, GooseMode};
 use crate::conversation::message::Message;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
@@ -397,6 +397,16 @@ impl SummonClient {
         parent_session_id: &str,
         name: String,
     ) -> Result<crate::session::Session, String> {
+        let goose_mode = if parent_session_id.is_empty() {
+            GooseMode::Auto
+        } else {
+            self.context
+                .session_manager
+                .get_session(parent_session_id, false)
+                .await
+                .map_err(|e| format!("Failed to read the parent session: {}", e))?
+                .goose_mode
+        };
         let session = self
             .context
             .session_manager
@@ -404,7 +414,7 @@ impl SummonClient {
                 working_dir.to_path_buf(),
                 name,
                 SessionType::SubAgent,
-                GooseMode::Auto,
+                goose_mode,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
@@ -466,7 +476,7 @@ impl SummonClient {
                 "extensions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Extensions to enable. Omit to inherit all, empty array for none."
+                    "description": "Restrict extensions by name. Omit to use the source recipe's declared extensions, or inherit the parent's if none are declared. Empty array for none."
                 },
                 "provider": {
                     "type": "string",
@@ -841,10 +851,10 @@ impl SummonClient {
             return Err("Delegated tasks cannot spawn further delegations".to_string());
         }
 
-        self.handle_foreground_delegate(params, &session).await
+        self.create_subagent(params, &session).await
     }
 
-    async fn handle_foreground_delegate(
+    async fn create_subagent(
         &self,
         params: DelegateParams,
         parent: &Session,
@@ -860,7 +870,7 @@ impl SummonClient {
             .await
             .map_err(|_| {
                 format!(
-                    "Provider '{}' cannot be reconstructed for a foreground subagent",
+                    "Provider '{}' cannot be reconstructed for a subagent",
                     subagent_config.provider_name
                 )
             })?;
@@ -934,11 +944,11 @@ impl SummonClient {
             serde_json::Value::String(child.id.clone()),
         );
         meta.0.insert(
-            "foreground_subagent".to_string(),
+            DELEGATED_META_KEY.to_string(),
             serde_json::Value::Bool(true),
         );
         Ok(CallToolResult::success(vec![ContentBlock::text(format!(
-            "Delegated to foreground subagent {}",
+            "Delegated to subagent {}",
             child.id
         ))])
         .with_meta(Some(meta)))
@@ -1116,9 +1126,6 @@ impl SummonClient {
             .and_then(serde_json::Value::as_str)
             .map(str::to_string);
 
-        // max_turns is set later in resolve_subagent_config so it can incorporate params.max_turns
-        // with the correct priority ordering; setting it here would cause it to be overridden
-        // by the parent session's recipe instead.
         let settings = model.map(|m| Settings {
             goose_model: Some(m),
             goose_provider: params.provider.clone(),
@@ -1151,9 +1158,12 @@ impl SummonClient {
         recipe: &Recipe,
         session: &Session,
     ) -> Result<SubagentConfig> {
-        let mut extensions = EnabledExtensionsState::extensions_or_default(
-            Some(&session.extension_data),
-            Config::global(),
+        let mut extensions = resolve_extensions_for_new_session(
+            recipe.extensions.as_deref(),
+            Some(EnabledExtensionsState::extensions_or_default(
+                Some(&session.extension_data),
+                Config::global(),
+            )),
         );
 
         if let Some(filter) = &params.extensions {
@@ -1170,7 +1180,7 @@ impl SummonClient {
                     .collect();
                 if !unmatched.is_empty() {
                     warn!(
-                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        "Delegate requested extensions not available: {:?}. Available: {:?}",
                         unmatched, available_names
                     );
                 }
@@ -1181,10 +1191,7 @@ impl SummonClient {
             .resolve_provider_config(params, recipe, session)
             .await?;
 
-        let max_turns = params
-            .max_turns
-            .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
-            .unwrap_or_else(|| self.resolve_max_turns(session));
+        let max_turns = Self::resolve_max_turns(params, recipe, Config::global());
 
         if max_turns == 0 || max_turns > u32::MAX as usize {
             anyhow::bail!(
@@ -1338,23 +1345,12 @@ impl SummonClient {
         Ok((provider_name, model_config))
     }
 
-    fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        session
-            .recipe
-            .as_ref()
-            .and_then(|r| r.settings.as_ref())
-            .and_then(|s| s.max_turns)
-            .or_else(|| {
-                std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-            })
-            .or_else(|| {
-                Config::global()
-                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
-                    .ok()
-            })
-            .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
+    fn resolve_max_turns(params: &DelegateParams, recipe: &Recipe, config: &Config) -> usize {
+        params
+            .max_turns
+            .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
+            .or_else(|| config.get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS").ok())
+            .unwrap_or_else(|| config.default_max_turns() as usize)
     }
 }
 
@@ -1471,7 +1467,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::sync::Arc;
-    use tempfile::TempDir;
+    use tempfile::{NamedTempFile, TempDir};
 
     fn create_test_context() -> PlatformExtensionContext {
         create_test_context_with_session_manager(Arc::new(
@@ -1487,13 +1483,55 @@ mod tests {
             providers: Default::default(),
             session_manager,
             scheduler: None,
-            use_login_shell_path: false,
         }
     }
 
     #[tokio::test]
     #[serial]
-    async fn foreground_delegate_persists_child_without_creating_provider() {
+    async fn delegate_extension_selection() -> Result<()> {
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_PROVIDER", Some("openai")),
+            ("GOOSE_SUBAGENT_MODEL", Some("test-model")),
+        ]);
+        let client = SummonClient::new(create_test_context())?;
+        let mut parent = session_with(goose_providers::model::ModelConfig::new("test-model"));
+        let inherited = Recipe::from_content(
+            "title: Parent\ndescription: Parent\nprompt: Run\nextensions:\n  - type: platform\n    name: summon\n",
+        )?.extensions.unwrap();
+        EnabledExtensionsState::new(inherited).to_extension_data(&mut parent.extension_data)?;
+        let declared = Recipe::from_content(
+            "title: Child\ndescription: Child\nprompt: Run\nextensions:\n  - type: platform\n    name: todo\n  - type: platform\n    name: extensionmanager\n",
+        )?.extensions;
+        for (extensions, filter, expected) in [
+            (None, None, vec!["summon"]),
+            (Some(vec![]), None, vec![]),
+            (declared.clone(), None, vec!["todo", "extensionmanager"]),
+            (declared, Some(vec!["todo".to_string()]), vec!["todo"]),
+        ] {
+            let mut recipe = empty_recipe();
+            recipe.extensions = extensions;
+            let params = DelegateParams {
+                extensions: filter,
+                ..Default::default()
+            };
+            let resolved = client
+                .resolve_subagent_config(&params, &recipe, &parent)
+                .await?;
+            assert_eq!(
+                resolved
+                    .extensions
+                    .iter()
+                    .map(|config| config.name())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn delegate_persists_child_without_creating_provider() {
         let temp_dir = TempDir::new().unwrap();
         let child_dir = temp_dir.path().join("child");
         fs::create_dir(&child_dir).unwrap();
@@ -1543,7 +1581,7 @@ mod tests {
         };
         let meta = result.meta.as_ref().unwrap();
         assert_eq!(
-            meta.0.get("foreground_subagent"),
+            meta.0.get(DELEGATED_META_KEY),
             Some(&serde_json::json!(true))
         );
         let child_id = meta.0["subagent_session_id"].as_str().unwrap().to_string();
@@ -1601,7 +1639,7 @@ mod tests {
                     MessageContent::ToolResponse(response)
                         if response.tool_result.as_ref().is_ok_and(|result|
                             result.meta.as_ref().is_some_and(|meta|
-                                meta.0.get("foreground_subagent") == Some(&serde_json::json!(true))
+                                meta.0.get(DELEGATED_META_KEY) == Some(&serde_json::json!(true))
                                     && meta.0.get("subagent_session_id").and_then(serde_json::Value::as_str)
                                         == Some(child_id.as_str())
                             )
@@ -1610,12 +1648,14 @@ mod tests {
             })
         }));
 
-        let (reloaded_agent, _) =
-            crate::agents::subagent_handler::from_foreground_subagent_session(
-                Arc::new(reloaded),
-                &child,
-                false,
-            )
+        let reloaded_agent = crate::agents::Agent::with_config(crate::agents::AgentConfig::new(
+            Arc::new(reloaded),
+            crate::config::permission::PermissionManager::instance(),
+            None,
+            true,
+            crate::agents::GoosePlatform::GooseCli,
+        ));
+        crate::agents::subagent_handler::prepare_subagent(&reloaded_agent, &child)
             .await
             .unwrap();
         assert_eq!(
@@ -2198,77 +2238,69 @@ You review code."#;
 
     #[test]
     #[serial]
-    fn test_resolve_max_turns_recipe_overrides_env_var() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
+    fn test_resolve_max_turns_precedence() {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        fs::write(
+            config_file.path(),
+            "GOOSE_SUBAGENT_MAX_TURNS: 7\nGOOSE_MAX_TURNS: 8\n",
+        )
+        .unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_MAX_TURNS", Some("99")),
+            ("GOOSE_MAX_TURNS", Some("42")),
+        ]);
 
-        let session = crate::session::Session {
-            recipe: Some(crate::recipe::Recipe {
-                version: "1.0.0".to_string(),
-                title: String::new(),
-                description: String::new(),
-                instructions: None,
-                prompt: None,
-                extensions: None,
-                settings: Some(crate::recipe::Settings {
-                    goose_provider: None,
-                    goose_model: None,
-                    temperature: None,
-                    max_turns: Some(10),
-                }),
-                activities: None,
-                author: None,
-                parameters: None,
-                response: None,
-                sub_recipes: None,
-                retry: None,
-            }),
-            ..Default::default()
-        };
-
-        // Set env var to a different value — recipe should still win
-        let _env = env_lock::lock_env([("GOOSE_SUBAGENT_MAX_TURNS", Some("99"))]);
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result, 10,
-            "recipe settings.max_turns should take priority over env var"
-        );
+        for (delegate_limit, recipe_limit, expected) in
+            [(Some(3), Some(5), 3), (None, Some(5), 5), (None, None, 99)]
+        {
+            let params = DelegateParams {
+                max_turns: delegate_limit,
+                ..Default::default()
+            };
+            let mut recipe = empty_recipe();
+            recipe.settings = Some(Settings {
+                goose_provider: None,
+                goose_model: None,
+                temperature: None,
+                max_turns: recipe_limit,
+            });
+            assert_eq!(
+                SummonClient::resolve_max_turns(&params, &recipe, &config),
+                expected
+            );
+        }
     }
 
     #[test]
     #[serial]
-    fn test_resolve_max_turns_falls_back_to_env_var() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
+    fn test_resolve_max_turns_from_config_file_or_default() {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_MAX_TURNS", None::<&str>),
+            ("GOOSE_MAX_TURNS", None),
+        ]);
 
-        let session = crate::session::Session::default(); // no recipe
-
-        let _env = env_lock::lock_env([("GOOSE_SUBAGENT_MAX_TURNS", Some("7"))]);
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result, 7,
-            "should fall back to GOOSE_SUBAGENT_MAX_TURNS env var"
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn test_resolve_max_turns_falls_back_to_default() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
-
-        let session = crate::session::Session::default(); // no recipe
-
-        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result,
-            crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS,
-            "should fall back to DEFAULT_SUBAGENT_MAX_TURNS"
-        );
+        for (contents, expected) in [
+            ("", 1000),
+            ("GOOSE_MAX_TURNS: 42\n", 42),
+            ("GOOSE_SUBAGENT_MAX_TURNS: 7\nGOOSE_MAX_TURNS: 42\n", 7),
+        ] {
+            fs::write(config_file.path(), contents).unwrap();
+            assert_eq!(
+                SummonClient::resolve_max_turns(
+                    &DelegateParams::default(),
+                    &empty_recipe(),
+                    &config
+                ),
+                expected
+            );
+        }
     }
 
     fn empty_recipe() -> crate::recipe::Recipe {

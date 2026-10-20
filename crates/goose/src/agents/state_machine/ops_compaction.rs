@@ -6,12 +6,11 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tracing_futures::Instrument;
 
-use crate::agents::final_output_tool::FinalOutputTool;
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
 use crate::agents::state_machine::{
-    applied, awaits_tool_responses, last_effective_role, messages_since_kickoff, not_applicable,
-    trailing_error, yielded, yielded_with, ConversationEffect, Emitter, GooseEffect, Operation,
-    OperationResult, SlashCommand,
+    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
+    yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
+    SlashCommand,
 };
 use crate::context_mgmt::{compact_messages, count_context_tokens};
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -23,27 +22,6 @@ use goose_providers::model::ModelConfig;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
 pub(super) const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
-
-fn compaction_part(
-    total_tokens: Option<i32>,
-    context_limit: usize,
-    threshold: f64,
-) -> Option<String> {
-    let total_tokens = total_tokens?;
-    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
-        return None;
-    }
-
-    let compaction_at = (context_limit as f64 * threshold) as i32;
-    if compaction_at <= 0 || (total_tokens as f64 / compaction_at as f64) < 0.5 {
-        return None;
-    }
-
-    Some(format!(
-        "<compaction>~{}k tokens remaining</compaction>",
-        compaction_at.saturating_sub(total_tokens) / 1000
-    ))
-}
 
 /// Reported usage stops at the inference that requested the tools, so the
 /// results that answered it are not counted until the next request.
@@ -211,23 +189,6 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
         ])
     }
 
-    async fn moim_parts(
-        &self,
-        session: &Session,
-        conversation: &Conversation,
-    ) -> Result<Vec<String>> {
-        if self.manages_own_context {
-            return Ok(Vec::new());
-        }
-        Ok(compaction_part(
-            Some(self.context_tokens(session, conversation).await?),
-            self.context_limit,
-            self.threshold,
-        )
-        .into_iter()
-        .collect())
-    }
-
     async fn run(
         &self,
         session: &Session,
@@ -256,15 +217,8 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            // Compact only ahead of an inference. An assistant tail ends the turn or
-            // awaits tool responses, hiding an unanswered request orphans its result,
-            // and RecipeOperation delivers a successful final output from a tool tail.
-            let tail = last_effective_role(messages)?;
-            if tail == EffectiveRole::Assistant
-                || awaits_tool_responses(messages)
-                || (tail == EffectiveRole::Tool
-                    && FinalOutputTool::successful_output(messages).is_some())
-            {
+            // Compact only ahead of an inference; an assistant tail ends the turn.
+            if last_effective_role(messages)? == EffectiveRole::Assistant {
                 return not_applicable();
             }
             let tokens = self.context_tokens(session, conversation).await?;

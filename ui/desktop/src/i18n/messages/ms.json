@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Apa yang kami kumpul:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Memuatkan mesej... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "{count, plural, other {# mesej disembunyikan}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "Model ditukar: {previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "Tekan Cmd/Ctrl+F untuk memuatkan semua mesej dengan serta-merta untuk carian"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (diminta)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "Tunjukkan semua"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "Semua gesaan ditetapkan semula kepada lalai"
@@ -2720,9 +2723,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Anda mempunyai perubahan yang belum disimpan"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "Ralat ProviderCard: Tiada metadata disediakan"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Penyedia Tidak Diketahui"
   },
@@ -2731,9 +2731,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "Format API"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "Batal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Pilih Penyedia"
@@ -4282,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Konfigurasikan subresipi yang boleh dipanggil sebagai alat semasa pelaksanaan resipi"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Muatkan kemajuan terkini"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Kemajuan subagen tidak dipaparkan secara langsung di sini."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Kembali ke senarai model"

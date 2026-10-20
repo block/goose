@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Ne topluyoruz:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Mesajlar yükleniyor... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "{count, plural, other {# mesaj gizlendi}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "Model değişti: {previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "Arama amacıyla tüm mesajları anında yüklemek için Cmd/Ctrl+F tuşlarına basın"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (istenen)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "Tümünü göster"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "Tüm istemler varsayılanlara sıfırlandı"
@@ -2720,9 +2723,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Kaydedilmemiş değişiklikleriniz var"
   },
-  "providerCard.noMetadata": {
-    "defaultMessage": "ProviderCard hatası: Meta veri sağlanmadı"
-  },
   "providerCard.unknownProvider": {
     "defaultMessage": "Bilinmeyen Sağlayıcı"
   },
@@ -2731,9 +2731,6 @@
   },
   "providerCatalogPicker.apiFormat": {
     "defaultMessage": "API Biçimi"
-  },
-  "providerCatalogPicker.cancel": {
-    "defaultMessage": "İptal"
   },
   "providerCatalogPicker.chooseProvider": {
     "defaultMessage": "Sağlayıcıyı Seçin"
@@ -4282,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Tarif yürütme sırasında araç olarak çağrılabilecek bir alt tarif yapılandırın"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "En son ilerlemeyi yükle"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Alt ajan ilerlemesi burada canlı olarak gösterilmez."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Model listesine geri dön"

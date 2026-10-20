@@ -23,9 +23,9 @@ use tracing::warn;
 
 use super::{
     get_tool_meta_value, get_tool_owner, get_tool_resource_uri, insert_trusted_tool_update_meta,
-    recover_mangled_tool_name, remove_untrusted_mcp_app_meta, ActionRequiredStream, Extension,
-    ExtensionLoadResult, ExtensionMutation, ExtensionSlot, GooseMcpAppToolAttachment,
-    TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY,
+    recover_mangled_tool_name, remove_subagent_session_meta, remove_untrusted_mcp_app_meta,
+    ActionRequiredStream, Extension, ExtensionLoadResult, ExtensionMutation, ExtensionSlot,
+    GooseMcpAppToolAttachment, TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY,
 };
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::container::Container;
@@ -712,6 +712,7 @@ impl ExtensionLease {
             remove_untrusted_mcp_app_meta(&mut result);
             if !is_platform_extension {
                 ExtensionMutation::take(&mut result);
+                remove_subagent_session_meta(&mut result);
             }
             if let Some(mcp_app_call) = mcp_app_call {
                 mcp_app_call

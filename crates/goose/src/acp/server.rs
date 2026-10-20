@@ -92,7 +92,7 @@ use self::message_meta::{
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
     build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
-    tool_call_update_fields_from_response, trusted_update_meta,
+    tool_call_update_fields_from_response, tool_response_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
@@ -325,7 +325,6 @@ pub struct GooseAcpAgent {
     client_supports_goose_custom_notifications: OnceCell<bool>,
     client_supports_recipe_param_requests: OnceCell<bool>,
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
-    use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     thinking_effort_update_tx: mpsc::UnboundedSender<String>,
     thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
@@ -462,14 +461,6 @@ fn extract_client_mcp_host_info(
         client_name: args.client_info.as_ref().map(|info| info.name.clone()),
         client_version: args.client_info.as_ref().map(|info| info.version.clone()),
     }
-}
-
-fn extract_use_login_shell_path(args: &InitializeRequest) -> bool {
-    args.meta
-        .as_ref()
-        .and_then(|meta| meta.get("goose/useLoginShellPath"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -821,12 +812,12 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
 }
 
 impl GooseAcpAgent {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) fn active_run_registry(&self) -> &Arc<ActiveRunRegistry> {
         &self.active_runs
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) async fn test_start_active_run(
         &self,
         session_id: &str,
@@ -837,7 +828,7 @@ impl GooseAcpAgent {
             .await
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) fn test_drop_active_run_guard(&self, session_id: &str, run_id: &str) {
         drop(ActiveRunDropGuard {
             registry: self.active_runs.clone(),
@@ -847,7 +838,7 @@ impl GooseAcpAgent {
         });
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) async fn test_require_active_run(
         &self,
         session_id: &str,
@@ -980,7 +971,6 @@ impl GooseAcpAgent {
             client_supports_goose_custom_notifications: OnceCell::new(),
             client_supports_recipe_param_requests: OnceCell::new(),
             client_requests_tool_call_label_enrichment: OnceCell::new(),
-            use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             thinking_effort_update_tx,
             thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
@@ -1055,7 +1045,6 @@ impl GooseAcpAgent {
                 session_id,
                 RuntimeContext {
                     mcp_host_info: self.client_mcp_host_info.get().cloned(),
-                    use_login_shell_path: self.use_login_shell_path.get().copied(),
                     session_name_update_tx: (!self.disable_session_naming)
                         .then(|| spawn_session_name_update_notifier(cx.clone())),
                 },
@@ -1092,8 +1081,7 @@ impl GooseAcpAgent {
             return Ok(());
         }
 
-        let context = agent.extension_manager.get_context().clone();
-        let dev_client = match DeveloperClient::new(context) {
+        let dev_client = match DeveloperClient::new() {
             Ok(dev_client) => dev_client,
             Err(error) => {
                 warn!(error = %error, "Failed to create ACP developer client");
@@ -1552,7 +1540,7 @@ impl GooseAcpAgent {
         let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-            .meta(trusted_update_meta(tool_response));
+            .meta(tool_response_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 
@@ -1816,9 +1804,6 @@ impl GooseAcpAgent {
         let _ = self
             .client_supports_acp_elicitation
             .set(elicitation::client_supports_form_elicitation(&args));
-        let _ = self
-            .use_login_shell_path
-            .set(extract_use_login_shell_path(&args));
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
@@ -2224,7 +2209,19 @@ impl GooseAcpAgent {
                         warn!(session_id, ?error, "Failed to send mid-turn usage update");
                     }
                 }
-                Ok(_) => {}
+                Ok(crate::agents::AgentEvent::HistoryReplaced(_)) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.to_string(),
+                            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                                status: StatusMessage::Notice {
+                                    message: "Context compacted — earlier messages archived"
+                                        .to_string(),
+                                },
+                            }),
+                        })?;
+                    }
+                }
                 Err(error) => {
                     return Err(agent_client_protocol::Error::internal_error()
                         .data(format!("Error in agent response stream: {error}")));
@@ -3801,13 +3798,13 @@ print(\"hello, world\")
             )
             .await
             .unwrap();
-        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+        let session_agent = Agent::with_config(AgentConfig::new(
             server.session_manager.clone(),
             server.permission_manager.clone(),
             None,
             true,
             GoosePlatform::GooseCli,
-        )));
+        ));
         let provider = Arc::new(AsyncEffortProvider::new());
         session_agent
             .update_provider(

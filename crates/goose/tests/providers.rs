@@ -103,7 +103,7 @@ struct ProviderFixture {
     context_length_exceeded: usize,
     provider: Arc<dyn Provider>,
     model_config: goose_providers::model::ModelConfig,
-    agent: Agent,
+    agent: Arc<Agent>,
     session_id: String,
     _mcp: McpFixture,
     _guard: env_lock::EnvGuard<'static>,
@@ -946,15 +946,6 @@ async fn test_claude_acp_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("claude-acp", ACP_CURRENT_MODEL, "claude-agent-acp")
         .model_switch_name("sonnet")
         .test_thinking_effort(true)
-        .run()
-        .await
-}
-
-// Requires: npm install -g @agentclientprotocol/codex-acp
-#[tokio::test]
-async fn test_codex_acp_provider() -> Result<()> {
-    ProviderTestConfig::with_agentic_provider("codex-acp", ACP_CURRENT_MODEL, "codex-acp")
-        .model_switch_name("gpt-5.4-mini")
         .run()
         .await
 }

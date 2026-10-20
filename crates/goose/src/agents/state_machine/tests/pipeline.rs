@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::Result;
@@ -15,14 +15,9 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
-    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, RunStatus, SkillOperation, SlashCommandOperation,
-    StateMachine, StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation,
-    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation,
+    messages_since_kickoff, Emitter, GooseEffect, RunStatus, StateMachine, SteerQueue,
 };
+use crate::agents::state_machine_builder::{build_state_machine, StateMachineConfig};
 use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -102,7 +97,8 @@ pub(super) struct TestPipeline {
     working_dir: std::path::PathBuf,
     steer_queue: SteerQueue,
     max_turns: u32,
-    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
+    subagent_host: Arc<crate::agents::Agent>,
     _temp_dir: Arc<tempfile::TempDir>,
 }
 
@@ -111,93 +107,30 @@ impl TestPipeline {
         &self,
         cancel: CancellationToken,
     ) -> StateMachine<'_, Session, GooseEffect> {
-        let provider = self.provider.clone();
-        let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
-            self.model_config.context_limit(),
-            COMPACTION_THRESHOLD,
-        );
-        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(SteerOperation::new(
-                self.steer_queue.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(BangShellOperation::new()),
-        ];
-        if !self.provider_features.manages_own_context {
-            operations.push(Arc::new(CompactionOperation::new(
-                provider.clone(),
-                self.model_config.clone(),
-                self.model_config.context_limit(),
+        let context_limit = self.model_config.context_limit();
+        build_state_machine(StateMachineConfig {
+            provider: self.provider.clone(),
+            model_config: self.model_config.clone(),
+            context_limit,
+            compaction_threshold: COMPACTION_THRESHOLD,
+            tool_call_cutoff: crate::context_mgmt::compute_tool_call_cutoff(
+                context_limit,
                 COMPACTION_THRESHOLD,
-            )));
-        }
-        let extension_lease = Arc::clone(&self.extension_lease);
-        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(ToolPairCompactionOperation::new(
-                provider.clone(),
-                self.model_config.clone(),
-                tool_call_cutoff,
-                !self.provider_features.manages_own_context,
-            )),
-            Arc::new(ToolApprovalOperation::new(&self.tool_inspection_manager)),
-            Arc::new(DoctorOperation::new(self.session_manager.clone())),
-            Arc::new(ProjectOperation),
-            Arc::new(SkillOperation::new(
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(ForegroundSubagentOperation::new(
-                ForegroundSubagentRunner::new(self.session_manager.clone(), false),
-                cancel.clone(),
-            )),
-            Arc::new(RecipeOperation::new(
-                provider.clone(),
-                self.hook_manager.clone(),
-            )),
-            Arc::new(ToolExecutionOperation::new(
-                self.extension_manager.clone(),
-                self.hook_manager.clone(),
-                Arc::clone(&extension_lease),
-            )),
-            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
-            Arc::new(RetryOperation::new(
-                std::time::Duration::from_secs(1),
-                std::time::Duration::from_secs(1),
-            )),
-            Arc::new(StopHookOperation::new(
-                self.hook_manager.clone(),
-                self.stop_hook_block_cap,
-            )),
-            Arc::new(ExitOnErrorOperation),
-            Arc::new(MaxTurnsOperation::new(self.max_turns)),
-        ];
-        operations.extend(remaining_operations);
-        let request_preparer = GooseInferenceRequestPreparer {
-            extension_manager: Arc::clone(&self.extension_manager),
-            extension_lease,
+            ),
+            tool_pair_summarization: true,
+            session_manager: self.session_manager.clone(),
+            extension_manager: self.extension_manager.clone(),
+            extension_lease: Arc::clone(&self.extension_lease),
             tool_inspection_manager: &self.tool_inspection_manager,
-            context_limit: self.model_config.context_limit(),
-        };
-        let status_operation = Arc::new(StatusOperation::new(
-            provider.clone(),
-            self.model_config.clone(),
-        ));
-        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
-        let inference = Arc::new(
-            InferenceRunner::new(inference_provider, self.model_config.clone())
-                .with_request_preparer(Arc::new(request_preparer)),
-        );
-        let mut command_handlers = operations.clone();
-        command_handlers.push(status_operation);
-        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
-            Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
-
-        StateMachine::new(steps, cancel)
+            hook_manager: self.hook_manager.clone(),
+            steer_queue: self.steer_queue.clone(),
+            subagent_runner: ForegroundSubagentRunner::new(Arc::clone(&self.subagent_host)),
+            retry_timeout: std::time::Duration::from_secs(1),
+            on_failure_timeout: std::time::Duration::from_secs(1),
+            stop_hook_block_cap: self.stop_hook_block_cap,
+            max_turns: self.max_turns,
+            cancel,
+        })
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {
@@ -288,6 +221,7 @@ impl TestPipeline {
         Ok(())
     }
 
+    #[cfg(feature = "scheduler")]
     pub(super) async fn set_schedule_id(&self, schedule_id: String) -> Result<()> {
         self.session_manager
             .update(&self.session_id)
@@ -340,6 +274,7 @@ impl TestPipeline {
         self.calculator.wait_for_result().await;
     }
 
+    #[cfg(feature = "tree-sitter")]
     pub(super) fn tool_contexts(&self) -> Vec<crate::agents::tool_execution::ToolCallContext> {
         self.calculator.contexts()
     }
@@ -362,6 +297,7 @@ impl TestPipeline {
         Ok(pipeline)
     }
 
+    #[cfg(feature = "tree-sitter")]
     pub(super) async fn new_session(&self, working_dir: std::path::PathBuf) -> Result<Self> {
         let source_session = self.session().await?;
         let session = self
@@ -442,6 +378,7 @@ impl TestPipeline {
             let session = self.session().await?;
             let machine = self.machine(cancel.clone());
             let mut result = machine.step(&session, &emit).await?;
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -653,6 +590,7 @@ impl TestPipeline {
                     }
                 }
             };
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -690,50 +628,49 @@ pub(super) async fn test_pipeline() -> Result<(TestPipeline, Arc<DummyApi>)> {
     test_pipeline_with(ProviderFeatures::default()).await
 }
 
+#[cfg(feature = "scheduler")]
 pub(super) async fn test_pipeline_with_scheduler() -> Result<(
     TestPipeline,
     Arc<DummyApi>,
     Arc<crate::scheduler::Scheduler>,
 )> {
-    let (pipeline, api, scheduler) =
-        test_pipeline_with_components(ProviderFeatures::default(), true).await?;
-    Ok((pipeline, api, scheduler.expect("scheduler was requested")))
+    let temp_dir = Arc::new(tempfile::tempdir()?);
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let scheduler = crate::scheduler::Scheduler::new(
+        temp_dir.path().join("schedule.json"),
+        session_manager.clone(),
+    )
+    .await?;
+    let (pipeline, api) = test_pipeline_with_components(
+        ProviderFeatures::default(),
+        temp_dir,
+        session_manager,
+        Some(scheduler.clone()),
+    )
+    .await?;
+    Ok((pipeline, api, scheduler))
 }
 
 pub(super) async fn test_pipeline_with(
     features: ProviderFeatures,
 ) -> Result<(TestPipeline, Arc<DummyApi>)> {
-    let (pipeline, api, _) = test_pipeline_with_components(features, false).await?;
-    Ok((pipeline, api))
+    let temp_dir = Arc::new(tempfile::tempdir()?);
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    test_pipeline_with_components(features, temp_dir, session_manager, None).await
 }
 
 async fn test_pipeline_with_components(
     features: ProviderFeatures,
-    with_scheduler: bool,
-) -> Result<(
-    TestPipeline,
-    Arc<DummyApi>,
-    Option<Arc<crate::scheduler::Scheduler>>,
-)> {
+    temp_dir: Arc<tempfile::TempDir>,
+    session_manager: Arc<SessionManager>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
+) -> Result<(TestPipeline, Arc<DummyApi>)> {
     let api = Arc::new(DummyApi::start(features).await);
-    let temp_dir = Arc::new(tempfile::tempdir()?);
-    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-    let scheduler = if with_scheduler {
-        Some(
-            crate::scheduler::Scheduler::new(
-                temp_dir.path().join("schedule.json"),
-                session_manager.clone(),
-            )
-            .await?,
-        )
-    } else {
-        None
-    };
     let session = session_manager
         .create_session(
             temp_dir.path().to_path_buf(),
             "pipeline-test".to_string(),
-            if with_scheduler {
+            if scheduler.is_some() {
                 SessionType::Scheduled
             } else {
                 SessionType::Hidden
@@ -754,20 +691,20 @@ async fn test_pipeline_with_components(
         session_manager,
         api.clone(),
         features,
-        scheduler.clone(),
+        scheduler,
         session,
         temp_dir,
     )
     .await?;
 
-    Ok((pipeline, api, scheduler))
+    Ok((pipeline, api))
 }
 
 async fn build_test_pipeline(
     session_manager: Arc<SessionManager>,
     api: Arc<DummyApi>,
     provider_features: ProviderFeatures,
-    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
     session: Session,
     temp_dir: Arc<tempfile::TempDir>,
 ) -> Result<TestPipeline> {
@@ -801,9 +738,7 @@ async fn build_test_pipeline(
     let extension_manager = Arc::new(ExtensionManager::new(
         providers.clone(),
         session_manager.clone(),
-        scheduler
-            .clone()
-            .map(|scheduler| scheduler as Arc<dyn crate::scheduler_trait::SchedulerTrait>),
+        scheduler.clone(),
         "pipeline-test".to_string(),
         ExtensionManagerCapabilities {
             mcpui: false,
@@ -811,7 +746,6 @@ async fn build_test_pipeline(
             elicitation_handler: None,
             protocol_version: None,
         },
-        false,
     ));
     let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().join("permissions")));
     let mut tool_inspection_manager = ToolInspectionManager::new();
@@ -826,6 +760,14 @@ async fn build_test_pipeline(
         .clone()
         .expect("test session has a model config");
     let calculator = Arc::new(CalculatorExtension::new(session_manager.action_required()));
+    let mut subagent_host = crate::agents::Agent::with_config(crate::agents::AgentConfig::new(
+        session_manager.clone(),
+        permission_manager.clone(),
+        None,
+        true,
+        crate::agents::GoosePlatform::GooseCli,
+    ));
+    subagent_host.set_hook_manager_for_test(HookManager::default());
     let pipeline = TestPipeline {
         session_manager,
         api,
@@ -844,6 +786,7 @@ async fn build_test_pipeline(
         steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
         max_turns: MAX_TURNS,
         scheduler,
+        subagent_host,
         _temp_dir: temp_dir,
     };
     let extension_manager = pipeline.extension_manager.clone();
@@ -893,6 +836,7 @@ fn default_extensions() -> Vec<ExtensionConfig> {
     [
         ("extensionmanager", "Extension Manager"),
         ("todo", "Todo"),
+        #[cfg(feature = "scheduler")]
         (
             crate::agents::platform_extensions::scheduler::EXTENSION_NAME,
             "Scheduler",
@@ -1126,6 +1070,45 @@ impl TestRun {
     }
 }
 
+const TOOL_OPERATIONS: [&str; 5] = [
+    "tool_approval",
+    "skills",
+    "recipe",
+    "tool_execution",
+    "remaining_tool_calls",
+];
+
+fn assert_only_tool_operations_act_on_open_calls(session: &Session, applied_step: Option<&str>) {
+    let Some(step) = applied_step else {
+        return;
+    };
+    let conversation = session
+        .conversation
+        .as_ref()
+        .expect("session has a conversation");
+    let turn = messages_since_kickoff(conversation).expect("conversation has a turn");
+    assert!(
+        TOOL_OPERATIONS.contains(&step) || !has_open_tool_call(turn),
+        "{step} acted while a tool call was open"
+    );
+}
+
+fn has_open_tool_call(turn: &[Message]) -> bool {
+    let mut open = HashSet::new();
+    for content in turn.iter().flat_map(|message| &message.content) {
+        match content {
+            MessageContent::ToolRequest(request) if !request.was_executed_externally() => {
+                open.insert(request.id.as_str());
+            }
+            MessageContent::ToolResponse(response) => {
+                open.remove(response.id.as_str());
+            }
+            _ => {}
+        }
+    }
+    !open.is_empty()
+}
+
 pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEvent>> {
     let cancel = CancellationToken::new();
     let machine = pipeline.machine(cancel.clone());
@@ -1136,6 +1119,7 @@ pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEven
     loop {
         let session = pipeline.session().await?;
         let mut result = machine.step(&session, &emit).await?;
+        assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
         machine
             .apply(
                 pipeline.session_manager.as_ref(),

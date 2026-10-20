@@ -1,7 +1,6 @@
 //! Goose-specific inference request preparation.
 
 use crate::agents::extension_manager::{ExtensionLease, ExtensionManager};
-use crate::agents::state_machine::awaits_tool_responses;
 use crate::agents::PromptManager;
 use crate::config::GooseMode;
 use crate::session::Session;
@@ -28,18 +27,10 @@ impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
             .extension_manager
             .current_session_snapshot(session)
             .await?;
-        // Tool requests run under the lease of the inference that made them, so an
-        // approval answered after that lease is gone expires instead of picking up a new one.
-        let awaiting = match &session.conversation {
-            Some(conversation) => awaits_tool_responses(messages_since_kickoff(conversation)?),
-            None => false,
-        };
-        if !awaiting {
-            *self
-                .extension_lease
-                .lock()
-                .expect("extension lease unavailable") = Some(Arc::new(lease));
-        }
+        *self
+            .extension_lease
+            .lock()
+            .expect("extension lease unavailable") = Some(Arc::new(lease));
         Ok(Some(session))
     }
 

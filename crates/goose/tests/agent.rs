@@ -9,7 +9,7 @@ use goose::config::extensions::{set_extension, ExtensionEntry};
 mod tests {
     use super::*;
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     mod schedule_tool_tests {
         use super::*;
         use async_trait::async_trait;
@@ -128,7 +128,7 @@ mod tests {
             }
         }
 
-        async fn add_scheduler_extension(agent: &Agent) -> String {
+        async fn add_scheduler_extension(agent: &Arc<Agent>) -> String {
             let session = agent
                 .config
                 .session_manager
@@ -888,7 +888,7 @@ mod tests {
         use goose::config::GooseMode;
         use goose::session::SessionManager;
 
-        async fn setup_agent_with_extension_manager() -> (Agent, String, tempfile::TempDir) {
+        async fn setup_agent_with_extension_manager() -> (Arc<Agent>, String, tempfile::TempDir) {
             use goose::session::session_manager::SessionType;
 
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
@@ -1700,7 +1700,7 @@ mod tests {
 
         fn create_agent_with_session_naming_disabled(
             session_manager: Arc<SessionManager>,
-        ) -> Agent {
+        ) -> Arc<Agent> {
             let config = AgentConfig::new(
                 session_manager,
                 PermissionManager::instance(),
@@ -2057,7 +2057,7 @@ mod tests {
             }
         }
 
-        async fn run_turn(agent: &Agent, session_id: &str, text: &str) -> Result<()> {
+        async fn run_turn(agent: &Arc<Agent>, session_id: &str, text: &str) -> Result<()> {
             let session_config = SessionConfig {
                 id: session_id.to_string(),
                 schedule_id: None,
