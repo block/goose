@@ -196,6 +196,10 @@ pub fn maybe_get_canonical_model_with_variant_fallback(
     if is_variant_fallback {
         // Variants share capabilities, but endpoint output caps and prices can differ.
         canonical.limit.output = None;
+        // `:thinking` is the one tag that changes capabilities: it serves the reasoning mode.
+        if model.ends_with(":thinking") {
+            canonical.reasoning = Some(true);
+        }
         canonical.cost = if model.ends_with(":free") {
             Pricing {
                 input: Some(0.0),
@@ -272,6 +276,21 @@ mod tests {
         assert_eq!(canonical.id, row.id);
         assert!(row.limit.output.is_some());
         assert_eq!(canonical.limit.output, row.limit.output);
+    }
+
+    #[test]
+    fn openrouter_thinking_variant_is_reasoning() {
+        let base = maybe_get_canonical_model("openrouter", "qwen/qwen-plus-2025-07-28").unwrap();
+        assert_eq!(base.reasoning, Some(false));
+
+        let (thinking, is_variant_fallback) = maybe_get_canonical_model_with_variant_fallback(
+            "openrouter",
+            "qwen/qwen-plus-2025-07-28:thinking",
+        )
+        .unwrap();
+        assert!(is_variant_fallback);
+        assert_eq!(thinking.id, base.id);
+        assert_eq!(thinking.reasoning, Some(true));
     }
 
     #[test]

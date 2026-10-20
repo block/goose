@@ -1183,9 +1183,10 @@ fn enriched_model(
     model_id: &str,
     fallback_context_limit: Option<usize>,
 ) -> InventoryModel {
-    let registry = CanonicalModelRegistry::bundled().ok();
-    let canonical = registry.as_ref().and_then(|registry| {
-        let canonical_id = map_to_canonical_model(provider_family, model_id, registry)?;
+    // The registry guard is dropped inside the closure: the fallback below takes its own
+    // read lock, and a nested read can block behind a queued catalog refresh.
+    let canonical = CanonicalModelRegistry::bundled().ok().and_then(|registry| {
+        let canonical_id = map_to_canonical_model(provider_family, model_id, &registry)?;
         let (provider, model) = canonical_id.split_once('/')?;
         registry.get(provider, model).cloned()
     });
