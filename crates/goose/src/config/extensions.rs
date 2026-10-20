@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
 use tracing::{info, warn};
 
-pub const DEFAULT_EXTENSION: &str = "developer";
-pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
+pub use goose_agent::extension::DEFAULT_EXTENSION;
+pub use goose_agent::extension::DEFAULT_EXTENSION_TIMEOUT;
 pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
-pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
+pub use goose_agent::extension::DEFAULT_DISPLAY_NAME;
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -19,17 +19,7 @@ pub struct ExtensionEntry {
     pub config: ExtensionConfig,
 }
 
-pub fn name_to_key(name: &str) -> String {
-    let mut result = String::with_capacity(name.len());
-    for c in name.chars() {
-        result.push(match c {
-            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
-            c if c.is_whitespace() => continue,
-            _ => '_',
-        });
-    }
-    result.to_lowercase()
-}
+pub use goose_agent::extension::name_to_key;
 
 pub(crate) fn is_extension_available(config: &ExtensionConfig) -> bool {
     match config {

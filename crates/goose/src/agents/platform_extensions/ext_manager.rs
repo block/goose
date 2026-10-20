@@ -63,8 +63,7 @@ pub struct ListResourcesParams {
     pub extension_name: Option<String>,
 }
 
-pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
-pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
+pub use goose_agent::extension_manager::{LIST_RESOURCES_TOOL_NAME, READ_RESOURCE_TOOL_NAME};
 pub const SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str = "search_available_extensions";
 pub const MANAGE_EXTENSIONS_TOOL_NAME: &str = "manage_extensions";
 pub const MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE: &str = "extensionmanager__manage_extensions";

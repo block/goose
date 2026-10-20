@@ -172,7 +172,7 @@ fn dispatching_lease(ctx: &ToolCallContext) -> &ExtensionLease {
 fn dispatch_tool(
     ctx: ToolCallContext,
     full_name: String,
-    manager: Arc<crate::agents::ExtensionManager>,
+    manager: Arc<goose_agent::extension_manager::ExtensionManager>,
     cancellation_token: CancellationToken,
     rt: tokio::runtime::Handle,
     args: Value,
@@ -466,7 +466,7 @@ mod tests {
         let mut callback = dispatch_tool(
             ctx,
             "pending__ordinary".into(),
-            manager,
+            manager.runtime().clone(),
             dispatch.clone(),
             tokio::runtime::Handle::current(),
             json!({}),
@@ -680,7 +680,7 @@ mod tests {
         )
         .with_extension_lease(lease);
         let mut context = manager.get_context().clone();
-        context.extension_manager = Some(Arc::downgrade(&manager));
+        context.extension_manager = Some(Arc::downgrade(manager.runtime()));
         let client = CodeExecutionClient::new(context).unwrap();
         let code = format!("async function run() {{ return await tools.call({}, {{action: 'enable', extension_name: 'todo'}}); }}", json!(tool_name));
         let result = client
@@ -748,7 +748,7 @@ mod tests {
         let ctx = ToolCallContext::new(session.id.clone(), None, None)
             .with_extension_lease(lease.clone());
         let mut context = manager.get_context().clone();
-        context.extension_manager = Some(Arc::downgrade(&manager));
+        context.extension_manager = Some(Arc::downgrade(manager.runtime()));
         let client = CodeExecutionClient::new(context).unwrap();
         let listed = client
             .call_tool(&ctx, "list_functions", None, CancellationToken::new())
