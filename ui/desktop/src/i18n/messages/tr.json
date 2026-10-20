@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model değişti: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (istenen)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Tümünü göster"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Tarif yürütme sırasında araç olarak çağrılabilecek bir alt tarif yapılandırın"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "En son ilerlemeyi yükle"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Alt ajan ilerlemesi burada canlı olarak gösterilmez."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Model listesine geri dön"

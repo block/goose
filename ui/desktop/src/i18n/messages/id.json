@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model diubah: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (diminta)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Tampilkan semua"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Konfigurasikan subresep yang dapat dipanggil sebagai alat selama eksekusi resep"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Muat progres terbaru"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Progres subagen tidak ditampilkan secara langsung di sini."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Kembali ke daftar model"

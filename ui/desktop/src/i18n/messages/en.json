@@ -2021,6 +2021,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Model changed: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (requested)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Show all"
   },
@@ -4393,6 +4396,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Configure a subrecipe that can be called as a tool during recipe execution"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Load latest progress"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Subagent progress isn't shown live here."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Back to model list"

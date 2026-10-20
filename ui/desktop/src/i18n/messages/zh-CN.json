@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "模型已更改：{previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model}（已请求）"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "全部显示"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "配置一个可在配方执行过程中作为工具调用的子配方"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "加载最新进度"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "子代理的进度不会在此实时显示。"
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "返回模型列表"

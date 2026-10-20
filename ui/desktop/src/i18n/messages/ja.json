@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "モデルを変更しました: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model}（リクエスト済み）"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "すべて表示"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "レシピ実行中にツールとして呼び出せるサブレシピを設定します"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "最新の進捗を読み込む"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "サブエージェントの進捗はここではリアルタイムに表示されません。"
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "モデル一覧に戻る"

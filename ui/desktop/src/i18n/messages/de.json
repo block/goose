@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Modell geändert: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (angefordert)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Alle anzeigen"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Konfigurieren Sie ein Subrezept, das während der Rezeptausführung als Tool aufgerufen werden kann"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Neuesten Fortschritt laden"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Der Fortschritt des Subagenten wird hier nicht live angezeigt."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Zurück zur Modellliste"

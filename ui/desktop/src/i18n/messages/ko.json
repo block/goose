@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "모델 변경: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (요청됨)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "모두 표시"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "레시피 실행 시 도구로 호출할 수 있는 서브레시피를 구성합니다."
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "최신 진행 상황 불러오기"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "하위 에이전트 진행 상황은 여기에 실시간으로 표시되지 않습니다."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "모델 목록으로 돌아가기"

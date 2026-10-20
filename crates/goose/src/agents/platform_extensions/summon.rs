@@ -2,7 +2,6 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::final_output_tool::FinalOutputTool;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::state_machine::DELEGATED_META_KEY;
-use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::config::{resolve_extensions_for_new_session, Config, GooseMode};
@@ -1210,9 +1209,6 @@ impl SummonClient {
             .and_then(serde_json::Value::as_str)
             .map(str::to_string);
 
-        // max_turns is set later in resolve_subagent_config so it can incorporate params.max_turns
-        // with the correct priority ordering; setting it here would cause it to be overridden
-        // by the parent session's recipe instead.
         let settings = model.map(|m| Settings {
             goose_model: Some(m),
             goose_provider: params.provider.clone(),
@@ -1278,10 +1274,7 @@ impl SummonClient {
             .resolve_provider_config(params, recipe, session)
             .await?;
 
-        let max_turns = params
-            .max_turns
-            .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
-            .unwrap_or_else(|| self.resolve_max_turns(session));
+        let max_turns = Self::resolve_max_turns(params, recipe, Config::global());
 
         if max_turns == 0 || max_turns > u32::MAX as usize {
             anyhow::bail!(
@@ -1435,23 +1428,12 @@ impl SummonClient {
         Ok((provider_name, model_config))
     }
 
-    fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        session
-            .recipe
-            .as_ref()
-            .and_then(|r| r.settings.as_ref())
-            .and_then(|s| s.max_turns)
-            .or_else(|| {
-                std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-            })
-            .or_else(|| {
-                Config::global()
-                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
-                    .ok()
-            })
-            .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
+    fn resolve_max_turns(params: &DelegateParams, recipe: &Recipe, config: &Config) -> usize {
+        params
+            .max_turns
+            .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
+            .or_else(|| config.get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS").ok())
+            .unwrap_or_else(|| config.default_max_turns() as usize)
     }
 }
 
@@ -1568,7 +1550,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::sync::Arc;
-    use tempfile::TempDir;
+    use tempfile::{NamedTempFile, TempDir};
 
     fn create_test_context() -> PlatformExtensionContext {
         create_test_context_with_session_manager(Arc::new(
@@ -2506,77 +2488,69 @@ You review code."#;
 
     #[test]
     #[serial]
-    fn test_resolve_max_turns_recipe_overrides_env_var() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
+    fn test_resolve_max_turns_precedence() {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        fs::write(
+            config_file.path(),
+            "GOOSE_SUBAGENT_MAX_TURNS: 7\nGOOSE_MAX_TURNS: 8\n",
+        )
+        .unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_MAX_TURNS", Some("99")),
+            ("GOOSE_MAX_TURNS", Some("42")),
+        ]);
 
-        let session = crate::session::Session {
-            recipe: Some(crate::recipe::Recipe {
-                version: "1.0.0".to_string(),
-                title: String::new(),
-                description: String::new(),
-                instructions: None,
-                prompt: None,
-                extensions: None,
-                settings: Some(crate::recipe::Settings {
-                    goose_provider: None,
-                    goose_model: None,
-                    temperature: None,
-                    max_turns: Some(10),
-                }),
-                activities: None,
-                author: None,
-                parameters: None,
-                response: None,
-                sub_recipes: None,
-                retry: None,
-            }),
-            ..Default::default()
-        };
-
-        // Set env var to a different value — recipe should still win
-        let _env = env_lock::lock_env([("GOOSE_SUBAGENT_MAX_TURNS", Some("99"))]);
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result, 10,
-            "recipe settings.max_turns should take priority over env var"
-        );
+        for (delegate_limit, recipe_limit, expected) in
+            [(Some(3), Some(5), 3), (None, Some(5), 5), (None, None, 99)]
+        {
+            let params = DelegateParams {
+                max_turns: delegate_limit,
+                ..Default::default()
+            };
+            let mut recipe = empty_recipe();
+            recipe.settings = Some(Settings {
+                goose_provider: None,
+                goose_model: None,
+                temperature: None,
+                max_turns: recipe_limit,
+            });
+            assert_eq!(
+                SummonClient::resolve_max_turns(&params, &recipe, &config),
+                expected
+            );
+        }
     }
 
     #[test]
     #[serial]
-    fn test_resolve_max_turns_falls_back_to_env_var() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
+    fn test_resolve_max_turns_from_config_file_or_default() {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_SUBAGENT_MAX_TURNS", None::<&str>),
+            ("GOOSE_MAX_TURNS", None),
+        ]);
 
-        let session = crate::session::Session::default(); // no recipe
-
-        let _env = env_lock::lock_env([("GOOSE_SUBAGENT_MAX_TURNS", Some("7"))]);
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result, 7,
-            "should fall back to GOOSE_SUBAGENT_MAX_TURNS env var"
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn test_resolve_max_turns_falls_back_to_default() {
-        let context = create_test_context();
-        let client = SummonClient::new(context).unwrap();
-
-        let session = crate::session::Session::default(); // no recipe
-
-        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
-        let result = client.resolve_max_turns(&session);
-
-        assert_eq!(
-            result,
-            crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS,
-            "should fall back to DEFAULT_SUBAGENT_MAX_TURNS"
-        );
+        for (contents, expected) in [
+            ("", 1000),
+            ("GOOSE_MAX_TURNS: 42\n", 42),
+            ("GOOSE_SUBAGENT_MAX_TURNS: 7\nGOOSE_MAX_TURNS: 42\n", 7),
+        ] {
+            fs::write(config_file.path(), contents).unwrap();
+            assert_eq!(
+                SummonClient::resolve_max_turns(
+                    &DelegateParams::default(),
+                    &empty_recipe(),
+                    &config
+                ),
+                expected
+            );
+        }
     }
 
     fn empty_recipe() -> crate::recipe::Recipe {

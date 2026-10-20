@@ -408,10 +408,106 @@ describe('createAcpSessionNotificationAdapter', () => {
         });
         expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
       });
+
+      it('stores the model that produced each assistant message', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const inference = { provider: 'openai', requestedModel: 'gpt-4o' };
+
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'agent_thought_chunk',
+            content: { type: 'text', text: 'Thinking' },
+            _meta: { goose: { messageId: 'msg-1', inference } },
+          } as SessionNotification['update'])
+        );
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'text', text: 'Answer' },
+            _meta: { goose: { messageId: 'msg-1', inference } },
+          } as SessionNotification['update'])
+        );
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              ...DEFAULT_TOOL_CALL,
+              _meta: {
+                goose: {
+                  messageId: 'msg-2',
+                  inference: {
+                    provider: 'openai',
+                    requestedModel: 'gpt-4o-mini',
+                    resolvedModel: 'gpt-4o-mini-2024-07-18',
+                    providerSessionId: 'not-for-clients',
+                  },
+                },
+              },
+            })
+          )
+        );
+
+        expect(messages.map((message) => message.metadata.inference)).toEqual([
+          { provider: 'openai', requestedModel: 'gpt-4o' },
+          {
+            provider: 'openai',
+            requestedModel: 'gpt-4o-mini',
+            resolvedModel: 'gpt-4o-mini-2024-07-18',
+          },
+        ]);
+      });
+
+      it('ignores malformed inference metadata and inference on user messages', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'user_message_chunk',
+            content: { type: 'text', text: 'Hi' },
+            _meta: {
+              goose: {
+                messageId: 'user-1',
+                inference: { provider: 'openai', requestedModel: 'gpt-4o' },
+              },
+            },
+          } as SessionNotification['update'])
+        );
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: 'Hello' },
+              _meta: { goose: { messageId: 'msg-1', inference: { provider: 'openai' } } },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages.map((message) => message.metadata.inference)).toEqual([
+          undefined,
+          undefined,
+        ]);
+      });
     });
 
     describe('tools', () => {
-      it('maps tool calls and successful responses, including MCP app metadata', () => {
+      it('preserves the subagent session ID without MCP app metadata', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              ...DEFAULT_TOOL_CALL_UPDATE,
+              status: 'completed',
+              _meta: { goose: { subagentSessionId: 'child-session' } },
+            })
+          )
+        );
+
+        expect(getToolResponses(messages[0])[0].toolResult).toMatchObject({
+          status: 'success',
+          value: { _meta: { subagent_session_id: 'child-session' } },
+        });
+      });
+
+      it('maps tool calls and successful responses, preserving app and subagent metadata', () => {
         const adapter = createAcpSessionNotificationAdapter();
 
         const toolCallStateChanges = adapter.apply(
@@ -470,6 +566,7 @@ describe('createAcpSessionNotificationAdapter', () => {
             ],
             _meta: {
               goose: {
+                subagentSessionId: 'child-session',
                 mcpApp: {
                   resourceUri: 'ui://app/resource',
                   extensionName: 'developer',
@@ -493,6 +590,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               content: [{ type: 'text', text: 'rendered result' }],
               isError: false,
               _meta: {
+                subagent_session_id: 'child-session',
                 ui: { resourceUri: 'ui://app/resource' },
                 extensionName: 'developer',
                 toolName: 'read_file',

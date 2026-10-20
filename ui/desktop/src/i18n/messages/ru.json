@@ -2639,6 +2639,9 @@
   "messageList.modelChanged": {
     "defaultMessage": "Модель изменена: {previousModel} → {currentModel}"
   },
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (запрошенная)"
+  },
   "messageList.showAllMessages": {
     "defaultMessage": "Показать все"
   },
@@ -4276,6 +4279,12 @@
   },
   "subRecipeModal.subtitle": {
     "defaultMessage": "Настройте подрецепт, который можно вызывать как инструмент при выполнении рецепта"
+  },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "Загрузить последний прогресс"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "Прогресс субагента здесь не отображается в реальном времени."
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Назад к списку моделей"
