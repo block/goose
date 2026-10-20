@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use super::extension::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
 use super::provider_manager::ProviderManager;
-use crate::config::extensions::name_to_key;
+use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
 use crate::session::{EnabledExtensionsState, Session};
+use goose_agent::extension::name_to_key;
 
 mod goose_host;
-pub use goose_agent::extension_manager::*;
+use goose_agent::extension_manager::{ExtensionLease, ExtensionManagerCapabilities};
 
 /// Wires the extension runtime to Goose's application services.
 pub struct ExtensionManager {

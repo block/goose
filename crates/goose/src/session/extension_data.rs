@@ -3,9 +3,9 @@
 
 use crate::config::base::Config;
 use crate::config::extensions::is_extension_available;
-use crate::config::ExtensionConfig;
 use crate::session::{Session, SessionManager};
 use anyhow::Result;
+use goose_agent::extension::ExtensionConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;

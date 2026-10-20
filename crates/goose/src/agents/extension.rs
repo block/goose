@@ -1,8 +1,5 @@
-pub use crate::agents::platform_extensions::{
-    PlatformExtensionContext, PlatformExtensionDef, PLATFORM_EXTENSIONS,
-};
 use crate::config::permission::PermissionLevel;
-pub use goose_agent::extension::*;
+
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -39,9 +36,8 @@ impl ToolInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::agents::*;
     use crate::config;
+    use goose_agent::extension::{Envs, ExtensionConfig};
     use test_case::test_case;
 
     #[test]
@@ -178,7 +174,7 @@ timeout: 300",
 
     #[test]
     fn envs_deserialization_filters_disallowed_keys() {
-        let envs: extension::Envs =
+        let envs: Envs =
             serde_yaml::from_str("LD_PRELOAD: /tmp/injected.so\nSAFE_VAR: ok\n").unwrap();
         let map = envs.get_env();
 
@@ -243,7 +239,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("AUTH_TOKEN".to_string(), "secret".to_string());
                 m
@@ -267,7 +263,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("AUTH_TOKEN".to_string(), "secret".to_string());
                 m
@@ -295,7 +291,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec![],
             timeout: None,
             cwd: None,
@@ -307,7 +303,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec![],
             timeout: None,
             cwd: None,
@@ -322,7 +318,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
             cwd: None,
@@ -334,7 +330,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "secret_value".to_string());
                 m
@@ -352,7 +348,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             headers: [(
                 "Authorization".to_string(),
@@ -372,7 +368,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "secret_value".to_string());
                 m
@@ -396,7 +392,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp?api_key=$MY_SECRET".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             headers: std::collections::HashMap::new(),
             timeout: None,
@@ -411,7 +407,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp?api_key=secret_value".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "secret_value".to_string());
                 m
@@ -434,7 +430,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "original".to_string());
                 m
@@ -450,7 +446,7 @@ timeout: 300",
             description: String::new(),
             cmd: "echo".into(),
             args: vec![],
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "original".to_string());
                 m
@@ -468,7 +464,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             headers: std::collections::HashMap::new(),
             timeout: None,
@@ -483,7 +479,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "secret_value".to_string());
                 m
@@ -505,7 +501,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec![],
             headers: std::collections::HashMap::new(),
             timeout: None,
@@ -520,7 +516,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "https://example.com/mcp".into(),
-            envs: extension::Envs::new({
+            envs: Envs::new({
                 let mut m = std::collections::HashMap::new();
                 m.insert("MY_SECRET".to_string(), "secret_value".to_string());
                 m
@@ -587,7 +583,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "http://localhost:8080/mcp".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec![],
             headers: std::collections::HashMap::new(),
             timeout: None,
@@ -610,7 +606,7 @@ timeout: 300",
             name: "test".into(),
             description: String::new(),
             uri: "http://localhost:8080/mcp".into(),
-            envs: extension::Envs::default(),
+            envs: Envs::default(),
             env_keys: vec![],
             headers: std::collections::HashMap::new(),
             timeout: None,

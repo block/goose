@@ -5,12 +5,12 @@ use goose_sdk_types::custom_requests::{
     RecipeRetryConfigDto, RecipeSettingsDto, RecipeSuccessCheckDto, SubRecipeDto,
 };
 
-use crate::agents::extension::{Envs, ExtensionConfig};
 use crate::agents::types::{RetryConfig, SuccessCheck};
 use crate::recipe::{
     Author, Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     Response, Settings, SubRecipe,
 };
+use goose_agent::extension::{Envs, ExtensionConfig};
 
 impl TryFrom<RecipeDto> for Recipe {
     type Error = anyhow::Error;

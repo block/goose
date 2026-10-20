@@ -4487,6 +4487,7 @@ dependencies = [
  "fs2",
  "futures",
  "goose",
+ "goose-agent",
  "goose-mcp",
  "goose-providers",
  "goose-roaming",

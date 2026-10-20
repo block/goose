@@ -1,10 +1,10 @@
-use crate::agents::mcp_client::GooseMcpHostInfo;
 use crate::agents::{Agent, AgentConfig, GoosePlatform};
 use crate::config::permission::PermissionManager;
 use crate::config::Config;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{SessionManager, SessionNameUpdate};
 use anyhow::Result;
+use goose_agent::mcp_client::GooseMcpHostInfo;
 use lru::LruCache;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -327,11 +327,11 @@ mod tests {
     use rmcp::ServiceExt;
     use tokio::sync::Barrier;
 
-    use crate::agents::extension::ExtensionConfig;
     use crate::agents::{AgentConfig, GoosePlatform};
     use crate::config::permission::PermissionManager;
     use crate::config::GooseMode;
     use crate::session::{EnabledExtensionsState, ExtensionState, SessionManager, SessionType};
+    use goose_agent::extension::ExtensionConfig;
 
     use super::AgentManager;
 

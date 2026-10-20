@@ -15,12 +15,12 @@ use rmcp::transport::AuthorizationManager;
 use super::{
     name_to_key, EnabledExtensionsState, PlatformExtensionContext, Session, PLATFORM_EXTENSIONS,
 };
-use crate::action_required_manager::ActionRequiredManager;
-use crate::agents::extension::{ExtensionConfig, ExtensionResult};
-use crate::agents::mcp_client::{McpClientTrait, TraceContextInjector};
 use crate::agents::provider_manager::provider_name_for;
 use crate::config::search_path::SearchPaths;
 use crate::config::Config;
+use goose_agent::action_required_manager::ActionRequiredManager;
+use goose_agent::extension::{ExtensionConfig, ExtensionResult};
+use goose_agent::mcp_client::{McpClientTrait, TraceContextInjector};
 
 pub(super) struct GooseExtensionHost {
     pub context: PlatformExtensionContext,
@@ -71,7 +71,7 @@ impl ExtensionHost for GooseExtensionHost {
                 }
             })
             .await
-            .map_err(|error| crate::agents::ExtensionError::SetupError(error.to_string()))
+            .map_err(|error| goose_agent::extension::ExtensionError::SetupError(error.to_string()))
     }
 
     async fn disable(&self, session_id: &str, key: &str) -> ExtensionResult<bool> {
@@ -83,7 +83,7 @@ impl ExtensionHost for GooseExtensionHost {
                 extensions.len() != selected
             })
             .await
-            .map_err(|error| crate::agents::ExtensionError::SetupError(error.to_string()))
+            .map_err(|error| goose_agent::extension::ExtensionError::SetupError(error.to_string()))
     }
 
     async fn resolve_config(&self, config: ExtensionConfig) -> ExtensionResult<ExtensionConfig> {
@@ -109,7 +109,7 @@ impl ExtensionHost for GooseExtensionHost {
     fn default_timeout(&self) -> u64 {
         Config::global()
             .get_goose_default_extension_timeout()
-            .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+            .unwrap_or(goose_agent::extension::DEFAULT_EXTENSION_TIMEOUT)
     }
 
     fn platform_extension(&self, name: &str) -> Option<PlatformExtension> {

@@ -18,8 +18,6 @@ use super::calculator_extension::{delayed_value, value, CalculatorExtension, ADD
 use super::dummy_api::{ApiCall, DummyApi, ProviderFeatures};
 use super::pipeline::calculator_extension;
 use crate::acp::server::GooseAcpAgent;
-use crate::agents::extension::ExtensionConfig;
-use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::state_machine::ops_toolcalling::EXPIRED_APPROVAL_RESPONSE;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::permission::PermissionManager;
@@ -28,6 +26,8 @@ use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::permission::Permission;
 use crate::providers::base::Provider;
 use crate::session::{SessionManager, SessionType};
+use goose_agent::extension::ExtensionConfig;
+use goose_agent::mcp_client::McpClientTrait;
 use goose_providers::model::ModelConfig;
 
 async fn agent_with_dummy_api() -> Result<(Arc<Agent>, Arc<DummyApi>, String, tempfile::TempDir)> {
@@ -1189,7 +1189,7 @@ async fn a_subagents_elicitation_is_answered_by_the_parents_client() -> Result<(
                 &agent.config.session_manager,
                 &session_id,
                 id,
-                crate::action_required_manager::ElicitationOutcome::Accept(
+                goose_agent::action_required_manager::ElicitationOutcome::Accept(
                     json!({ "name": "Ada Lovelace" }),
                 ),
             )

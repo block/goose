@@ -88,7 +88,7 @@ discovery is not a secure file-open API.
 On native targets, `extension_manager` owns extension slots, leases, tool
 catalogs, dispatch, and MCP transports. Its supporting configuration, MCP client,
 container, tool-call, elicitation, malware-checking, and subprocess types live in
-this crate too. The existing `goose` module paths re-export the moved types.
+this crate too. Consumers import the moved types directly from `goose_agent`.
 
 The extraction preserves the runtime's behavior, with these necessary boundaries:
 

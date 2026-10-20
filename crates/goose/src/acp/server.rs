@@ -9,15 +9,12 @@ pub(super) use crate::acp::response_builder::{
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
-use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
-use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
+use crate::agents::platform_extensions::PLATFORM_EXTENSIONS;
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
 };
-use crate::agents::{
-    Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
-};
+use crate::agents::{Agent, AgentConfig, GoosePlatform, SessionConfig};
 use crate::config::base::CONFIG_YAML_NAME;
 use crate::config::extensions::{configured_enabled_state, get_enabled_extensions_with_config};
 use crate::config::paths::Paths;
@@ -69,6 +66,9 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, BoxStream, StreamExt};
+use goose_agent::extension::{Envs, ExtensionConfig};
+use goose_agent::extension_manager::ExtensionLoadResult;
+use goose_agent::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,

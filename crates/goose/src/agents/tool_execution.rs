@@ -1,7 +1,6 @@
 use crate::conversation::message::Message;
 use crate::mcp_utils::ToolResult;
 use futures::{Stream, StreamExt};
-pub use goose_agent::tool_execution::*;
 use rmcp::model::{CallToolResult, ServerNotification};
 use std::future::Future;
 use std::pin::Pin;

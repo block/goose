@@ -19,7 +19,7 @@ pub mod tom;
 
 use std::collections::HashMap;
 
-use crate::agents::mcp_client::McpClientTrait;
+use goose_agent::mcp_client::McpClientTrait;
 use once_cell::sync::Lazy;
 
 pub use ext_manager::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;

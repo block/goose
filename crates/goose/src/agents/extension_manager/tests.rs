@@ -1,8 +1,11 @@
-use super::super::tool_execution::{ToolCallContext, ToolCallNotificationEmitter};
 use super::*;
-use crate::agents::extension::ExtensionConfig;
-use crate::agents::mcp_client::McpClientTrait;
 use futures::StreamExt;
+use goose_agent::extension::ExtensionConfig;
+use goose_agent::extension_manager::{
+    get_tool_owner, is_tool_owned_by_extension, CallRequest, ExtensionMutation, ExtensionSet,
+};
+use goose_agent::mcp_client::McpClientTrait;
+use goose_agent::tool_execution::{ToolCallContext, ToolCallNotificationEmitter};
 use goose_test_support::mcp::McpFixtureServer;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, CustomNotification, ErrorCode, GetPromptResult,
@@ -666,7 +669,7 @@ fn serve_gated_fixture(read: tokio::io::DuplexStream, write: tokio::io::DuplexSt
 /// secrets; an HTTP server would look up OAuth credentials in the keyring.
 fn fixture_config(
     name: &'static str,
-    spawn: crate::builtin_extension::SpawnServerFn,
+    spawn: goose_agent::extension_manager::host::SpawnServerFn,
 ) -> ExtensionConfig {
     crate::builtin_extension::register_builtin_extension(name, spawn);
     builtin_config(name, vec![])

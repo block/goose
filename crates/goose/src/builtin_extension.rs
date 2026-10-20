@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-pub use goose_agent::extension_manager::host::SpawnServerFn;
+use goose_agent::extension_manager::host::SpawnServerFn;
 
 static BUILTIN_REGISTRY: Lazy<RwLock<HashMap<&'static str, SpawnServerFn>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
