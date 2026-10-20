@@ -147,7 +147,7 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_CLI_BELL` | Ring the terminal bell when an interactive turn finishes or tool approval is required | "true", "false" | false |
 | `GOOSE_CLI_SHOW_THINKING` | Shows model reasoning/thinking output in CLI responses. Some models (e.g., DeepSeek-R1, Kimi, Gemini) expose their internal reasoning process — this variable makes it visible in the CLI. | Set to any value to enable | Disabled |
-| `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
+| `RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_MAX_CODE_BLOCK_LINES` | Line count threshold before code blocks are truncated in CLI output. Full content is saved to a temp file. | Positive integer | 50 |
 | `GOOSE_TRUNCATED_SHOW_LINES` | Number of lines shown before the "... (N more lines)" message when a code block is truncated | Positive integer | 20 |
@@ -199,7 +199,7 @@ export GOOSE_CLI_DARK_THEME="Dracula"
 export GOOSE_CLI_NEWLINE_KEY=n
 
 # Disable random thinking messages for less distraction
-export GOOSE_RANDOM_THINKING_MESSAGES=false
+export RANDOM_THINKING_MESSAGES=false
 
 # Show reasoning/thinking output from models that support it (e.g., DeepSeek-R1, Kimi, Gemini)
 export GOOSE_CLI_SHOW_THINKING=1
