@@ -38,7 +38,10 @@ pub enum SubagentUpdate {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait SubagentRunner<S>: MaybeSend + MaybeSync {
-    fn started_subagent_session_ids(&self, parent_session: &S, message: &Message) -> Vec<String>;
+    /// Returns every subagent session ID that `message` asks to run, even if that subagent
+    /// has already run. `SubagentOperation` calls this for every message in the parent
+    /// conversation and decides which still need to run.
+    fn requested_subagent_session_ids(&self, parent_session: &S, message: &Message) -> Vec<String>;
 
     async fn start(
         &self,
@@ -173,7 +176,8 @@ impl<S> SubagentOperation<S> {
             for subagent_session_id in finished_subagent_session_ids(message) {
                 pending.retain(|pending_id| pending_id != subagent_session_id);
             }
-            for subagent_session_id in self.runner.started_subagent_session_ids(session, message) {
+            for subagent_session_id in self.runner.requested_subagent_session_ids(session, message)
+            {
                 if !pending.contains(&subagent_session_id) {
                     pending.push(subagent_session_id);
                 }

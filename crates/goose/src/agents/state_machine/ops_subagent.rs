@@ -86,7 +86,7 @@ fn readable_output(output: &str) -> String {
 
 #[async_trait]
 impl SubagentRunner<Session> for ForegroundSubagentRunner {
-    fn started_subagent_session_ids(
+    fn requested_subagent_session_ids(
         &self,
         parent_session: &Session,
         message: &Message,
@@ -327,19 +327,19 @@ mod tests {
         let runner = fixture.runner();
 
         assert_eq!(
-            runner.started_subagent_session_ids(&parent, &mixed),
+            runner.requested_subagent_session_ids(&parent, &mixed),
             ["first"]
         );
         assert_eq!(
-            runner.started_subagent_session_ids(&parent, &delegate_message("second")),
+            runner.requested_subagent_session_ids(&parent, &delegate_message("second")),
             ["second"]
         );
         assert!(runner
-            .started_subagent_session_ids(&parent, &Message::user().with_text("delegate"))
+            .requested_subagent_session_ids(&parent, &Message::user().with_text("delegate"))
             .is_empty());
         parent.session_type = SessionType::SubAgent;
         assert!(runner
-            .started_subagent_session_ids(&parent, &mixed)
+            .requested_subagent_session_ids(&parent, &mixed)
             .is_empty());
         Ok(())
     }

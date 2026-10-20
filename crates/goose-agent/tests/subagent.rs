@@ -78,7 +78,7 @@ impl FakeRunner {
 
 #[async_trait]
 impl SubagentRunner<Parent> for FakeRunner {
-    fn started_subagent_session_ids(
+    fn requested_subagent_session_ids(
         &self,
         _parent_session: &Parent,
         message: &Message,
