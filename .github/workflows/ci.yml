@@ -447,3 +447,27 @@ jobs:
       - name: Run Updater Install Test
         run: pnpm exec vitest run src/utils/githubUpdater.install.test.ts
         working-directory: ui/desktop
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - rust-format
+      - rust-lint
+      - rust-build-and-test
+      - rust-build-and-test-tls
+      - desktop-lint
+    steps:
+      - name: Verify required jobs succeeded
+        env:
+          NEEDS: ${{ toJson(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$NEEDS" | jq -r 'to_entries | map(select(.value.result != "success" and .value.result != "skipped")) | .[]? | "\(.key): \(.value.result)"')
+          if [ -n "$bad" ]; then
+            echo "::error::Required CI jobs did not succeed:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "All required jobs succeeded."
