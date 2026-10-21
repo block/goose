@@ -190,7 +190,11 @@ pub(crate) fn prepare_inference_tools(
         tools.retain(|tool| {
             crate::agents::extension_manager::get_tool_owner(tool).is_some_and(|owner| {
                 crate::agents::extension_manager::is_first_class_extension(&owner)
-            }) || crate::agents::extension_manager::get_tool_resource_uri(tool).is_some()
+            })
+                || crate::agents::extension_manager::get_tool_resource_uri(tool).is_some()
+                // Appended outside the extension manager; without it a subagent
+                // can never signal completion (final_output call) in code mode.
+                || tool.name == crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME
         });
     }
 
@@ -1467,12 +1471,24 @@ mod tests {
         let hidden = make_tool_with_meta(Some(
             serde_json::json!({"goose_extension": "developer", "ui": {"visibility": ["app"]}}),
         ));
-        let filtered = prepare_inference_tools(vec![ordinary, first_class, resource, hidden], true);
+        let mut final_output = make_tool_with_meta(None);
+        final_output.name = crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME.into();
+        let filtered = prepare_inference_tools(
+            vec![ordinary, first_class, resource, hidden, final_output],
+            true,
+        );
         let names = filtered
             .iter()
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>();
-        assert_eq!(names, ["resource__view", "shell"]);
+        assert_eq!(
+            names,
+            [
+                crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME,
+                "resource__view",
+                "shell"
+            ]
+        );
     }
 }
 
