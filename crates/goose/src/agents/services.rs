@@ -1454,6 +1454,22 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn a_live_conversation_keeps_its_session() {
+            let temp_dir = TempDir::new().unwrap();
+            let services = test_services(&temp_dir, 1);
+            services
+                .attach_session("live", 1, attachment("client"))
+                .await;
+            assert!(services.runtime.runs.start_live("live"));
+
+            services
+                .attach_session("new", 1, attachment("client"))
+                .await;
+
+            assert!(services.runtime.is_attached("live", 1));
+        }
+
+        #[tokio::test]
         async fn eviction_releases_the_least_recently_used_idle_session() {
             let temp_dir = TempDir::new().unwrap();
             let services = test_services(&temp_dir, 2);

@@ -43,9 +43,9 @@ impl SessionRuntime {
     }
 
     /// Marks the session as in use and returns the sessions to release to stay within
-    /// `max_sessions`: least recently used first, never `session_id` itself and never one
-    /// with a turn in flight. When every other session is busy the limit is exceeded until
-    /// a turn ends.
+    /// `max_sessions`: least recently used first, never `session_id` itself and never a
+    /// busy one. When every other session is busy the limit is exceeded until a turn ends
+    /// or another session is touched.
     pub(super) fn touch(&self, session_id: &str) -> Vec<String> {
         let mut resident = self.resident.lock().expect("session runtime poisoned");
         resident.put(session_id.to_string(), ());
@@ -67,7 +67,7 @@ impl SessionRuntime {
             .iter()
             .rev()
             .map(|(id, ())| id.clone())
-            .filter(|id| Some(id.as_str()) != keep && !self.has_active_turn(id))
+            .filter(|id| Some(id.as_str()) != keep && !self.is_busy(id))
             .take(excess)
             .collect();
         for id in &evicted {
@@ -161,8 +161,10 @@ impl SessionRuntime {
             .remove(session_id);
     }
 
-    pub fn has_active_turn(&self, session_id: &str) -> bool {
-        self.confirmations.has_active_turn(session_id)
+    /// A Live conversation runs without a turn, and a prompt registers its run before
+    /// its turn starts.
+    fn is_busy(&self, session_id: &str) -> bool {
+        self.confirmations.has_active_turn(session_id) || self.runs.is_active(session_id)
     }
 
     /// Drops everything kept for the session and cancels its run.
