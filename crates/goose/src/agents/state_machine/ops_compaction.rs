@@ -17,6 +17,7 @@ use crate::conversation::message::{Message, MessageErrorKind, SystemNotification
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::providers::base::Provider;
 use crate::session::Session;
+use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
@@ -284,8 +285,11 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
+                let kind = e
+                    .downcast_ref::<ProviderError>()
+                    .map_or(MessageErrorKind::Other, MessageErrorKind::from);
                 emit.message(Message::assistant().with_error(
-                    MessageErrorKind::ContextLengthExceeded,
+                    kind,
                     format!(
                         "Ran into this error trying to compact: {e}.\n\n\
                          Please try again or create a new session"
