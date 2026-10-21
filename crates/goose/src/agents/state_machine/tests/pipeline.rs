@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::Result;
@@ -11,7 +12,9 @@ use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::extension_manager::ExtensionLease;
 use crate::agents::mcp_client::McpClientTrait;
-use crate::agents::state_machine::{Emitter, GooseEffect, RunStatus, StateMachine};
+use crate::agents::state_machine::{
+    messages_since_kickoff, Emitter, GooseEffect, Operation, RunStatus, StateMachine,
+};
 use crate::agents::{AgentEvent, StateMachineServices, StateMachineServicesConfig, TurnSettings};
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -23,10 +26,62 @@ use crate::providers::base::Provider;
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::{GoalState, Session, SessionManager, SessionType};
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 
 struct FeatureProvider {
     inner: Arc<dyn Provider>,
     features: ProviderFeatures,
+}
+
+struct RecordingProvider {
+    inner: Arc<dyn Provider>,
+    model_configs: Arc<StdMutex<Vec<ModelConfig>>>,
+}
+
+#[async_trait::async_trait]
+impl Provider for RecordingProvider {
+    fn get_name(&self) -> &str {
+        self.inner.get_name()
+    }
+
+    fn provider_session_id(&self) -> Option<String> {
+        self.inner.provider_session_id()
+    }
+
+    async fn resume(&self, session_id: &str) -> Result<(), goose_providers::errors::ProviderError> {
+        self.inner.resume(session_id).await
+    }
+
+    async fn stream(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[rmcp::model::Tool],
+    ) -> Result<crate::providers::base::MessageStream, goose_providers::errors::ProviderError> {
+        self.model_configs
+            .lock()
+            .unwrap()
+            .push(model_config.clone());
+        self.inner
+            .stream(model_config, system, messages, tools)
+            .await
+    }
+
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        self.inner.get_context_limit(model, override_limit).await
+    }
+
+    fn manages_own_context(&self) -> bool {
+        self.inner.manages_own_context()
+    }
+
+    async fn fetch_model_info(
+        &self,
+        model_name: &str,
+    ) -> Result<goose_providers::base::ModelInfo, goose_providers::errors::ProviderError> {
+        self.inner.fetch_model_info(model_name).await
+    }
 }
 
 #[async_trait::async_trait]
@@ -84,7 +139,8 @@ pub(super) struct TestPipeline {
     pub(super) session_id: String,
     session: Session,
     working_dir: std::path::PathBuf,
-    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
+    recorded_model_configs: Option<Arc<StdMutex<Vec<ModelConfig>>>>,
     /// Built on first use, so the `with_*` settings above are what it runs with.
     services: tokio::sync::OnceCell<Arc<StateMachineServices>>,
     _temp_dir: Arc<tempfile::TempDir>,
@@ -97,9 +153,7 @@ impl TestPipeline {
                 let mut config = StateMachineServicesConfig::new(
                     self.session_manager.clone(),
                     self.permission_manager.clone(),
-                    self.scheduler.clone().map(|scheduler| {
-                        scheduler as Arc<dyn crate::scheduler_trait::SchedulerTrait>
-                    }),
+                    self.scheduler.clone(),
                     true,
                     crate::agents::GoosePlatform::GooseCli,
                 );
@@ -205,6 +259,43 @@ impl TestPipeline {
         self
     }
 
+    pub(super) fn with_auto_effort(
+        mut self,
+        operation: Arc<dyn Operation<Session, GooseEffect>>,
+    ) -> Self {
+        assert!(
+            !self.services.initialized(),
+            "configure the pipeline before using it"
+        );
+        self.turn_settings.auto_effort = Some(operation);
+        self
+    }
+
+    pub(super) fn record_model_configs(mut self) -> Self {
+        assert!(
+            !self.services.initialized(),
+            "configure the pipeline before using it"
+        );
+        let model_configs = Arc::new(StdMutex::new(Vec::new()));
+        self.provider = Arc::new(RecordingProvider {
+            inner: self.provider,
+            model_configs: model_configs.clone(),
+        });
+        self.recorded_model_configs = Some(model_configs);
+        self
+    }
+
+    pub(super) fn recorded_efforts(&self) -> Vec<Option<ThinkingEffort>> {
+        self.recorded_model_configs
+            .as_ref()
+            .expect("model config recording was not enabled")
+            .lock()
+            .unwrap()
+            .iter()
+            .map(ModelConfig::thinking_effort)
+            .collect()
+    }
+
     pub(super) fn working_dir(&self) -> &std::path::Path {
         &self.working_dir
     }
@@ -253,6 +344,7 @@ impl TestPipeline {
         Ok(())
     }
 
+    #[cfg(feature = "scheduler")]
     pub(super) async fn set_schedule_id(&self, schedule_id: String) -> Result<()> {
         self.session_manager
             .update(&self.session_id)
@@ -311,6 +403,7 @@ impl TestPipeline {
         self.calculator.wait_for_result().await;
     }
 
+    #[cfg(feature = "tree-sitter")]
     pub(super) fn tool_contexts(&self) -> Vec<crate::agents::tool_execution::ToolCallContext> {
         self.calculator.contexts()
     }
@@ -341,6 +434,7 @@ impl TestPipeline {
         Ok(pipeline)
     }
 
+    #[cfg(feature = "tree-sitter")]
     pub(super) async fn new_session(&self, working_dir: std::path::PathBuf) -> Result<Self> {
         let source_session = self.session().await?;
         let session = self
@@ -421,6 +515,7 @@ impl TestPipeline {
             let session = self.session().await?;
             let machine = self.machine(cancel.clone()).await;
             let mut result = machine.step(&session, &emit).await?;
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -638,6 +733,7 @@ impl TestPipeline {
                     }
                 }
             };
+            assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
             machine
                 .apply(
                     self.session_manager.as_ref(),
@@ -675,50 +771,49 @@ pub(super) async fn test_pipeline() -> Result<(TestPipeline, Arc<DummyApi>)> {
     test_pipeline_with(ProviderFeatures::default()).await
 }
 
+#[cfg(feature = "scheduler")]
 pub(super) async fn test_pipeline_with_scheduler() -> Result<(
     TestPipeline,
     Arc<DummyApi>,
     Arc<crate::scheduler::Scheduler>,
 )> {
-    let (pipeline, api, scheduler) =
-        test_pipeline_with_components(ProviderFeatures::default(), true).await?;
-    Ok((pipeline, api, scheduler.expect("scheduler was requested")))
+    let temp_dir = Arc::new(tempfile::tempdir()?);
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let scheduler = crate::scheduler::Scheduler::new(
+        temp_dir.path().join("schedule.json"),
+        session_manager.clone(),
+    )
+    .await?;
+    let (pipeline, api) = test_pipeline_with_components(
+        ProviderFeatures::default(),
+        temp_dir,
+        session_manager,
+        Some(scheduler.clone()),
+    )
+    .await?;
+    Ok((pipeline, api, scheduler))
 }
 
 pub(super) async fn test_pipeline_with(
     features: ProviderFeatures,
 ) -> Result<(TestPipeline, Arc<DummyApi>)> {
-    let (pipeline, api, _) = test_pipeline_with_components(features, false).await?;
-    Ok((pipeline, api))
+    let temp_dir = Arc::new(tempfile::tempdir()?);
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    test_pipeline_with_components(features, temp_dir, session_manager, None).await
 }
 
 async fn test_pipeline_with_components(
     features: ProviderFeatures,
-    with_scheduler: bool,
-) -> Result<(
-    TestPipeline,
-    Arc<DummyApi>,
-    Option<Arc<crate::scheduler::Scheduler>>,
-)> {
+    temp_dir: Arc<tempfile::TempDir>,
+    session_manager: Arc<SessionManager>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
+) -> Result<(TestPipeline, Arc<DummyApi>)> {
     let api = Arc::new(DummyApi::start(features).await);
-    let temp_dir = Arc::new(tempfile::tempdir()?);
-    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-    let scheduler = if with_scheduler {
-        Some(
-            crate::scheduler::Scheduler::new(
-                temp_dir.path().join("schedule.json"),
-                session_manager.clone(),
-            )
-            .await?,
-        )
-    } else {
-        None
-    };
     let session = session_manager
         .create_session(
             temp_dir.path().to_path_buf(),
             "pipeline-test".to_string(),
-            if with_scheduler {
+            if scheduler.is_some() {
                 SessionType::Scheduled
             } else {
                 SessionType::Hidden
@@ -739,20 +834,20 @@ async fn test_pipeline_with_components(
         session_manager,
         api.clone(),
         features,
-        scheduler.clone(),
+        scheduler,
         session,
         temp_dir,
     )
     .await?;
 
-    Ok((pipeline, api, scheduler))
+    Ok((pipeline, api))
 }
 
 async fn build_test_pipeline(
     session_manager: Arc<SessionManager>,
     api: Arc<DummyApi>,
     provider_features: ProviderFeatures,
-    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
     session: Session,
     temp_dir: Arc<tempfile::TempDir>,
 ) -> Result<TestPipeline> {
@@ -803,12 +898,14 @@ async fn build_test_pipeline(
             compaction_threshold: COMPACTION_THRESHOLD,
             compaction_token_limit: usize::MAX,
             tool_call_cutoff: None,
+            auto_effort: None,
         },
         max_turns: MAX_TURNS,
         session_id: session.id.clone(),
         working_dir: session.working_dir.clone(),
         session,
         scheduler,
+        recorded_model_configs: None,
         services: tokio::sync::OnceCell::new(),
         _temp_dir: temp_dir,
     })
@@ -868,6 +965,7 @@ fn default_extensions() -> Vec<ExtensionConfig> {
     [
         ("extensionmanager", "Extension Manager"),
         ("todo", "Todo"),
+        #[cfg(feature = "scheduler")]
         (
             crate::agents::platform_extensions::scheduler::EXTENSION_NAME,
             "Scheduler",
@@ -1101,6 +1199,45 @@ impl TestRun {
     }
 }
 
+const TOOL_OPERATIONS: [&str; 5] = [
+    "tool_approval",
+    "skills",
+    "recipe",
+    "tool_execution",
+    "remaining_tool_calls",
+];
+
+fn assert_only_tool_operations_act_on_open_calls(session: &Session, applied_step: Option<&str>) {
+    let Some(step) = applied_step else {
+        return;
+    };
+    let conversation = session
+        .conversation
+        .as_ref()
+        .expect("session has a conversation");
+    let turn = messages_since_kickoff(conversation).expect("conversation has a turn");
+    assert!(
+        TOOL_OPERATIONS.contains(&step) || !has_open_tool_call(turn),
+        "{step} acted while a tool call was open"
+    );
+}
+
+fn has_open_tool_call(turn: &[Message]) -> bool {
+    let mut open = HashSet::new();
+    for content in turn.iter().flat_map(|message| &message.content) {
+        match content {
+            MessageContent::ToolRequest(request) if !request.was_executed_externally() => {
+                open.insert(request.id.as_str());
+            }
+            MessageContent::ToolResponse(response) => {
+                open.remove(response.id.as_str());
+            }
+            _ => {}
+        }
+    }
+    !open.is_empty()
+}
+
 pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEvent>> {
     let cancel = CancellationToken::new();
     let machine = pipeline.machine(cancel.clone()).await;
@@ -1111,6 +1248,7 @@ pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEven
     loop {
         let session = pipeline.session().await?;
         let mut result = machine.step(&session, &emit).await?;
+        assert_only_tool_operations_act_on_open_calls(&session, result.applied_step);
         machine
             .apply(
                 pipeline.session_manager.as_ref(),

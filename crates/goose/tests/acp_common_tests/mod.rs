@@ -1265,7 +1265,7 @@ pub async fn run_prompt_basic<C: Connection>() {
 pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let prompt =
-        "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
+        "Search for get_code and write tools. Use them to save the code to /tmp/result.txt.";
     let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
@@ -1274,7 +1274,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
                 include_str!("../acp_test_data/openai_builtin_search.txt"),
             ),
             (
-                r#"export async function getCode"#.into(),
+                "mcp-fixture__get_code".into(),
                 include_str!("../acp_test_data/openai_builtin_execute.txt"),
             ),
             (

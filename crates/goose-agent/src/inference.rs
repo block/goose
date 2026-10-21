@@ -7,9 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_provider_types::base::Provider;
-use goose_provider_types::conversation::message::{
-    ActionRequiredData, InferenceMetadata, Message, MessageContent,
-};
+use goose_provider_types::conversation::message::{InferenceMetadata, Message, MessageContent};
 use goose_provider_types::conversation::token_usage::ProviderUsage;
 use goose_provider_types::conversation::{
     effective_role, fix_conversation, merge_consecutive_messages_for_request, Conversation,
@@ -19,9 +17,10 @@ use goose_provider_types::errors::ProviderError;
 use goose_provider_types::model::ModelConfig;
 use tracing_futures::Instrument;
 
+use crate::machine::MachineSession;
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, trailing_error, Emitter, Inference,
-    InferenceInput, Operation, OperationResult,
+    InferenceInput, Operation, OperationResult, CLIENT_LOG,
 };
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 
@@ -114,6 +113,39 @@ fn drop_repeated_tool_call_thinking(accumulator: &Conversation, chunk: &mut Mess
     chunk
         .content
         .retain(|content| !(is_thinking(content) && prior.contains(&content)));
+}
+
+fn pending_operation_logs(messages: &[Message]) -> Vec<String> {
+    let mut seen = messages
+        .iter()
+        .flat_map(|message| message.metadata.operation_logs.iter().cloned())
+        .collect::<HashSet<_>>();
+    let mut logs = Vec::new();
+
+    for (operation, line) in messages
+        .iter()
+        .filter_map(|message| message.metadata.operations.as_deref())
+        .flat_map(|operations| operations.iter())
+        .filter_map(|(operation, notes)| {
+            notes
+                .get(CLIENT_LOG)
+                .and_then(serde_json::Value::as_str)
+                .map(|line| (operation, line))
+        })
+    {
+        let log = format!("ops_{operation}: {line}");
+        if seen.insert(log.clone()) {
+            logs.push(log);
+        }
+    }
+
+    logs
+}
+
+fn attach_operation_logs(message: &mut Message, logs: &mut Vec<String>) {
+    if message.role == rmcp::model::Role::Assistant && !logs.is_empty() {
+        message.metadata.operation_logs = std::mem::take(logs);
+    }
 }
 
 pub fn chat_span(
@@ -276,35 +308,7 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
     })
 }
 
-fn has_open_tool_approval(turn: &[Message]) -> bool {
-    let mut goose_calls = HashSet::new();
-    let mut answered = HashSet::new();
-    let mut prompted = Vec::new();
-    for content in turn.iter().flat_map(|message| &message.content) {
-        match content {
-            MessageContent::ToolRequest(request) if !request.was_executed_externally() => {
-                goose_calls.insert(request.id.as_str());
-            }
-            MessageContent::ToolResponse(response) => {
-                answered.insert(response.id.as_str());
-            }
-            MessageContent::ActionRequired(action) => {
-                if let ActionRequiredData::ToolConfirmation { id, .. } = &action.data {
-                    prompted.push(id.as_str());
-                }
-            }
-            _ => {}
-        }
-    }
-    prompted
-        .into_iter()
-        .any(|id| goose_calls.contains(id) && !answered.contains(id))
-}
-
 fn should_infer(conversation: &Conversation, turn: &[Message]) -> bool {
-    if has_open_tool_approval(turn) {
-        return false;
-    }
     let projected = messages_for_provider(conversation, turn, true);
     if projected
         .last()
@@ -377,10 +381,17 @@ impl<'a, S: MaybeSync, E: InferenceEffect> InferenceRunner<'a, S, E> {
         emit.message(message);
     }
 
-    fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Result<OperationResult<E>> {
+    fn error_outcome(
+        &self,
+        err: &ProviderError,
+        operation_logs: &mut Vec<String>,
+        emit: &Emitter,
+    ) -> Result<OperationResult<E>> {
         tracing::Span::current().record("error.type", err.telemetry_type());
         tracing::error!("LLM provider error: {err}");
-        self.emit_message(Message::from_provider_error(err), emit);
+        let mut message = Message::from_provider_error(err);
+        attach_operation_logs(&mut message, operation_logs);
+        self.emit_message(message, emit);
         applied(self.take_output())
     }
 }
@@ -404,7 +415,7 @@ impl<S: MaybeSync, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
+impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;
@@ -431,9 +442,14 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
         if !should_infer(conversation, messages) {
             return not_applicable();
         }
+        let mut operation_logs = pending_operation_logs(messages);
         let mut messages_for_provider = messages_for_provider(conversation, messages, false);
 
-        let span = inference_span(self.provider.as_ref(), &self.model_config);
+        let model_config = session
+            .thinking_effort()
+            .map(|effort| self.model_config.clone().with_thinking_effort(effort))
+            .unwrap_or_else(|| self.model_config.clone());
+        let span = inference_span(self.provider.as_ref(), &model_config);
 
         async {
             let PreparedInferenceRequest {
@@ -475,7 +491,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
             let stream = self
                 .provider
                 .stream(
-                    &self.model_config,
+                    &model_config,
                     &system_prompt,
                     conversation_for_provider.messages(),
                     &tools,
@@ -484,10 +500,10 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
 
             let mut stream = match stream {
                 Ok(stream) => stream,
-                Err(err) => return self.error_outcome(&err, emit),
+                Err(err) => return self.error_outcome(&err, &mut operation_logs, emit),
             };
 
-            let requested_model = self.model_config.model_name.clone();
+            let requested_model = model_config.model_name.clone();
             let resolved_model = self
                 .provider
                 .fetch_model_info(&requested_model)
@@ -506,7 +522,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
             while let Some(result) = stream.next().await {
                 let (msg_opt, usage_opt) = match result {
                     Ok(chunk) => chunk,
-                    Err(err) => return self.error_outcome(&err, emit),
+                    Err(err) => return self.error_outcome(&err, &mut operation_logs, emit),
                 };
                 if let Some(usage) = usage_opt {
                     record_chat_usage(&tracing::Span::current(), &usage);
@@ -528,6 +544,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
                     if chunk.content.is_empty() && !chunk.metadata.output_token_limit_reached {
                         self.output().accumulator.push(chunk);
                     } else {
+                        attach_operation_logs(&mut chunk, &mut operation_logs);
                         self.emit_message(chunk, emit);
                     }
                 }
@@ -555,6 +572,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
             let mut marker = Message::assistant()
                 .with_text(EMPTY_RESPONSE_MESSAGE)
                 .with_visibility(false, false);
+            attach_operation_logs(&mut marker, &mut operation_logs);
             marker.metadata.set_operation_note(
                 EMPTY_RESPONSE_NOTE_SCOPE,
                 EMPTY_RESPONSE_NOTE,
@@ -575,6 +593,7 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
                     message.content.clear();
                     message.metadata.user_visible = false;
                     message.metadata.agent_visible = true;
+                    attach_operation_logs(&mut message, &mut operation_logs);
                     output.accumulator.clear();
                     message
                 };
@@ -590,9 +609,6 @@ impl<S: MaybeSync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose_provider_types::conversation::message::TOOL_META_EXTERNAL_DISPATCH_KEY;
-    use goose_provider_types::permission::Permission;
-    use rmcp::model::{CallToolRequestParams, CallToolResult};
 
     #[test]
     fn provider_session_id_comes_only_from_latest_inference() {
@@ -629,70 +645,6 @@ mod tests {
         assert!(!is_empty_response(
             &Message::assistant().with_content(MessageContent::thinking("", "sig-omitted"))
         ));
-    }
-
-    fn call(id: &str) -> Message {
-        Message::assistant().with_tool_request(id, Ok(CallToolRequestParams::new("write")))
-    }
-
-    fn prompt(id: &str) -> Message {
-        Message::assistant()
-            .with_action_required(id, "write".to_string(), Default::default(), None)
-            .user_only()
-    }
-
-    fn answer(id: &str) -> Message {
-        Message::user().with_tool_response(id, Ok(CallToolResult::success(Vec::new())))
-    }
-
-    #[test]
-    fn a_tool_approval_stays_open_until_the_call_is_answered() {
-        assert!(has_open_tool_approval(&[call("write"), prompt("write")]));
-
-        let decided = Message::user().with_content(
-            MessageContent::action_required_tool_confirmation_response(
-                "write",
-                Permission::AllowOnce,
-            ),
-        );
-        assert!(has_open_tool_approval(&[
-            call("write"),
-            prompt("write"),
-            decided
-        ]));
-
-        assert!(!has_open_tool_approval(&[
-            call("write"),
-            prompt("write"),
-            answer("write")
-        ]));
-    }
-
-    #[test]
-    fn prompts_without_a_goose_call_are_not_open() {
-        assert!(!has_open_tool_approval(&[prompt("cli-request")]));
-
-        let external = Message::assistant().with_tool_request_with_metadata(
-            "external",
-            Ok(CallToolRequestParams::new("write")),
-            None,
-            Some(serde_json::json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
-        );
-        assert!(!has_open_tool_approval(&[external, prompt("external")]));
-    }
-
-    #[test]
-    fn no_inference_while_a_tool_approval_is_open() {
-        let conversation = Conversation::new_unvalidated([
-            Message::user().with_text("add and write"),
-            Message::assistant()
-                .with_tool_request("free", Ok(CallToolRequestParams::new("add")))
-                .with_tool_request("gated", Ok(CallToolRequestParams::new("write"))),
-            answer("free"),
-            prompt("gated"),
-        ]);
-        let turn = messages_since_kickoff(&conversation).unwrap();
-        assert!(!should_infer(&conversation, turn));
     }
 
     #[test]

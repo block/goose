@@ -92,7 +92,7 @@ use self::message_meta::{
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
     build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
-    tool_call_update_fields_from_response, trusted_update_meta,
+    tool_call_update_fields_from_response, tool_response_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
@@ -818,17 +818,17 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
 }
 
 impl AcpConnection {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) fn active_run_registry(&self) -> &Arc<ActiveRunRegistry> {
         &self.active_runs
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) fn services(&self) -> &Arc<StateMachineServices> {
         &self.services
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) async fn test_start_active_run(
         &self,
         session_id: &str,
@@ -838,7 +838,7 @@ impl AcpConnection {
             .await
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) fn test_drop_active_run_guard(&self, session_id: &str, run_id: &str) {
         drop(ActiveRunDropGuard {
             registry: self.active_runs.clone(),
@@ -849,7 +849,7 @@ impl AcpConnection {
         });
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "scheduler"))]
     pub(crate) async fn test_require_active_run(
         &self,
         session_id: &str,
@@ -1546,7 +1546,7 @@ impl AcpConnection {
         let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-            .meta(trusted_update_meta(tool_response));
+            .meta(tool_response_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 
@@ -2195,7 +2195,19 @@ impl AcpConnection {
                         warn!(session_id, ?error, "Failed to send mid-turn usage update");
                     }
                 }
-                Ok(_) => {}
+                Ok(crate::agents::AgentEvent::HistoryReplaced(_)) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.to_string(),
+                            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                                status: StatusMessage::Notice {
+                                    message: "Context compacted — earlier messages archived"
+                                        .to_string(),
+                                },
+                            }),
+                        })?;
+                    }
+                }
                 Err(error) => {
                     return Err(agent_client_protocol::Error::internal_error()
                         .data(format!("Error in agent response stream: {error}")));

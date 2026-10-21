@@ -31,7 +31,6 @@ struct SystemPromptContext {
     current_date_time: String,
     goose_mode: GooseMode,
     is_autonomous: bool,
-    enable_subagents: bool,
     code_execution_mode: bool,
     include_extensions: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +43,6 @@ pub struct SystemPromptBuilder<'a, M> {
     system_prompt_override: Option<String>,
     extensions_info: Vec<ExtensionInfo>,
     prompt_extras: IndexMap<String, String>,
-    subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
     include_extensions: bool,
@@ -101,11 +99,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
-        self.subagents_enabled = subagents_enabled;
-        self
-    }
-
     pub fn with_goose_mode(mut self, mode: GooseMode) -> Self {
         self.goose_mode = Some(mode);
         self
@@ -134,7 +127,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             current_date_time: self.manager.current_date_timestamp.clone(),
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: self.subagents_enabled,
             code_execution_mode: self.code_execution_mode,
             include_extensions: self.include_extensions,
             moim_system_prompt_block: moim::system_prompt_block(),
@@ -220,7 +212,6 @@ impl PromptManager {
             system_prompt_override: None,
             extensions_info: vec![],
             prompt_extras: IndexMap::new(),
-            subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
             include_extensions: true,
@@ -461,6 +452,14 @@ mod tests {
         assert_snapshot!(system_prompt)
     }
 
+    // The snapshot lists every platform extension, so it needs every feature that adds one.
+    #[cfg(all(
+        feature = "chat-recall",
+        feature = "code-mode",
+        feature = "platform-apps",
+        feature = "scheduler",
+        feature = "tree-sitter"
+    ))]
     #[tokio::test]
     async fn test_all_platform_extensions() {
         use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};

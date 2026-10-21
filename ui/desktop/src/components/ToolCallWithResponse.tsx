@@ -410,9 +410,13 @@ const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
   const extensionName = parts.slice(1).reverse().join('__') || '';
   const toolGraph = toolCall.arguments?.tool_graph;
 
-  if (toolName === 'execute_typescript' && toolGraph && toolGraph.length > 0) {
+  if (
+    ['execute_javascript', 'execute_typescript'].includes(toolName) &&
+    toolGraph &&
+    toolGraph.length > 0
+  ) {
     const plural = toolGraph.length === 1 ? '' : 's';
-    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_typescript`;
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | ${toolName}`;
     const lines = toolGraph.map((node, idx) => {
       const deps =
         node.depends_on && node.depends_on.length > 0
@@ -691,6 +695,9 @@ function ToolCallView({
         return `capturing screen`;
 
       case 'delegate': {
+        if (args.resume) {
+          return `resuming subagent ${getStringValue(args.resume)}`;
+        }
         if (args.instructions) {
           const instr = getStringValue(args.instructions);
           const truncated = instr.length > 80 ? instr.substring(0, 80) + '…' : instr;
@@ -715,6 +722,7 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
+      case 'execute_javascript':
       case 'execute_typescript': {
         const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
         if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
@@ -813,7 +821,12 @@ function ToolCallView({
         const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
         if (
-          toolCall.name === 'code_execution__execute_typescript' &&
+          [
+            'execute_javascript',
+            'code_execution__execute_javascript',
+            'execute_typescript',
+            'code_execution__execute_typescript',
+          ].includes(toolCall.name) &&
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
@@ -958,7 +971,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
             isStartExpanded={false}
           >
             <MarkdownContent
-              content={'```typescript\n' + code + '\n```'}
+              content={'```javascript\n' + code + '\n```'}
               className="whitespace-pre-wrap max-w-full overflow-x-auto"
             />
           </ToolCallExpandable>

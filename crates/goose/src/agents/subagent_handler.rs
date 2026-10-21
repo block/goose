@@ -13,13 +13,17 @@ use crate::{
     session::{Session, SessionManager, SessionType},
 };
 use anyhow::{anyhow, Result};
-use futures::future::BoxFuture;
+use futures::stream::BoxStream;
 use futures::StreamExt;
+use goose_agent::subagent::{SubagentOutcome, SubagentUpdate};
 use rmcp::model::Role;
 use serde::Serialize;
+use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use tokio_util::task::AbortOnDropHandle;
+use tracing::Instrument;
 
 #[derive(Serialize)]
 pub struct SubagentPromptContext {
@@ -79,26 +83,12 @@ pub(crate) async fn prepare_subagent(
     })
 }
 
-pub(crate) enum SubagentOutcome {
-    Completed(String),
-    Failed(String),
-    Cancelled,
-}
-
-pub(crate) enum SubagentStart {
-    HasOutcome(SubagentOutcome),
-    Started {
-        task: Option<String>,
-        run: BoxFuture<'static, SubagentOutcome>,
-    },
-}
-
 #[derive(Clone)]
-pub(crate) struct SubagentRunner {
+pub(crate) struct ForegroundSubagentRunner {
     services: Arc<StateMachineServices>,
 }
 
-impl SubagentRunner {
+impl ForegroundSubagentRunner {
     pub(crate) fn new(services: Arc<StateMachineServices>) -> Self {
         Self { services }
     }
@@ -107,47 +97,24 @@ impl SubagentRunner {
         &self.services.session_manager
     }
 
-    pub(crate) async fn start(
+    pub(crate) async fn load(&self, subagent_id: &str) -> Result<Session> {
+        self.session_manager().get_session(subagent_id, true).await
+    }
+
+    pub(crate) fn spawn(
         &self,
-        parent_id: &str,
-        subagent_id: &str,
+        subagent: Session,
         cancel: CancellationToken,
-        forward: mpsc::UnboundedSender<Message>,
-    ) -> SubagentStart {
-        let subagent = match self.session_manager().get_session(subagent_id, true).await {
-            Ok(subagent) => subagent,
-            Err(error) => {
-                return SubagentStart::HasOutcome(SubagentOutcome::Failed(error.to_string()))
-            }
-        };
-        if subagent.session_type != SessionType::SubAgent
-            || subagent.parent_session_id.as_deref() != Some(parent_id)
-        {
-            return SubagentStart::HasOutcome(SubagentOutcome::Failed(
-                "it does not belong to this session".to_string(),
-            ));
-        }
-        if let Some(output) = subagent
-            .conversation
-            .as_ref()
-            .and_then(|conversation| FinalOutputTool::successful_output(conversation.messages()))
-        {
-            return SubagentStart::HasOutcome(SubagentOutcome::Completed(output));
-        }
-        SubagentStart::Started {
-            task: subagent
-                .recipe
-                .as_ref()
-                .and_then(|recipe| recipe.prompt.clone()),
-            run: Box::pin(self.clone().run(subagent, cancel, forward)),
-        }
+    ) -> BoxStream<'static, SubagentUpdate> {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        spawn_run(self.clone().run(subagent, cancel, to_parent), from_subagent)
     }
 
     async fn run_to_end(
         &self,
         subagent: &Session,
         cancel: CancellationToken,
-        forward: mpsc::UnboundedSender<Message>,
+        to_parent: &mpsc::UnboundedSender<Message>,
     ) -> Result<()> {
         let parent_id = subagent
             .parent_session_id
@@ -158,7 +125,7 @@ impl SubagentRunner {
         while let Some(event) = events.next().await {
             if let AgentEvent::Message(message) = event? {
                 if asks_for_a_decision(&message) {
-                    let _ = forward.send(forwarded(
+                    let _ = to_parent.send(forwarded(
                         message,
                         parent_id,
                         &subagent.id,
@@ -174,14 +141,14 @@ impl SubagentRunner {
         self,
         subagent: Session,
         cancel: CancellationToken,
-        forward: mpsc::UnboundedSender<Message>,
+        to_parent: mpsc::UnboundedSender<Message>,
     ) -> SubagentOutcome {
         let ending = SubagentEnding {
             services: Arc::clone(&self.services),
             subagent_id: subagent.id.clone(),
             ended: false,
         };
-        let run_result = self.run_to_end(&subagent, cancel.clone(), forward).await;
+        let run_result = self.run_to_end(&subagent, cancel.clone(), &to_parent).await;
         ending.end().await;
         let stopped = cancel.is_cancelled();
         let subagent = match self.session_manager().get_session(&subagent.id, true).await {
@@ -207,6 +174,22 @@ impl SubagentRunner {
             messages.map(Vec::as_slice).unwrap_or_default(),
         ))
     }
+}
+
+fn spawn_run(
+    run: impl Future<Output = SubagentOutcome> + Send + 'static,
+    mut from_subagent: mpsc::UnboundedReceiver<Message>,
+) -> BoxStream<'static, SubagentUpdate> {
+    let task = AbortOnDropHandle::new(tokio::spawn(run.in_current_span()));
+    Box::pin(async_stream::stream! {
+        while let Some(message) = from_subagent.recv().await {
+            yield SubagentUpdate::ToParent(message);
+        }
+        yield SubagentUpdate::Finished(
+            task.await
+                .unwrap_or_else(|error| SubagentOutcome::Failed(error.to_string())),
+        );
+    })
 }
 
 /// Aborting the parent's turn drops a running subagent's task, so the session is also ended
@@ -239,10 +222,10 @@ impl Drop for SubagentEnding {
 }
 
 async fn end_subagent(services: &StateMachineServices, subagent_id: &str) {
+    services.release_session(subagent_id).await;
     services
         .emit_hook(crate::hooks::HookEvent::SessionEnd, subagent_id)
         .await;
-    services.release_session(subagent_id).await;
 }
 
 fn forwarded(
@@ -331,9 +314,77 @@ async fn build_subagent_prompt(
 
 #[cfg(test)]
 mod tests {
-    use super::failure_reason;
+    use std::time::Duration;
+
+    use futures::StreamExt;
+
+    use super::{failure_reason, spawn_run};
     use crate::agents::state_machine::MAX_TURNS_MESSAGE;
     use crate::conversation::message::Message;
+    use goose_agent::subagent::{SubagentOutcome, SubagentUpdate};
+    use tokio::sync::{mpsc, oneshot};
+
+    #[tokio::test]
+    async fn dropping_a_started_run_aborts_its_task() {
+        let (alive, aborted) = oneshot::channel::<()>();
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        let run = spawn_run(
+            async move {
+                let _alive = alive;
+                let _to_parent = to_parent;
+                std::future::pending::<SubagentOutcome>().await
+            },
+            from_subagent,
+        );
+
+        drop(run);
+
+        let ended = tokio::time::timeout(Duration::from_secs(5), aborted).await;
+        assert!(ended.expect("the task was not aborted").is_err());
+    }
+
+    #[tokio::test]
+    async fn a_run_reports_what_it_forwarded_then_its_outcome() {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel();
+        let run = spawn_run(
+            async move {
+                to_parent
+                    .send(Message::assistant().with_text("may I run cargo test?"))
+                    .unwrap();
+                SubagentOutcome::Completed("done".to_string())
+            },
+            from_subagent,
+        );
+
+        let updates: Vec<_> = run.collect().await;
+
+        assert!(matches!(
+            updates.as_slice(),
+            [
+                SubagentUpdate::ToParent(_),
+                SubagentUpdate::Finished(SubagentOutcome::Completed(_))
+            ]
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_panicking_run_is_reported_as_failed() {
+        let (to_parent, from_subagent) = mpsc::unbounded_channel::<Message>();
+        let run = spawn_run(
+            async move {
+                let _to_parent = to_parent;
+                panic!("subagent crashed")
+            },
+            from_subagent,
+        );
+
+        let updates: Vec<_> = run.collect().await;
+
+        assert!(matches!(
+            updates.as_slice(),
+            [SubagentUpdate::Finished(SubagentOutcome::Failed(_))]
+        ));
+    }
 
     #[test]
     fn failure_reason_describes_how_the_subagent_stopped() {

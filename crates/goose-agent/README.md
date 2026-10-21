@@ -17,7 +17,11 @@ is a function of the persisted conversation, not of in-memory loop state.
   `applied()`, `yielded()`, `yielded_with()`.
 - **`Inference<S, E>`** — the step that reaches the provider. Before calling it,
   the machine collects tools and prompt parts from *every* operation in the list
-  into an `InferenceInput`.
+  into an `InferenceInput`. It runs whenever the conversation ends on a user or
+  tool message, even if other tool calls from the same reply are still
+  unanswered. A pipeline that keeps calls open, for example while waiting for
+  the user to approve one, needs an operation before inference that yields
+  while any call is open.
 - **`ToolOperation<S>`** — adapts caller-defined `rmcp` tools into one operation.
   Register `SyncTool<S>` and `AsyncTool<S>` implementations with the typed builder
   methods, or implement `ToolProvider<S>` for tools discovered dynamically per
@@ -70,6 +74,14 @@ its tool response message. Use one operation instance per active execution.
 `Emitter` sends on an unbounded channel, so emitting never pauses and an
 operation that only builds, emits, and returns holds nothing. Dropping a future
 cannot undo external actions or stop blocking work that has already started.
+
+## Skills
+
+`skills` provides argument substitution and loaded-skill formatting. On native
+platforms, it also discovers skills from explicit, ordered roots. Configuration
+paths, built-in skills, and tool registration remain host responsibilities;
+these helpers do not automatically change the agent pipeline. Filesystem
+discovery is not a secure file-open API.
 
 ## WebAssembly
 

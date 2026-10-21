@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.54.0",
+  "version": "1.55.0",
   "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
@@ -19,6 +19,7 @@
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "pnpm run build-goose-acp-client && pnpm run i18n:compile && electron-forge package",
     "make": "pnpm run build-goose-acp-client && pnpm run i18n:compile && electron-forge make",
+    "make:win32-installer": "electron-builder --win --config electron-builder.nsis.yml --publish never --prepackaged",
     "bundle:default": "node scripts/prepare-platform-binaries.js && pnpm run make && BUNDLE_NAME=\"${GOOSE_BUNDLE_NAME:-Goose}\" && APP_DIR=\"out/${BUNDLE_NAME}-darwin-arm64\" && APP_BUNDLE=\"${APP_DIR}/${BUNDLE_NAME}.app\" && (cd \"$APP_DIR\" && ditto -c -k --sequesterRsrc --keepParent \"${BUNDLE_NAME}.app\" \"${BUNDLE_NAME}.zip\")",
     "bundle:intel": "node scripts/prepare-platform-binaries.js && pnpm run make --arch=x64 && BUNDLE_NAME=\"${GOOSE_BUNDLE_NAME:-Goose}\" && APP_DIR=\"out/${BUNDLE_NAME}-darwin-x64\" && APP_BUNDLE=\"${APP_DIR}/${BUNDLE_NAME}.app\" && (cd \"$APP_DIR\" && ditto -c -k --sequesterRsrc --keepParent \"${BUNDLE_NAME}.app\" \"${BUNDLE_NAME}_intel_mac.zip\")",
     "debug": "echo 'run --remote-debugging-port=8315' && BUNDLE_NAME=\"${GOOSE_BUNDLE_NAME:-Goose}\" && lldb \"out/${BUNDLE_NAME}-darwin-arm64/${BUNDLE_NAME}.app\"",
@@ -147,6 +148,7 @@
     "@vitest/ui": "^4.1.10",
     "autoprefixer": "^10.5.4",
     "electron": "43.4.0",
+    "electron-builder": "26.15.3",
     "electron-devtools-installer": "^4.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",
