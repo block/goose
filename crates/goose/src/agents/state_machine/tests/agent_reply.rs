@@ -1,5 +1,4 @@
-//! Covers `Agent::reply_with_state_machine`, the entry point the CLI and desktop
-//! reach when the state machine is enabled.
+//! Covers `StateMachineServices::reply`, the entry point the CLI and desktop reach.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -49,6 +48,18 @@ async fn agent_with_hooks(
     String,
     tempfile::TempDir,
 )> {
+    agent_with(hooks, 100).await
+}
+
+async fn agent_with(
+    hooks: crate::hooks::HookManager,
+    max_sessions: usize,
+) -> Result<(
+    Arc<StateMachineServices>,
+    Arc<DummyApi>,
+    String,
+    tempfile::TempDir,
+)> {
     let api = Arc::new(DummyApi::start(ProviderFeatures::default()).await);
     let api_client = goose_providers::api_client::ApiClient::new_with_tls(
         api.uri(),
@@ -81,6 +92,7 @@ async fn agent_with_hooks(
         GoosePlatform::GooseCli,
     );
     config.hooks = Some(hooks);
+    config.max_sessions = max_sessions;
     let services = StateMachineServices::with_config(config);
     services
         .update_provider(
@@ -1683,5 +1695,44 @@ async fn a_parent_tool_call_id_that_looks_forwarded_is_still_the_parents() -> Re
         }
     }
     assert!(texts.concat().ends_with("the parent ran it"));
+    Ok(())
+}
+
+fn attachment() -> crate::agents::Attachment {
+    crate::agents::Attachment {
+        client: crate::agents::extension_manager::ClientContext::new(
+            &GoosePlatform::GooseDesktop,
+            None,
+        ),
+        session_names: None,
+    }
+}
+
+#[tokio::test]
+async fn a_finished_turn_gives_its_place_to_the_session_opened_meanwhile() -> Result<()> {
+    let (services, api, session_id, _temp_dir) =
+        agent_with(crate::hooks::HookManager::default(), 1).await?;
+    api.on("hello").reply("hi there!");
+    services.attach_session(&session_id, 1, attachment()).await;
+
+    let events = services
+        .reply(
+            Message::user().with_text("hello"),
+            SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: None,
+            },
+            None,
+        )
+        .await?;
+    services.attach_session("newer", 1, attachment()).await;
+    assert!(services.runtime.is_attached(&session_id, 1));
+
+    for event in events.collect::<Vec<_>>().await {
+        event?;
+    }
+    assert!(services.runtime.is_attached("newer", 1));
+    assert!(!services.runtime.is_attached(&session_id, 1));
     Ok(())
 }

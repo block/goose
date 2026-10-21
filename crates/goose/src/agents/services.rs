@@ -945,9 +945,7 @@ impl StateMachineServices {
                         yield event;
                     }
                     if !has_confirmations {
-                        turn_guard.state().clear_confirmations();
-                        services.trim_sessions().await;
-                        return;
+                        break;
                     }
                 }
                 if !turn_guard
@@ -955,12 +953,13 @@ impl StateMachineServices {
                     .wait_for_all_confirmation_answers(&cancel)
                     .await
                 {
-                    turn_guard.state().clear_confirmations();
-                    services.trim_sessions().await;
-                    return;
+                    break;
                 }
                 run = true;
             }
+            turn_guard.state().clear_confirmations();
+            drop(turn_guard);
+            services.trim_sessions().await;
         };
         crate::session_context::with_session_id_stream(Some(session_id), Box::pin(events))
     }
