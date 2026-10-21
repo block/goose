@@ -263,6 +263,18 @@ impl DatabricksV2Provider {
                 .is_some_and(|service| service.to_lowercase().contains("gemini"))
     }
 
+    /// OpenAI models take the Responses route, so MLflow chat models get `system`: Gemini rejects `developer`.
+    fn use_system_role(payload: &mut Value) {
+        let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
+            return;
+        };
+        for message in messages {
+            if message.get("role").and_then(Value::as_str) == Some("developer") {
+                message["role"] = Value::String("system".to_string());
+            }
+        }
+    }
+
     fn always_on_reasoning_effort(model_config: &ModelConfig) -> Option<&'static str> {
         if !model_config.is_reasoning_model()
             || !(model_config.is_glm_5_3_reasoning_model()
@@ -398,6 +410,7 @@ impl DatabricksV2Provider {
         if is_model_service {
             payload["model"] = Value::String(model_config.model_name.clone());
         }
+        Self::use_system_role(&mut payload);
         // The gateway maps `stream_options` into Gemini's `generation_config`, which rejects it.
         if Self::is_gemini_model_service(&model_config.model_name) {
             if let Some(object) = payload.as_object_mut() {
@@ -1064,6 +1077,36 @@ mod tests {
             assert_eq!(usage.usage.input_tokens, Some(7));
             assert_eq!(usage.usage.output_tokens, Some(2));
             assert_eq!(usage.usage.total_tokens, Some(9));
+        }
+
+        #[test_case::test_case("catalog.schema.goose-gemini-3-pro" ; "gemini model service")]
+        #[test_case::test_case("databricks-gemini-3-pro" ; "gemini endpoint")]
+        #[tokio::test]
+        async fn reasoning_model_on_mlflow_route_sends_system_role(model: &str) {
+            let body = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/ai-gateway/mlflow/v1/chat/completions"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_string(body)
+                        .append_header("content-type", "text/event-stream"),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let mut model_config = ModelConfig::new(model);
+            model_config.reasoning = Some(true);
+            provider(server.uri())
+                .complete(&model_config, "system", &[], &[])
+                .await
+                .expect("reasoning model should stream over the MLflow chat route");
+
+            let requests = server.received_requests().await.unwrap();
+            let request: Value = serde_json::from_slice(&requests[0].body).unwrap();
+            assert_eq!(request["messages"][0]["role"], "system");
         }
 
         #[tokio::test]
