@@ -1908,10 +1908,8 @@ impl AcpConnection {
             self.services.discard_pending_steers(session_id);
         }
 
-        if self.closed_session_ids.lock().await.contains(session_id)
-            && !self.services.runtime.is_open(session_id)
-        {
-            self.services.release_session(session_id).await;
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            self.services.release_session_if_closed(session_id).await;
         }
     }
 

@@ -26,6 +26,7 @@ pub struct SessionRuntime {
     /// Per session, in attach order; the last one is who the session currently talks to.
     attachments: Mutex<HashMap<String, IndexMap<u64, Attachment>>>,
     steer_queues: Mutex<HashMap<String, SteerQueue>>,
+    lifetimes: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     pub(super) confirmations: ToolConfirmationCoordinator,
     pub runs: Arc<ActiveRunRegistry>,
 }
@@ -37,6 +38,7 @@ impl SessionRuntime {
             resident: Mutex::new(lru::LruCache::unbounded()),
             attachments: Mutex::new(HashMap::new()),
             steer_queues: Mutex::new(HashMap::new()),
+            lifetimes: Mutex::new(HashMap::new()),
             confirmations: ToolConfirmationCoordinator::new(),
             runs: Arc::new(ActiveRunRegistry::default()),
         }
@@ -74,6 +76,23 @@ impl SessionRuntime {
             resident.pop(id);
         }
         evicted
+    }
+
+    /// Held while a session is attached or released, so a release never clears a session
+    /// that was attached while it ran.
+    pub(super) async fn lock_lifetime(&self, session_id: &str) -> LifetimeGuard<'_> {
+        let lock = self
+            .lifetimes
+            .lock()
+            .expect("session runtime poisoned")
+            .entry(session_id.to_string())
+            .or_default()
+            .clone();
+        LifetimeGuard {
+            runtime: self,
+            session_id: session_id.to_string(),
+            _held: lock.lock_owned().await,
+        }
     }
 
     pub(super) fn attach(&self, session_id: &str, connection: u64, attachment: Attachment) {
@@ -180,5 +199,28 @@ impl SessionRuntime {
         self.discard_pending_steers(session_id);
         self.confirmations.release(session_id);
         self.runs.cancel_agent_run(session_id);
+    }
+}
+
+pub(super) struct LifetimeGuard<'a> {
+    runtime: &'a SessionRuntime,
+    session_id: String,
+    _held: tokio::sync::OwnedMutexGuard<()>,
+}
+
+impl Drop for LifetimeGuard<'_> {
+    fn drop(&mut self) {
+        let mut lifetimes = self
+            .runtime
+            .lifetimes
+            .lock()
+            .expect("session runtime poisoned");
+        // The map's reference and ours: nobody else is waiting.
+        if lifetimes
+            .get(&self.session_id)
+            .is_some_and(|lock| Arc::strong_count(lock) == 2)
+        {
+            lifetimes.remove(&self.session_id);
+        }
     }
 }

@@ -420,15 +420,19 @@ impl StateMachineServices {
     /// Opens the session for a connection, which from now on is who extensions start for
     /// and who gets its generated names.
     pub async fn attach_session(&self, session_id: &str, connection: u64, attachment: Attachment) {
-        self.extension_manager
-            .attach_client(session_id, attachment.client.clone());
-        self.runtime.attach(session_id, connection, attachment);
+        {
+            let _lifetime = self.runtime.lock_lifetime(session_id).await;
+            self.extension_manager
+                .attach_client(session_id, attachment.client.clone());
+            self.runtime.attach(session_id, connection, attachment);
+        }
         self.touch_session(session_id).await;
     }
 
     /// Closes the session for one connection; the session is released when that was the
     /// last one. Returns whether it was.
     pub async fn detach_session(&self, session_id: &str, connection: u64) -> bool {
+        let _lifetime = self.runtime.lock_lifetime(session_id).await;
         match self.runtime.detach(session_id, connection) {
             Some(latest) => {
                 self.extension_manager
@@ -436,7 +440,7 @@ impl StateMachineServices {
                 false
             }
             None => {
-                self.release_session(session_id).await;
+                self.release(session_id).await;
                 true
             }
         }
@@ -472,6 +476,19 @@ impl StateMachineServices {
     /// keeps for it, and cancels its run. Connections that had it open attach again on
     /// their next request.
     pub async fn release_session(&self, session_id: &str) {
+        let _lifetime = self.runtime.lock_lifetime(session_id).await;
+        self.release(session_id).await;
+    }
+
+    /// Releases the session unless a connection has it open.
+    pub async fn release_session_if_closed(&self, session_id: &str) {
+        let _lifetime = self.runtime.lock_lifetime(session_id).await;
+        if !self.runtime.is_open(session_id) {
+            self.release(session_id).await;
+        }
+    }
+
+    async fn release(&self, session_id: &str) {
         self.runtime.forget(session_id);
         self.session_manager
             .action_required()
@@ -1451,6 +1468,30 @@ mod tests {
 
             assert!(services.runtime.is_attached("new", 1));
             assert!(services.runtime.is_attached("busy", 1));
+        }
+
+        #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+        async fn a_release_never_clears_a_session_attached_while_it_ran() {
+            let temp_dir = TempDir::new().unwrap();
+            let services = test_services(&temp_dir, 100);
+            for _ in 0..500 {
+                services.attach_session("s", 1, attachment("first")).await;
+                let closing = tokio::spawn({
+                    let services = Arc::clone(&services);
+                    async move { services.detach_session("s", 1).await }
+                });
+                let opening = tokio::spawn({
+                    let services = Arc::clone(&services);
+                    async move { services.attach_session("s", 2, attachment("second")).await }
+                });
+                closing.await.unwrap();
+                opening.await.unwrap();
+
+                if services.runtime.is_attached("s", 2) {
+                    assert_eq!(services.extension_manager.client("s").name, "second");
+                }
+                services.release_session("s").await;
+            }
         }
 
         #[tokio::test]
