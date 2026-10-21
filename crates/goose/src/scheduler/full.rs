@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::{AgentEvent, SessionConfig, StateMachineServices, StateMachineServicesConfig};
+use crate::agents::{AgentEvent, SessionConfig, StateMachineServices};
 use crate::config::{resolve_extensions_for_new_session, Config, GooseMode};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -97,19 +97,6 @@ fn clear_running_state(job: &mut ScheduledJob) -> bool {
 
 type ServicesCell = Arc<tokio::sync::SetOnce<Weak<StateMachineServices>>>;
 
-impl StateMachineServices {
-    /// Services whose scheduler runs its jobs on them.
-    pub fn with_scheduler(
-        mut config: StateMachineServicesConfig,
-        scheduler: Arc<Scheduler>,
-    ) -> Arc<Self> {
-        config.scheduler_service = Some(scheduler.clone());
-        let services = Self::with_config(config);
-        scheduler.attach_services(&services);
-        services
-    }
-}
-
 pub struct Scheduler {
     tokio_scheduler: TokioJobScheduler,
     jobs: Arc<Mutex<JobsMap>>,
@@ -149,11 +136,6 @@ impl Scheduler {
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
 
         Ok(arc_self)
-    }
-
-    /// Jobs run on these services; a job that comes due before they are attached waits.
-    fn attach_services(&self, services: &Arc<StateMachineServices>) {
-        let _ = self.services.set(Arc::downgrade(services));
     }
 
     fn create_cron_task(&self, job: ScheduledJob) -> Result<Job, SchedulerError> {
@@ -1097,6 +1079,11 @@ async fn execute_job(
 
 #[async_trait]
 impl SchedulerTrait for Scheduler {
+    /// A job that comes due before this waits for it.
+    fn run_jobs_on(&self, services: &Arc<StateMachineServices>) {
+        let _ = self.services.set(Arc::downgrade(services));
+    }
+
     async fn add_scheduled_job(
         &self,
         job: ScheduledJob,
@@ -1386,16 +1373,14 @@ mod tests {
         let scheduler = Scheduler::new(storage_path, session_manager.clone())
             .await
             .unwrap();
-        let _services = StateMachineServices::with_scheduler(
-            StateMachineServicesConfig::new(
+        let _services =
+            StateMachineServices::with_config(crate::agents::StateMachineServicesConfig::new(
                 session_manager.clone(),
                 crate::config::permission::PermissionManager::instance(),
-                None,
+                Some(scheduler.clone()),
                 true,
                 crate::agents::GoosePlatform::GooseCli,
-            ),
-            scheduler.clone(),
-        );
+            ));
 
         let job = ScheduledJob {
             id: "scheduled_job".to_string(),
@@ -1476,16 +1461,14 @@ mod tests {
         let error = scheduler.run_now("run_now_job").await.unwrap_err();
         assert!(error.to_string().contains("No goose services"), "{error}");
 
-        let services = StateMachineServices::with_scheduler(
-            StateMachineServicesConfig::new(
+        let services =
+            StateMachineServices::with_config(crate::agents::StateMachineServicesConfig::new(
                 session_manager.clone(),
                 crate::config::permission::PermissionManager::instance(),
-                None,
+                Some(scheduler.clone()),
                 true,
                 crate::agents::GoosePlatform::GooseCli,
-            ),
-            scheduler.clone(),
-        );
+            ));
         let _ = scheduler.run_now("run_now_job").await;
 
         let sessions = session_manager

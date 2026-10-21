@@ -343,7 +343,7 @@ impl StateMachineServices {
         let mut default_client = ClientContext::new(&config.goose_platform, None);
         default_client.capabilities.elicitation_handler = config.elicitation_handler;
         default_client.capabilities.protocol_version = config.mcp_protocol_version;
-        Arc::new(Self {
+        let services = Arc::new(Self {
             extension_manager: Arc::new(ExtensionManager::new(
                 config.providers.clone(),
                 config.session_manager.clone(),
@@ -366,7 +366,11 @@ impl StateMachineServices {
                 crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref())
             }),
             turn_settings: config.turn_settings,
-        })
+        });
+        if let Some(scheduler) = &services.scheduler {
+            scheduler.run_jobs_on(&services);
+        }
+        services
     }
 
     /// Emit a lifecycle hook event with no extra context. Useful for events

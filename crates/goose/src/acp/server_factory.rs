@@ -52,28 +52,36 @@ impl AcpServer {
         self.services
             .get_or_try_init(|| async {
                 let session_manager = Arc::new(SessionManager::new(self.data_dir.clone()));
+                #[cfg(feature = "scheduler")]
+                let scheduler: Option<
+                    Arc<dyn crate::scheduler_trait::SchedulerTrait>,
+                > = if self.config.enable_scheduler {
+                    Some(
+                        crate::scheduler::Scheduler::new(
+                            self.data_dir.join("schedule.json"),
+                            session_manager.clone(),
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                #[cfg(not(feature = "scheduler"))]
+                let scheduler = None;
                 let config = acp_services_config(
-                    session_manager.clone(),
+                    session_manager,
                     self.config.config_dir.clone(),
                     crate::config::Config::global()
                         .get_goose_disable_session_naming()
                         .unwrap_or(false),
                     self.config.goose_platform.clone(),
                 );
-                #[cfg(feature = "scheduler")]
-                let services = if self.config.enable_scheduler {
-                    let scheduler = crate::scheduler::Scheduler::new(
-                        self.data_dir.join("schedule.json"),
-                        session_manager,
-                    )
-                    .await?;
-                    StateMachineServices::with_scheduler(config, scheduler)
-                } else {
-                    StateMachineServices::with_config(config)
-                };
-                #[cfg(not(feature = "scheduler"))]
-                let services = StateMachineServices::with_config(config);
-                anyhow::Ok(services)
+                anyhow::Ok(StateMachineServices::with_config(
+                    crate::agents::StateMachineServicesConfig {
+                        scheduler_service: scheduler,
+                        ..config
+                    },
+                ))
             })
             .await
             .cloned()

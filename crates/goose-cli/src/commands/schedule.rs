@@ -250,7 +250,8 @@ pub async fn handle_schedule_run_now(schedule_id: String) -> Result<()> {
         .context("Failed to initialize scheduler")?;
     let mut config = StateMachineServicesConfig::cli();
     config.disable_session_naming = true;
-    let _services = StateMachineServices::with_scheduler(config, scheduler.clone());
+    config.scheduler_service = Some(scheduler.clone());
+    let _services = StateMachineServices::with_config(config);
 
     match scheduler.run_now(&schedule_id).await {
         Ok(session_id) => {
