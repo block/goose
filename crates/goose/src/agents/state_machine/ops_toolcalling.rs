@@ -1115,6 +1115,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::ActionRequired;
     use crate::permission::Permission;
 
     #[test]
@@ -1191,14 +1192,14 @@ mod tests {
             Some(serde_json::json!({ "goose.executable": false })),
         );
         let mut answered = Message::assistant();
-        answered.content.push(MessageContent::ActionRequired(
-            ActionRequired {
+        answered
+            .content
+            .push(MessageContent::ActionRequired(ActionRequired {
                 data: ActionRequiredData::ToolConfirmationResponse {
                     id: "user-denied".to_string(),
                     permission: Permission::DenyOnce,
                 },
-            },
-        ));
+            }));
 
         let pending = pending_tool_requests(&[request, answered]);
 
