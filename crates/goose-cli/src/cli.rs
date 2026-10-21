@@ -39,9 +39,9 @@ use crate::commands::skills::handle_skills_list;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
-use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
+use goose_agent::container::Container;
 use std::io::Read;
 use std::path::PathBuf;
 #[cfg(feature = "acp-http")]
@@ -154,7 +154,10 @@ pub struct StreamableHttpOptions {
 
 fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
     let mut input_iter = input.split_whitespace();
-    let (mut url, mut timeout) = (String::new(), goose::config::DEFAULT_EXTENSION_TIMEOUT);
+    let (mut url, mut timeout) = (
+        String::new(),
+        goose_agent::extension::DEFAULT_EXTENSION_TIMEOUT,
+    );
 
     if let Some(url_str) = input_iter.next() {
         url.push_str(url_str);
@@ -1448,9 +1451,9 @@ enum McpProbeElicitation {
 }
 
 async fn handle_mcp_probe(extension_command: String, script_path: Option<String>) -> Result<()> {
-    use goose::agents::extension_manager::CallRequest;
     use goose::agents::{Agent, AgentConfig};
-    use goose::config::ExtensionConfig;
+    use goose_agent::extension::ExtensionConfig;
+    use goose_agent::extension_manager::CallRequest;
     use rmcp::model::{ElicitRequestParams, ElicitResult, ElicitationAction};
     use tokio_util::sync::CancellationToken;
 
@@ -1481,7 +1484,7 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
     {
         crate::session::CliSession::parse_streamable_http_extension(
             &extension_command,
-            goose::config::DEFAULT_EXTENSION_TIMEOUT,
+            goose_agent::extension::DEFAULT_EXTENSION_TIMEOUT,
         )
     } else {
         crate::session::CliSession::parse_stdio_extension(&extension_command)?

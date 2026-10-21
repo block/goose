@@ -9,13 +9,10 @@ use futures::{StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
 use super::gen_ai_telemetry;
-use super::mcp_client::GooseMcpHostInfo;
 use super::tool_confirmation_coordinator::{
     ActiveTurnGuard, ConfirmationAnswer, ToolConfirmationCoordinator,
 };
-use crate::action_required_manager::ElicitationOutcome;
-use crate::agents::extension::{ExtensionConfig, ExtensionResult};
-use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::provider_manager::ProviderManager;
 use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
@@ -29,7 +26,6 @@ use crate::agents::types::{
     SessionConfig, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::agents::AgentEvent;
-use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -43,6 +39,10 @@ use crate::security::security_inspector::SecurityInspector;
 use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
+use goose_agent::action_required_manager::ElicitationOutcome;
+use goose_agent::extension::{name_to_key, ExtensionConfig, ExtensionResult};
+use goose_agent::extension_manager::ExtensionManagerCapabilities;
+use goose_agent::mcp_client::GooseMcpHostInfo;
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::{ThinkingEffort, ThinkingEffortSupport};
@@ -163,7 +163,7 @@ pub struct AgentConfig {
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub mcp_host_info: Option<GooseMcpHostInfo>,
-    pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
+    pub elicitation_handler: Option<goose_agent::mcp_client::ElicitationHandler>,
     pub mcp_protocol_version: Option<rmcp::model::ProtocolVersion>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
     pub providers: Arc<ProviderManager>,

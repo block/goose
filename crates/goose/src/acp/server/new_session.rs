@@ -1,9 +1,9 @@
 use crate::acp::custom_requests::GooseExtension;
 use crate::acp::server::{meta_string, validate_absolute_cwd, ResultExt};
-use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::recipe::{Recipe, Settings};
 use crate::session::{ExtensionData, Session, SessionType};
+use goose_agent::extension_manager::ExtensionLoadResult;
 
 use super::GooseAcpAgent;
 use agent_client_protocol::schema::v1::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
