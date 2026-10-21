@@ -1115,6 +1115,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permission::Permission;
 
     #[test]
     fn externally_dispatched_observations_are_not_pending_execution() {
