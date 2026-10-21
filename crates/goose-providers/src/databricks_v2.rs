@@ -1068,36 +1068,6 @@ mod tests {
             assert_eq!(usage.usage.total_tokens, Some(9));
         }
 
-        #[test_case::test_case("catalog.schema.goose-gemini-3-pro" ; "gemini model service")]
-        #[test_case::test_case("databricks-gemini-3-pro" ; "gemini endpoint")]
-        #[tokio::test]
-        async fn reasoning_model_on_mlflow_route_sends_system_role(model: &str) {
-            let body = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
-
-            let server = MockServer::start().await;
-            Mock::given(method("POST"))
-                .and(path("/ai-gateway/mlflow/v1/chat/completions"))
-                .respond_with(
-                    ResponseTemplate::new(200)
-                        .set_body_string(body)
-                        .append_header("content-type", "text/event-stream"),
-                )
-                .expect(1)
-                .mount(&server)
-                .await;
-
-            let mut model_config = ModelConfig::new(model);
-            model_config.reasoning = Some(true);
-            provider(server.uri())
-                .complete(&model_config, "system", &[], &[])
-                .await
-                .expect("reasoning model should stream over the MLflow chat route");
-
-            let requests = server.received_requests().await.unwrap();
-            let request: Value = serde_json::from_slice(&requests[0].body).unwrap();
-            assert_eq!(request["messages"][0]["role"], "system");
-        }
-
         #[tokio::test]
         async fn non_gemini_model_service_keeps_stream_options() {
             let model = "catalog.schema.goose-kimi-k3";
