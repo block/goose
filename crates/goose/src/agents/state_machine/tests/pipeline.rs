@@ -22,7 +22,7 @@ use crate::agents::subagent_handler::ForegroundSubagentRunner;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
-use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent, MessageErrorKind};
 use crate::conversation::Conversation;
 use crate::hooks::HookManager;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -1029,6 +1029,16 @@ impl TestRun {
             .iter()
             .filter(|event| matches!(event, AgentEvent::HistoryReplaced(_)))
             .count()
+    }
+
+    pub(super) fn emitted_error_kinds(&self) -> Vec<MessageErrorKind> {
+        self.events
+            .iter()
+            .filter_map(|event| match event {
+                AgentEvent::Message(message) => message.error_kind(),
+                _ => None,
+            })
+            .collect()
     }
 
     pub(super) fn assert_emitted(&self, contains: &str) {

@@ -1344,3 +1344,157 @@ fn test_shell_terminal_false() {
 fn test_shell_terminal_true() {
     run_test(async { run_shell_terminal_true::<AcpServerConnection>().await });
 }
+
+const CONTEXT_OVERFLOW: &str = r#"status:400 {"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}"#;
+const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
+const CONTEXT_ERROR_TEXT: &str =
+    "Context length exceeded: too long\n\nThe conversation is too long for the model's context window.";
+
+async fn prompt_after_context_overflow(
+    exchanges: Vec<(&str, &'static str)>,
+) -> anyhow::Result<String> {
+    prompt_overflow_then_replay(exchanges).await.0
+}
+
+async fn prompt_overflow_then_replay(
+    exchanges: Vec<(&str, &'static str)>,
+) -> (anyhow::Result<String>, String, String) {
+    let mut all = vec![("overflow", CONTEXT_OVERFLOW)];
+    all.extend(exchanges);
+    prompt_then_replay("overflow", all).await
+}
+
+async fn prompt_then_replay(
+    prompt: &str,
+    exchanges: Vec<(&str, &'static str)>,
+) -> (anyhow::Result<String>, String, String) {
+    let expected_session_id = <AcpServerConnection as Connection>::expected_session_id();
+    let exchanges = exchanges
+        .into_iter()
+        .map(|(p, r)| (p.to_string(), r))
+        .collect();
+    let openai = OpenAiFixture::new(exchanges, expected_session_id.clone()).await;
+    let mut conn =
+        <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+    let SessionData { mut session, .. } = conn.new_session().await.unwrap();
+    expected_session_id.set(&session.session_id().0);
+    let session_id = session.session_id().0.to_string();
+    let result = session
+        .prompt(prompt, PermissionDecision::Cancel)
+        .await
+        .map(|output| output.text);
+    let streamed = agent_text(session.session_updates());
+
+    let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
+    let replayed = agent_text(session.session_updates());
+    (result, streamed, replayed)
+}
+
+fn agent_text(updates: Vec<SessionUpdate>) -> String {
+    updates
+        .into_iter()
+        .filter_map(|update| match update {
+            SessionUpdate::AgentMessageChunk(chunk) => match chunk.content {
+                ContentBlock::Text(text) => Some(text.text),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+fn prompt_acp_error(error: anyhow::Error) -> agent_client_protocol::Error {
+    error.downcast::<agent_client_protocol::Error>().unwrap()
+}
+
+#[test]
+fn test_prompt_succeeds_when_compaction_recovers_from_context_overflow() {
+    run_test(async {
+        let text = prompt_after_context_overflow(vec![
+            (
+                SUMMARIZE_HISTORY,
+                include_str!("acp_test_data/openai_basic.txt"),
+            ),
+            (
+                "Your context was compacted",
+                include_str!("acp_test_data/openai_basic.txt"),
+            ),
+        ])
+        .await
+        .unwrap();
+        assert_eq!(text, format!("{CONTEXT_ERROR_TEXT}2"));
+    });
+}
+
+#[test]
+fn test_prompt_reports_sign_in_when_compaction_hits_auth_error() {
+    run_test(async {
+        let error = prompt_after_context_overflow(vec![(
+            SUMMARIZE_HISTORY,
+            r#"status:401 {"error":{"message":"bad key"}}"#,
+        )])
+        .await
+        .unwrap_err();
+        assert_eq!(prompt_acp_error(error).code, ErrorCode::AuthRequired);
+    });
+}
+
+#[test]
+fn test_prompt_reports_context_error_when_compaction_limit_is_exhausted() {
+    run_test(async {
+        let basic = include_str!("acp_test_data/openai_basic.txt");
+        let error = prompt_after_context_overflow(vec![
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", CONTEXT_OVERFLOW),
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", CONTEXT_OVERFLOW),
+        ])
+        .await
+        .unwrap_err();
+        let error = prompt_acp_error(error);
+        assert_eq!(error.code, ErrorCode::InternalError);
+        assert_eq!(error.data.unwrap()["reason"], "turn_failed");
+        assert!(
+            error.message.contains("too long"),
+            "message: {}",
+            error.message
+        );
+    });
+}
+
+const PARTIAL_THEN_STREAM_ERROR: &str = "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1766229303,\"model\":\"gpt-5-nano\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"partial answer\"},\"finish_reason\":null}]}\n\ndata: {\"error\":{\"message\":\"upstream exploded\"}}\n\n";
+
+#[test]
+fn test_prompt_error_after_partial_reply_keeps_the_reply_in_history() {
+    run_test(async {
+        let (result, streamed, replayed) =
+            prompt_then_replay("partial", vec![("partial", PARTIAL_THEN_STREAM_ERROR)]).await;
+        let error = prompt_acp_error(result.unwrap_err());
+        assert_eq!(error.code, ErrorCode::InternalError);
+        assert!(
+            streamed.contains("upstream exploded"),
+            "streamed text: {streamed:?}"
+        );
+        assert!(
+            replayed.contains("partial answer"),
+            "replayed history: {replayed:?}"
+        );
+    });
+}
+
+#[test]
+fn test_replay_shows_a_context_error_the_turn_recovered_from() {
+    run_test(async {
+        let basic = include_str!("acp_test_data/openai_basic.txt");
+        let (result, _, replayed) = prompt_overflow_then_replay(vec![
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", basic),
+        ])
+        .await;
+        assert_eq!(result.unwrap(), format!("{CONTEXT_ERROR_TEXT}2"));
+        assert!(
+            replayed.ends_with(&format!("{CONTEXT_ERROR_TEXT}2")),
+            "replayed history: {replayed:?}"
+        );
+    });
+}

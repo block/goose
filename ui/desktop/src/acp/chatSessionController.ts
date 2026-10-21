@@ -18,6 +18,7 @@ import {
 import { cancelAcpElicitationRequestsForSession } from './elicitationRequests';
 import {
   formatAcpError,
+  isAcpTurnError,
   parseAcpCreditsExhaustedError,
   type AcpCreditsExhaustedError,
 } from './errors';
@@ -214,7 +215,7 @@ async function submitMessage(
       return;
     }
 
-    const submitError = formatAcpError(error);
+    const submitError = isAcpTurnError(error) ? undefined : formatAcpError(error);
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish(submitError);
     }
