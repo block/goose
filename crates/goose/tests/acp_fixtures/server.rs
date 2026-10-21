@@ -64,7 +64,7 @@ impl AcpServerSession {
             .collect()
     }
 
-    async fn send_prompt(
+    pub async fn send_prompt(
         &mut self,
         content: Vec<ContentBlock>,
         decision: PermissionDecision,

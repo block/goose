@@ -1646,6 +1646,18 @@ fn is_context_length_error(content: &MessageContent) -> bool {
     )
 }
 
+/// Visible assistant text or a tool request shows the model answered after a
+/// context overflow. Compaction notices, reasoning and agent-only messages don't.
+fn is_resumed_assistant_output(message: &Message, content: &MessageContent) -> bool {
+    message.role == rmcp::model::Role::Assistant
+        && message.is_user_visible()
+        && match content {
+            MessageContent::Text(text) => !text.text.trim().is_empty(),
+            MessageContent::ToolRequest(_) => true,
+            _ => false,
+        }
+}
+
 fn prompt_error_from_message_content(
     content_item: &MessageContent,
 ) -> Option<agent_client_protocol::Error> {
@@ -2152,12 +2164,16 @@ impl GooseAcpAgent {
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
                             // The agent recovers from a context overflow by compacting, so hold
-                            // that error until the turn shows whether recovery worked.
+                            // that error until the model visibly answers again.
                             if is_context_length_error(content_item) {
                                 pending_context_error = Some(error);
                                 continue;
                             }
                             return Err(error);
+                        }
+
+                        if is_resumed_assistant_output(&message, content_item) {
+                            pending_context_error = None;
                         }
 
                         if let MessageContent::ToolRequest(tool_request) = content_item {
@@ -2229,7 +2245,6 @@ impl GooseAcpAgent {
                     }
                 }
                 Ok(crate::agents::AgentEvent::HistoryReplaced(_)) => {
-                    pending_context_error = None;
                     if self.supports_goose_custom_notifications() {
                         cx.send_notification(GooseSessionNotification {
                             session_id: session_id.to_string(),

@@ -3,10 +3,10 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, ListSessionsRequest, ListSessionsResponse, McpServer, McpServerHttp,
-    NewSessionRequest, PromptRequest, SessionConfigKind, SessionConfigOptionCategory,
-    SessionConfigOptionValue, SessionInfo, SessionUpdate, SetSessionConfigOptionRequest,
-    StopReason, TextContent,
+    ContentBlock, ImageContent, ListSessionsRequest, ListSessionsResponse, McpServer,
+    McpServerHttp, NewSessionRequest, PromptRequest, SessionConfigKind,
+    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo, SessionUpdate,
+    SetSessionConfigOptionRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::{
@@ -39,7 +39,7 @@ use goose::custom_requests::{
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
-use goose_test_support::{McpFixture, FAKE_CODE};
+use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64};
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -1431,6 +1431,44 @@ fn test_prompt_reports_context_error_when_compaction_limit_is_exhausted() {
         .unwrap_err();
         let error = prompt_acp_error(error);
         assert_eq!(error.code, ErrorCode::InternalError);
+        assert_eq!(error.data.unwrap()["kind"], "contextLengthExceeded");
+    });
+}
+
+/// Below 32,000 tokens no turn context is added, so compacting an image-only prompt
+/// leaves no user text to retry and the turn ends without a model reply.
+#[test]
+fn test_prompt_reports_context_error_when_compaction_leaves_nothing_to_retry() {
+    run_test(async {
+        std::env::set_var("GOOSE_CONTEXT_LIMIT", "16000");
+        let expected_session_id = <AcpServerConnection as Connection>::expected_session_id();
+        let openai = OpenAiFixture::new(
+            vec![
+                (r#""type":"image_url""#.to_string(), CONTEXT_OVERFLOW),
+                (
+                    SUMMARIZE_HISTORY.to_string(),
+                    include_str!("acp_test_data/openai_basic.txt"),
+                ),
+            ],
+            expected_session_id.clone(),
+        )
+        .await;
+        let mut conn =
+            <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+        let SessionData { mut session, .. } = conn.new_session().await.unwrap();
+        expected_session_id.set(&session.session_id().0);
+        let result = session
+            .send_prompt(
+                vec![ContentBlock::Image(ImageContent::new(
+                    TEST_IMAGE_B64,
+                    "image/png",
+                ))],
+                PermissionDecision::Cancel,
+            )
+            .await;
+        std::env::remove_var("GOOSE_CONTEXT_LIMIT");
+
+        let error = prompt_acp_error(result.unwrap_err());
         assert_eq!(error.data.unwrap()["kind"], "contextLengthExceeded");
     });
 }
