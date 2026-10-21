@@ -7,7 +7,7 @@ use crate::agents::state_machine::{
 };
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::session::Session;
+use crate::session::{GoalState, Session};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -41,9 +41,13 @@ impl Operation<Session, GooseEffect> for MaxTurnsOperation {
 
     async fn moim_parts(
         &self,
-        _session: &Session,
+        session: &Session,
         conversation: &Conversation,
     ) -> Result<Vec<String>> {
+        // A pursuit is unbounded by design, so the budget hint is meaningless.
+        if GoalState::of(session).pursue.is_some() {
+            return Ok(Vec::new());
+        }
         let turns_taken = assistant_turn_count(messages_since_kickoff(conversation)?);
         Ok(turn_budget_part(turns_taken, self.max_turns)
             .into_iter()
@@ -52,10 +56,14 @@ impl Operation<Session, GooseEffect> for MaxTurnsOperation {
 
     async fn run(
         &self,
-        _session: &Session,
+        session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
+        // A pursuit ends only when the agent confirms completion via pursue__done.
+        if GoalState::of(session).pursue.is_some() {
+            return not_applicable();
+        }
         let messages = messages_since_kickoff(conversation)?;
         if assistant_turn_count(messages) < self.max_turns {
             return not_applicable();
