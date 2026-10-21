@@ -18,14 +18,28 @@ name: Live Provider Tests
 jobs:
   check-fork:
     runs-on: ubuntu-latest
-    # Skip entire workflow for fork PRs and dependabot PRs (they don't have access to secrets)
+    timeout-minutes: 5
+    # Skip entire workflow for dependabot PRs, cross-repo fork PRs, and repos without
+    # the provider secrets (e.g. in-fork PRs) — the test jobs cannot pass without them.
     if: github.actor != 'dependabot[bot]' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    outputs:
+      has_secrets: ${{ steps.secrets.outputs.available }}
     steps:
-      - run: echo "Not a fork PR - proceeding with smoke tests"
+      - id: secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Provider secrets unavailable - skipping live provider tests"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
 
   changes:
     runs-on: ubuntu-latest
     needs: check-fork
+    if: needs.check-fork.outputs.has_secrets == 'true'
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:

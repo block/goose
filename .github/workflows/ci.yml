@@ -194,7 +194,6 @@ jobs:
       contents: read
     uses: ./.github/workflows/maven-sdk.yml
     with:
-      publish: false
       smoke-test: true
 
   rust-build-and-test-tls:
