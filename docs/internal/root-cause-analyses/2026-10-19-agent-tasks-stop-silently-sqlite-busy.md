@@ -62,6 +62,20 @@ retry. Non-busy errors are passed through unchanged. A transient lock window
 from compaction or a concurrent writer now delays the write by well under a
 second instead of killing the turn.
 
+Follow-up RCA (2026-10-21, phantom-decline investigation) found two more
+prompt-critical writes that could fail on SQLITE_BUSY while their companion
+write succeeded, leaving divergent state behind: `update_message_metadata`
+(message visibility updates) and `update_tool_request_meta` (the
+`goose.executable` flag patch written when a tool call enters approval). If
+the meta patch persisted but the approval card message did not (or vice
+versa), the resume path reconstructed a tool request flagged
+`goose.executable=false` with no pending approval card and synthesized a
+"the user declined" response the user never made. Both writes are now wrapped
+in `with_busy_retry` as well, so the executable flag and approval state can no
+longer diverge on a transient lock: either both writes land or both are
+retried. The full phantom-decline analysis lives in the community web app
+`docs/internal/asi-work-phantom-decline-rca.md`.
+
 ## Regression tests
 
 Added to `crates/goose/src/session/session_manager.rs` tests:

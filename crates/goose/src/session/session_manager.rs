@@ -716,7 +716,7 @@ impl SessionManager {
 
     pub async fn update_message_metadata<F>(&self, id: &str, message_id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(
+        F: Fn(
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
@@ -2931,11 +2931,28 @@ impl SessionStorage {
         f: F,
     ) -> Result<()>
     where
-        F: FnOnce(
+        F: Fn(
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
         let pool = self.pool().await?;
+        with_busy_retry(|| {
+            Self::update_message_metadata_inner(pool, session_id, message_id, f)
+        })
+        .await
+    }
+
+    async fn update_message_metadata_inner<F>(
+        pool: Pool<Sqlite>,
+        session_id: &str,
+        message_id: &str,
+        f: F,
+    ) -> Result<()>
+    where
+        F: Fn(
+            crate::conversation::message::MessageMetadata,
+        ) -> crate::conversation::message::MessageMetadata,
+    {
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
         let current_metadata_json = sqlx::query_scalar::<_, String>(
@@ -2975,33 +2992,95 @@ impl SessionStorage {
         use crate::conversation::message::MessageContent;
 
         let pool = self.pool().await?;
-        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-        let rows = sqlx::query_as::<_, (i64, String)>(
-            "SELECT id, content_json FROM messages \
+        let rows = sqlx::query_as::<_, (Option<String>, String)>(
+            "SELECT message_id, content_json FROM messages \
              WHERE session_id = ? \
              ORDER BY id DESC \
              LIMIT 100",
         )
         .bind(session_id)
+        .fetch_all(pool)
+        .await?;
+
+        for (message_id, content_json) in rows {
+            let content: Vec<MessageContent> = serde_json::from_str(&content_json)?;
+            let contains_tool_request = content.iter().any(|block| {
+                matches!(
+                    block,
+                    MessageContent::ToolRequest(tool_request)
+                        if tool_request.id == tool_call_id
+                )
+            });
+            if contains_tool_request {
+                let Some(message_id) = message_id else {
+                    return Ok(());
+                };
+                return with_busy_retry(|| {
+                    self.update_tool_request_meta_by_message_id(
+                        session_id,
+                        &message_id,
+                        tool_call_id,
+                        patch.clone(),
+                    )
+                })
+                .await;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Patch `tool_meta` on a specific `ToolRequest` within a stored message's
+    /// `content_json`. Finds the row(s) with matching `message_id`, scans each
+    /// row's content for a `ToolRequest` with the given `tool_call_id`, and
+    /// merges `patch` into its `tool_meta`. Uses `BEGIN IMMEDIATE` so
+    /// concurrent writers serialize correctly.
+    async fn update_tool_request_meta_by_message_id(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        tool_call_id: &str,
+        patch: serde_json::Value,
+    ) -> Result<()> {
+        use crate::conversation::message::MessageContent;
+
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let rows = sqlx::query_as::<_, (i64, String)>(
+            "SELECT id, content_json FROM messages \
+             WHERE session_id = ? AND message_id = ? \
+             ORDER BY id ASC",
+        )
+        .bind(session_id)
+        .bind(message_id)
         .fetch_all(&mut *tx)
         .await?;
 
         for (row_id, content_json) in rows {
             let mut content: Vec<MessageContent> = serde_json::from_str(&content_json)?;
-            let Some(tool_request) = content.iter_mut().find_map(|block| match block {
-                MessageContent::ToolRequest(request) if request.id == tool_call_id => Some(request),
-                _ => None,
-            }) else {
+            let mut found = false;
+            for block in &mut content {
+                if let MessageContent::ToolRequest(tr) = block {
+                    if tr.id == tool_call_id {
+                        tr.tool_meta = Some(merge_tool_meta(tr.tool_meta.take(), &patch));
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if !found {
                 continue;
-            };
-            tool_request.tool_meta = Some(merge_tool_meta(tool_request.tool_meta.take(), &patch));
+            }
 
+            let updated_json = serde_json::to_string(&content)?;
             sqlx::query("UPDATE messages SET content_json = ? WHERE id = ?")
-                .bind(serde_json::to_string(&content)?)
+                .bind(updated_json)
                 .bind(row_id)
                 .execute(&mut *tx)
                 .await?;
-            break;
+            tx.commit().await?;
+            return Ok(());
         }
 
         tx.commit().await?;
