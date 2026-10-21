@@ -405,6 +405,123 @@ fn helper() { validate(0); }
     }
 
     #[tokio::test]
+    async fn every_registered_language_parses() {
+        // (extension, source, expected function, expected import)
+        let cases: &[(&str, &str, &str, &str)] = &[
+            (
+                "rs",
+                "use std::io;\nfn main() { helper(); }\nfn helper() {}",
+                "main",
+                "std::io",
+            ),
+            (
+                "py",
+                "import os\ndef main():\n    helper()\n\ndef helper():\n    pass",
+                "main",
+                "os",
+            ),
+            (
+                "js",
+                "import fs from 'fs';\nfunction main() { helper(); }\nfunction helper() {}",
+                "main",
+                "fs",
+            ),
+            (
+                "ts",
+                "import * as fs from 'fs';\nfunction main(): void { helper(); }\nfunction helper(): void {}",
+                "main",
+                "fs",
+            ),
+            (
+                "tsx",
+                "import React from 'react';\nfunction App() { return null; }",
+                "App",
+                "react",
+            ),
+            (
+                "go",
+                "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println() }",
+                "main",
+                "fmt",
+            ),
+            (
+                "java",
+                "import java.util.List;\nclass A {\n    void main() { helper(); }\n    void helper() {}\n}",
+                "main",
+                "java.util.List",
+            ),
+            (
+                "kt",
+                "import kotlin.collections.List\nfun main() { helper() }\nfun helper() {}",
+                "main",
+                "kotlin.collections.List",
+            ),
+            (
+                "swift",
+                "import Foundation\nfunc main() { helper() }\nfunc helper() {}",
+                "main",
+                "Foundation",
+            ),
+            (
+                "rb",
+                "require 'json'\ndef main\n  helper\nend\ndef helper\nend",
+                "main",
+                "json",
+            ),
+            (
+                "bzl",
+                "load(\"//tools:defs.bzl\", \"helper\")\n\ndef main():\n    helper()",
+                "main",
+                "//tools:defs.bzl",
+            ),
+            (
+                "c",
+                "#include \"util.h\"\nint main(void) { return helper(); }\nint helper(void) { return 0; }",
+                "main",
+                "util.h",
+            ),
+            (
+                "cpp",
+                "#include \"util.h\"\nclass Greeter {};\nint main() { return helper(); }\nint helper() { return 0; }",
+                "main",
+                "util.h",
+            ),
+            (
+                "cs",
+                "using System.Text;\nclass App {\n    static int Main() { return Helper(); }\n    static int Helper() { return 0; }\n}",
+                "Main",
+                "System.Text",
+            ),
+        ];
+
+        let client = AnalyzeClient::new(ctx()).unwrap();
+        for (ext, source, expected_fn, expected_import) in cases {
+            let tmp = tempdir().unwrap();
+            let file = tmp.path().join(format!("sample.{ext}"));
+            fs::write(&file, source).unwrap();
+            let result = client.analyze(
+                AnalyzeParams {
+                    path: file.to_str().unwrap().into(),
+                    focus: None,
+                    max_depth: 3,
+                    follow_depth: 2,
+                    force: false,
+                },
+                file.clone(),
+            );
+            let out = text(&result);
+            assert!(
+                out.contains(expected_fn),
+                "{ext}: missing function {expected_fn}\n{out}"
+            );
+            assert!(
+                out.contains(expected_import),
+                "{ext}: missing import {expected_import}\n{out}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn error_and_edge() {
         let client = AnalyzeClient::new(ctx()).unwrap();
 

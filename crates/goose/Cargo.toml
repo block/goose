@@ -23,6 +23,9 @@ otel = [
 code-mode = ["dep:boa_engine"]
 tree-sitter = [
     "dep:tree-sitter",
+    "dep:tree-sitter-c",
+    "dep:tree-sitter-c-sharp",
+    "dep:tree-sitter-cpp",
     "dep:tree-sitter-go",
     "dep:tree-sitter-java",
     "dep:tree-sitter-javascript",
@@ -30,6 +33,7 @@ tree-sitter = [
     "dep:tree-sitter-python",
     "dep:tree-sitter-ruby",
     "dep:tree-sitter-rust",
+    "dep:tree-sitter-starlark",
     "dep:tree-sitter-swift",
     "dep:tree-sitter-typescript",
 ]
@@ -109,6 +113,7 @@ platform-apps = []
 chat-recall = []
 scheduler = ["dep:tokio-cron-scheduler"]
 acp-http = ["dep:agent-client-protocol-http"]
+
 
 [lints]
 workspace = true
@@ -236,6 +241,7 @@ tree-sitter-kotlin-ng = { workspace = true, optional = true }
 tree-sitter-python = { workspace = true, optional = true }
 tree-sitter-ruby = { workspace = true, optional = true }
 tree-sitter-rust = { workspace = true, optional = true }
+tree-sitter-starlark = { workspace = true, optional = true }
 tree-sitter-swift = { workspace = true, optional = true }
 tree-sitter-typescript = { workspace = true, optional = true }
 which = { workspace = true }
@@ -255,6 +261,10 @@ image = { version = "0.24.9", default-features = false, features = ["png", "jpeg
 subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 boa_engine = { version = "0.22", default-features = false, optional = true, features = ["fuzz"] }
+tree-sitter-c = { workspace = true, optional = true }
+tree-sitter-cpp = { workspace = true, optional = true }
+tree-sitter-c-sharp = { workspace = true, optional = true }
+
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "minwinbase", "sddl", "securitybaseapi", "winbase", "winerror"] }

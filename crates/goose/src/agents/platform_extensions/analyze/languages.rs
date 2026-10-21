@@ -293,6 +293,118 @@ static LANGUAGES: &[LangInfo] = &[
         },
     },
     LangInfo {
+        name: "c",
+        extensions: &["c", "h"],
+        language: || tree_sitter_c::LANGUAGE.into(),
+        fn_kinds: &["function_definition"],
+        fn_name_kinds: &["identifier"],
+        class_kinds: &["struct_specifier"],
+        queries: LangQueries {
+            functions: r#"
+                (function_definition declarator: (function_declarator declarator: (identifier) @name))
+            "#,
+            classes: r#"
+                (struct_specifier name: (type_identifier) @name)
+            "#,
+            imports: r#"
+                (preproc_include path: (string_literal) @path)
+                (preproc_include path: (system_lib_string) @path)
+            "#,
+            calls: r#"
+                (call_expression function: (identifier) @name)
+            "#,
+        },
+    },
+    LangInfo {
+        name: "cpp",
+        extensions: &["cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++"],
+        language: || tree_sitter_cpp::LANGUAGE.into(),
+        fn_kinds: &["function_definition"],
+        fn_name_kinds: &["identifier", "field_identifier", "qualified_identifier"],
+        class_kinds: &["class_specifier", "struct_specifier"],
+        queries: LangQueries {
+            functions: r#"
+                (function_definition declarator: (function_declarator declarator: (identifier) @name))
+                (function_definition declarator: (function_declarator declarator: (field_identifier) @name))
+                (function_definition declarator: (function_declarator declarator: (qualified_identifier) @name))
+            "#,
+            classes: r#"
+                (class_specifier name: (type_identifier) @name)
+                (struct_specifier name: (type_identifier) @name)
+            "#,
+            imports: r#"
+                (preproc_include path: (string_literal) @path)
+                (preproc_include path: (system_lib_string) @path)
+            "#,
+            calls: r#"
+                (call_expression function: (identifier) @name)
+                (call_expression function: (field_expression field: (field_identifier) @name))
+            "#,
+        },
+    },
+    LangInfo {
+        name: "csharp",
+        extensions: &["cs"],
+        language: || tree_sitter_c_sharp::LANGUAGE.into(),
+        fn_kinds: &[
+            "method_declaration",
+            "constructor_declaration",
+            "local_function_statement",
+        ],
+        fn_name_kinds: &["identifier"],
+        class_kinds: &[
+            "class_declaration",
+            "interface_declaration",
+            "struct_declaration",
+            "record_declaration",
+        ],
+        queries: LangQueries {
+            functions: r#"
+                (method_declaration name: (identifier) @name)
+                (constructor_declaration name: (identifier) @name)
+                (local_function_statement name: (identifier) @name)
+            "#,
+            classes: r#"
+                (class_declaration name: (identifier) @name)
+                (interface_declaration name: (identifier) @name)
+                (struct_declaration name: (identifier) @name)
+                (record_declaration name: (identifier) @name)
+            "#,
+            imports: r#"
+                (using_directive (qualified_name) @path)
+                (using_directive (identifier) @path)
+            "#,
+            calls: r#"
+                (invocation_expression function: (identifier) @name)
+                (invocation_expression function: (member_access_expression name: (identifier) @name))
+            "#,
+        },
+    },
+    LangInfo {
+        name: "starlark",
+        extensions: &["bzl", "star", "bazel", "bzlmod", "BUILD"],
+        language: || tree_sitter_starlark::LANGUAGE.into(),
+        fn_kinds: &["function_definition"],
+        fn_name_kinds: &["identifier"],
+        class_kinds: &[],
+        queries: LangQueries {
+            functions: r#"
+                (function_definition name: (identifier) @name)
+            "#,
+            classes: "",
+            imports: r#"
+                (call
+                  function: (identifier) @_fn
+                  arguments: (argument_list . (string) @path)
+                  (#eq? @_fn "load"))
+            "#,
+            calls: r#"
+                (call function: (identifier) @name)
+                (call function: (attribute attribute: (identifier) @name))
+            "#,
+        },
+    },
+    LangInfo {
         name: "ruby",
         extensions: &["rb", "rake", "gemspec"],
         language: || tree_sitter_ruby::LANGUAGE.into(),
