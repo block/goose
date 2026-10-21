@@ -336,6 +336,19 @@ impl TestPipeline {
             .unwrap();
     }
 
+    pub(super) async fn get_pursue(&self) -> Option<String> {
+        GoalState::of(&self.session().await.unwrap()).pursue
+    }
+
+    pub(super) async fn set_pursue(&self, pursue: Option<String>) {
+        let mut state = GoalState::of(&self.session().await.unwrap());
+        state.pursue = pursue;
+        self.session_manager
+            .set_extension_state(&self.session_id, &state)
+            .await
+            .unwrap();
+    }
+
     pub(super) async fn session(&self) -> Result<Session> {
         self.session_manager
             .get_session(&self.session_id, true)
@@ -1156,10 +1169,11 @@ impl TestRun {
     }
 }
 
-const TOOL_OPERATIONS: [&str; 5] = [
+const TOOL_OPERATIONS: [&str; 6] = [
     "tool_approval",
     "skills",
     "recipe",
+    "pursue",
     "tool_execution",
     "remaining_tool_calls",
 ];

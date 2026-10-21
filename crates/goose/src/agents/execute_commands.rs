@@ -49,6 +49,10 @@ static COMMANDS: &[CommandDef] = &[
             "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
     },
     CommandDef {
+        name: "pursue",
+        description: "Set a goal the agent pursues until it confirms completion with the pursue__done tool, or clear with /pursue off",
+    },
+    CommandDef {
         name: "status",
         description: "Show session status: model, provider, mode, and token usage",
     },
@@ -97,13 +101,14 @@ fn is_clear_goal_param(params_str: &str) -> bool {
 }
 
 /// Whether a slash command should kick off an agent turn instead of just
-/// returning a confirmation. Setting a `/goal` or `/grind` (with a description,
-/// not the query or `off` forms) makes the agent start pursuing it immediately.
+/// returning a confirmation. Setting a `/goal`, `/grind`, or `/pursue` (with a
+/// description, not the query or `off` forms) makes the agent start pursuing
+/// it immediately.
 pub fn command_starts_turn(message_text: &str) -> bool {
     let Some(parsed) = parse_slash_command(message_text) else {
         return false;
     };
-    matches!(parsed.command, "goal" | "grind")
+    matches!(parsed.command, "goal" | "grind" | "pursue")
         && !parsed.params_str.is_empty()
         && !is_clear_goal_param(parsed.params_str)
 }
@@ -134,9 +139,10 @@ mod tests {
     }
 
     #[test]
-    fn command_starts_turn_only_for_goal_and_grind_with_description() {
+    fn command_starts_turn_only_for_goal_grind_and_pursue_with_description() {
         assert!(command_starts_turn("/goal make all tests pass"));
         assert!(command_starts_turn("/grind keep refactoring"));
+        assert!(command_starts_turn("/pursue ship the release"));
 
         // Query and clear forms must not start a turn.
         assert!(!command_starts_turn("/goal"));
@@ -145,6 +151,8 @@ mod tests {
         assert!(!command_starts_turn("/goal none"));
         assert!(!command_starts_turn("/grind"));
         assert!(!command_starts_turn("/grind off"));
+        assert!(!command_starts_turn("/pursue"));
+        assert!(!command_starts_turn("/pursue off"));
 
         // Other commands and plain prompts never start a turn here.
         assert!(!command_starts_turn("/compact"));

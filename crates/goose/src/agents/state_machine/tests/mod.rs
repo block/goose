@@ -1,11 +1,17 @@
 use anyhow::Result;
 
 use self::calculator_extension::{value, ADD};
+use self::dummy_api::ProviderFeatures;
 use self::pipeline::MessageKind::{Agent, ToolCall};
-use self::pipeline::{test_pipeline, MAX_TURNS};
+use self::pipeline::{test_pipeline, test_pipeline_with, MAX_TURNS};
 use crate::agents::state_machine;
+use crate::agents::state_machine::ops_pursue::{
+    PURSUE_DONE_SUCCESS_MESSAGE, PURSUE_DONE_TOOL_NAME,
+};
 use crate::agents::state_machine::ops_retry::NUDGED;
 use crate::agents::state_machine::Emitter;
+use crate::config::GooseMode;
+use crate::conversation::message::MessageContent;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState};
 
 mod agent_reply;
@@ -504,6 +510,106 @@ async fn grind_is_bounded_by_max_turns() -> Result<()> {
 
     assert_eq!(api.call_count(), MAX_TURNS as usize);
     result.assert_message(-1, Agent, state_machine::MAX_TURNS_MESSAGE);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pursue_nudges_until_done_tool_completes() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("Start working toward this goal now")
+        .reply("did some work");
+    api.on("pursue goal is not yet complete").call(
+        PURSUE_DONE_TOOL_NAME,
+        serde_json::json!({"summary": "migration finished"}),
+    );
+
+    let (pipeline, result, _) = pipeline
+        .run_reconstructing_each_step("/pursue finish the migration")
+        .await?;
+
+    assert_eq!(api.call_count(), 2);
+    assert!(pipeline.get_pursue().await.is_none());
+    result.assert_message(-1, Agent, "migration finished");
+    assert!(result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_response)
+        .any(
+            |response| response.tool_result.as_ref().is_ok_and(|tool_result| {
+                tool_result.content.iter().any(|content| {
+                    content
+                        .as_text()
+                        .is_some_and(|text| text.text.contains(PURSUE_DONE_SUCCESS_MESSAGE))
+                })
+            })
+        ));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pursue_is_not_bounded_by_max_turns() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("never done").call(
+        PURSUE_DONE_TOOL_NAME,
+        serde_json::json!({"summary": "finally done"}),
+    );
+    api.on("go").reply("pursuing").times(MAX_TURNS as usize + 2);
+    pipeline.set_pursue(Some("never done".to_string())).await;
+
+    let (pipeline, result, _) = pipeline.run_reconstructing_each_step("go").await?;
+
+    assert_eq!(api.call_count(), MAX_TURNS as usize + 3);
+    assert!(pipeline.get_pursue().await.is_none());
+    result.assert_message(-1, Agent, "finally done");
+    assert!(api
+        .calls()
+        .iter()
+        .all(|call| !call.input_contains("<turn-budget>")));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pursue_command_query_clear_and_chat_mode_guard() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+
+    let empty = pipeline.run(["/pursue"]).await?;
+    empty.assert_message(-1, Agent, "No pursue goal set");
+
+    pipeline.set_pursue(Some("ship it".to_string())).await;
+    let shown = pipeline.run(["/pursue"]).await?;
+    shown.assert_message(-1, Agent, "Current pursue goal: ship it");
+
+    let cleared = pipeline.run(["/pursue off"]).await?;
+    cleared.assert_message(-1, Agent, "Pursue cleared");
+    assert!(pipeline.get_pursue().await.is_none());
+
+    let chat_pipeline = pipeline.with_goose_mode(GooseMode::Chat).await;
+    let refused = chat_pipeline.run(["/pursue ship it"]).await?;
+    refused.assert_message(-1, Agent, "not available in chat mode");
+    assert!(chat_pipeline.get_pursue().await.is_none());
+    assert_eq!(api.call_count(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pursue_refused_when_provider_cannot_receive_builtin_tools() -> Result<()> {
+    let (pipeline, api) = test_pipeline_with(ProviderFeatures {
+        manages_own_context: true,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+
+    let result = pipeline.run(["/pursue ship it"]).await?;
+
+    result.assert_message(-1, Agent, "is not available for provider");
+    assert!(pipeline.get_pursue().await.is_none());
+    assert_eq!(api.call_count(), 0);
 
     Ok(())
 }
