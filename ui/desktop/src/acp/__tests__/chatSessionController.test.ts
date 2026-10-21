@@ -283,7 +283,25 @@ describe('acpChatSessionController.submitMessage', () => {
       onFinish,
     });
 
-    expect(onFinish).toHaveBeenCalledWith(undefined);
+    expect(onFinish).toHaveBeenCalledWith({ status: 'failed' });
+  });
+
+  it('finishes a credits failure without a submit error', async () => {
+    vi.mocked(acpChatSessionActions.isCurrentPromptAttempt).mockReturnValue(true);
+    vi.mocked(acpPromptSession).mockRejectedValueOnce({
+      code: -32603,
+      message: 'Out of credits',
+      data: { reason: 'credits_exhausted' },
+    });
+    const onFinish = vi.fn();
+
+    await acpChatSessionController.submitMessage(SESSION_ID, userMessage(), {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish,
+    });
+
+    expect(acpChatSessionActions.setMessages).toHaveBeenCalled();
+    expect(onFinish).toHaveBeenCalledWith({ status: 'failed' });
   });
 
   it('reports other prompt errors as a submit error', async () => {
@@ -295,7 +313,7 @@ describe('acpChatSessionController.submitMessage', () => {
       onFinish,
     });
 
-    expect(onFinish).toHaveBeenCalledWith('Session not found');
+    expect(onFinish).toHaveBeenCalledWith({ status: 'failed', message: 'Session not found' });
   });
 });
 
