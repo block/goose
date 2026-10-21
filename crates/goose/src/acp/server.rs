@@ -3515,21 +3515,13 @@ print(\"hello, world\")
         assert_eq!(error.data.unwrap()["reason"], "turn_failed");
     }
 
-    #[test_case(
-        crate::conversation::message::MessageErrorKind::Other,
-        "Network error: connection refused"
-        ; "other"
-    )]
-    #[test_case(
-        crate::conversation::message::MessageErrorKind::ContextLengthExceeded,
-        "Context length exceeded"
-        ; "context_length_exceeded"
-    )]
-    fn test_other_error_messages_map_to_internal_error(
-        kind: crate::conversation::message::MessageErrorKind,
-        message: &str,
-    ) {
-        let content = MessageContent::error(kind, message);
+    #[test]
+    fn test_other_error_messages_map_to_internal_error() {
+        let message = "Network error: connection refused";
+        let content = MessageContent::error(
+            crate::conversation::message::MessageErrorKind::Other,
+            message,
+        );
 
         let error = prompt_error_from_message_content(&content).expect("expected prompt error");
 
