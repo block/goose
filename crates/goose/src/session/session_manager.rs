@@ -2936,10 +2936,8 @@ impl SessionStorage {
         ) -> crate::conversation::message::MessageMetadata,
     {
         let pool = self.pool().await?;
-        with_busy_retry(|| {
-            Self::update_message_metadata_inner(pool, session_id, message_id, &f)
-        })
-        .await
+        with_busy_retry(|| Self::update_message_metadata_inner(pool, session_id, message_id, &f))
+            .await
     }
 
     async fn update_message_metadata_inner<F>(
