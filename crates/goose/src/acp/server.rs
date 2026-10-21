@@ -1646,16 +1646,20 @@ fn is_context_length_error(content: &MessageContent) -> bool {
     )
 }
 
-/// Visible assistant text or a tool request shows the model answered after a
-/// context overflow. Compaction notices, reasoning and agent-only messages don't.
-fn is_resumed_assistant_output(message: &Message, content: &MessageContent) -> bool {
+/// A non-empty assistant message from the provider shows the model accepted the
+/// request after a context overflow. Goose-authored notices carry no inference
+/// metadata; "non-empty" matches what inference itself accepts as a reply.
+fn is_model_reply(message: &Message) -> bool {
     message.role == rmcp::model::Role::Assistant
-        && message.is_user_visible()
-        && match content {
+        && message.metadata.inference.is_some()
+        && message.content.iter().any(|content| match content {
             MessageContent::Text(text) => !text.text.trim().is_empty(),
-            MessageContent::ToolRequest(_) => true,
+            MessageContent::Thinking(thinking) => {
+                !thinking.thinking.trim().is_empty() || !thinking.signature.is_empty()
+            }
+            MessageContent::RedactedThinking(_) | MessageContent::ToolRequest(_) => true,
             _ => false,
-        }
+        })
 }
 
 fn prompt_error_from_message_content(
@@ -2160,6 +2164,9 @@ impl GooseAcpAgent {
                     }
                     drop(sessions);
 
+                    if is_model_reply(&message) {
+                        pending_context_error = None;
+                    }
                     populate_output_token_limit_content(&mut message);
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
@@ -2170,10 +2177,6 @@ impl GooseAcpAgent {
                                 continue;
                             }
                             return Err(error);
-                        }
-
-                        if is_resumed_assistant_output(&message, content_item) {
-                            pending_context_error = None;
                         }
 
                         if let MessageContent::ToolRequest(tool_request) = content_item {

@@ -1472,3 +1472,54 @@ fn test_prompt_reports_context_error_when_compaction_leaves_nothing_to_retry() {
         assert_eq!(error.data.unwrap()["kind"], "contextLengthExceeded");
     });
 }
+
+const EMPTY_REPLY: &str = "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1766229303,\"model\":\"gpt-5-nano\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+const REASONING_ONLY_REPLY: &str = "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1766229303,\"model\":\"gpt-5-nano\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"thinking it over\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1766229303,\"model\":\"gpt-5-nano\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+
+fn assert_context_length_error(result: anyhow::Result<String>) {
+    let error = prompt_acp_error(result.unwrap_err());
+    assert_eq!(error.code, ErrorCode::InternalError);
+    assert_eq!(error.data.unwrap()["kind"], "contextLengthExceeded");
+}
+
+#[test]
+fn test_prompt_reports_context_error_when_max_turns_stops_the_retry() {
+    run_test(async {
+        std::env::set_var("GOOSE_MAX_TURNS", "1");
+        let result = prompt_after_context_overflow(vec![(
+            SUMMARIZE_HISTORY,
+            include_str!("acp_test_data/openai_basic.txt"),
+        )])
+        .await;
+        std::env::remove_var("GOOSE_MAX_TURNS");
+        assert_context_length_error(result);
+    });
+}
+
+#[test]
+fn test_prompt_reports_context_error_when_the_retry_stays_empty() {
+    run_test(async {
+        let mut exchanges = vec![(
+            SUMMARIZE_HISTORY,
+            include_str!("acp_test_data/openai_basic.txt"),
+        )];
+        exchanges.extend([("Your context was compacted", EMPTY_REPLY); 4]);
+        assert_context_length_error(prompt_after_context_overflow(exchanges).await);
+    });
+}
+
+#[test]
+fn test_prompt_succeeds_when_the_retry_replies_with_reasoning_only() {
+    run_test(async {
+        let text = prompt_after_context_overflow(vec![
+            (
+                SUMMARIZE_HISTORY,
+                include_str!("acp_test_data/openai_basic.txt"),
+            ),
+            ("Your context was compacted", REASONING_ONLY_REPLY),
+        ])
+        .await
+        .unwrap();
+        assert_eq!(text, "");
+    });
+}
