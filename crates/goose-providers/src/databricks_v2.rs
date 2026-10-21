@@ -263,18 +263,6 @@ impl DatabricksV2Provider {
                 .is_some_and(|service| service.to_lowercase().contains("gemini"))
     }
 
-    /// OpenAI models take the Responses route, so MLflow chat models get `system`: Gemini rejects `developer`.
-    fn use_system_role(payload: &mut Value) {
-        let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
-            return;
-        };
-        for message in messages {
-            if message.get("role").and_then(Value::as_str) == Some("developer") {
-                message["role"] = Value::String("system".to_string());
-            }
-        }
-    }
-
     fn always_on_reasoning_effort(model_config: &ModelConfig) -> Option<&'static str> {
         if !model_config.is_reasoning_model()
             || !(model_config.is_glm_5_3_reasoning_model()
@@ -407,10 +395,11 @@ impl DatabricksV2Provider {
             &ImageFormat::OpenAi,
             true,
         )?;
+        // MLflow chat uses system; Gemini rejects the OpenAI developer role.
+        payload["messages"][0]["role"] = "system".into();
         if is_model_service {
             payload["model"] = Value::String(model_config.model_name.clone());
         }
-        Self::use_system_role(&mut payload);
         // The gateway maps `stream_options` into Gemini's `generation_config`, which rejects it.
         if Self::is_gemini_model_service(&model_config.model_name) {
             if let Some(object) = payload.as_object_mut() {
