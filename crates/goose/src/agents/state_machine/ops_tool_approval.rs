@@ -102,10 +102,12 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                 );
 
             for request in permission_check_result.denied {
-                effects.push(mark_executable(&request.id, false));
                 // Durable marker so the resume path can tell a policy denial
-                // apart from an approval card lost across a crash.
-                effects.push(mark_declined(&request.id));
+                // apart from an approval card lost across a crash. Both keys
+                // go in one patch: `apply_effects` applies each meta patch as
+                // its own transaction, so a separate write could commit the
+                // executable flag and lose the marker (or vice versa).
+                effects.push(mark_executable_and_declined(&request.id));
             }
 
             for request in permission_check_result.needs_approval {
@@ -305,10 +307,12 @@ fn mark_executable(tool_call_id: &str, executable: bool) -> GooseEffect {
     .into()
 }
 
-fn mark_declined(tool_call_id: &str) -> GooseEffect {
+/// Mark a policy-denied request as non-executable with a durable decline
+/// marker, in a single meta patch so both keys persist or fail together.
+fn mark_executable_and_declined(tool_call_id: &str) -> GooseEffect {
     ConversationEffect::PatchToolRequestMeta {
         tool_call_id: tool_call_id.to_string(),
-        patch: serde_json::json!({ TOOL_DECLINED_KEY: true }),
+        patch: serde_json::json!({ TOOL_EXECUTABLE_KEY: false, TOOL_DECLINED_KEY: true }),
     }
     .into()
 }
