@@ -26,21 +26,17 @@ use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 const OPENROUTER_PARAMETERS_CONFIG_KEY: &str = "OPENROUTER_PARAMETERS";
-pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
+pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-5.5";
 pub const OPENROUTER_DECISION_DEFAULT_MODEL: &str = "typesafe/jev-1.13";
 
-// OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
-    "x-ai/grok-code-fast-1",
-    "anthropic/claude-sonnet-4.5",
-    "anthropic/claude-sonnet-4",
-    "anthropic/claude-opus-4.1",
-    "anthropic/claude-opus-4",
-    "google/gemini-2.5-pro",
-    "google/gemini-2.5-flash",
-    "deepseek/deepseek-r1-0528",
-    "qwen/qwen3-coder",
-    "moonshotai/kimi-k2",
+    OPENROUTER_DEFAULT_MODEL,
+    "anthropic/claude-opus-5.5",
+    "google/gemini-3.5-flash",
+    "x-ai/grok-4.7",
+    "deepseek/deepseek-v4-pro",
+    "qwen/qwen3.8-flash",
+    "moonshotai/kimi-k3",
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
@@ -710,6 +706,38 @@ mod tests {
     }
 
     #[test]
+    fn metadata_default_and_known_models_are_in_catalog() {
+        let metadata = OpenRouterProvider::metadata();
+        let registry = crate::canonical::CanonicalModelRegistry::bundled().unwrap();
+
+        assert!(metadata
+            .known_models
+            .iter()
+            .any(|model| model.name == metadata.default_model));
+
+        for model in &metadata.known_models {
+            let canonical = registry
+                .get(&metadata.name, &model.name)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "OpenRouter model {} is missing from the catalog",
+                        model.name
+                    )
+                });
+            assert!(canonical.tool_call, "{} must support tools", model.name);
+            assert!(
+                canonical
+                    .modalities
+                    .input
+                    .contains(&crate::canonical::Modality::Text),
+                "{} must support text input",
+                model.name
+            );
+            assert!(canonical.limit.context > 0);
+        }
+    }
+
+    #[test]
     fn merge_openrouter_parameters_updates_model_request_params() {
         let mut model = model_config("anthropic/claude-sonnet-4");
         model.request_params = Some(HashMap::from([("verbosity".to_string(), json!("low"))]));
@@ -825,6 +853,7 @@ mod tests {
         );
     }
 
+    const MODEL_IN_CATALOG: &str = "anthropic/claude-sonnet-4.5";
     const MODEL_NOT_IN_CATALOG: &str = "test-vendor/not-in-catalog";
 
     fn models_response() -> wiremock::ResponseTemplate {
@@ -836,7 +865,7 @@ mod tests {
                     "supported_parameters": ["tools"]
                 },
                 {
-                    "id": OPENROUTER_DEFAULT_MODEL,
+                    "id": MODEL_IN_CATALOG,
                     "context_length": 4_096,
                     "supported_parameters": ["tools"]
                 },
@@ -894,13 +923,11 @@ mod tests {
     async fn context_limit_keeps_override_and_catalog_precedence_without_fetching() {
         let server = models_server(models_response(), 0).await;
         let provider = provider_for(&server);
-        let catalog_limit = crate::canonical::maybe_get_canonical_model(
-            OPENROUTER_PROVIDER_NAME,
-            OPENROUTER_DEFAULT_MODEL,
-        )
-        .unwrap()
-        .limit
-        .context;
+        let catalog_limit =
+            crate::canonical::maybe_get_canonical_model(OPENROUTER_PROVIDER_NAME, MODEL_IN_CATALOG)
+                .unwrap()
+                .limit
+                .context;
 
         assert_eq!(
             provider
@@ -909,9 +936,7 @@ mod tests {
             64_000
         );
         assert_eq!(
-            provider
-                .get_context_limit(OPENROUTER_DEFAULT_MODEL, None)
-                .await,
+            provider.get_context_limit(MODEL_IN_CATALOG, None).await,
             catalog_limit
         );
     }
@@ -1052,13 +1077,13 @@ mod tests {
 
         assert_eq!(
             recommended.unwrap(),
-            vec![OPENROUTER_DEFAULT_MODEL, MODEL_NOT_IN_CATALOG]
+            vec![MODEL_IN_CATALOG, MODEL_NOT_IN_CATALOG]
         );
         assert_eq!(context_limit, 1_048_576);
         assert_eq!(
             provider.fetch_recommended_models(true).await.unwrap(),
             vec![
-                OPENROUTER_DEFAULT_MODEL,
+                MODEL_IN_CATALOG,
                 "test-vendor/no-tools",
                 MODEL_NOT_IN_CATALOG
             ]
