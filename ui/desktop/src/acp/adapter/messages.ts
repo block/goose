@@ -41,6 +41,9 @@ export function applyContentChunk(
     existing.metadata.fallbackContent = shouldSkipFallbackChunk
       ? undefined
       : gooseMeta.fallbackContent;
+    if (gooseMeta.operationLogs) {
+      existing.metadata.operationLogs = gooseMeta.operationLogs;
+    }
     applyInferenceMeta(existing, gooseMeta);
 
     if (shouldSkipFallbackChunk) {
@@ -72,6 +75,7 @@ export function applyContentChunk(
         ...(gooseMeta.steer ? { steer: true } : {}),
         outputTokenLimitReached: gooseMeta.outputTokenLimitReached,
         fallbackContent: gooseMeta.fallbackContent,
+        ...(gooseMeta.operationLogs ? { operationLogs: gooseMeta.operationLogs } : {}),
       },
     };
     applyInferenceMeta(message, gooseMeta);
@@ -105,6 +109,9 @@ export function applyThoughtChunk(
   }
 
   message.metadata.outputTokenLimitReached = gooseMeta.outputTokenLimitReached;
+  if (gooseMeta.operationLogs) {
+    message.metadata.operationLogs = gooseMeta.operationLogs;
+  }
   applyInferenceMeta(message, gooseMeta);
 
   const lastContent = message.content[message.content.length - 1];

@@ -19,6 +19,8 @@ struct GooseMessageMeta<'a> {
     fallback_content: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     inference: Option<GooseInferenceMeta<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    operation_logs: Option<&'a [String]>,
 }
 
 // The provider session id stays on the server: clients only need to know which model answered.
@@ -50,6 +52,8 @@ fn goose_message_meta(
                 requested_model: &inference.requested_model,
                 resolved_model: inference.resolved_model.as_deref(),
             }),
+        operation_logs: (!message.metadata.operation_logs.is_empty())
+            .then_some(message.metadata.operation_logs.as_slice()),
     };
 
     match serde_json::to_value(message_meta) {
