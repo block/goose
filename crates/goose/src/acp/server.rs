@@ -1638,6 +1638,14 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
     }
 }
 
+fn is_context_length_error(content: &MessageContent) -> bool {
+    matches!(
+        content,
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::ContextLengthExceeded
+    )
+}
+
 fn prompt_error_from_message_content(
     content_item: &MessageContent,
 ) -> Option<agent_client_protocol::Error> {
@@ -2117,6 +2125,7 @@ impl GooseAcpAgent {
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut context_limit = None;
+        let mut pending_context_error = None;
         let target = SessionAgentTarget {
             agent: agent.clone(),
             session_id: session_id.to_string(),
@@ -2142,6 +2151,12 @@ impl GooseAcpAgent {
                     populate_output_token_limit_content(&mut message);
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
+                            // The agent recovers from a context overflow by compacting, so hold
+                            // that error until the turn shows whether recovery worked.
+                            if is_context_length_error(content_item) {
+                                pending_context_error = Some(error);
+                                continue;
+                            }
                             return Err(error);
                         }
 
@@ -2214,6 +2229,7 @@ impl GooseAcpAgent {
                     }
                 }
                 Ok(crate::agents::AgentEvent::HistoryReplaced(_)) => {
+                    pending_context_error = None;
                     if self.supports_goose_custom_notifications() {
                         cx.send_notification(GooseSessionNotification {
                             session_id: session_id.to_string(),
@@ -2234,6 +2250,9 @@ impl GooseAcpAgent {
         }
 
         let was_cancelled = cancel_token.is_cancelled();
+        if let Some(error) = pending_context_error.filter(|_| !was_cancelled) {
+            return Err(error);
+        }
         if !was_cancelled {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, agent, acp_session_id, cx);

@@ -285,18 +285,52 @@ impl Operation<Session, GooseEffect> for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                let kind = e
-                    .downcast_ref::<ProviderError>()
-                    .map_or(MessageErrorKind::Other, MessageErrorKind::from);
-                emit.message(Message::assistant().with_error(
-                    kind,
-                    format!(
-                        "Ran into this error trying to compact: {e}.\n\n\
-                         Please try again or create a new session"
-                    ),
-                ));
+                emit.message(compaction_failure_message(&e));
                 yielded()
             }
         }
+    }
+}
+
+/// Reports a failed compaction with the underlying provider error's kind. Credits
+/// exhaustion uses the provider error notification so its top-up URL survives.
+fn compaction_failure_message(e: &anyhow::Error) -> Message {
+    let provider_error = e.downcast_ref::<ProviderError>();
+    if let Some(err @ ProviderError::CreditsExhausted { .. }) = provider_error {
+        return Message::from_provider_error(err);
+    }
+    Message::assistant().with_error(
+        provider_error.map_or(MessageErrorKind::Other, MessageErrorKind::from),
+        format!(
+            "Ran into this error trying to compact: {e}.\n\n\
+             Please try again or create a new session"
+        ),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn credits_failure_keeps_the_top_up_url() {
+        let error = anyhow::Error::from(ProviderError::CreditsExhausted {
+            details: "no credits".to_string(),
+            top_up_url: Some("https://example.com/billing".to_string()),
+        });
+        let message = compaction_failure_message(&error);
+        let Some(crate::conversation::message::MessageContent::SystemNotification(notification)) =
+            message.content.first()
+        else {
+            panic!("expected a credits notification, got {message:?}");
+        };
+        assert_eq!(
+            notification.notification_type,
+            SystemNotificationType::CreditsExhausted
+        );
+        assert_eq!(
+            notification.data.as_ref().unwrap()["top_up_url"],
+            "https://example.com/billing"
+        );
     }
 }
