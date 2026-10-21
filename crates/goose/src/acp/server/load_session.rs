@@ -22,17 +22,41 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
 }
 
 fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
-    conversation
+    let mut messages: Vec<Message> = conversation
         .messages()
         .iter()
         .filter(|message| message.is_user_visible())
         .map(Message::user_visible_content)
+        .collect();
+    drop_recovered_context_errors(&mut messages);
+    messages
+        .into_iter()
         .map(|mut message| {
             populate_output_token_limit_content(&mut message);
             message
         })
         .filter(|message| !message.content.is_empty())
         .collect()
+}
+
+fn is_turn_boundary(message: &Message) -> bool {
+    message.role == Role::User && !message.is_tool_response()
+}
+
+/// A live prompt hides a context-length error once the provider replies later in
+/// the same turn, so replay hides it too.
+fn drop_recovered_context_errors(messages: &mut [Message]) {
+    for i in 0..messages.len() {
+        let recovered = messages[i + 1..]
+            .iter()
+            .take_while(|message| !is_turn_boundary(message))
+            .any(is_model_reply);
+        if recovered {
+            messages[i]
+                .content
+                .retain(|content| !is_context_length_error(content));
+        }
+    }
 }
 
 fn send_replay_content_chunk(
@@ -95,7 +119,7 @@ fn replay_start_index(messages: &[Message], tail: usize) -> usize {
     let candidate = messages.len() - tail;
     messages[..=candidate]
         .iter()
-        .rposition(|message| message.role == Role::User && !message.is_tool_response())
+        .rposition(is_turn_boundary)
         .unwrap_or(0)
 }
 

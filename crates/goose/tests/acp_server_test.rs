@@ -1353,18 +1353,52 @@ const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
 async fn prompt_after_context_overflow(
     exchanges: Vec<(&str, &'static str)>,
 ) -> anyhow::Result<String> {
+    prompt_overflow_then_replay(exchanges).await.0
+}
+
+/// Like `prompt_after_context_overflow`, then reloads the session and also returns
+/// the agent text it replays.
+async fn prompt_overflow_then_replay(
+    exchanges: Vec<(&str, &'static str)>,
+) -> (anyhow::Result<String>, String) {
+    let mut all = vec![("overflow", CONTEXT_OVERFLOW)];
+    all.extend(exchanges);
+    prompt_then_replay("overflow", all).await
+}
+
+async fn prompt_then_replay(
+    prompt: &str,
+    exchanges: Vec<(&str, &'static str)>,
+) -> (anyhow::Result<String>, String) {
     let expected_session_id = <AcpServerConnection as Connection>::expected_session_id();
-    let mut all = vec![("overflow".to_string(), CONTEXT_OVERFLOW)];
-    all.extend(exchanges.into_iter().map(|(p, r)| (p.to_string(), r)));
-    let openai = OpenAiFixture::new(all, expected_session_id.clone()).await;
+    let exchanges = exchanges
+        .into_iter()
+        .map(|(p, r)| (p.to_string(), r))
+        .collect();
+    let openai = OpenAiFixture::new(exchanges, expected_session_id.clone()).await;
     let mut conn =
         <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
     let SessionData { mut session, .. } = conn.new_session().await.unwrap();
     expected_session_id.set(&session.session_id().0);
-    let output = session
-        .prompt("overflow", PermissionDecision::Cancel)
-        .await?;
-    Ok(output.text)
+    let session_id = session.session_id().0.to_string();
+    let result = session
+        .prompt(prompt, PermissionDecision::Cancel)
+        .await
+        .map(|output| output.text);
+
+    let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
+    let replayed = session
+        .session_updates()
+        .into_iter()
+        .filter_map(|update| match update {
+            SessionUpdate::AgentMessageChunk(chunk) => match chunk.content {
+                ContentBlock::Text(text) => Some(text.text),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    (result, replayed)
 }
 
 fn prompt_acp_error(error: anyhow::Error) -> agent_client_protocol::Error {
@@ -1521,5 +1555,58 @@ fn test_prompt_succeeds_when_the_retry_replies_with_reasoning_only() {
         .await
         .unwrap();
         assert_eq!(text, "");
+    });
+}
+
+const PARTIAL_THEN_STREAM_ERROR: &str = "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1766229303,\"model\":\"gpt-5-nano\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"partial answer\"},\"finish_reason\":null}]}\n\ndata: {\"error\":{\"message\":\"upstream exploded\"}}\n\n";
+
+#[test]
+fn test_prompt_error_after_partial_reply_keeps_the_reply_in_history() {
+    run_test(async {
+        let (result, replayed) =
+            prompt_then_replay("partial", vec![("partial", PARTIAL_THEN_STREAM_ERROR)]).await;
+        let error = prompt_acp_error(result.unwrap_err());
+        assert_eq!(error.code, ErrorCode::InternalError);
+        assert!(
+            replayed.contains("partial answer"),
+            "replayed history: {replayed:?}"
+        );
+    });
+}
+
+#[test]
+fn test_replay_hides_a_context_error_the_turn_recovered_from() {
+    run_test(async {
+        let basic = include_str!("acp_test_data/openai_basic.txt");
+        let (result, replayed) = prompt_overflow_then_replay(vec![
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", basic),
+        ])
+        .await;
+        assert_eq!(result.unwrap(), "2");
+        assert!(replayed.contains('2'), "replayed history: {replayed:?}");
+        assert!(
+            !replayed.contains("Context length exceeded"),
+            "replayed history: {replayed:?}"
+        );
+    });
+}
+
+#[test]
+fn test_replay_keeps_a_context_error_the_turn_did_not_recover_from() {
+    run_test(async {
+        let basic = include_str!("acp_test_data/openai_basic.txt");
+        let (result, replayed) = prompt_overflow_then_replay(vec![
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", CONTEXT_OVERFLOW),
+            (SUMMARIZE_HISTORY, basic),
+            ("Your context was compacted", CONTEXT_OVERFLOW),
+        ])
+        .await;
+        assert_context_length_error(result);
+        assert!(
+            replayed.contains("Context length exceeded"),
+            "replayed history: {replayed:?}"
+        );
     });
 }

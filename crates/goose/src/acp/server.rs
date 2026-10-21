@@ -1648,7 +1648,7 @@ fn is_context_length_error(content: &MessageContent) -> bool {
 
 /// A non-empty assistant message from the provider shows the model accepted the
 /// request after a context overflow. Goose-authored notices carry no inference
-/// metadata; "non-empty" matches what inference itself accepts as a reply.
+/// metadata. Text, tool requests, thinking and redacted thinking count as content.
 fn is_model_reply(message: &Message) -> bool {
     message.role == rmcp::model::Role::Assistant
         && message.metadata.inference.is_some()
@@ -2142,6 +2142,7 @@ impl GooseAcpAgent {
         let mut chain_tracker = ToolChainTracker::default();
         let mut context_limit = None;
         let mut pending_context_error = None;
+        let mut terminal_error = None;
         let target = SessionAgentTarget {
             agent: agent.clone(),
             session_id: session_id.to_string(),
@@ -2164,6 +2165,11 @@ impl GooseAcpAgent {
                     }
                     drop(sessions);
 
+                    // After a terminal error, keep draining so the agent saves what it
+                    // streamed, but forward nothing more to the client.
+                    if terminal_error.is_some() {
+                        continue;
+                    }
                     if is_model_reply(&message) {
                         pending_context_error = None;
                     }
@@ -2171,12 +2177,13 @@ impl GooseAcpAgent {
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
                             // The agent recovers from a context overflow by compacting, so hold
-                            // that error until the model visibly answers again.
+                            // that error until the provider replies.
                             if is_context_length_error(content_item) {
                                 pending_context_error = Some(error);
                                 continue;
                             }
-                            return Err(error);
+                            terminal_error = Some(error);
+                            break;
                         }
 
                         if let MessageContent::ToolRequest(tool_request) = content_item {
@@ -2268,7 +2275,10 @@ impl GooseAcpAgent {
         }
 
         let was_cancelled = cancel_token.is_cancelled();
-        if let Some(error) = pending_context_error.filter(|_| !was_cancelled) {
+        if let Some(error) = terminal_error
+            .or(pending_context_error)
+            .filter(|_| !was_cancelled)
+        {
             return Err(error);
         }
         if !was_cancelled {
