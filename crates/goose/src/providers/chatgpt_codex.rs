@@ -46,6 +46,18 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
+#[derive(Deserialize)]
+struct CodexModelsResponse {
+    models: Vec<CodexDiscoveredModel>,
+}
+
+#[derive(Deserialize)]
+struct CodexDiscoveredModel {
+    slug: String,
+    visibility: String,
+    priority: i32,
+}
+
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.5";
 
 #[derive(Debug)]
@@ -347,6 +359,21 @@ impl TokenCache {
     }
     pub(crate) fn has_token(&self) -> bool {
         self.load().is_some()
+    }
+
+    pub(crate) fn inventory_identity(&self) -> crate::providers::inventory::InventoryIdentityInput {
+        let mut identity = crate::providers::inventory::InventoryIdentityInput::new(
+            CHATGPT_CODEX_PROVIDER_NAME,
+            CHATGPT_CODEX_PROVIDER_NAME,
+        )
+        .with_public("host", CODEX_API_ENDPOINT);
+        if let Some(token) = self.load() {
+            identity = match token.account_id {
+                Some(account_id) => identity.with_secret("account_id", account_id),
+                None => identity.with_secret("access_token", token.access_token),
+            };
+        }
+        identity
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -830,6 +857,10 @@ impl ChatGptCodexAuthProvider {
     }
 
     async fn get_valid_token(&self) -> Result<TokenData> {
+        self.get_token(true).await
+    }
+
+    async fn get_token(&self, interactive: bool) -> Result<TokenData> {
         if let Some(mut token_data) = self.cache.load() {
             if token_data.expires_at > Utc::now() + chrono::Duration::seconds(60) {
                 return Ok(token_data);
@@ -854,12 +885,18 @@ impl ChatGptCodexAuthProvider {
                     return Ok(token_data);
                 }
                 Err(e) => {
+                    if !interactive {
+                        return Err(anyhow!("Codex OAuth token refresh failed: {e}"));
+                    }
                     tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
                     self.cache.clear();
                 }
             }
         }
 
+        if !interactive {
+            return Err(anyhow!("Connect ChatGPT Codex before refreshing models"));
+        }
         tracing::info!("Starting OAuth flow for ChatGPT Codex");
         let token_data = perform_oauth_flow(self.state.as_ref()).await?;
         self.cache.save(&token_data)?;
@@ -889,6 +926,58 @@ pub struct ChatGptCodexProvider {
 }
 
 impl ChatGptCodexProvider {
+    async fn fetch_models_from(&self, endpoint: &str) -> Result<Vec<String>, ProviderError> {
+        let token = self
+            .auth_provider
+            .get_token(false)
+            .await
+            .map_err(|e| ProviderError::Authentication(e.to_string()))?;
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .timeout(std::time::Duration::from_secs(
+                DEFAULT_PROVIDER_TIMEOUT_SECS,
+            ))
+            .build()
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        // Codex discovery uses its own catalog schema, not OpenAI's data[].id schema.
+        let mut url = reqwest::Url::parse(&format!("{endpoint}/models"))
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("client_version", env!("CARGO_PKG_VERSION"));
+        let mut request = client.get(url).bearer_auth(&token.access_token);
+        if let Some(account_id) = &token.account_id {
+            request = request.header("chatgpt-account-id", account_id);
+        }
+        let request = (self.request_builder)(request)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let response = goose_providers::http_status::send_bounded(
+            request,
+            std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await?;
+        let response = handle_status(response).await?;
+        let mut catalog = response.json::<CodexModelsResponse>().await.map_err(|e| {
+            ProviderError::ExecutionError(format!("Invalid Codex model catalog: {e}"))
+        })?;
+        catalog.models.sort_by_key(|model| model.priority);
+        let mut models = Vec::new();
+        for model in catalog.models {
+            // supported_in_api applies to API-key auth, not ChatGPT OAuth.
+            if model.visibility == "list"
+                && !model.slug.trim().is_empty()
+                && !models.contains(&model.slug)
+            {
+                models.push(model.slug);
+            }
+        }
+        if models.is_empty() {
+            return Err(ProviderError::ExecutionError(
+                "Codex model catalog contains no picker-visible models".to_string(),
+            ));
+        }
+        Ok(models)
+    }
+
     pub async fn cleanup() -> Result<()> {
         TokenCache::new().clear();
         Ok(())
@@ -1060,7 +1149,7 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(known_model_names().into_iter().map(String::from).collect())
+        self.fetch_models_from(CODEX_API_ENDPOINT).await
     }
 }
 
@@ -1073,8 +1162,125 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData};
     use rmcp::object;
     use test_case::test_case;
-    use wiremock::matchers::{body_string_contains, method, path};
+    use wiremock::matchers::{body_string_contains, header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn discovery_provider(directory: &std::path::Path) -> ChatGptCodexProvider {
+        let cache = TokenCache {
+            cache_path: directory.join("tokens.json"),
+        };
+        cache
+            .save(&TokenData {
+                access_token: "test-access".to_string(),
+                refresh_token: "test-refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                account_id: Some("test-account".to_string()),
+            })
+            .unwrap();
+        ChatGptCodexProvider {
+            auth_provider: Arc::new(ChatGptCodexAuthProvider {
+                cache,
+                state: Arc::new(ChatGptCodexAuthState::new()),
+            }),
+            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
+            request_builder: Arc::new(Ok),
+        }
+    }
+
+    #[tokio::test]
+    async fn discovery_uses_codex_catalog_and_oauth_headers() {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = discovery_provider(directory.path());
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .and(query_param("client_version", env!("CARGO_PKG_VERSION")))
+            .and(header("authorization", "Bearer test-access"))
+            .and(header("chatgpt-account-id", "test-account"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [
+                    {"slug": "new-model", "visibility": "list", "priority": 2, "supported_in_api": false},
+                    {"slug": "hidden", "visibility": "hide", "priority": 0},
+                    {"slug": "unlisted", "visibility": "none", "priority": 0},
+                    {"slug": "preferred", "visibility": "list", "priority": 1},
+                    {"slug": "new-model", "visibility": "list", "priority": 3},
+                    {"slug": "  ", "visibility": "list", "priority": 0}
+                ]
+            })))
+            .expect(1)
+            .mount(&server).await;
+        assert_eq!(
+            provider.fetch_models_from(&server.uri()).await.unwrap(),
+            vec!["preferred", "new-model"]
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_reports_http_and_catalog_errors_instead_of_static_success() {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = discovery_provider(directory.path());
+        for (status, body) in [
+            (401, json!({"error": {"message": "Unauthorized"}})),
+            (500, json!({"error": {"message": "Unavailable"}})),
+            (200, json!({"data": [{"id": "wrong-schema"}]})),
+            (
+                200,
+                json!({"models": [{"visibility": "list", "priority": 1}]}),
+            ),
+            (200, json!({"models": []})),
+            (
+                200,
+                json!({"models": [{"slug": "hidden", "visibility": "hide", "priority": 1}]}),
+            ),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(status).set_body_json(body))
+                .mount(&server)
+                .await;
+            let error = provider.fetch_models_from(&server.uri()).await.unwrap_err();
+            if status == 401 {
+                assert!(matches!(error, ProviderError::Authentication(_)));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn discovery_without_tokens_does_not_start_oauth() {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = discovery_provider(directory.path());
+        provider.auth_provider.cache.clear();
+        let error = provider.fetch_supported_models().await.unwrap_err();
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[test]
+    fn discovery_inventory_identity_tracks_accounts_not_token_rotation() {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = discovery_provider(directory.path());
+        let cache = &provider.auth_provider.cache;
+        let first = cache.inventory_identity().into_identity().unwrap();
+        let mut token = cache.load().unwrap();
+        token.access_token = "rotated-access".to_string();
+        cache.save(&token).unwrap();
+        assert_eq!(first, cache.inventory_identity().into_identity().unwrap());
+        token.account_id = Some("other-account".to_string());
+        cache.save(&token).unwrap();
+        assert_ne!(first, cache.inventory_identity().into_identity().unwrap());
+        token.account_id = None;
+        cache.save(&token).unwrap();
+        let fallback = cache.inventory_identity().into_identity().unwrap();
+        token.access_token = "other-account-access".to_string();
+        cache.save(&token).unwrap();
+        assert_ne!(
+            fallback,
+            cache.inventory_identity().into_identity().unwrap()
+        );
+        assert!(
+            crate::providers::inventory::registrations::chatgpt_codex_inventory().supports_refresh
+        );
+    }
 
     fn input_kinds(payload: &Value) -> Vec<String> {
         payload["input"]
