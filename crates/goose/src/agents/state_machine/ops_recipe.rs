@@ -52,7 +52,7 @@ fn assistant_block_bounds(messages: &[Message], message_index: usize) -> (usize,
     (start, end)
 }
 
-fn has_sibling_tool_calls(messages: &[Message], request_id: &str) -> bool {
+pub(crate) fn has_sibling_tool_calls(messages: &[Message], request_id: &str) -> bool {
     let Some(message_index) = messages.iter().position(|message| {
         message
             .content

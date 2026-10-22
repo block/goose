@@ -102,6 +102,7 @@ impl TodoState {
 pub struct GoalState {
     pub goal: Option<String>,
     pub grind: Option<String>,
+    pub pursue: Option<String>,
 }
 
 impl ExtensionState for GoalState {
