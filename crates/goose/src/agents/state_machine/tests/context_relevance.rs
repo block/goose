@@ -64,7 +64,12 @@ impl DecisionProvider for FakeDecisions {
         *self.last_request.lock().unwrap() = Some(request.clone());
         let noul = match self.reply {
             Reply::Probability(probability) => probability,
-            Reply::Fail => return Err(ProviderError::RequestFailed("synthetic failure".into())),
+            Reply::Fail => {
+                return Err(ProviderError::RequestFailed(format!(
+                    "synthetic failure {}",
+                    "x".repeat(1_000)
+                )))
+            }
             Reply::Hang => std::future::pending().await,
         };
         Ok(DecisionResponse {
@@ -271,10 +276,9 @@ async fn failed_or_invalid_decisions_never_propose_omission() -> Result<()> {
         shadow_pipeline(FakeDecisions::new(Reply::Fail), 4, &old_output(), 1.0).await?;
     let note = &turns(&pipeline.run(["current goal"]).await?)[0];
     assert_eq!(note["status"], "provider_error");
-    assert!(note["error"]
-        .as_str()
-        .unwrap()
-        .contains("synthetic failure"));
+    let error = note["error"].as_str().unwrap();
+    assert!(error.contains("synthetic failure"));
+    assert_eq!(error.chars().count(), 500);
     assert!(note.get("observations").is_none());
 
     for probability in [f64::NAN, -0.1, 1.1] {

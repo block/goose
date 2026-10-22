@@ -40,6 +40,7 @@ const MAX_RECENT_EVIDENCE: usize = 8;
 const EXCERPT_CHARS: usize = 800;
 const RECENT_EVIDENCE_CHARS: usize = 300;
 const ARGUMENT_CHARS: usize = 300;
+const ERROR_CHARS: usize = 500;
 const MAX_TURNS: usize = 20;
 const MAX_REQUEST_BYTES: usize = 48_000;
 const TIMEOUT: Duration = Duration::from_secs(6);
@@ -421,7 +422,7 @@ impl Operation<Session, GooseEffect> for ContextRelevanceOperation {
                 }
                 Ok(Err(error)) => {
                     note["status"] = json!("provider_error");
-                    note["error"] = json!(error.to_string());
+                    note["error"] = json!(truncate(error.to_string().chars(), ERROR_CHARS).0);
                     note["elapsed_ms"] = json!(started.elapsed().as_millis() as u64);
                 }
                 Err(_) => {
