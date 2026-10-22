@@ -457,7 +457,28 @@ impl SessionManager {
         goose_mode: GooseMode,
     ) -> Result<Session> {
         self.storage
-            .create_session(working_dir, name, session_type, goose_mode)
+            .create_session(None, working_dir, name, session_type, goose_mode)
+            .await
+    }
+
+    pub async fn create_session_with_id(
+        &self,
+        id: &str,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        goose_mode: GooseMode,
+    ) -> Result<Session> {
+        anyhow::ensure!(
+            !id.is_empty()
+                && id.len() <= 128
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'),
+            "session ID must be 1-128 ASCII letters, digits, underscores, or hyphens"
+        );
+        self.storage
+            .create_session(Some(id), working_dir, name, session_type, goose_mode)
             .await
     }
 
@@ -1757,6 +1778,7 @@ impl SessionStorage {
 
     async fn create_session(
         &self,
+        id: Option<&str>,
         working_dir: PathBuf,
         name: String,
         session_type: SessionType,
@@ -1770,11 +1792,11 @@ impl SessionStorage {
             r#"
                 INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
                 VALUES (
-                    ? || '_' || CAST(COALESCE((
+                    COALESCE(?, ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
                         FROM sessions
                         WHERE id LIKE ? || '_%'
-                    ), 0) + 1 AS TEXT),
+                    ), 0) + 1 AS TEXT)),
                     ?,
                     FALSE,
                     ?,
@@ -1785,6 +1807,7 @@ impl SessionStorage {
                 RETURNING *
                 "#,
         )
+            .bind(id)
             .bind(&today)
             .bind(&today)
             .bind(&name)
@@ -2730,6 +2753,7 @@ impl SessionStorage {
 
         let session = self
             .create_session(
+                None,
                 import.working_dir.clone(),
                 import.name.clone(),
                 session_type_override.unwrap_or(import.session_type),
@@ -2774,6 +2798,7 @@ impl SessionStorage {
 
         let new_session = self
             .create_session(
+                None,
                 original_session.working_dir.clone(),
                 new_name,
                 original_session.session_type,
@@ -4514,6 +4539,87 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(ids, expected_ids[1..2]);
         assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_caller_supplied_session_id() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = "ses_rotten-canary-32";
+        let session = sm
+            .create_session_with_id(
+                id,
+                PathBuf::from("/tmp/custom-session"),
+                "Custom session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(session.id, id);
+
+        sm.add_message(
+            id,
+            &Message {
+                id: None,
+                role: Role::User,
+                created: chrono::Utc::now().timestamp_millis(),
+                content: vec![MessageContent::text("hello world")],
+                metadata: Default::default(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(sm.get_session(id, true).await.unwrap().message_count, 1);
+        assert!(sm.list_sessions().await.unwrap().iter().any(|s| s.id == id));
+
+        assert!(sm
+            .create_session_with_id(
+                id,
+                PathBuf::from("/tmp/other-session"),
+                "Collision".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .is_err());
+        assert_eq!(
+            sm.get_session(id, false).await.unwrap().name,
+            "Custom session"
+        );
+
+        let generated = sm
+            .create_session(
+                PathBuf::from("/tmp/generated-session"),
+                "Generated session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(generated.id, id);
+        assert!(generated
+            .id
+            .starts_with(&chrono::Utc::now().format("%Y%m%d_").to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_caller_supplied_session_id_rejects_invalid_values() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        for id in ["", "../session", "a b", "a/b"] {
+            assert!(sm
+                .create_session_with_id(
+                    id,
+                    PathBuf::from("/tmp/custom-session"),
+                    "Invalid".to_string(),
+                    SessionType::User,
+                    GooseMode::default(),
+                )
+                .await
+                .is_err());
+        }
+        assert!(sm.list_sessions().await.unwrap().is_empty());
     }
 
     #[tokio::test]
