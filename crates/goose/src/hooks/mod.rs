@@ -366,8 +366,8 @@ impl HookOutcomeCause {
     }
 }
 
-/// Crate-internal: the public [`HookManager::emit_blocking`] contract is
-/// unchanged and still returns a [`PluginHookDecision`].
+/// Crate-internal: the public [`HookManager::emit_blocking`] returns only the
+/// [`PluginHookDecision`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HookChainOutcome {
     pub decision: PluginHookDecision,

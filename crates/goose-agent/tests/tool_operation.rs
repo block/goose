@@ -10,16 +10,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 use goose_agent::{
     events::AgentEvent,
-    hook::HookDecision,
+    hook::{Hook, HookDecision},
     machine::{MachineSession, StateMachine, Step},
     operation::{
         ConversationEffect, Emitter, Inference, InferenceInput, Operation, OperationResult,
         RunStatus,
     },
-    tool::{ToolHook, ToolOperation, ToolProvider},
+    tool::{
+        AfterToolCall, AfterToolCallHook, BeforeToolCall, BeforeToolCallHook, ToolOperation,
+        ToolProvider,
+    },
 };
 use goose_provider_types::conversation::{
-    message::{Message, MessageContent},
+    message::{Message, MessageContent, SystemNotificationType},
     Conversation,
 };
 use rmcp::{
@@ -514,6 +517,10 @@ async fn ignores_unavailable_answered_and_externally_dispatched_requests() {
     assert!(matches!(result, OperationResult::NotApplicable));
 }
 
+fn notice(text: &str) -> Message {
+    Message::assistant().with_system_notification(SystemNotificationType::InlineMessage, text)
+}
+
 #[derive(Default)]
 struct RecordingHook {
     deny: Option<(&'static str, &'static str)>,
@@ -544,55 +551,31 @@ impl RecordingHook {
 }
 
 #[async_trait]
-impl ToolHook<()> for RecordingHook {
-    async fn before_call(
-        &self,
-        _session: &(),
-        _conversation: &Conversation,
-        request_id: &str,
-        call: &CallToolRequestParams,
-    ) -> HookDecision {
-        self.asked.lock().unwrap().push(request_id.to_string());
+impl<'a> Hook<(), BeforeToolCall<'a>> for RecordingHook {
+    async fn decide(&self, _session: &(), event: &BeforeToolCall<'a>) -> HookDecision {
+        let call = event.call;
+        self.asked
+            .lock()
+            .unwrap()
+            .push(event.request_id.to_string());
         match self.deny {
             Some((tool, reason)) if tool == call.name => HookDecision::Deny {
                 reason: reason.to_string(),
-                user_message: self.user_message.map(str::to_string),
+                user_message: self.user_message.map(notice),
             },
             _ => HookDecision::Allow,
         }
     }
-
-    async fn after_call(
-        &self,
-        _session: &(),
-        _conversation: &Conversation,
-        request_id: &str,
-        _call: &CallToolRequestParams,
-        result: &Result<CallToolResult, ErrorData>,
-    ) {
-        self.results
-            .lock()
-            .unwrap()
-            .push((request_id.to_string(), result.clone()));
-    }
-}
-
-#[derive(Default)]
-struct AuditHook {
-    seen: Mutex<Vec<String>>,
 }
 
 #[async_trait]
-impl ToolHook<()> for AuditHook {
-    async fn after_call(
-        &self,
-        _session: &(),
-        _conversation: &Conversation,
-        request_id: &str,
-        _call: &CallToolRequestParams,
-        _result: &Result<CallToolResult, ErrorData>,
-    ) {
-        self.seen.lock().unwrap().push(request_id.to_string());
+impl<'a> Hook<(), AfterToolCall<'a>> for RecordingHook {
+    async fn decide(&self, _session: &(), event: &AfterToolCall<'a>) -> HookDecision {
+        self.results
+            .lock()
+            .unwrap()
+            .push((event.request_id.to_string(), event.result.clone()));
+        HookDecision::Allow
     }
 }
 
@@ -622,11 +605,25 @@ impl ToolProvider<()> for CountedTool {
     }
 }
 
+fn with_recording(operation: ToolOperation<()>, hooks: &[Arc<RecordingHook>]) -> ToolOperation<()> {
+    let before_call_hooks: Vec<Arc<BeforeToolCallHook<()>>> = hooks
+        .iter()
+        .map(|hook| hook.clone() as Arc<BeforeToolCallHook<()>>)
+        .collect();
+    let after_call_hooks: Vec<Arc<AfterToolCallHook<()>>> = hooks
+        .iter()
+        .map(|hook| hook.clone() as Arc<AfterToolCallHook<()>>)
+        .collect();
+    operation
+        .with_before_call_hooks(before_call_hooks)
+        .with_after_call_hooks(after_call_hooks)
+}
+
 async fn run_with_hooks(
-    hooks: Vec<Arc<dyn ToolHook<()>>>,
+    hooks: &[Arc<RecordingHook>],
     conversation: &Conversation,
 ) -> Vec<Result<CallToolResult, ErrorData>> {
-    run_operation(operation().with_hooks(hooks), conversation).await
+    run_operation(with_recording(operation(), hooks), conversation).await
 }
 
 async fn run_operation(
@@ -679,7 +676,7 @@ async fn run_and_collect_notifications(
 async fn allowing_hooks_let_calls_run_and_see_their_results() {
     let hook = RecordingHook::allowing();
 
-    let results = run_with_hooks(vec![hook.clone()], &add_and_greet()).await;
+    let results = run_with_hooks(std::slice::from_ref(&hook), &add_and_greet()).await;
 
     assert_eq!(
         results[0].as_ref().unwrap().structured_content,
@@ -699,11 +696,12 @@ async fn allowing_hooks_let_calls_run_and_see_their_results() {
 async fn a_denied_call_is_skipped_and_returns_the_reason() {
     let calls = Arc::new(AtomicUsize::new(0));
     let hook = RecordingHook::denying("counted", "counted is not allowed");
-    let operation = operation()
-        .with_provider(Arc::new(CountedTool {
+    let operation = with_recording(
+        operation().with_provider(Arc::new(CountedTool {
             calls: calls.clone(),
-        }))
-        .with_hooks(vec![hook.clone()]);
+        })),
+        std::slice::from_ref(&hook),
+    );
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("do both"),
         Message::assistant()
@@ -735,7 +733,8 @@ async fn a_denied_call_is_skipped_and_returns_the_reason() {
 async fn a_denied_call_shows_only_the_user_message_it_was_given() {
     let quiet = RecordingHook::denying("add", "add is not allowed");
     let (_, shown) =
-        run_and_collect_notifications(operation().with_hooks(vec![quiet]), &add_and_greet()).await;
+        run_and_collect_notifications(with_recording(operation(), &[quiet]), &add_and_greet())
+            .await;
     assert!(shown.is_empty());
 
     let loud = Arc::new(RecordingHook {
@@ -744,7 +743,7 @@ async fn a_denied_call_shows_only_the_user_message_it_was_given() {
         ..RecordingHook::default()
     });
     let (results, shown) =
-        run_and_collect_notifications(operation().with_hooks(vec![loud]), &add_and_greet()).await;
+        run_and_collect_notifications(with_recording(operation(), &[loud]), &add_and_greet()).await;
     assert_eq!(
         results[0].as_ref().unwrap_err().message,
         "add is not allowed"
@@ -759,7 +758,7 @@ async fn the_first_denying_hook_wins_and_later_hooks_are_not_asked() {
     let third = RecordingHook::denying("add", "third denies add");
 
     let results = run_with_hooks(
-        vec![first.clone(), second.clone(), third.clone()],
+        &[first.clone(), second.clone(), third.clone()],
         &add_and_greet(),
     )
     .await;
@@ -775,13 +774,52 @@ async fn the_first_denying_hook_wins_and_later_hooks_are_not_asked() {
 }
 
 #[tokio::test]
-async fn a_hook_with_only_after_call_lets_every_call_run() {
-    let hook = Arc::new(AuditHook::default());
+async fn an_after_call_hook_alone_lets_every_call_run() {
+    let hook = RecordingHook::allowing();
 
-    let results = run_with_hooks(vec![hook.clone()], &add_and_greet()).await;
+    let results = run_operation(
+        operation().with_after_call_hooks(vec![hook.clone()]),
+        &add_and_greet(),
+    )
+    .await;
 
     assert!(results.iter().all(Result::is_ok));
-    assert_eq!(*hook.seen.lock().unwrap(), vec!["call-1", "call-2"]);
+    let seen: Vec<String> = hook.results().into_iter().map(|(id, _)| id).collect();
+    assert_eq!(seen, vec!["call-1", "call-2"]);
+}
+
+struct DenyResult;
+
+#[async_trait]
+impl<'a> Hook<(), AfterToolCall<'a>> for DenyResult {
+    async fn decide(&self, _session: &(), event: &AfterToolCall<'a>) -> HookDecision {
+        if event.call.name != "add" {
+            return HookDecision::Allow;
+        }
+        HookDecision::Deny {
+            reason: "the sum is secret".to_string(),
+            user_message: Some(notice("add result was hidden")),
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_denied_result_is_replaced_with_the_reason() {
+    let (results, shown) = run_and_collect_notifications(
+        operation().with_after_call_hooks(vec![Arc::new(DenyResult)]),
+        &add_and_greet(),
+    )
+    .await;
+
+    assert_eq!(
+        results[0].as_ref().unwrap_err().message,
+        "the sum is secret"
+    );
+    assert_eq!(
+        results[1].as_ref().unwrap().structured_content,
+        Some(json!({"greeting": "Hello, Goose!"}))
+    );
+    assert_eq!(shown, vec!["add result was hidden"]);
 }
 
 #[tokio::test]
@@ -795,7 +833,7 @@ async fn unparseable_calls_skip_hooks() {
         ),
     ]);
 
-    let results = run_with_hooks(vec![hook.clone()], &conversation).await;
+    let results = run_with_hooks(std::slice::from_ref(&hook), &conversation).await;
 
     assert_eq!(
         results[0].as_ref().unwrap_err().message,
@@ -811,24 +849,17 @@ struct StuckAfterCall {
 }
 
 #[async_trait]
-impl ToolHook<()> for StuckAfterCall {
-    async fn after_call(
-        &self,
-        _session: &(),
-        _conversation: &Conversation,
-        _request_id: &str,
-        _call: &CallToolRequestParams,
-        _result: &Result<CallToolResult, ErrorData>,
-    ) {
+impl<'a> Hook<(), AfterToolCall<'a>> for StuckAfterCall {
+    async fn decide(&self, _session: &(), _event: &AfterToolCall<'a>) -> HookDecision {
         self.reached.store(true, Ordering::SeqCst);
-        std::future::pending::<()>().await
+        std::future::pending().await
     }
 }
 
 #[tokio::test]
-async fn stopping_during_after_call_keeps_the_finished_result() {
+async fn stopping_during_after_call_hooks_saves_nothing_for_that_call() {
     let hook = Arc::new(StuckAfterCall::default());
-    let operation = operation().with_hooks(vec![hook.clone()]);
+    let operation = operation().with_after_call_hooks(vec![hook.clone()]);
     let conversation = Conversation::new_unvalidated([
         Message::user().with_text("greet"),
         Message::assistant().with_tool_request(
@@ -857,13 +888,5 @@ async fn stopping_during_after_call_keeps_the_finished_result() {
         &emit,
     )
     .await;
-    let [ConversationEffect::AppendMessage(message)] = saved.as_slice() else {
-        panic!("expected the saved tool responses");
-    };
-    let response = message.content[0].as_tool_response().unwrap();
-    assert_eq!(response.id, "call-1");
-    assert_eq!(
-        response.tool_result.as_ref().unwrap().structured_content,
-        Some(json!({"greeting": "Hello, Goose!"}))
-    );
+    assert!(saved.is_empty());
 }

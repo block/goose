@@ -6,12 +6,12 @@ use std::sync::{
 use async_trait::async_trait;
 use goose_agent::{
     events::AgentEvent,
-    hook::HookDecision,
+    hook::{Hook, HookDecision},
     operation::{ConversationEffect, Emitter, Operation, OperationResult, RunStatus},
-    stop_hook::{StopHook, StopHookOperation, DENIED},
+    stop_hook::{Stop, StopHookOperation, DENIED},
 };
 use goose_provider_types::conversation::{
-    message::{Message, MessageContent},
+    message::{Message, MessageContent, SystemNotificationType},
     Conversation,
 };
 use serde_json::json;
@@ -40,17 +40,21 @@ impl FakeHook {
 }
 
 #[async_trait]
-impl StopHook<()> for FakeHook {
-    async fn on_stop(&self, _session: &(), _conversation: &Conversation) -> HookDecision {
+impl<'a> Hook<(), Stop<'a>> for FakeHook {
+    async fn decide(&self, _session: &(), _event: &Stop<'a>) -> HookDecision {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let Some(reason) = self.deny_with else {
             return HookDecision::Allow;
         };
         HookDecision::Deny {
             reason: reason.to_string(),
-            user_message: Some("hook denied".to_string()),
+            user_message: Some(notice("hook denied")),
         }
     }
+}
+
+fn notice(text: &str) -> Message {
+    Message::assistant().with_system_notification(SystemNotificationType::InlineMessage, text)
 }
 
 fn notification_text(message: &Message) -> String {
@@ -104,7 +108,7 @@ async fn run(operation: &StopHookOperation<()>, messages: Vec<Message>) -> Outco
     }
 }
 
-fn denied_context() -> Message {
+fn denial_message() -> Message {
     let mut message = Message::user()
         .with_text("keep going")
         .with_visibility(false, true);
@@ -152,7 +156,7 @@ async fn allow_ends_the_turn() {
 }
 
 #[tokio::test]
-async fn deny_adds_marked_context_and_shows_the_user_message() {
+async fn deny_adds_a_marked_denial_message_and_shows_the_user_message() {
     let operation = StopHookOperation::new(vec![FakeHook::denying("keep going")]);
 
     let outcome = run(
@@ -216,14 +220,14 @@ async fn without_hooks_the_turn_ends() {
 async fn past_the_deny_limit_the_turn_ends_with_the_limit_message() {
     let operation = StopHookOperation::new(vec![FakeHook::denying("keep going")])
         .with_deny_limit_per_turn(1)
-        .with_deny_limit_message("deny limit reached");
+        .with_deny_limit_message(|| notice("deny limit reached"));
 
     let outcome = run(
         &operation,
         vec![
             Message::user().with_text("hi"),
             Message::assistant().with_text("done"),
-            denied_context(),
+            denial_message(),
             Message::assistant().with_text("done again"),
         ],
     )
@@ -248,7 +252,7 @@ async fn past_the_deny_limit_without_a_message_the_turn_ends_quietly() {
         vec![
             Message::user().with_text("hi"),
             Message::assistant().with_text("done"),
-            denied_context(),
+            denial_message(),
             Message::assistant().with_text("done again"),
         ],
     )
@@ -269,7 +273,7 @@ async fn the_deny_limit_counts_only_the_current_turn() {
         vec![
             Message::user().with_text("first"),
             Message::assistant().with_text("done"),
-            denied_context(),
+            denial_message(),
             Message::assistant().with_text("done again"),
             Message::user().with_text("second"),
             Message::assistant().with_text("done"),

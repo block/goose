@@ -15,7 +15,7 @@ use rmcp::{
 };
 use serde_json::{json, Value};
 
-use crate::hook::{inline_notification, HookDecision};
+use crate::hook::{run_hooks, Hook, HookDecision};
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
     OperationResult,
@@ -55,6 +55,17 @@ fn definition<T: ToolBase>() -> Tool {
         tool = tool.with_meta(meta);
     }
     tool
+}
+
+fn denied(
+    emit: &Emitter,
+    reason: String,
+    user_message: Option<Message>,
+) -> Result<CallToolResult, ErrorData> {
+    if let Some(user_message) = user_message {
+        emit.message(user_message);
+    }
+    Err(ErrorData::internal_error(reason, None))
 }
 
 fn pending_requests(requests: Vec<ToolRequest>, tool_names: &HashSet<&str>) -> Vec<ToolRequest> {
@@ -135,29 +146,21 @@ pub trait ToolProvider<S>: MaybeSend + MaybeSync {
     ) -> Result<CallToolResult, ErrorData>;
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-pub trait ToolHook<S>: MaybeSend + MaybeSync {
-    async fn before_call(
-        &self,
-        _session: &S,
-        _conversation: &Conversation,
-        _request_id: &str,
-        _call: &CallToolRequestParams,
-    ) -> HookDecision {
-        HookDecision::Allow
-    }
-
-    async fn after_call(
-        &self,
-        _session: &S,
-        _conversation: &Conversation,
-        _request_id: &str,
-        _call: &CallToolRequestParams,
-        _result: &Result<CallToolResult, ErrorData>,
-    ) {
-    }
+pub struct BeforeToolCall<'a> {
+    pub conversation: &'a Conversation,
+    pub request_id: &'a str,
+    pub call: &'a CallToolRequestParams,
 }
+
+pub struct AfterToolCall<'a> {
+    pub conversation: &'a Conversation,
+    pub request_id: &'a str,
+    pub call: &'a CallToolRequestParams,
+    pub result: &'a Result<CallToolResult, ErrorData>,
+}
+
+pub type BeforeToolCallHook<S> = dyn for<'a> Hook<S, BeforeToolCall<'a>>;
+pub type AfterToolCallHook<S> = dyn for<'a> Hook<S, AfterToolCall<'a>>;
 
 #[cfg(not(target_arch = "wasm32"))]
 type ToolHandler<S> = dyn for<'a> Fn(&'a S, Option<JsonObject>) -> OperationFuture<'a, Result<CallToolResult, ErrorData>>
@@ -218,7 +221,8 @@ where
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
     providers: Vec<Arc<dyn ToolProvider<S>>>,
-    hooks: Vec<Arc<dyn ToolHook<S>>>,
+    before_call_hooks: Vec<Arc<BeforeToolCallHook<S>>>,
+    after_call_hooks: Vec<Arc<AfterToolCallHook<S>>>,
     response: Mutex<Option<Message>>,
 }
 
@@ -230,7 +234,8 @@ where
         Self {
             registered: RegisteredToolProvider { tools: Vec::new() },
             providers: Vec::new(),
-            hooks: Vec::new(),
+            before_call_hooks: Vec::new(),
+            after_call_hooks: Vec::new(),
             response: Mutex::new(None),
         }
     }
@@ -253,8 +258,13 @@ where
         self
     }
 
-    pub fn with_hooks(mut self, hooks: Vec<Arc<dyn ToolHook<S>>>) -> Self {
-        self.hooks = hooks;
+    pub fn with_before_call_hooks(mut self, hooks: Vec<Arc<BeforeToolCallHook<S>>>) -> Self {
+        self.before_call_hooks = hooks;
+        self
+    }
+
+    pub fn with_after_call_hooks(mut self, hooks: Vec<Arc<AfterToolCallHook<S>>>) -> Self {
+        self.after_call_hooks = hooks;
         self
     }
 
@@ -312,24 +322,6 @@ where
             }
         }
         Ok(available)
-    }
-
-    async fn first_denial(
-        &self,
-        session: &S,
-        conversation: &Conversation,
-        request_id: &str,
-        call: &CallToolRequestParams,
-    ) -> HookDecision {
-        for hook in &self.hooks {
-            let decision = hook
-                .before_call(session, conversation, request_id, call)
-                .await;
-            if matches!(decision, HookDecision::Deny { .. }) {
-                return decision;
-            }
-        }
-        HookDecision::Allow
     }
 
     fn record_response(&self, request: &ToolRequest, result: Result<CallToolResult, ErrorData>) {
@@ -427,17 +419,17 @@ where
                     continue;
                 }
             };
+            let before_call = BeforeToolCall {
+                conversation,
+                request_id: &request.id,
+                call,
+            };
             if let HookDecision::Deny {
                 reason,
                 user_message,
-            } = self
-                .first_denial(session, conversation, &request.id, call)
-                .await
+            } = run_hooks(&self.before_call_hooks, session, &before_call).await
             {
-                if let Some(user_message) = user_message {
-                    emit.message(inline_notification(&user_message));
-                }
-                self.record_response(&request, Err(ErrorData::internal_error(reason, None)));
+                self.record_response(&request, denied(emit, reason, user_message));
                 continue;
             }
             let provider = available
@@ -448,11 +440,21 @@ where
             let result = provider
                 .call(session, &request.id, call.clone(), emit)
                 .await;
-            self.record_response(&request, result.clone());
-            for hook in &self.hooks {
-                hook.after_call(session, conversation, &request.id, call, &result)
-                    .await;
-            }
+            let after_call = AfterToolCall {
+                conversation,
+                request_id: &request.id,
+                call,
+                result: &result,
+            };
+            let decision = run_hooks(&self.after_call_hooks, session, &after_call).await;
+            let result = match decision {
+                HookDecision::Allow => result,
+                HookDecision::Deny {
+                    reason,
+                    user_message,
+                } => denied(emit, reason, user_message),
+            };
+            self.record_response(&request, result);
         }
         let message = self
             .response

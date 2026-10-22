@@ -119,7 +119,7 @@ pub(crate) fn build_state_machine(
         Arc::new(
             StopHookOperation::new(vec![Arc::new(GooseStopHook::new(hook_manager))])
                 .with_deny_limit_per_turn(stop_hook_deny_limit)
-                .with_deny_limit_message(deny_limit_warning(stop_hook_deny_limit)),
+                .with_deny_limit_message(move || deny_limit_warning(stop_hook_deny_limit)),
         ),
         Arc::new(ExitOnErrorOperation),
         Arc::new(MaxTurnsOperation::new(max_turns)),

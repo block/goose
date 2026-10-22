@@ -1,12 +1,11 @@
 //! Lets stop hooks accept or block a completed assistant turn.
 
 use async_trait::async_trait;
-use goose_agent::hook::HookDecision;
-use goose_agent::stop_hook::StopHook;
+use goose_agent::hook::{Hook, HookDecision};
+use goose_agent::stop_hook::Stop;
 use rmcp::model::Role;
 
-use crate::conversation::message::Message;
-use crate::conversation::Conversation;
+use crate::conversation::message::{Message, SystemNotificationType};
 use crate::hooks::{HookContext, HookEvent, HookManager, PluginHookDecision};
 use crate::session::Session;
 
@@ -18,15 +17,21 @@ fn denial_reason(plugin: &str, reason: &str) -> String {
     )
 }
 
-fn denial_user_message(plugin: &str) -> String {
-    format!("Stop hook `{plugin}` blocked ending this turn.")
+fn denial_user_message(plugin: &str) -> Message {
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!("Stop hook `{plugin}` blocked ending this turn."),
+    )
 }
 
-pub fn deny_limit_warning(limit: u32) -> String {
-    format!(
-        "Stop hooks blocked the turn from ending more than {limit} consecutive times \
-         \u{2014} overriding and ending turn to avoid an infinite loop. Set \
-         GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
+pub fn deny_limit_warning(limit: u32) -> Message {
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!(
+            "Stop hooks blocked the turn from ending more than {limit} consecutive times \
+             \u{2014} overriding and ending turn to avoid an infinite loop. Set \
+             GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
+        ),
     )
 }
 
@@ -54,10 +59,12 @@ impl GooseStopHook {
 }
 
 #[async_trait]
-impl StopHook<Session> for GooseStopHook {
-    async fn on_stop(&self, session: &Session, conversation: &Conversation) -> HookDecision {
+impl<'a> Hook<Session, Stop<'a>> for GooseStopHook {
+    async fn decide(&self, session: &Session, event: &Stop<'a>) -> HookDecision {
         let context = HookContext::new(HookEvent::Stop, &session.id)
-            .with_last_assistant_message(Self::trailing_assistant_text(conversation.messages()))
+            .with_last_assistant_message(Self::trailing_assistant_text(
+                event.conversation.messages(),
+            ))
             .with_working_dir(session.working_dir.to_string_lossy().into_owned());
         match self
             .hook_manager
