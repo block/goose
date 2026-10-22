@@ -76,6 +76,9 @@ async fn websocket_uses_provider_tls_configuration(
     expect_success: bool,
 ) -> Result<()> {
     let mut ca_params = rcgen::CertificateParams::default();
+    ca_params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, "Goose WebSocket test CA");
     ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
     ca_params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign];
     let ca = rcgen::CertifiedIssuer::self_signed(ca_params, rcgen::KeyPair::generate()?)?;
