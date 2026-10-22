@@ -68,8 +68,6 @@ rustls-tls = [
     "smithy-transport-reqwest?/rustls",
     "sqlx/tls-rustls",
     "jsonwebtoken/aws_lc_rs",
-    "oauth2/reqwest",
-    "oauth2/rustls-tls",
     "goose-providers/rustls-tls",
     "goose-context-management/rustls-tls",
 ]
@@ -87,8 +85,6 @@ native-tls = [
     "smithy-transport-reqwest?/native-tls",
     "sqlx/tls-native-tls",
     "jsonwebtoken/rust_crypto",
-    "oauth2/reqwest",
-    "oauth2/native-tls",
     "goose-providers/native-tls",
     "goose-context-management/native-tls",
 ]
