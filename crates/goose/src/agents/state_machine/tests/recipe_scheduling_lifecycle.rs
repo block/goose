@@ -14,16 +14,12 @@ use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 #[cfg(feature = "scheduler")]
 use crate::agents::platform_extensions::scheduler::MANAGE_SCHEDULE_TOOL_NAME_COMPLETE;
-#[cfg(feature = "code-mode")]
-use crate::agents::state_machine::ops_tool_approval::TOOL_EXECUTABLE_KEY;
 use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
 use crate::agents::types::{RetryConfig, SuccessCheck};
 #[cfg(feature = "code-mode")]
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
-#[cfg(feature = "code-mode")]
-use crate::conversation::message::MessageContent;
 #[cfg(feature = "tree-sitter")]
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::{Recipe, Response, SubRecipe};
@@ -504,9 +500,13 @@ async fn empty_responses_hand_the_turn_to_recipe_operations() -> Result<()> {
     Ok(())
 }
 
+/// Regression test for code-mode subagent termination: `recipe__final_output`
+/// has no extension-owner metadata, so code mode used to filter it out of the
+/// advertised tools and recipe sessions could never collect their structured
+/// output.
 #[cfg(feature = "code-mode")]
 #[tokio::test]
-async fn unadvertised_final_output_is_neither_approved_nor_executed() -> Result<()> {
+async fn code_mode_advertises_and_executes_final_output_for_recipe_sessions() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let recipe = Recipe::builder()
         .title("Structured output boundary")
@@ -528,54 +528,14 @@ async fn unadvertised_final_output_is_neither_approved_nor_executed() -> Result<
         .with_max_turns(2)
         .with_goose_mode(GooseMode::Approve)
         .await;
-    api.on("try the hidden final output")
-        .unadvertised_call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "escaped" }));
-    api.on("not available").reply("recipe call blocked");
+    api.on("return the structured output")
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "escaped" }));
 
-    let result = pipeline.run(["try the hidden final output"]).await?;
+    let result = pipeline.run(["return the structured output"]).await?;
 
-    assert!(!api.calls()[0].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
-    assert!(result.conversation().messages().iter().any(|message| {
-        message.content.iter().any(|content| {
-            matches!(content, MessageContent::ToolResponse(response)
-            if response.tool_result.as_ref().is_ok_and(|result| {
-                result.content.iter().any(|content| {
-                    content.as_text().is_some_and(|text| {
-                        text.text.contains("Tool 'recipe__final_output' is not available")
-                    })
-                })
-            }))
-        })
-    }));
-    assert!(result.conversation().messages().iter().any(|message| {
-        message.content.iter().any(|content| {
-            matches!(content, MessageContent::Text(text) if text.text == "recipe call blocked")
-        })
-    }));
-    assert!(!result.conversation().messages().iter().any(|message| {
-        message
-            .content
-            .iter()
-            .any(|content| matches!(content, MessageContent::ActionRequired(_)))
-    }));
-    let request = result
-        .conversation()
-        .messages()
-        .iter()
-        .flat_map(|message| &message.content)
-        .filter_map(MessageContent::as_tool_request)
-        .find(|request| {
-            request
-                .tool_call
-                .as_ref()
-                .is_ok_and(|tool_call| tool_call.name == FINAL_OUTPUT_TOOL_NAME)
-        })
-        .expect("final_output request");
-    assert!(request
-        .tool_meta
-        .as_ref()
-        .and_then(|metadata| metadata.get(TOOL_EXECUTABLE_KEY))
-        .is_none());
+    assert!(api.calls()[0].advertises_tool(FINAL_OUTPUT_TOOL_NAME));
+    result.assert_message(-2, ToolResponse, "Final output successfully collected.");
+    result.assert_message(-1, Agent, r#"{"result":"escaped"}"#);
 
     Ok(())
 }

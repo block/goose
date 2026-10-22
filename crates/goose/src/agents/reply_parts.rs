@@ -190,7 +190,11 @@ pub(crate) fn prepare_inference_tools(
         tools.retain(|tool| {
             crate::agents::extension_manager::get_tool_owner(tool).is_some_and(|owner| {
                 crate::agents::extension_manager::is_first_class_extension(&owner)
-            }) || crate::agents::extension_manager::get_tool_resource_uri(tool).is_some()
+            })
+                || crate::agents::extension_manager::get_tool_resource_uri(tool).is_some()
+                // Appended outside the extension manager; without it a subagent
+                // can never signal completion (final_output call) in code mode.
+                || tool.name == crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME
         });
     }
 
@@ -1473,6 +1477,46 @@ mod tests {
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>();
         assert_eq!(names, ["resource__view", "shell"]);
+    }
+
+    /// Regression test for code-mode subagent termination: the real
+    /// `recipe__final_output` tool has no extension-owner metadata, so the
+    /// code-mode filter used to drop it and delegated subagents could never
+    /// signal completion.
+    #[cfg(feature = "code-mode")]
+    #[test]
+    fn code_mode_keeps_the_real_final_output_tool_for_recipe_sessions() {
+        use crate::agents::state_machine::ops_recipe::final_output_tool;
+        use crate::recipe::{Recipe, Response};
+        use crate::session::Session;
+
+        let session = Session {
+            recipe: Some(
+                Recipe::builder()
+                    .title("recipe")
+                    .description("recipe")
+                    .instructions("answer")
+                    .response(Response {
+                        json_schema: Some(serde_json::json!({ "type": "object" })),
+                    })
+                    .build()
+                    .unwrap(),
+            ),
+            ..Session::default()
+        };
+        let final_output = final_output_tool(&session)
+            .unwrap()
+            .expect("recipe with response yields the final output tool")
+            .tool();
+        assert_eq!(
+            final_output.name,
+            crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME
+        );
+        assert_eq!(
+            prepare_inference_tools(vec![final_output], true).len(),
+            1,
+            "the real final_output tool must survive the code-mode filter"
+        );
     }
 }
 
