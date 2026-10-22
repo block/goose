@@ -15,6 +15,7 @@ use rmcp::{
 };
 use serde_json::{json, Value};
 
+use crate::hook::{inline_notification, HookDecision};
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationFuture,
     OperationResult,
@@ -134,6 +135,30 @@ pub trait ToolProvider<S>: MaybeSend + MaybeSync {
     ) -> Result<CallToolResult, ErrorData>;
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait ToolHook<S>: MaybeSend + MaybeSync {
+    async fn before_call(
+        &self,
+        _session: &S,
+        _conversation: &Conversation,
+        _request_id: &str,
+        _call: &CallToolRequestParams,
+    ) -> HookDecision {
+        HookDecision::Allow
+    }
+
+    async fn after_call(
+        &self,
+        _session: &S,
+        _conversation: &Conversation,
+        _request_id: &str,
+        _call: &CallToolRequestParams,
+        _result: &Result<CallToolResult, ErrorData>,
+    ) {
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 type ToolHandler<S> = dyn for<'a> Fn(&'a S, Option<JsonObject>) -> OperationFuture<'a, Result<CallToolResult, ErrorData>>
     + Send
@@ -193,6 +218,7 @@ where
 pub struct ToolOperation<S> {
     registered: RegisteredToolProvider<S>,
     providers: Vec<Arc<dyn ToolProvider<S>>>,
+    hooks: Vec<Arc<dyn ToolHook<S>>>,
     response: Mutex<Option<Message>>,
 }
 
@@ -204,6 +230,7 @@ where
         Self {
             registered: RegisteredToolProvider { tools: Vec::new() },
             providers: Vec::new(),
+            hooks: Vec::new(),
             response: Mutex::new(None),
         }
     }
@@ -223,6 +250,11 @@ where
 
     pub fn with_provider(mut self, provider: Arc<dyn ToolProvider<S>>) -> Self {
         self.providers.push(provider);
+        self
+    }
+
+    pub fn with_hooks(mut self, hooks: Vec<Arc<dyn ToolHook<S>>>) -> Self {
+        self.hooks = hooks;
         self
     }
 
@@ -280,6 +312,34 @@ where
             }
         }
         Ok(available)
+    }
+
+    async fn first_denial(
+        &self,
+        session: &S,
+        conversation: &Conversation,
+        request_id: &str,
+        call: &CallToolRequestParams,
+    ) -> HookDecision {
+        for hook in &self.hooks {
+            let decision = hook
+                .before_call(session, conversation, request_id, call)
+                .await;
+            if matches!(decision, HookDecision::Deny { .. }) {
+                return decision;
+            }
+        }
+        HookDecision::Allow
+    }
+
+    fn record_response(&self, request: &ToolRequest, result: Result<CallToolResult, ErrorData>) {
+        let mut output = self.response.lock().unwrap();
+        let message = output.get_or_insert_with(|| Message::user().with_generated_id_if_missing());
+        message.add_tool_response_with_metadata(
+            request.id.clone(),
+            result,
+            request.metadata.as_ref(),
+        );
     }
 }
 
@@ -360,30 +420,39 @@ where
         }
 
         for request in pending {
-            let provider = match request.tool_call.as_ref() {
-                Ok(call) => available
-                    .iter()
-                    .find(|(tool, _)| tool.name == call.name)
-                    .map(|(_, provider)| *provider)
-                    .expect("pending requests were filtered by available tools"),
-                Err(_) => &self.registered as &dyn ToolProvider<S>,
-            };
-            let tool_result = match request.tool_call.as_ref() {
-                Err(error) => Err(error.clone()),
-                Ok(call) => {
-                    provider
-                        .call(session, &request.id, call.clone(), emit)
-                        .await
+            let call = match request.tool_call.as_ref() {
+                Ok(call) => call,
+                Err(error) => {
+                    self.record_response(&request, Err(error.clone()));
+                    continue;
                 }
             };
-            let mut output = self.response.lock().unwrap();
-            let message =
-                output.get_or_insert_with(|| Message::user().with_generated_id_if_missing());
-            message.add_tool_response_with_metadata(
-                request.id,
-                tool_result,
-                request.metadata.as_ref(),
-            );
+            if let HookDecision::Deny {
+                reason,
+                user_message,
+            } = self
+                .first_denial(session, conversation, &request.id, call)
+                .await
+            {
+                if let Some(user_message) = user_message {
+                    emit.message(inline_notification(&user_message));
+                }
+                self.record_response(&request, Err(ErrorData::internal_error(reason, None)));
+                continue;
+            }
+            let provider = available
+                .iter()
+                .find(|(tool, _)| tool.name == call.name)
+                .map(|(_, provider)| *provider)
+                .expect("pending requests were filtered by available tools");
+            let result = provider
+                .call(session, &request.id, call.clone(), emit)
+                .await;
+            self.record_response(&request, result.clone());
+            for hook in &self.hooks {
+                hook.after_call(session, conversation, &request.id, call, &result)
+                    .await;
+            }
         }
         let message = self
             .response

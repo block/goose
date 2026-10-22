@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_provider_types::conversation::message::{Message, SystemNotificationType};
+use goose_provider_types::conversation::message::Message;
 use goose_provider_types::conversation::Conversation;
 use goose_provider_types::maybe_send::{MaybeSend, MaybeSync};
 
+use crate::hook::{inline_notification, HookDecision};
 use crate::operation::{
     applied, ends_turn, messages_since_kickoff, not_applicable, yielded, yielded_with, Emitter,
     Operation, OperationResult,
@@ -14,22 +15,10 @@ use crate::operation::{
 pub const DENIED: &str = "denied";
 pub const DEFAULT_DENY_LIMIT: u32 = 8;
 
-pub enum StopDecision {
-    Allow,
-    Deny {
-        reason: String,
-        notice: Option<String>,
-    },
-}
-
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait StopHook<S>: MaybeSend + MaybeSync {
-    async fn on_stop(&self, session: &S, conversation: &Conversation) -> StopDecision;
-}
-
-fn inline_notification(text: &str) -> Message {
-    Message::assistant().with_system_notification(SystemNotificationType::InlineMessage, text)
+    async fn on_stop(&self, session: &S, conversation: &Conversation) -> HookDecision;
 }
 
 pub struct StopHookOperation<S> {
@@ -57,14 +46,14 @@ impl<S> StopHookOperation<S> {
         self
     }
 
-    async fn first_denial(&self, session: &S, conversation: &Conversation) -> StopDecision {
+    async fn first_denial(&self, session: &S, conversation: &Conversation) -> HookDecision {
         for hook in &self.hooks {
-            if let StopDecision::Deny { reason, notice } = hook.on_stop(session, conversation).await
-            {
-                return StopDecision::Deny { reason, notice };
+            let decision = hook.on_stop(session, conversation).await;
+            if matches!(decision, HookDecision::Deny { .. }) {
+                return decision;
             }
         }
-        StopDecision::Allow
+        HookDecision::Allow
     }
 }
 
@@ -89,9 +78,12 @@ where
         if !ends_turn(messages) {
             return not_applicable();
         }
-        let (reason, notice) = match self.first_denial(session, conversation).await {
-            StopDecision::Allow => return yielded(),
-            StopDecision::Deny { reason, notice } => (reason, notice),
+        let (reason, user_message) = match self.first_denial(session, conversation).await {
+            HookDecision::Allow => return yielded(),
+            HookDecision::Deny {
+                reason,
+                user_message,
+            } => (reason, user_message),
         };
         let denials = messages
             .iter()
@@ -109,8 +101,8 @@ where
             .with_text(reason)
             .with_visibility(false, true);
         Operation::<S, E>::set_message_meta(self, &mut context, DENIED, serde_json::json!(true));
-        if let Some(notice) = notice {
-            emit.message(inline_notification(&notice));
+        if let Some(user_message) = user_message {
+            emit.message(inline_notification(&user_message));
         }
         applied([context.into()])
     }

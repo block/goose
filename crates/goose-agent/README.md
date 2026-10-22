@@ -28,7 +28,15 @@ is a function of the persisted conversation, not of in-memory loop state.
   session. Dynamic providers are queried before inference and again before
   execution, so their tool names and handlers must remain stable between those
   boundaries. Their schemas are sent to inference and matching calls are
-  dispatched against the current session.
+  dispatched against the current session. Pass `ToolHook<S>`s to `with_hooks`
+  to check each call before it runs and see its result after. Hooks are asked
+  in order, and the first `HookDecision::Deny` skips the call, returns its
+  reason to the model as the tool's error, and shows its `user_message`, if
+  any, to the user without saving it. Denied, unparseable, and
+  cancelled calls get no `after_call`. A finished call's result is saved before
+  its `after_call` hooks run, so stopping the run during them keeps the result,
+  though later hooks miss it. Only `ToolOperation` runs these hooks; a
+  custom tool operation has to call them itself.
 - **`StateMachine<'a, S, E>`** — holds `Vec<Step<..>>` and a `CancellationToken`.
   `step()` runs one pass and returns a `StepResult` whose `applied_step` names
   the step that applied (`None` if none did) and whose `status` says whether the
@@ -89,7 +97,7 @@ The crate builds for `wasm32-unknown-unknown` and runs without a tokio runtime,
 so it can be embedded in a JavaScript host. There, the clock and randomness come
 from JavaScript. Some things differ from native:
 
-- The traits you implement (`Provider`, `Operation`, `ToolProvider`,
+- The traits you implement (`Provider`, `Operation`, `ToolProvider`, `ToolHook`,
   `SessionLoader`, `EffectHandler`, and the rest) do not require `Send` or
   `Sync`, and neither does `MessageStream`. So you can await JavaScript promises
   and hold host handles directly. Implement the traits with

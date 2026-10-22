@@ -1,12 +1,13 @@
 //! Lets stop hooks accept or block a completed assistant turn.
 
 use async_trait::async_trait;
-use goose_agent::stop_hook::{StopDecision, StopHook};
+use goose_agent::hook::HookDecision;
+use goose_agent::stop_hook::StopHook;
 use rmcp::model::Role;
 
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
+use crate::hooks::{HookContext, HookEvent, HookManager, PluginHookDecision};
 use crate::session::Session;
 
 fn denial_reason(plugin: &str, reason: &str) -> String {
@@ -17,7 +18,7 @@ fn denial_reason(plugin: &str, reason: &str) -> String {
     )
 }
 
-fn denial_notice(plugin: &str) -> String {
+fn denial_user_message(plugin: &str) -> String {
     format!("Stop hook `{plugin}` blocked ending this turn.")
 }
 
@@ -54,7 +55,7 @@ impl GooseStopHook {
 
 #[async_trait]
 impl StopHook<Session> for GooseStopHook {
-    async fn on_stop(&self, session: &Session, conversation: &Conversation) -> StopDecision {
+    async fn on_stop(&self, session: &Session, conversation: &Conversation) -> HookDecision {
         let context = HookContext::new(HookEvent::Stop, &session.id)
             .with_last_assistant_message(Self::trailing_assistant_text(conversation.messages()))
             .with_working_dir(session.working_dir.to_string_lossy().into_owned());
@@ -63,10 +64,10 @@ impl StopHook<Session> for GooseStopHook {
             .emit_blocking(HookEvent::Stop, context)
             .await
         {
-            HookDecision::Allow => StopDecision::Allow,
-            HookDecision::Deny { reason, plugin } => StopDecision::Deny {
+            PluginHookDecision::Allow => HookDecision::Allow,
+            PluginHookDecision::Deny { reason, plugin } => HookDecision::Deny {
                 reason: denial_reason(&plugin, &reason),
-                notice: Some(denial_notice(&plugin)),
+                user_message: Some(denial_user_message(&plugin)),
             },
         }
     }

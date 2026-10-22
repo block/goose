@@ -6,8 +6,9 @@ use std::sync::{
 use async_trait::async_trait;
 use goose_agent::{
     events::AgentEvent,
+    hook::HookDecision,
     operation::{ConversationEffect, Emitter, Operation, OperationResult, RunStatus},
-    stop_hook::{StopDecision, StopHook, StopHookOperation, DENIED},
+    stop_hook::{StopHook, StopHookOperation, DENIED},
 };
 use goose_provider_types::conversation::{
     message::{Message, MessageContent},
@@ -40,14 +41,14 @@ impl FakeHook {
 
 #[async_trait]
 impl StopHook<()> for FakeHook {
-    async fn on_stop(&self, _session: &(), _conversation: &Conversation) -> StopDecision {
+    async fn on_stop(&self, _session: &(), _conversation: &Conversation) -> HookDecision {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let Some(reason) = self.deny_with else {
-            return StopDecision::Allow;
+            return HookDecision::Allow;
         };
-        StopDecision::Deny {
+        HookDecision::Deny {
             reason: reason.to_string(),
-            notice: Some("hook denied".to_string()),
+            user_message: Some("hook denied".to_string()),
         }
     }
 }
@@ -151,7 +152,7 @@ async fn allow_ends_the_turn() {
 }
 
 #[tokio::test]
-async fn deny_adds_marked_context_and_shows_the_notice() {
+async fn deny_adds_marked_context_and_shows_the_user_message() {
     let operation = StopHookOperation::new(vec![FakeHook::denying("keep going")]);
 
     let outcome = run(
