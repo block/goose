@@ -5,10 +5,12 @@ mod elicitation;
 mod input;
 mod output;
 mod paste;
+mod program_status;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
 
+use crate::session::program_status::{BlockedKind, ProgramStatus};
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -559,6 +561,7 @@ impl CliSession {
         if !banners.is_empty() {
             output::display_banner(&banners);
         }
+        program_status::enable(self.output_format == "text");
 
         let result = self.run_interactive(prompt).await;
 
@@ -567,12 +570,16 @@ impl CliSession {
             .await;
 
         if result.is_ok() {
+            program_status::report(ProgramStatus::Clear, None);
             println!(
                 "\n  {} {}",
                 console::style("●").red(),
                 console::style(format!("session closed · {}", self.session_id)).dim()
             );
+        } else {
+            program_status::report(ProgramStatus::Error, None);
         }
+        program_status::disable();
 
         result
     }
@@ -624,6 +631,7 @@ impl CliSession {
                 .collect();
 
             output::run_status_hook("waiting");
+            program_status::report_idle();
             let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
@@ -1321,6 +1329,7 @@ impl CliSession {
         });
         let _drop_handle = AbortOnDropHandle::new(handle);
 
+        program_status::report(ProgramStatus::Working, None);
         let mut stream = self
             .agent
             .reply(
@@ -1339,6 +1348,7 @@ impl CliSession {
         let mut first_token_at: Option<Instant> = None;
         let mut last_usage: Option<ProviderUsage> = None;
         let mut stream_error = None;
+        let mut input_failed = false;
 
         use futures::StreamExt;
         loop {
@@ -1351,7 +1361,13 @@ impl CliSession {
                             }
                             if let Some(confirmation_request) = find_tool_confirmation(&message) {
                                 let selected_permission = if interactive {
-                                    prompt_tool_confirmation(&confirmation_request)?
+                                    program_status::report(
+                                        ProgramStatus::Blocked(BlockedKind::Permission),
+                                        Some(&confirmation_request.tool_name),
+                                    );
+                                    let permission = prompt_tool_confirmation(&confirmation_request)?;
+                                    program_status::report(ProgramStatus::Working, None);
+                                    permission
                                 } else {
                                     // Non-interactive/headless mode: refuse to run in
                                     // Approve/SmartApprove modes since auto-allowing would
@@ -1424,8 +1440,13 @@ impl CliSession {
                                 output::hide_thinking();
                                 let _ = progress_bars.hide();
 
+                                program_status::report(
+                                    ProgramStatus::Blocked(BlockedKind::Question),
+                                    Some(&elicitation_message),
+                                );
                                 match elicitation::collect_elicitation_input(&elicitation_message, &schema, &cancel_token_clone) {
                                     Ok(input) => {
+                                        program_status::report(ProgramStatus::Working, None);
                                         match &input.action {
                                             ElicitationAction::Decline => {
                                                 output::render_text("Information request declined.", Some(Color::Yellow), true);
@@ -1460,6 +1481,7 @@ impl CliSession {
                                     }
                                     Err(e) => {
                                         output::render_error(&format!("Failed to collect input: {}", e));
+                                        input_failed = true;
                                         cancel_token_clone.cancel();
                                         drain_stopped_run(&mut stream, &mut self.messages, &mut last_usage).await;
                                         break;
@@ -1535,6 +1557,12 @@ impl CliSession {
             }
         }
 
+        let failed = input_failed
+            || stream_error.is_some()
+            || self
+                .messages
+                .last()
+                .is_some_and(|message| message.error_kind().is_some());
         let terminal_error = headless_run_error(
             interactive,
             cancel_token_clone.is_cancelled(),
@@ -1633,6 +1661,16 @@ impl CliSession {
 
         if interactive {
             output::emit_attention_bell();
+            program_status::report(
+                if failed {
+                    ProgramStatus::Error
+                } else if cancel_token_clone.is_cancelled() {
+                    ProgramStatus::Idle
+                } else {
+                    ProgramStatus::Done
+                },
+                None,
+            );
         }
 
         if let Some(error) = terminal_error {

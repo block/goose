@@ -361,8 +361,8 @@ mod tests {
             Some("openai/gpt-5.6-sol".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("opencode_go", "kimi-k2.6", &r),
-            Some("opencode-go/kimi-k2.6".to_string())
+            map_to_canonical_model("opencode_go", "kimi-k3", &r),
+            Some("opencode-go/kimi-k3".to_string())
         );
         assert_eq!(
             map_to_canonical_model("opencode_zen", "kimi-k3", &r),

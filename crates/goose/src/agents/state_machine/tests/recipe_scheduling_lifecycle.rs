@@ -1,13 +1,18 @@
 use anyhow::Result;
 use serde_json::json;
 
-use super::dummy_api::{DummyApi, ProviderFeatures};
+#[cfg(feature = "scheduler")]
+use super::dummy_api::DummyApi;
+use super::dummy_api::ProviderFeatures;
+#[cfg(feature = "scheduler")]
+use super::pipeline::test_pipeline_with_scheduler;
 use super::pipeline::{
-    test_pipeline, test_pipeline_with, test_pipeline_with_scheduler, MessageKind::Agent,
-    MessageKind::Error, MessageKind::ToolResponse,
+    test_pipeline, test_pipeline_with, MessageKind::Agent, MessageKind::Error,
+    MessageKind::ToolResponse,
 };
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+#[cfg(feature = "scheduler")]
 use crate::agents::platform_extensions::scheduler::MANAGE_SCHEDULE_TOOL_NAME_COMPLETE;
 #[cfg(feature = "code-mode")]
 use crate::agents::state_machine::ops_tool_approval::TOOL_EXECUTABLE_KEY;
@@ -19,9 +24,82 @@ use crate::config::GooseMode;
 use crate::conversation::message::Message;
 #[cfg(feature = "code-mode")]
 use crate::conversation::message::MessageContent;
+#[cfg(feature = "tree-sitter")]
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::{Recipe, Response, SubRecipe};
 
+#[tokio::test]
+async fn slash_recipe_extensions_remain_available_in_the_session() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    pipeline.remove_extension("todo").await?;
+    let recipe_path = pipeline.working_dir().join("extension-repro.yaml");
+    std::fs::write(
+        &recipe_path,
+        r#"
+version: 1.0.0
+title: Extension repro
+description: Load Todo through a recipe command
+prompt: Run the extension recipe
+extensions:
+  - type: platform
+    name: todo
+"#,
+    )?;
+    let mappings =
+        json!([{ "command": "extension-repro", "recipe_path": recipe_path }]).to_string();
+    let _guard = env_lock::lock_env([("SLASH_COMMANDS", Some(mappings.as_str()))]);
+    api.on("Run the extension recipe").reply("recipe complete");
+    let result = pipeline.run(["/extension-repro"]).await?;
+    result.assert_message(-1, Agent, "recipe complete");
+    let call = api.calls().last().cloned().unwrap();
+    assert!(call.advertises_tool("todo__todo_write"));
+    assert!(call.advertises_tool(super::calculator_extension::ADD));
+
+    api.on("write a note after the recipe")
+        .call("todo__todo_write", json!({ "content": "still available" }));
+    api.on("Updated (").reply("note saved");
+    let result = pipeline.run(["write a note after the recipe"]).await?;
+    result.assert_message(-1, Agent, "note saved");
+    Ok(())
+}
+
+#[tokio::test]
+async fn slash_recipe_extension_failure_is_reported_before_applying_the_recipe() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe_path = pipeline.working_dir().join("broken-extension.json");
+    std::fs::write(
+        &recipe_path,
+        json!({
+            "title": "Broken extension",
+            "description": "Report a recipe extension startup failure",
+            "prompt": "This recipe should not run",
+            "extensions": [{
+                "type": "stdio",
+                "name": "missing-server",
+                "cmd": pipeline.working_dir().join("missing-mcp-binary"),
+                "args": [],
+                "timeout": 1
+            }]
+        })
+        .to_string(),
+    )?;
+    let mappings =
+        json!([{ "command": "broken-extension", "recipe_path": recipe_path }]).to_string();
+    let _guard = env_lock::lock_env([("SLASH_COMMANDS", Some(mappings.as_str()))]);
+
+    let result = pipeline.run(["/broken-extension"]).await?;
+
+    result.assert_message(
+        -1,
+        Agent,
+        "Could not load recipe extension 'missing-server'",
+    );
+    assert_eq!(api.call_count(), 0);
+    assert!(result.session.recipe.is_none());
+    Ok(())
+}
+
+#[cfg(feature = "tree-sitter")]
 #[tokio::test]
 async fn inherited_recipe_parameters_instructions_and_extensions_reach_inference() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
@@ -117,6 +195,7 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     result.assert_message(-1, Agent, "delegation stayed in chat");
 
     let (pipeline, api) = test_pipeline().await?;
+    pipeline.remove_extension("todo").await?;
     let host = api.uri();
     let _guard = env_lock::lock_env([
         ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
@@ -132,6 +211,9 @@ version: 1.0.0
 title: Bounded child
 description: Stops after one turn
 prompt: Keep taking actions
+extensions:
+  - type: platform
+    name: todo
 settings:
   max_turns: 1
 "#,
@@ -166,6 +248,10 @@ settings:
 
     let result = pipeline.run(["Delegate the bounded child"]).await?;
     assert_eq!(api.call_count(), 3);
+    let calls = api.calls();
+    assert!(!calls[0].advertises_tool("todo__todo_write"));
+    assert!(calls[1].advertises_tool("todo__todo_write"));
+    assert!(!calls[2].advertises_tool("todo__todo_write"));
     let delivery = result
         .conversation()
         .messages()
@@ -532,6 +618,7 @@ async fn structured_output_fails_fast_when_provider_manages_own_context() -> Res
     Ok(())
 }
 
+#[cfg(feature = "scheduler")]
 #[tokio::test]
 async fn scheduler_is_advertised_only_when_configured_and_manages_jobs() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
@@ -688,6 +775,7 @@ async fn boolean_final_output_schema_stops_before_inference() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "scheduler")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn scheduled_run_attaches_recipe_to_session_before_inference() -> Result<()> {
     let api = DummyApi::start(ProviderFeatures::default()).await;

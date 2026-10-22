@@ -187,48 +187,11 @@ pub(crate) fn prepare_inference_tools(
 ) -> Vec<Tool> {
     #[cfg(feature = "code-mode")]
     if code_execution_active {
-        let disclosure_style =
-            crate::agents::platform_extensions::code_execution::get_tool_disclosure();
-
-        tools = tools
-            .into_iter()
-            .filter_map(|mut tool| match disclosure_style {
-                pctx_code_mode::config::ToolDisclosure::Catalog
-                | pctx_code_mode::config::ToolDisclosure::Filesystem => {
-                    // in catalog & filesystem styles, progressive search is handled
-                    // by pctx, so we want to omit all non-first-class extensions
-                    // from the standard tool list
-                    if crate::agents::extension_manager::get_tool_owner(&tool).is_some_and(
-                        |owner| crate::agents::extension_manager::is_first_class_extension(&owner),
-                    ) || crate::agents::extension_manager::get_tool_resource_uri(&tool).is_some()
-                    {
-                        Some(tool)
-                    } else {
-                        None
-                    }
-                }
-                pctx_code_mode::config::ToolDisclosure::Sidecar => {
-                    // in sidecar style there is no progressive search, just a way to chain tools
-                    // together with typescript
-                    // add output schema to description since many model providers drop the
-                    // output schema when presenting tools to the model
-                    let output_schema = tool
-                        .output_schema
-                        .as_ref()
-                        .map(|schema| serde_json::json!(schema).to_string())
-                        .unwrap_or("unknown".to_string());
-                    let description =
-                        format!("The successful return schema of this tool is:\n{output_schema}");
-                    tool.description = Some(
-                        tool.description
-                            .map(|current| format!("{current}\n{description}"))
-                            .unwrap_or(description)
-                            .into(),
-                    );
-                    Some(tool)
-                }
-            })
-            .collect();
+        tools.retain(|tool| {
+            crate::agents::extension_manager::get_tool_owner(tool).is_some_and(|owner| {
+                crate::agents::extension_manager::is_first_class_extension(&owner)
+            }) || crate::agents::extension_manager::get_tool_resource_uri(tool).is_some()
+        });
     }
 
     #[cfg(not(feature = "code-mode"))]
@@ -1489,6 +1452,27 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
+    }
+    #[cfg(feature = "code-mode")]
+    #[test]
+    fn code_mode_keeps_first_class_and_resource_tools() {
+        let mut first_class =
+            make_tool_with_meta(Some(serde_json::json!({"goose_extension": "developer"})));
+        first_class.name = "shell".into();
+        let mut resource = make_tool_with_meta(Some(
+            serde_json::json!({"ui": {"resourceUri": "ui://example"}}),
+        ));
+        resource.name = "resource__view".into();
+        let ordinary = make_tool_with_meta(None);
+        let hidden = make_tool_with_meta(Some(
+            serde_json::json!({"goose_extension": "developer", "ui": {"visibility": ["app"]}}),
+        ));
+        let filtered = prepare_inference_tools(vec![ordinary, first_class, resource, hidden], true);
+        let names = filtered
+            .iter()
+            .map(|tool| tool.name.as_ref())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["resource__view", "shell"]);
     }
 }
 

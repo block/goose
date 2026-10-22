@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
@@ -43,6 +44,7 @@ pub(crate) struct StateMachineConfig<'a> {
     pub(crate) on_failure_timeout: Duration,
     pub(crate) stop_hook_block_cap: u32,
     pub(crate) max_turns: u32,
+    pub(crate) extra_operations: Vec<Arc<dyn Operation<Session, GooseEffect>>>,
     pub(crate) cancel: CancellationToken,
     pub(crate) context_relevance: Option<Arc<dyn DecisionProvider>>,
 }
@@ -105,6 +107,7 @@ pub(crate) fn build_state_machine(
         on_failure_timeout,
         stop_hook_block_cap,
         max_turns,
+        extra_operations,
         cancel,
         context_relevance,
     } = config;
@@ -116,14 +119,24 @@ pub(crate) fn build_state_machine(
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
-        Arc::new(RecipeOperation::new(provider.clone(), hook_manager.clone())),
+        Arc::new(RecipeOperation::new(
+            provider.clone(),
+            Arc::clone(&extension_manager),
+            hook_manager.clone(),
+        )),
         Arc::new(ToolExecutionOperation::new(
             Arc::clone(&extension_manager),
             hook_manager.clone(),
             Arc::clone(&extension_lease),
         )),
         Arc::new(RemainingToolCallsOperation::new(hook_manager.clone())),
-        Arc::new(SubagentOperation::new(Arc::new(subagent_runner))),
+        Arc::new(
+            SubagentOperation::new(Arc::new(subagent_runner)).with_max_concurrency(
+                Config::global()
+                    .get_param::<NonZeroUsize>("GOOSE_MAX_CONCURRENT_SUBAGENTS")
+                    .unwrap_or(NonZeroUsize::new(5).unwrap()),
+            ),
+        ),
         Arc::new(SteerOperation::new(steer_queue, hook_manager.clone())),
         Arc::new(BangShellOperation::new()),
     ];
@@ -158,6 +171,7 @@ pub(crate) fn build_state_machine(
         Arc::new(MaxTurnsOperation::new(max_turns)),
     ];
     operations.extend(remaining_operations);
+    operations.extend(extra_operations);
     let request_preparer = GooseInferenceRequestPreparer {
         extension_manager,
         extension_lease,

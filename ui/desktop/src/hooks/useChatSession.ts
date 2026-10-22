@@ -17,7 +17,7 @@ import {
 import { errorMessage } from '../utils/conversionUtils';
 import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
 import { resolveAcpElicitationRequest } from '../acp/elicitationRequests';
-import { acpChatSessionController } from '../acp/chatSessionController';
+import { acpChatSessionController, type PromptOutcome } from '../acp/chatSessionController';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -109,9 +109,11 @@ export function useChatSession({
   }, [getCurrentSnapshot, sessionId]);
 
   const onFinish = useCallback(
-    async (error?: string): Promise<void> => {
-      if (error) {
-        toastError({ title: "Couldn't send message", msg: error });
+    async (outcome: PromptOutcome): Promise<void> => {
+      if (outcome.status === 'failed') {
+        if (outcome.message) {
+          toastError({ title: "Couldn't send message", msg: outcome.message });
+        }
       } else {
         try {
           const [notificationsEnabled, anyWindowFocused] = await Promise.all([
@@ -150,6 +152,11 @@ export function useChatSession({
   const retrySessionLoad = useCallback(
     () => acpChatSessionController.loadSession(sessionId, { onSessionLoaded }),
     [sessionId, onSessionLoaded]
+  );
+
+  const refreshSession = useCallback(
+    () => acpChatSessionController.restoreSession(sessionId),
+    [sessionId]
   );
 
   // Load session on mount or sessionId change
@@ -351,6 +358,7 @@ export function useChatSession({
     submitElicitationResponse,
     stopStreaming,
     retrySessionLoad,
+    refreshSession,
     tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: false,
