@@ -3048,7 +3048,7 @@ impl SessionStorage {
         let rows = sqlx::query_as::<_, (i64, String)>(
             "SELECT id, content_json FROM messages \
              WHERE session_id = ? AND message_id = ? \
-             ORDER BY id ASC",
+             ORDER BY id DESC",
         )
         .bind(session_id)
         .bind(message_id)
