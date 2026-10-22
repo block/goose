@@ -1431,7 +1431,7 @@ mod tests {
     }
 
     #[test]
-    fn inventory_ignores_stale_snapshots_for_static_providers() {
+    fn inventory_uses_codex_discovery_only_when_refresh_is_enabled() {
         let configured_models = [ModelInfo::new("gpt-5.6").with_context_limit(0)];
         let snapshot = InventorySnapshot {
             models: vec![InventoryModel {
@@ -1456,5 +1456,14 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "gpt-5.6");
+
+        let models = inventory_models_from_snapshot(
+            Some(&snapshot),
+            "chatgpt_codex",
+            &configured_models,
+            registrations::chatgpt_codex_inventory().supports_refresh,
+        );
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "gpt-5.5");
     }
 }

@@ -205,11 +205,9 @@ pub fn muse_code_inventory() -> InventoryRegistration {
 }
 
 pub fn chatgpt_codex_inventory() -> InventoryRegistration {
-    InventoryRegistration {
-        supports_refresh: false,
-        identity: default_inventory_identity_resolver(),
-        configured: None,
-    }
+    InventoryRegistration::new(true, || {
+        Ok(ChatGptCodexTokenCache::new().inventory_identity())
+    })
     .with_configured(|| ChatGptCodexTokenCache::new().has_token())
 }
 

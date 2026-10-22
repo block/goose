@@ -396,9 +396,8 @@ jobs:
     environment: ${{ inputs.signing && inputs.environment || '' }}
     permissions:
       id-token: write
-    # Non-blocking until the first installer release is verified: a failure here must not
-    # fail the called workflow and skip the release job, which then finds no installer to upload.
-    continue-on-error: true
+    # Keep signed releases non-blocking until verified; unsigned builds require an installer.
+    continue-on-error: ${{ inputs.signing }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

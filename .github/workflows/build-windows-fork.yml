@@ -1,0 +1,54 @@
+name: Build Unsigned Windows App
+
+on:
+  push:
+    branches:
+      - codex-model-discovery
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-fork-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-providers:
+    name: Check Format and Providers
+    runs-on: windows-latest
+    env:
+      GOOSE_DISABLE_KEYRING: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: windows-provider-tests
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Test Codex provider
+        run: cargo test -p goose --lib --features rustls-tls providers::chatgpt_codex
+      - name: Test OpenAI provider
+        run: cargo test -p goose --lib --features rustls-tls providers::openai_def
+      - name: Test Codex inventory
+        run: cargo test -p goose --lib --features rustls-tls inventory_uses_codex_discovery_only_when_refresh_is_enabled
+
+  bundle-windows:
+    name: Bundle Unsigned Windows App
+    needs: check-providers
+    # Required by the reusable workflow's signing-capable jobs; signing stays disabled.
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/bundle-windows.yml
+    with:
+      package_cli: true
+      package_desktop: true
+      signing: false
+      environment: ''
+      windows_variant: standard
+      ref: ${{ github.sha }}
