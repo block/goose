@@ -413,7 +413,13 @@ fn extract_zip(data: &[u8], dest: &Path) -> Result<()> {
 
         let safe_path = match entry.enclosed_name() {
             Some(p) => p.to_owned(),
-            None => bail!("Zip entry has unsafe path: {}", entry.name()),
+            None => {
+                let name = entry
+                    .name()
+                    .map(|name| name.into_owned())
+                    .unwrap_or_else(|_| "<invalid>".to_string());
+                bail!("Zip entry has unsafe path: {name}")
+            }
         };
 
         let target = dest.join(&safe_path);
