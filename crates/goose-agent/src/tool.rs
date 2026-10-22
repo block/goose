@@ -324,14 +324,46 @@ where
         Ok(available)
     }
 
-    fn record_response(&self, request: &ToolRequest, result: Result<CallToolResult, ErrorData>) {
-        let mut output = self.response.lock().unwrap();
-        let message = output.get_or_insert_with(|| Message::user().with_generated_id_if_missing());
-        message.add_tool_response_with_metadata(
-            request.id.clone(),
-            result,
-            request.metadata.as_ref(),
-        );
+    async fn call_with_hooks(
+        &self,
+        session: &S,
+        conversation: &Conversation,
+        request_id: &str,
+        call: &CallToolRequestParams,
+        available: &[(Tool, &dyn ToolProvider<S>)],
+        emit: &Emitter,
+    ) -> Result<CallToolResult, ErrorData> {
+        let before_call = BeforeToolCall {
+            conversation,
+            request_id,
+            call,
+        };
+        if let HookDecision::Deny {
+            reason,
+            user_message,
+        } = run_hooks(&self.before_call_hooks, session, &before_call).await
+        {
+            return denied(emit, reason, user_message);
+        }
+        let provider = available
+            .iter()
+            .find(|(tool, _)| tool.name == call.name)
+            .map(|(_, provider)| *provider)
+            .expect("pending requests were filtered by available tools");
+        let result = provider.call(session, request_id, call.clone(), emit).await;
+        let after_call = AfterToolCall {
+            conversation,
+            request_id,
+            call,
+            result: &result,
+        };
+        match run_hooks(&self.after_call_hooks, session, &after_call).await {
+            HookDecision::Allow => result,
+            HookDecision::Deny {
+                reason,
+                user_message,
+            } => denied(emit, reason, user_message),
+        }
     }
 }
 
@@ -412,49 +444,21 @@ where
         }
 
         for request in pending {
-            let call = match request.tool_call.as_ref() {
-                Ok(call) => call,
-                Err(error) => {
-                    self.record_response(&request, Err(error.clone()));
-                    continue;
+            let tool_result = match request.tool_call.as_ref() {
+                Err(error) => Err(error.clone()),
+                Ok(call) => {
+                    self.call_with_hooks(session, conversation, &request.id, call, &available, emit)
+                        .await
                 }
             };
-            let before_call = BeforeToolCall {
-                conversation,
-                request_id: &request.id,
-                call,
-            };
-            if let HookDecision::Deny {
-                reason,
-                user_message,
-            } = run_hooks(&self.before_call_hooks, session, &before_call).await
-            {
-                self.record_response(&request, denied(emit, reason, user_message));
-                continue;
-            }
-            let provider = available
-                .iter()
-                .find(|(tool, _)| tool.name == call.name)
-                .map(|(_, provider)| *provider)
-                .expect("pending requests were filtered by available tools");
-            let result = provider
-                .call(session, &request.id, call.clone(), emit)
-                .await;
-            let after_call = AfterToolCall {
-                conversation,
-                request_id: &request.id,
-                call,
-                result: &result,
-            };
-            let decision = run_hooks(&self.after_call_hooks, session, &after_call).await;
-            let result = match decision {
-                HookDecision::Allow => result,
-                HookDecision::Deny {
-                    reason,
-                    user_message,
-                } => denied(emit, reason, user_message),
-            };
-            self.record_response(&request, result);
+            let mut output = self.response.lock().unwrap();
+            let message =
+                output.get_or_insert_with(|| Message::user().with_generated_id_if_missing());
+            message.add_tool_response_with_metadata(
+                request.id,
+                tool_result,
+                request.metadata.as_ref(),
+            );
         }
         let message = self
             .response
