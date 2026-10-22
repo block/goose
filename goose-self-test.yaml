@@ -248,7 +248,13 @@ prompt: |
   3. Verify it makes at most one decision call per turn, only above the compaction threshold,
      and that compaction still runs afterward.
   4. Verify the goal, tool arguments, and tool output it sends are capped and flagged when
-     truncated, and that failures, timeouts, and invalid answers never propose omission.
+     incomplete, including goals with visible images or documents. Hidden content must not
+     be sent or mark an otherwise complete goal as incomplete.
+  5. Verify FIFO steers extend the original goal within one shared budget, the whole current
+     turn stays protected, and another steer or compaction replay cannot repeat an observation.
+  6. Verify persisted errors and response model names are capped, tool error status remains
+     explicit in decision evidence, and failures, timeouts, and invalid answers never propose
+     omission.
   If the source checkout or Rust toolchain is unavailable, mark this phase as SKIPPED.
 
   Log command results and failures to: {{ workspace_dir }}/context_relevance.md

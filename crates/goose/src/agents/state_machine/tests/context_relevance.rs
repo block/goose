@@ -30,6 +30,7 @@ use crate::session::Session;
 
 enum Reply {
     Probability(f64),
+    OversizedModel,
     Fail,
     Hang,
 }
@@ -64,6 +65,7 @@ impl DecisionProvider for FakeDecisions {
         *self.last_request.lock().unwrap() = Some(request.clone());
         let noul = match self.reply {
             Reply::Probability(probability) => probability,
+            Reply::OversizedModel => 0.9,
             Reply::Fail => {
                 return Err(ProviderError::RequestFailed(format!(
                     "synthetic failure {}",
@@ -73,7 +75,11 @@ impl DecisionProvider for FakeDecisions {
             Reply::Hang => std::future::pending().await,
         };
         Ok(DecisionResponse {
-            model: request.model.clone(),
+            model: if matches!(self.reply, Reply::OversizedModel) {
+                "é🦆".repeat(1_000)
+            } else {
+                request.model.clone()
+            },
             answers: request
                 .questions
                 .keys()
@@ -251,6 +257,233 @@ async fn goal_is_bounded_visible_text_and_marks_truncation() -> Result<()> {
         assert_eq!(request.state["goal_truncated"], truncated);
         assert!(!serde_json::to_string(&request)?.contains("HIDDEN_SENTINEL"));
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn response_model_is_bounded_before_persistence() -> Result<()> {
+    let decisions = FakeDecisions::new(Reply::OversizedModel);
+    let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+
+    let run = pipeline.run(["current goal"]).await?;
+
+    let note = &turns(&run)[0];
+    assert_eq!(note["status"], "observed");
+    assert_eq!(note["decision_model"], "é🦆".repeat(100));
+    assert_eq!(decisions.calls(), 1);
+    assert_eq!(run.history_replacements(), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn mixed_media_goals_are_marked_incomplete_without_sending_media() -> Result<()> {
+    let mut hidden_image = MessageContent::image("HIDDEN_IMAGE_SENTINEL", "image/png");
+    let MessageContent::Image(image) = &mut hidden_image else {
+        unreachable!()
+    };
+    image.annotations = Some(Annotations::default().with_audience(vec![Role::User]));
+    for (message, truncated) in [
+        (
+            Message::user()
+                .with_text("compare this goal")
+                .with_image("VISIBLE_IMAGE_SENTINEL", "image/png"),
+            true,
+        ),
+        (
+            Message::user()
+                .with_text("compare this goal")
+                .with_document("DOCUMENT_SENTINEL", "application/pdf", None),
+            true,
+        ),
+        (
+            Message::user()
+                .with_content(hidden_image)
+                .with_text("compare this goal"),
+            false,
+        ),
+    ] {
+        let decisions = FakeDecisions::new(Reply::Probability(0.9));
+        let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+
+        pipeline.run_message(message).await?;
+
+        let request = decisions.last_request.lock().unwrap().clone().unwrap();
+        assert_eq!(request.state["goal"], "compare this goal");
+        assert_eq!(request.state["goal_truncated"], truncated);
+        assert!(!serde_json::to_string(&request)?.contains("SENTINEL"));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn steered_goal_keeps_the_original_kickoff_and_protects_the_whole_turn() -> Result<()> {
+    let decisions = FakeDecisions::new(Reply::Probability(0.9));
+    let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+    pipeline
+        .seed([Message::user()
+            .with_id("original-kickoff")
+            .with_text("paint it")])
+        .await?;
+    let mut turn_context = Message::user()
+        .with_text("TURN_CONTEXT_SENTINEL")
+        .agent_only();
+    turn_context.metadata.turn_context = true;
+    pipeline
+        .seed([
+            turn_context,
+            Message::user()
+                .with_text("HOOK_NUDGE_SENTINEL")
+                .agent_only(),
+        ])
+        .await?;
+    for index in 0..5 {
+        pipeline
+            .seed(tool_pair(&format!("current-{index}"), &old_output()))
+            .await?;
+    }
+    pipeline
+        .steer(Message::user().with_text("first use blue"))
+        .await;
+    pipeline
+        .steer(
+            Message::user()
+                .with_text("HIDDEN_STEER_SENTINEL")
+                .user_only(),
+        )
+        .await;
+    pipeline
+        .steer(Message::user().with_text("then make it matte"))
+        .await;
+
+    let run = pipeline.resume().await?;
+
+    assert_eq!(decisions.calls(), 1);
+    assert_eq!(run.history_replacements(), 1);
+    assert_eq!(turns(&run)[0]["kickoff_id"], "original-kickoff");
+    let request = decisions.last_request.lock().unwrap().clone().unwrap();
+    assert_eq!(
+        request.state["goal"],
+        "paint it\nfirst use blue\nthen make it matte"
+    );
+    assert_eq!(request.state["goal_truncated"], false);
+    let candidates = request.state["candidates"].as_array().unwrap();
+    assert_eq!(candidates.len(), 4);
+    assert!(candidates
+        .iter()
+        .all(|candidate| candidate["tool_call_ids"][0]
+            .as_str()
+            .unwrap()
+            .starts_with("call-")));
+    assert!(!serde_json::to_string(&request)?.contains("SENTINEL"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn steering_shares_one_goal_budget_and_marks_omitted_media() -> Result<()> {
+    for (opening, steer, expected, truncated) in [
+        (
+            Message::user().with_text("a".repeat(400)),
+            Message::user().with_text("b".repeat(400)),
+            format!("{}\n{}", "a".repeat(400), "b".repeat(399)),
+            true,
+        ),
+        (
+            Message::user().with_text("paint it"),
+            Message::user()
+                .with_text("use this goal")
+                .with_image("IMAGE_SENTINEL", "image/png"),
+            "paint it\nuse this goal".to_string(),
+            true,
+        ),
+    ] {
+        let decisions = FakeDecisions::new(Reply::Probability(0.9));
+        let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+        pipeline.seed([opening]).await?;
+        pipeline.seed(tool_pair("current", "recent output")).await?;
+        pipeline.steer(steer).await;
+
+        pipeline.resume().await?;
+
+        let request = decisions.last_request.lock().unwrap().clone().unwrap();
+        assert_eq!(request.state["goal"], expected);
+        assert_eq!(request.state["goal_truncated"], truncated);
+        assert!(request.state["goal"].as_str().unwrap().chars().count() <= 800);
+        assert!(!serde_json::to_string(&request)?.contains("SENTINEL"));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn steering_after_an_observation_does_not_repeat_it_after_reconstruction() -> Result<()> {
+    let decisions = FakeDecisions::new(Reply::Probability(0.9));
+    let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+    pipeline
+        .seed([Message::user()
+            .with_id("original-kickoff")
+            .with_text("current goal")])
+        .await?;
+    let cancel = CancellationToken::new();
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    let emit = Emitter::new(tx, cancel.clone());
+    let session = pipeline.session().await?;
+    let operation =
+        ContextRelevanceOperation::new(decisions.clone(), pipeline.context_limit(), 0.8);
+    let OperationResult::Applied(mut observed) = operation
+        .run(&session, session.conversation.as_ref().unwrap(), &emit)
+        .await?
+    else {
+        panic!("the turn is observed before compaction")
+    };
+    pipeline
+        .machine(cancel)
+        .apply(
+            pipeline.session_manager.as_ref(),
+            &session,
+            &mut observed.effects,
+            &emit,
+        )
+        .await?;
+    pipeline
+        .seed([Message::user().with_text("also use blue").with_steer()])
+        .await?;
+    let pipeline = pipeline.reconstruct().await?;
+
+    let run = pipeline.resume().await?;
+
+    assert_eq!(decisions.calls(), 1);
+    assert_eq!(turns(&run).len(), 1);
+    assert_eq!(turns(&run)[0]["kickoff_id"], "original-kickoff");
+    Ok(())
+}
+
+#[tokio::test]
+async fn archived_kickoff_is_not_reobserved_as_a_compaction_replay() -> Result<()> {
+    let decisions = FakeDecisions::new(Reply::Probability(0.9));
+    let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+    let first = pipeline.run(["current goal"]).await?;
+    let original_id = turns(&first)[0]["kickoff_id"].clone();
+    assert_eq!(first.history_replacements(), 1);
+    for index in 0..5 {
+        pipeline
+            .seed(tool_pair(
+                &format!("after-compaction-{index}"),
+                &old_output(),
+            ))
+            .await?;
+    }
+    pipeline
+        .set_total_tokens(pipeline.context_limit() as i32)
+        .await;
+    let pipeline = pipeline.reconstruct().await?;
+    pipeline
+        .steer(Message::user().with_text("continue this goal"))
+        .await;
+
+    let run = pipeline.resume().await?;
+
+    assert_eq!(decisions.calls(), 1);
+    assert_eq!(turns(&run).len(), 1);
+    assert_eq!(turns(&run)[0]["kickoff_id"], original_id);
     Ok(())
 }
 
@@ -443,6 +676,73 @@ fn judges_only_complete_visible_single_results() {
     ] {
         assert!(!serialized.contains(excluded), "{excluded} was sent");
     }
+}
+
+#[test]
+fn recent_mixed_media_evidence_is_marked_incomplete() {
+    let mut messages = vec![Message::user().with_text("old goal")];
+    messages.extend(tool_pair("old", &old_output()));
+    let cutoff = messages.len();
+    messages.push(Message::user().with_tool_response(
+        "recent",
+        Ok(CallToolResult::success(vec![
+            ContentBlock::text("recent text"),
+            ContentBlock::image("IMAGE_SENTINEL", "image/png"),
+        ])),
+    ));
+    messages.push(Message::user().with_text("current goal"));
+
+    let request = ContextRelevanceOperation::request(
+        &Conversation::new_unvalidated(messages),
+        cutoff,
+        "current goal".into(),
+        false,
+    );
+
+    let recent = &request.state["recent_evidence_not_eligible_for_omission"][0];
+    assert_eq!(recent["excerpt"], "recent text");
+    assert_eq!(recent["truncated"], true);
+    assert!(!serde_json::to_string(&request)
+        .unwrap()
+        .contains("IMAGE_SENTINEL"));
+}
+
+#[test]
+fn request_preserves_tool_error_status_in_candidates_and_recent_evidence() {
+    let mut messages = vec![Message::user().with_text("old goal")];
+    for (id, is_error) in [("success", false), ("error", true)] {
+        let [request, _] = tool_pair(id, "");
+        let mut result = CallToolResult::success(vec![ContentBlock::text(old_output())]);
+        result.is_error = Some(is_error);
+        messages.extend([request, Message::user().with_tool_response(id, Ok(result))]);
+    }
+    let cutoff = messages.len();
+    for (id, is_error) in [("recent-success", false), ("recent-error", true)] {
+        let [request, _] = tool_pair(id, "");
+        let mut result = CallToolResult::success(vec![ContentBlock::text(old_output())]);
+        result.is_error = Some(is_error);
+        messages.extend([request, Message::user().with_tool_response(id, Ok(result))]);
+    }
+    messages.push(Message::user().with_text("current goal"));
+
+    let request = ContextRelevanceOperation::request(
+        &Conversation::new_unvalidated(messages),
+        cutoff,
+        "current goal".into(),
+        false,
+    );
+
+    let candidates = request.state["candidates"].as_array().unwrap();
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0]["tool_call_ids"], json!(["error"]));
+    assert_eq!(candidates[0]["is_error"], true);
+    assert_eq!(candidates[1]["is_error"], false);
+    let recent = request.state["recent_evidence_not_eligible_for_omission"]
+        .as_array()
+        .unwrap();
+    assert_eq!(recent.len(), 2);
+    assert_eq!(recent[0]["is_error"], false);
+    assert_eq!(recent[1]["is_error"], true);
 }
 
 #[test]
