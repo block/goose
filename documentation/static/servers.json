@@ -1,5 +1,18 @@
 [
   {
+    "id": "howitspread",
+    "name": "How It Spread",
+    "description": "Viral precedents with sourced, dated spread timelines and a Spread Score. Each answer cites a case.",
+    "type": "streamable-http",
+    "url": "https://howitspread.com/api/mcp",
+    "link": "https://howitspread.com/mcp",
+    "installation_notes": "Hosted, read-only, no key. Use https://howitspread.com/api/mcp/account to sign in for full timelines.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+
+  {
     "id": "agentql-mcp",
     "name": "AgentQL",
     "description": "Transform unstructured web content into structured data",
