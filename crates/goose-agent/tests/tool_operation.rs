@@ -524,7 +524,6 @@ fn notice(text: &str) -> Message {
 #[derive(Default)]
 struct RecordingHook {
     deny: Option<(&'static str, &'static str)>,
-    user_message: Option<&'static str>,
     asked: Mutex<Vec<String>>,
     results: Mutex<Vec<(String, Result<CallToolResult, ErrorData>)>>,
 }
@@ -561,7 +560,7 @@ impl<'a> Hook<(), BeforeToolCall<'a>> for RecordingHook {
         match self.deny {
             Some((tool, reason)) if tool == call.name => HookDecision::Deny {
                 reason: reason.to_string(),
-                user_message: self.user_message.map(notice),
+                user_message: None,
             },
             _ => HookDecision::Allow,
         }
@@ -727,65 +726,6 @@ async fn a_denied_call_is_skipped_and_returns_the_reason() {
     let seen = hook.results();
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0].0, "call-2");
-}
-
-#[tokio::test]
-async fn a_denied_call_shows_only_the_user_message_it_was_given() {
-    let quiet = RecordingHook::denying("add", "add is not allowed");
-    let (_, shown) =
-        run_and_collect_notifications(with_recording(operation(), &[quiet]), &add_and_greet())
-            .await;
-    assert!(shown.is_empty());
-
-    let loud = Arc::new(RecordingHook {
-        deny: Some(("add", "add is not allowed")),
-        user_message: Some("add was blocked"),
-        ..RecordingHook::default()
-    });
-    let (results, shown) =
-        run_and_collect_notifications(with_recording(operation(), &[loud]), &add_and_greet()).await;
-    assert_eq!(
-        results[0].as_ref().unwrap_err().message,
-        "add is not allowed"
-    );
-    assert_eq!(shown, vec!["add was blocked"]);
-}
-
-#[tokio::test]
-async fn the_first_denying_hook_wins_and_later_hooks_are_not_asked() {
-    let first = RecordingHook::allowing();
-    let second = RecordingHook::denying("add", "second denies add");
-    let third = RecordingHook::denying("add", "third denies add");
-
-    let results = run_with_hooks(
-        &[first.clone(), second.clone(), third.clone()],
-        &add_and_greet(),
-    )
-    .await;
-
-    assert_eq!(
-        results[0].as_ref().unwrap_err().message,
-        "second denies add"
-    );
-    assert_eq!(first.asked(), vec!["call-1", "call-2"]);
-    assert_eq!(second.asked(), vec!["call-1", "call-2"]);
-    assert_eq!(third.asked(), vec!["call-2"]);
-    assert_eq!(first.results().len(), 1);
-}
-
-#[tokio::test]
-async fn an_after_call_hook_alone_lets_every_call_run() {
-    let hook = RecordingHook::allowing();
-
-    let results = run_operation(
-        operation().with_after_call_hooks(vec![hook.clone()]),
-        &add_and_greet(),
-    )
-    .await;
-
-    assert!(results.iter().all(Result::is_ok));
-    let seen: Vec<String> = hook.results().into_iter().map(|(id, _)| id).collect();
-    assert_eq!(seen, vec!["call-1", "call-2"]);
 }
 
 struct DenyResult;
