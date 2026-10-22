@@ -18,58 +18,22 @@ jobs:
     # Only run in the fork; scheduled runs happen on the default branch.
     if: github.repository == 'thisguycodes/goose'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     permissions:
-      contents: write # create/update the sync branch ref
-      pull-requests: write # open the sync PR and merge it
+      contents: write # merge upstream into main
     steps:
-      - name: Sync main from upstream
+      - name: Merge upstream into main
         env:
-          # Optional fine-grained PAT (Contents: RW, Pull requests: RW on this
-          # fork). PRs created with GITHUB_TOKEN do NOT trigger CI runs, so
-          # without SYNC_TOKEN no tests run on the sync PR.
+          # Optional fine-grained PAT (Contents: RW on this fork). Pushes made
+          # with GITHUB_TOKEN do not trigger CI on main; with SYNC_TOKEN they do.
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          UPSTREAM: aaif-goose/goose
-          BRANCH: sync/upstream
         run: |
           set -euo pipefail
 
-          UPSTREAM_SHA="$(gh api "repos/$UPSTREAM/branches/main" --jq .commit.sha)"
-          echo "upstream main: $UPSTREAM_SHA"
-
-          STATUS="$(gh api "repos/$REPO/compare/$UPSTREAM_SHA...main" --jq .status)"
-          if [ "$STATUS" = "ahead" ] || [ "$STATUS" = "identical" ]; then
-            echo "main already contains upstream main ($STATUS); nothing to do."
-            exit 0
-          fi
-
-          # Forks share the object network with upstream, so pointing the
-          # bot-managed branch at the upstream SHA is a single API call.
-          if gh api "repos/$REPO/git/refs/heads/$BRANCH" --jq .ref >/dev/null 2>&1; then
-            gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$UPSTREAM_SHA" -F force=true --jq .ref
-          else
-            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$UPSTREAM_SHA" --jq .ref
-          fi
-
-          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "chore: sync main with upstream aaif-goose/goose" \
-              --body "$(cat <<'EOF'
-          Automated sync of `main` from [aaif-goose/goose](https://github.com/aaif-goose/goose).
-
-          Merged by the sync-upstream workflow once mergeable and required checks pass. If this PR shows merge conflicts with fork changes, resolve them manually and merge.
-          EOF
-          )"
-          fi
-
-          # Auto-merge waits GitHub-side (no babysitting runner). It gates on
-          # required checks if a ruleset/branch protection requires them.
-          if gh pr merge --auto --merge "$BRANCH"; then
-            echo "Auto-merge enabled; the PR merges once mergeable and required checks pass."
-          else
-            gh pr merge --merge "$BRANCH" || \
-              echo "::warning::PR is not mergeable automatically (likely conflicts with fork changes); manual resolution required."
-          fi
+          # One call: merges the upstream default branch into this fork's main
+          # (fast-forward when possible, merge commit otherwise). A no-op when
+          # already up to date. Fails with 409 on merge conflicts — resolve
+          # those manually once, then the hourly runs take over again.
+          gh api -X POST "repos/$REPO/merge-upstream" -f branch=main \
+            --jq '{message, merge_type, base_branch}'
