@@ -35,6 +35,16 @@ pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
 const SESSION_COUNT_BATCH_SIZE: usize = 900;
 
+#[derive(Debug, thiserror::Error)]
+pub enum SessionCreationError {
+    #[error("session ID already exists: {id}")]
+    AlreadyExists {
+        id: String,
+        #[source]
+        source: sqlx::Error,
+    },
+}
+
 #[derive(
     Debug,
     Clone,
@@ -469,14 +479,6 @@ impl SessionManager {
         session_type: SessionType,
         goose_mode: GooseMode,
     ) -> Result<Session> {
-        anyhow::ensure!(
-            !id.is_empty()
-                && id.len() <= 128
-                && id
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'),
-            "session ID must be 1-128 ASCII letters, digits, underscores, or hyphens"
-        );
         self.storage
             .create_session(Some(id), working_dir, name, session_type, goose_mode)
             .await
@@ -1784,6 +1786,23 @@ impl SessionStorage {
         session_type: SessionType,
         goose_mode: GooseMode,
     ) -> Result<Session> {
+        if let Some(id) = id {
+            anyhow::ensure!(
+                !id.is_empty()
+                    && id.len() <= 128
+                    && id
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'),
+                "session ID must be 1-128 ASCII letters, digits, underscores, or hyphens"
+            );
+            let bytes = id.as_bytes();
+            anyhow::ensure!(
+                !(bytes.len() >= 19
+                    && bytes[..8].iter().all(u8::is_ascii_digit)
+                    && bytes[9..19].iter().all(u8::is_ascii_digit)),
+                "session ID date-prefixed numeric suffix must be fewer than 10 digits"
+            );
+        }
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
@@ -1815,7 +1834,17 @@ impl SessionStorage {
             .bind(&*working_dir.to_string_lossy())
             .bind(goose_mode.to_string())
             .fetch_one(&mut *tx)
-            .await?;
+            .await
+            .map_err(|error| match (id, &error) {
+                (Some(id), sqlx::Error::Database(db_error)) if db_error.is_unique_violation() => {
+                    SessionCreationError::AlreadyExists {
+                        id: id.to_string(),
+                        source: error,
+                    }
+                    .into()
+                }
+                _ => anyhow::Error::from(error),
+            })?;
 
         tx.commit().await?;
         #[cfg(feature = "telemetry")]
@@ -4573,7 +4602,7 @@ mod tests {
         assert_eq!(sm.get_session(id, true).await.unwrap().message_count, 1);
         assert!(sm.list_sessions().await.unwrap().iter().any(|s| s.id == id));
 
-        assert!(sm
+        let collision = sm
             .create_session_with_id(
                 id,
                 PathBuf::from("/tmp/other-session"),
@@ -4582,7 +4611,11 @@ mod tests {
                 GooseMode::default(),
             )
             .await
-            .is_err());
+            .unwrap_err();
+        assert!(matches!(
+            collision.downcast_ref::<SessionCreationError>(),
+            Some(SessionCreationError::AlreadyExists { id: existing_id, .. }) if existing_id == id
+        ));
         assert_eq!(
             sm.get_session(id, false).await.unwrap().name,
             "Custom session"
@@ -4607,7 +4640,18 @@ mod tests {
     async fn test_caller_supplied_session_id_rejects_invalid_values() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
-        for id in ["", "../session", "a b", "a/b"] {
+        let oversized_suffix = format!("{}_9223372036854775807", Utc::now().format("%Y%m%d"));
+        let trailing_text = format!("{oversized_suffix}x");
+        let alternate_separator = format!("{}X9223372036854775807", Utc::now().format("%Y%m%d"));
+        for id in [
+            "",
+            "../session",
+            "a b",
+            "a/b",
+            &oversized_suffix,
+            &trailing_text,
+            &alternate_separator,
+        ] {
             assert!(sm
                 .create_session_with_id(
                     id,
@@ -4620,6 +4664,37 @@ mod tests {
                 .is_err());
         }
         assert!(sm.list_sessions().await.unwrap().is_empty());
+
+        assert!(sm
+            .storage
+            .create_session(
+                Some("../direct-storage"),
+                PathBuf::from("/tmp/custom-session"),
+                "Invalid".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .is_err());
+        let first = sm
+            .create_session(
+                PathBuf::from("/tmp/generated-session"),
+                "Generated".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let second = sm
+            .create_session(
+                PathBuf::from("/tmp/generated-session"),
+                "Generated".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(first.id, second.id);
     }
 
     #[tokio::test]
