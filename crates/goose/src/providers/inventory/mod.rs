@@ -24,6 +24,7 @@ use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::warn;
 
 const STALE_AFTER_HOURS: i64 = 24;
+const CHATGPT_CODEX_STALE_AFTER_MINUTES: i64 = 5;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -705,7 +706,12 @@ impl ProviderInventoryService {
         let Some(last_updated_at) = entry.last_updated_at else {
             return false;
         };
-        entry.supports_refresh && Utc::now() - last_updated_at > Duration::hours(STALE_AFTER_HOURS)
+        let max_age = if entry.provider_id == "chatgpt_codex" {
+            Duration::minutes(CHATGPT_CODEX_STALE_AFTER_MINUTES)
+        } else {
+            Duration::hours(STALE_AFTER_HOURS)
+        };
+        entry.supports_refresh && Utc::now() - last_updated_at > max_age
     }
 
     async fn describe_provider(&self, provider_id: &str) -> Result<Option<ProviderDescriptor>> {
@@ -1465,5 +1471,49 @@ mod tests {
         );
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "gpt-5.5");
+    }
+
+    fn stale_entry(provider_id: &str, age: Duration) -> ProviderInventoryEntry {
+        ProviderInventoryEntry {
+            provider_id: provider_id.to_string(),
+            provider_name: provider_id.to_string(),
+            description: String::new(),
+            default_model: String::new(),
+            configured: true,
+            available: true,
+            provider_type: ProviderType::Builtin,
+            acp: false,
+            visible_in_setup: true,
+            deprecated: false,
+            replacement: None,
+            config_keys: vec![],
+            setup_steps: vec![],
+            supports_refresh: true,
+            refreshing: false,
+            models: vec![],
+            last_updated_at: Some(Utc::now() - age),
+            last_refresh_attempt_at: None,
+            last_refresh_error: None,
+        }
+    }
+
+    #[test]
+    fn codex_inventory_refreshes_frequently_while_other_providers_keep_daily_ttl() {
+        assert!(!ProviderInventoryService::is_stale(&stale_entry(
+            "chatgpt_codex",
+            Duration::minutes(4)
+        )));
+        assert!(ProviderInventoryService::is_stale(&stale_entry(
+            "chatgpt_codex",
+            Duration::minutes(6)
+        )));
+        assert!(!ProviderInventoryService::is_stale(&stale_entry(
+            "openai",
+            Duration::hours(23)
+        )));
+        assert!(ProviderInventoryService::is_stale(&stale_entry(
+            "openai",
+            Duration::hours(25)
+        )));
     }
 }

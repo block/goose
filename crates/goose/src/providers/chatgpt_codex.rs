@@ -944,7 +944,10 @@ impl ChatGptCodexProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         url.query_pairs_mut()
             .append_pair("client_version", env!("CARGO_PKG_VERSION"));
-        let mut request = client.get(url).bearer_auth(&token.access_token);
+        let mut request = client
+            .get(url)
+            .header("version", env!("CARGO_PKG_VERSION"))
+            .bearer_auth(&token.access_token);
         if let Some(account_id) = &token.account_id {
             request = request.header("chatgpt-account-id", account_id);
         }
@@ -1196,6 +1199,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/models"))
             .and(query_param("client_version", env!("CARGO_PKG_VERSION")))
+            .and(header("version", env!("CARGO_PKG_VERSION")))
             .and(header("authorization", "Bearer test-access"))
             .and(header("chatgpt-account-id", "test-account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
