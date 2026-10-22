@@ -19,7 +19,7 @@ use super::pipeline::{
     test_pipeline, test_pipeline_with, MessageKind::Agent, TestPipeline, TestRun,
 };
 use crate::agents::state_machine::ops_context_relevance::{
-    with_turn, ContextRelevanceOperation, NAME, VERSION,
+    truncated_json, with_turn, ContextRelevanceOperation, NAME, VERSION,
 };
 use crate::agents::state_machine::{Emitter, GooseEffect, Operation, OperationResult};
 use crate::agents::state_machine_builder::context_relevance_provider;
@@ -217,24 +217,35 @@ fn history_keeps_the_newest_twenty_turns() {
 }
 
 #[tokio::test]
-async fn goal_excludes_user_only_content() -> Result<()> {
-    let decisions = FakeDecisions::new(Reply::Probability(0.9));
-    let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
+async fn goal_is_bounded_visible_text_and_marks_truncation() -> Result<()> {
+    for (visible, goal, truncated) in [
+        (
+            "current goal".to_string(),
+            "current goal".to_string(),
+            false,
+        ),
+        ("goal ".repeat(200), "goal ".repeat(160), true),
+    ] {
+        let decisions = FakeDecisions::new(Reply::Probability(0.9));
+        let (pipeline, _api) = shadow_pipeline(decisions.clone(), 4, &old_output(), 1.0).await?;
 
-    pipeline
-        .run_message(
-            Message::user()
-                .with_text("current goal")
-                .with_content(MessageContent::Text(
-                    TextContent::new("HIDDEN_SENTINEL")
-                        .with_annotations(Annotations::default().with_audience(vec![Role::User])),
-                )),
-        )
-        .await?;
+        pipeline
+            .run_message(
+                Message::user()
+                    .with_content(MessageContent::Text(
+                        TextContent::new("HIDDEN_SENTINEL").with_annotations(
+                            Annotations::default().with_audience(vec![Role::User]),
+                        ),
+                    ))
+                    .with_text(visible),
+            )
+            .await?;
 
-    let request = decisions.last_request.lock().unwrap().clone().unwrap();
-    assert_eq!(request.state["goal"], "current goal");
-    assert!(!serde_json::to_string(&request)?.contains("HIDDEN_SENTINEL"));
+        let request = decisions.last_request.lock().unwrap().clone().unwrap();
+        assert_eq!(request.state["goal"], goal);
+        assert_eq!(request.state["goal_truncated"], truncated);
+        assert!(!serde_json::to_string(&request)?.contains("HIDDEN_SENTINEL"));
+    }
     Ok(())
 }
 
@@ -402,6 +413,7 @@ fn judges_only_complete_visible_single_results() {
         &Conversation::new_unvalidated(messages),
         cutoff,
         "current goal".into(),
+        false,
     );
 
     assert_eq!(request.questions.len(), 1);
@@ -445,6 +457,7 @@ fn request_keeps_the_newest_candidates_within_excerpt_limits() {
         &Conversation::new_unvalidated(messages),
         cutoff,
         "current goal".into(),
+        false,
     );
 
     let candidates = request.state["candidates"].as_array().unwrap();
@@ -466,6 +479,32 @@ fn request_keeps_the_newest_candidates_within_excerpt_limits() {
         .chain(recent)
         .all(|entry| entry["truncated"] == true));
     assert!(serde_json::to_vec(&request).unwrap().len() <= 48_000);
+}
+
+/// Panics if serialization runs to the end instead of stopping at the limit.
+struct Unbounded;
+
+impl serde::Serialize for Unbounded {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut items = serializer.serialize_seq(None)?;
+        for _ in 0..10_000 {
+            items.serialize_element("item")?;
+        }
+        panic!("serialization did not stop at the limit");
+    }
+}
+
+#[test]
+fn arguments_are_serialized_only_up_to_the_limit() {
+    let long = json!({ "content": "é".repeat(1_000) });
+    let expected: String = long.to_string().chars().take(300).collect();
+    assert_eq!(truncated_json(&long, 300), (expected, true));
+
+    let short = json!({ "path": "a" });
+    assert_eq!(truncated_json(&short, 300), (short.to_string(), false));
+
+    assert!(truncated_json(&Unbounded, 300).1);
 }
 
 #[tokio::test]
@@ -493,6 +532,7 @@ async fn opt_in_reports_setup_failures_and_skips_context_owning_providers() -> R
         &Conversation::new_unvalidated([Message::user().with_text("goal")]),
         0,
         "goal".into(),
+        false,
     );
     let error = unavailable.create_decision(&request).await.unwrap_err();
     assert!(error.to_string().contains("TYPESAFE_API_KEY"));

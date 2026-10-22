@@ -19,6 +19,7 @@ use goose_providers::{
     typesafe::TYPESAFE_DEFAULT_MODEL,
 };
 use rmcp::model::{ContentBlock, Role};
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::{
@@ -51,10 +52,44 @@ struct Excerpt {
     has_non_text: bool,
 }
 
-fn truncate(text: &str, max_chars: usize) -> (String, bool) {
-    let mut chars = text.chars();
+fn truncate(text: impl IntoIterator<Item = char>, max_chars: usize) -> (String, bool) {
+    let mut chars = text.into_iter();
     let kept: String = chars.by_ref().take(max_chars).collect();
     (kept, chars.next().is_some())
+}
+
+/// Serializes at most `max_chars` characters of `value` without cloning it.
+/// Output stops once the buffer is full, so memory stays bounded; serde_json
+/// may still scan the rest of one unescaped string before it stops.
+pub(super) fn truncated_json(value: &impl Serialize, max_chars: usize) -> (String, bool) {
+    struct Prefix {
+        bytes: Vec<u8>,
+        limit: usize,
+    }
+
+    impl std::io::Write for Prefix {
+        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+            let taken = data.len().min(self.limit - self.bytes.len());
+            self.bytes.extend_from_slice(&data[..taken]);
+            Ok(taken)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    // A character takes at most four bytes, so a longer value always leaves
+    // a complete character past the limit to report truncation.
+    let mut prefix = Prefix {
+        bytes: Vec::new(),
+        limit: 4 * (max_chars + 1),
+    };
+    // Once the buffer is full, the writer accepts zero bytes and serde_json
+    // stops with an error; the prefix is all that is needed.
+    let _ = serde_json::to_writer(&mut prefix, value);
+    let text = String::from_utf8_lossy(&prefix.bytes);
+    truncate(text.chars(), max_chars)
 }
 
 /// Appends to a bounded history keyed by kickoff message ID, so observations
@@ -164,6 +199,7 @@ impl ContextRelevanceOperation {
         conversation: &Conversation,
         cutoff: usize,
         goal: String,
+        goal_truncated: bool,
     ) -> DecisionRequest {
         let request_indices: HashMap<_, _> = conversation.messages()[..cutoff]
             .iter()
@@ -214,17 +250,16 @@ impl ContextRelevanceOperation {
             }
             let tool_call_ids = [*id];
             let key = format!("need_{index}");
-            let arguments = call
+            let (arguments, arguments_truncated) = call
                 .arguments
                 .as_ref()
-                .map(|arguments| Value::Object(arguments.clone()).to_string())
+                .map(|arguments| truncated_json(arguments, ARGUMENT_CHARS))
                 .unwrap_or_default();
-            let (arguments, arguments_truncated) = truncate(&arguments, ARGUMENT_CHARS);
             candidates.push(json!({
                 "id": key,
                 "message_id": message.id,
                 "tool_call_ids": tool_call_ids,
-                "tool_name": truncate(&call.name, ARGUMENT_CHARS).0,
+                "tool_name": truncate(call.name.chars(), ARGUMENT_CHARS).0,
                 "arguments": arguments,
                 "arguments_truncated": arguments_truncated,
                 "age_messages": conversation.len() - 1 - index,
@@ -271,6 +306,7 @@ impl ContextRelevanceOperation {
             model: TYPESAFE_DEFAULT_MODEL.into(),
             state: json!({
                 "goal": goal,
+                "goal_truncated": goal_truncated,
                 "candidates": candidates,
                 "recent_evidence_not_eligible_for_omission": recent_evidence,
             }),
@@ -318,17 +354,18 @@ impl Operation<Session, GooseEffect> for ContextRelevanceOperation {
         let cutoff =
             (conversation.len() - current.len()).min(conversation.len().saturating_sub(KEEP_LAST));
         let visible_kickoff = kickoff.agent_visible_content();
-        let goal = visible_kickoff
-            .content
-            .iter()
-            .filter_map(MessageContent::as_text)
-            .flat_map(|text| text.chars())
-            .take(EXCERPT_CHARS)
-            .collect::<String>();
+        let (goal, goal_truncated) = truncate(
+            visible_kickoff
+                .content
+                .iter()
+                .filter_map(MessageContent::as_text)
+                .flat_map(str::chars),
+            EXCERPT_CHARS,
+        );
         if goal.trim().is_empty() {
             return not_applicable();
         }
-        let request = Self::request(conversation, cutoff, goal);
+        let request = Self::request(conversation, cutoff, goal, goal_truncated);
         if request.questions.is_empty() {
             return not_applicable();
         }
