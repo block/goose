@@ -654,6 +654,11 @@ impl Agent {
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
 
+        let context_relevance = crate::agents::state_machine_builder::context_relevance_provider(
+            Config::global(),
+            provider.as_ref(),
+        );
+
         let auto_effort = (|| {
             let config = Config::global();
             if !config
@@ -716,6 +721,7 @@ impl Agent {
             max_turns,
             extra_operations: auto_effort.into_iter().collect(),
             cancel,
+            context_relevance,
         })
     }
 
