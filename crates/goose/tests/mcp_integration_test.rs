@@ -107,7 +107,6 @@ async fn fixture(mcpui: bool, protocol_version: Option<ProtocolVersion>) -> Fixt
                 elicitation_handler: None,
                 protocol_version,
             },
-            connection: None,
         },
     ));
     Fixture {
@@ -923,7 +922,6 @@ async fn test_replayed_session(
                 elicitation_handler: None,
                 protocol_version: None,
             },
-            connection: None,
         },
     ));
 

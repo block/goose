@@ -124,7 +124,7 @@ async fn agent_with_calculator(
     ));
     services
         .extension_manager
-        .add_client(
+        .add_test_client(
             &session_id,
             calculator_extension(),
             calculator.clone(),
@@ -251,7 +251,7 @@ async fn state_machine_confirmation_through_agent_resumes_tool_call() -> Result<
     ));
     services
         .extension_manager
-        .add_client(
+        .add_test_client(
             &session_config.id,
             calculator_extension(),
             replacement.clone(),

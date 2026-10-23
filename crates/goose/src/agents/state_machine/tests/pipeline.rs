@@ -943,7 +943,7 @@ async fn enable_session_extensions(
         if extension.name() == "calculator" {
             services
                 .extension_manager
-                .add_client(
+                .add_test_client(
                     &session.id,
                     extension,
                     calculator.clone(),

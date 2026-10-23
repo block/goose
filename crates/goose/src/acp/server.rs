@@ -1034,11 +1034,10 @@ impl AcpConnection {
                 .get_or_init(|| spawn_session_name_update_notifier(cx.clone()))
                 .clone()
         });
-        let mut client = ClientContext::new(
+        let client = ClientContext::new(
             &self.services.goose_platform,
             self.client_mcp_host_info.get().cloned(),
         );
-        client.connection = Some(self.connection_id);
         self.services
             .attach_session(
                 session_id,
