@@ -1137,7 +1137,7 @@ fn configured_models_to_inventory(
     let mut result: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
     for model in models {
-        let enriched = enriched_model(provider_family, &model.name, model.context_limit);
+        let enriched = enriched_model(provider_family, &model.name, Some(model));
         if seen_names.insert(enriched.name.clone()) {
             result.push(enriched);
         }
@@ -1178,7 +1178,7 @@ fn inventory_models_from_snapshot(
 fn enriched_model(
     provider_family: &str,
     model_id: &str,
-    fallback_context_limit: Option<usize>,
+    declared: Option<&ModelInfo>,
 ) -> InventoryModel {
     let registry = CanonicalModelRegistry::bundled().ok();
     let canonical = registry.as_ref().and_then(|registry| {
@@ -1197,8 +1197,11 @@ fn enriched_model(
         context_limit: canonical
             .as_ref()
             .map(|model| model.limit.context)
-            .or(fallback_context_limit),
-        reasoning: canonical.as_ref().and_then(|model| model.reasoning),
+            .or_else(|| declared.and_then(|model| model.context_limit)),
+        reasoning: canonical
+            .as_ref()
+            .and_then(|model| model.reasoning)
+            .or_else(|| declared.filter(|model| model.reasoning).map(|_| true)),
         recommended: false,
     }
 }
@@ -1351,6 +1354,29 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert!(models[0].name.contains("Claude"));
+    }
+
+    #[test]
+    fn deepseek_flash_gets_context_and_reasoning_from_canonical_catalog() {
+        let models = configured_models_to_inventory("openai", &[ModelInfo::new("deepseek-flash")]);
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].context_limit, Some(1_000_000));
+        assert_eq!(models[0].reasoning, Some(true));
+    }
+
+    #[test]
+    fn declared_reasoning_and_context_survive_missing_canonical_model() {
+        let declared = ModelInfo {
+            reasoning: true,
+            ..ModelInfo::new("acme-reasoner-9").with_context_limit(262_144)
+        };
+
+        let models = configured_models_to_inventory("acme", &[declared]);
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].context_limit, Some(262_144));
+        assert_eq!(models[0].reasoning, Some(true));
     }
 
     #[test]
