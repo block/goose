@@ -1,0 +1,76 @@
+name: bug-autofix
+on:
+  repository_dispatch:
+    types: [jira-bug]
+
+concurrency:
+  group: autofix-${{ github.event.client_payload.key }}
+
+jobs:
+  fix:
+    if: vars.AUTOFIX_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      KEY: ${{ github.event.client_payload.key }}
+      JIRA_BASE: https://yourorg.atlassian.net
+      JIRA_AUTH: ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}
+      GH_TOKEN: ${{ secrets.BOT_PAT }}
+    steps:
+      - name: Validate ticket key
+        id: validate
+        run: |
+          echo "$KEY" | grep -Eq '^[A-Z][A-Z0-9]+-[0-9]+$'
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+
+      - name: Fetch ticket and create branch
+        run: |
+          curl -sf -u "$JIRA_AUTH" \
+            "$JIRA_BASE/rest/api/2/issue/$KEY?fields=summary,description,priority" \
+            -o ticket.json
+          echo "ticket.json" >> .git/info/exclude
+          git switch -c "fix/$KEY"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.BOT_PAT }}
+          prompt: |
+            Fix the bug described in ticket.json (Jira key ${{ env.KEY }}).
+            Follow the rules in CLAUDE.md. Edit files and run tests only.
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(git status:*),Bash(git diff:*),Bash(npm test:*)"
+
+      - name: Block protected paths
+        run: |
+          if git status --porcelain | awk '{print $2}' | grep -Eq '^(\.github|infra|auth|payments|migrations)/'; then
+            echo "Protected path touched"; exit 1
+          fi
+
+      - name: Commit, push, open PR, enable auto-merge
+        run: |
+          git config user.name "autofix-bot"
+          git config user.email "autofix-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes made"; exit 1; fi
+          git commit -m "$KEY: automated bug fix"
+          git push origin "fix/$KEY"
+          gh pr create --base main --head "fix/$KEY" \
+            --title "$KEY: automated bug fix" \
+            --body "Automated fix for $JIRA_BASE/browse/$KEY"
+          gh pr merge "fix/$KEY" --auto --squash
+
+      - name: Report failure to Jira
+        if: failure() && steps.validate.outputs.valid == 'true'
+        run: |
+          curl -s -u "$JIRA_AUTH" -X POST -H "Content-Type: application/json" \
+            "$JIRA_BASE/rest/api/2/issue/$KEY/comment" \
+            -d "{\"body\":\"Auto-fix did not complete. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
