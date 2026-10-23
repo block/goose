@@ -479,6 +479,8 @@ const liveOutputToString = (notifications: NotificationEvent[] | undefined): str
     })
     .join('') ?? '';
 
+const MAX_TITLE_VALUE_LENGTH = 80;
+
 // Helper function to extract toolcall name
 const getToolName = (toolCallName: string): string => {
   const lastIndex = toolCallName.lastIndexOf('__');
@@ -608,7 +610,11 @@ function ToolCallView({
     if (entries.length === 1) {
       const [key, value] = entries[0];
       const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-      return `${toolDisplayName} ${key}: ${stringValue}`;
+      const shortValue =
+        stringValue.length > MAX_TITLE_VALUE_LENGTH
+          ? `${stringValue.substring(0, MAX_TITLE_VALUE_LENGTH)}…`
+          : stringValue;
+      return `${toolDisplayName} ${key}: ${shortValue}`;
     }
 
     return `${toolDisplayName} ${entries.map(([key]) => key).join(', ')}`;
