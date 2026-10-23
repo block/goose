@@ -2633,14 +2633,17 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "我們收集的內容："
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "正在載入訊息... ({renderedCount}/{totalCount})"
+  "messageList.hiddenMessages": {
+    "defaultMessage": "已隱藏 {count, plural, other {# 則訊息}}"
   },
-  "progressiveMessageList.modelChanged": {
+  "messageList.modelChanged": {
     "defaultMessage": "模型已變更：{previousModel} → {currentModel}"
   },
-  "progressiveMessageList.searchHint": {
-    "defaultMessage": "按 Cmd/Ctrl+F 立即載入所有訊息以進行搜尋"
+  "messageList.requestedModel": {
+    "defaultMessage": "{model} (已請求)"
+  },
+  "messageList.showAllMessages": {
+    "defaultMessage": "全部顯示"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "所有提示已重設為預設值"
@@ -4277,6 +4280,12 @@
   "subRecipeModal.subtitle": {
     "defaultMessage": "設定可在配方執行期間作為工具呼叫的子配方"
   },
+  "subagentSessionNotice.loadLatestProgress": {
+    "defaultMessage": "載入最新進度"
+  },
+  "subagentSessionNotice.notice": {
+    "defaultMessage": "子代理的進度不會在此即時顯示。"
+  },
   "switchModelModal.backToModelList": {
     "defaultMessage": "返回模型清單"
   },
@@ -4672,6 +4681,27 @@
   },
   "settings.agentLoop.operations.auto.placeholder": {
     "defaultMessage": "自動"
+  },
+  "settings.agentLoop.operations.autoEffort.apiKey.configured": {
+    "defaultMessage": "已設定"
+  },
+  "settings.agentLoop.operations.autoEffort.apiKey.label": {
+    "defaultMessage": "TypeSafe API 金鑰"
+  },
+  "settings.agentLoop.operations.autoEffort.apiKey.placeholder": {
+    "defaultMessage": "輸入 API 金鑰"
+  },
+  "settings.agentLoop.operations.autoEffort.apiKey.remove": {
+    "defaultMessage": "移除金鑰"
+  },
+  "settings.agentLoop.operations.autoEffort.apiKey.save": {
+    "defaultMessage": "儲存金鑰"
+  },
+  "settings.agentLoop.operations.autoEffort.description": {
+    "defaultMessage": "使用 Jev 為每個請求選擇思考層級。請求文字會傳送至 TypeSafe AI；技能和配方斜線命令會包含展開後的本機指示。"
+  },
+  "settings.agentLoop.operations.autoEffort.title": {
+    "defaultMessage": "自動思考層級"
   },
   "settings.agentLoop.operations.blockLimit.label": {
     "defaultMessage": "封鎖上限"
