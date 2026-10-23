@@ -10,7 +10,7 @@ use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::snowflake::{create_request, get_usage, response_to_message};
-use crate::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
+use crate::openai_compatible::{map_http_error_to_provider_error_with_headers, sanitize_url};
 use crate::retry::ProviderRetry;
 use crate::utils::get_model;
 
@@ -112,8 +112,8 @@ impl SnowflakeProvider {
 
         let status = response.status();
         let url = sanitize_url(response.url().as_str());
-        let is_json = response
-            .headers()
+        let headers = response.headers().clone();
+        let is_json = headers
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .map(|v| v.to_ascii_lowercase())
@@ -293,7 +293,9 @@ impl SnowflakeProvider {
             Ok(answer_payload)
         } else {
             let error_json = serde_json::from_str::<Value>(&payload_text).ok();
-            Err(map_http_error_to_provider_error(status, error_json, &url))
+            Err(map_http_error_to_provider_error_with_headers(
+                status, error_json, &url, &headers,
+            ))
         }
     }
 }
