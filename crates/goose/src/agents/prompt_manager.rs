@@ -137,7 +137,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             prompt_template::render_string(&sanitized_override_prompt, &context)
         } else {
             prompt_template::render_template("system.md", &context)
-        }?;
+        }
+        .map_err(|error| anyhow::anyhow!("Could not render system prompt: {error}"))?;
 
         let mut system_prompt_extras = self.prompt_extras;
 
