@@ -50,9 +50,6 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
 
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-
       - name: Build native library
         shell: bash
         run: cargo build -p goose-sdk --features uniffi --release

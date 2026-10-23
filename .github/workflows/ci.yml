@@ -12,6 +12,13 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -92,11 +99,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-shared-key: ci-linux
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev libxcb1-dev
+          sudo apt install -y mold
 
       - name: Build and Test
         run: |
@@ -106,6 +116,7 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
           GOOSE_DISABLE_KEYRING: 1
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
 
   rust-build-lean:
     name: Build Lean ACP Binary
@@ -117,11 +128,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
-
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
         with:
-          key: lean-acp
+          cache-key: lean-acp
 
       - name: Build lean configuration and check its size budget
         run: |
@@ -171,6 +179,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-shared-key: ci-linux
 
       - name: Install Dependencies
         run: |
@@ -212,16 +222,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-key: ${{ matrix.tls-feature }}
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev libxcb1-dev
-
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
-        with:
-          key: ${{ matrix.tls-feature }}
+          sudo apt install -y mold
 
       - name: Build and Test with ${{ matrix.tls-feature }}
         run: |
@@ -232,6 +240,7 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
           GOOSE_DISABLE_KEYRING: 1
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
 
 
   rust-build-and-test-roaming:
@@ -244,16 +253,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-shared-key: ci-linux
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev libxcb1-dev
-
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
-        with:
-          key: roaming
+          sudo apt install -y mold
 
       - name: Build and Test with roaming
         run: |
@@ -264,6 +271,7 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
           GOOSE_DISABLE_KEYRING: 1
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
 
   rust-build-windows:
     name: Build Rust Project on Windows
@@ -352,6 +360,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-shared-key: ci-linux
 
       - name: Install Dependencies
         run: |
