@@ -433,6 +433,20 @@ impl SessionManager {
         }
     }
 
+    pub fn with_database_path(db_path: PathBuf) -> Result<Self> {
+        anyhow::ensure!(
+            db_path.is_absolute(),
+            "session database path must be absolute"
+        );
+        anyhow::ensure!(
+            db_path.file_name().is_some(),
+            "session database path must name a file"
+        );
+        Ok(Self {
+            storage: Arc::new(SessionStorage::with_database_path(db_path)),
+        })
+    }
+
     pub fn instance() -> Self {
         Self {
             storage: Arc::clone(&SESSION_STORAGE),
@@ -1073,6 +1087,14 @@ impl SessionStorage {
     pub fn new(data_dir: PathBuf) -> Self {
         let session_dir = data_dir.join(SESSIONS_FOLDER);
         let db_path = session_dir.join(DB_NAME);
+        Self::with_database_path(db_path)
+    }
+
+    fn with_database_path(db_path: PathBuf) -> Self {
+        let session_dir = db_path
+            .parent()
+            .expect("session database path has no parent")
+            .to_path_buf();
         Self {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
@@ -2997,6 +3019,30 @@ mod tests {
 
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
+
+    #[tokio::test]
+    async fn session_manager_uses_explicit_database_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("agent/sessions.db");
+        let manager = SessionManager::with_database_path(db_path.clone()).unwrap();
+        let session = manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Max session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(db_path.is_file());
+        assert!(!temp_dir.path().join("sessions/sessions.db").exists());
+        assert_eq!(
+            manager.get_session(&session.id, false).await.unwrap().id,
+            session.id
+        );
+        assert!(SessionManager::with_database_path(PathBuf::from("sessions.db")).is_err());
+    }
 
     #[cfg(unix)]
     #[tokio::test]
