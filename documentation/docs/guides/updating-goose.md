@@ -112,8 +112,8 @@ The goose CLI and desktop apps are under active and continuous development. To g
       <TabItem value="ui" label="goose Desktop" default>
         Update goose to the latest stable version. How an update is applied depends on how goose Desktop was installed:
 
-        - **Installer:** goose downloads the new installer, verifies its signature and runs it with no setup wizard when you click `Install & Restart`.
-        - **Portable ZIP:** goose downloads the new ZIP and replaces the unzipped folder with it. If the folder can't be replaced automatically, you're prompted to install the downloaded version manually.
+        - **Installer:** goose downloads the new installer, verifies its signature and opens the setup wizard when you click `Install & Restart`. Follow the wizard to complete the update.
+        - **Portable ZIP:** goose downloads the new ZIP and replaces the unzipped folder with it. If the automatic update fails, use the manual update steps below.
 
         Not sure which you have? The installer version is listed under `Installed apps` in Windows Settings; the portable ZIP is not.
 
