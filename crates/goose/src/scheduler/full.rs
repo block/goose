@@ -825,6 +825,35 @@ impl Scheduler {
     }
 }
 
+/// Fallback model for `provider_name` when a recipe does not name one.
+///
+/// `Config::get_goose_model()` returns the ACTIVE provider's model, so using it
+/// here would silently pair the selected provider with a foreign model name
+/// (e.g. active Anthropic + a recipe selecting OpenAI would run OpenAI with a
+/// Claude model). Resolve from the selected provider instead: its configured
+/// model first, then the provider registry's default model.
+async fn resolve_fallback_model(config: &Config, provider_name: &str) -> Result<String> {
+    if config
+        .get_goose_provider()
+        .is_ok_and(|active| active == provider_name)
+    {
+        return Ok(config.get_goose_model()?);
+    }
+    if let Some(model) = crate::config::get_provider_entry(config, provider_name)
+        .map(|entry| entry.model)
+        .filter(|model| !model.is_empty())
+    {
+        return Ok(model);
+    }
+    if let Ok(entry) = crate::providers::get_from_registry(provider_name).await {
+        let default_model = entry.metadata().default_model.clone();
+        if !default_model.is_empty() {
+            return Ok(default_model);
+        }
+    }
+    Ok(config.get_goose_model()?)
+}
+
 #[allow(clippy::too_many_lines)]
 async fn execute_job(
     job: ScheduledJob,
@@ -866,11 +895,24 @@ async fn execute_job(
     ));
 
     let config = Config::global();
-    let provider_name = config.get_goose_provider()?;
-    let model_name = config.get_goose_model()?;
-    let model_config =
-        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?
-            .with_cache_ttl_clamped();
+    // Recipe settings override the global defaults for every recipe execution,
+    // including scheduled runs. Manual runs honor settings.goose_provider/goose_model
+    // (see session builder); scheduled runs must behave the same (see #13034).
+    let recipe_settings = recipe.settings.as_ref();
+    let provider_name = match recipe_settings.and_then(|settings| settings.goose_provider.clone()) {
+        Some(provider) => provider,
+        None => config.get_goose_provider()?,
+    };
+    let model_name = match recipe_settings.and_then(|settings| settings.goose_model.clone()) {
+        Some(model) => model,
+        None => resolve_fallback_model(config, &provider_name).await?,
+    };
+    let mut model_config =
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?;
+    if let Some(temp) = recipe_settings.and_then(|settings| settings.temperature) {
+        model_config = model_config.with_temperature(Some(temp));
+    }
+    let model_config = model_config.with_cache_ttl_clamped();
 
     let session = agent
         .config
@@ -1400,6 +1442,157 @@ mod tests {
             .remove_scheduled_job("scheduled_job", false)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_scheduled_run_uses_recipe_model_settings() {
+        // Regression test for #13034: a scheduled run must honor the recipe's
+        // settings.goose_provider/goose_model like a manual run does, instead of
+        // always falling back to the global defaults.
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("GOOSE_MODE", Some("chat")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedule.json");
+        let recipe_path = temp_dir.path().join("recipe_model.yaml");
+        // NOTE: joined lines (not `\`-continuations) so the `settings:` block
+        // keeps its YAML indentation — continuations strip leading whitespace.
+        let recipe_yaml = [
+            "version: 1.0.0",
+            "title: recipe_model",
+            "description: Scheduler recipe-model test recipe",
+            "prompt: test",
+            "settings:",
+            "  goose_provider: openai",
+            "  goose_model: gpt-4o-mini",
+            "",
+        ]
+        .join("\n");
+        fs::write(&recipe_path, recipe_yaml).unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager.clone())
+            .await
+            .unwrap();
+
+        let job = ScheduledJob {
+            id: "recipe_model_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "* * * * * *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+            parameters: vec![],
+            recipe_base_dir: None,
+        };
+
+        scheduler.add_scheduled_job(job, true).await.unwrap();
+        let sessions = tokio::time::timeout(Duration::from_secs(30), async {
+            let mut poll = tokio::time::interval(Duration::from_millis(200));
+            loop {
+                poll.tick().await;
+                let jobs = scheduler.list_scheduled_jobs().await;
+                let sessions = session_manager
+                    .list_sessions_by_types(&[SessionType::Scheduled])
+                    .await
+                    .unwrap();
+                // create_session commits the row before switch_provider persists
+                // provider_name/model_config; wait for the fully persisted
+                // session so the assertions below cannot observe a half-written
+                // row (flaked in CI as provider_name=None).
+                let ready: Vec<_> = sessions
+                    .into_iter()
+                    .filter(|session| {
+                        session.provider_name.is_some()
+                            && session
+                                .model_config
+                                .as_ref()
+                                .is_some_and(|config| !config.model_name.is_empty())
+                    })
+                    .collect();
+                if jobs[0].last_run.is_some() && !ready.is_empty() {
+                    break ready;
+                }
+            }
+        })
+        .await
+        .expect("Scheduled job should run and fully persist its session within 30 seconds");
+
+        assert_eq!(sessions[0].provider_name.as_deref(), Some("openai"));
+        assert_eq!(
+            sessions[0].model_config.as_ref().unwrap().model_name,
+            "gpt-4o-mini",
+            "Scheduled run must use the recipe's settings.goose_model, not the global GOOSE_MODEL"
+        );
+        scheduler
+            .remove_scheduled_job("recipe_model_job", false)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_fallback_model_resolves_from_selected_provider() {
+        // A recipe that selects a provider without naming a model must not
+        // inherit the ACTIVE provider's model: that would pair the selected
+        // provider with a foreign model name.
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("anthropic")),
+            ("GOOSE_MODEL", Some("claude-active-model")),
+        ]);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        crate::config::set_provider_entry(
+            &config,
+            "openai",
+            &crate::config::ProviderEntry {
+                enabled: true,
+                model: "gpt-4o-mini".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            resolve_fallback_model(&config, "openai").await.unwrap(),
+            "gpt-4o-mini",
+            "fallback for a non-active provider must use its configured model, not the active provider's"
+        );
+        assert_eq!(
+            resolve_fallback_model(&config, "anthropic").await.unwrap(),
+            "claude-active-model",
+            "fallback for the active provider keeps the existing behavior"
+        );
+
+        // No configured entry for the selected provider: fall back to the
+        // provider registry's default model, still not the active model.
+        let bare_config_file = tempfile::NamedTempFile::new().unwrap();
+        let bare_secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let bare_config =
+            Config::new_with_file_secrets(bare_config_file.path(), bare_secrets_file.path())
+                .unwrap();
+        let registry_default = crate::providers::get_from_registry("openai")
+            .await
+            .unwrap()
+            .metadata()
+            .default_model
+            .clone();
+        assert!(
+            !registry_default.is_empty(),
+            "openai registry default model must be known for this assertion"
+        );
+        assert_eq!(
+            resolve_fallback_model(&bare_config, "openai")
+                .await
+                .unwrap(),
+            registry_default
+        );
     }
 
     #[tokio::test]
