@@ -196,6 +196,16 @@ describe('fetchAllowlistContent', () => {
       vi.useRealTimers();
     }
   });
+
+  it('rejects when https.get throws synchronously', async () => {
+    mockHttpsGet.mockImplementation(() => {
+      throw new Error('Invalid URI');
+    });
+
+    await expect(fetchAllowlistContent('https://example.com/policy.yaml')).rejects.toThrow(
+      'Invalid URI'
+    );
+  });
 });
 
 describe('parseAllowlistCommands', () => {
