@@ -18,6 +18,7 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
+import { fetchAllowlistContent, parseAllowlistCommands } from './allowlistFetcher';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -42,7 +43,6 @@ import { isRetiredGooseChatApp } from './utils/retiredApps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
-import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
   getUpdateAvailable,
@@ -3078,34 +3078,13 @@ app.whenReady().then(async () => {
   }
 });
 
-async function getAllowList(): Promise<string[]> {
+async function getAllowList(): Promise<string[] | null> {
   if (!process.env.GOOSE_ALLOWLIST) {
-    return [];
+    return null;
   }
 
-  const response = await fetch(process.env.GOOSE_ALLOWLIST);
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
-    );
-  }
-
-  // Parse the YAML content
-  const yamlContent = await response.text();
-  const parsedYaml = yaml.parse(yamlContent);
-
-  // Extract the commands from the extensions array
-  if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
-    const commands = parsedYaml.extensions.map(
-      (ext: { id: string; command: string }) => ext.command
-    );
-    console.log(`Fetched ${commands.length} allowed extension commands`);
-    return commands;
-  } else {
-    console.error('Invalid YAML structure:', parsedYaml);
-    return [];
-  }
+  const yamlContent = await fetchAllowlistContent(process.env.GOOSE_ALLOWLIST);
+  return parseAllowlistCommands(yamlContent);
 }
 
 app.on('will-quit', async () => {
