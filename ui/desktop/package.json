@@ -1,6 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
+  "desktopName": "Goose.desktop",
   "version": "1.56.0",
   "description": "Goose App",
   "engines": {
