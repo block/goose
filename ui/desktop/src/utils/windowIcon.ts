@@ -1,4 +1,4 @@
-export function getWindowIconFilename(platform: NodeJS.Platform): string {
+export function getWindowIconFilename(platform: typeof process.platform): string {
   if (platform === 'darwin') {
     return 'icon.icns';
   }
