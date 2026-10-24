@@ -65,6 +65,9 @@ import {
   isAuthorizedFileAccessRequest,
   readSelectedRecipe,
 } from './desktopFileAccess';
+import { getWindowIconFilename } from './utils/windowIcon';
+
+const windowIconPath = path.join(__dirname, '../images', getWindowIconFilename(process.platform));
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -1253,7 +1256,7 @@ const createChat = async (
       minWidth: 480,
       minHeight: 400,
       resizable: true,
-      icon: path.join(__dirname, '../images/icon.icns'),
+      icon: windowIconPath,
       webPreferences: {
         spellcheck: settings.spellcheckEnabled ?? true,
         preload: path.join(__dirname, 'preload.js'),
@@ -2985,6 +2988,7 @@ async function appMain() {
         height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
         useContentSize: true,
+        icon: windowIconPath,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
           nodeIntegration: false,
